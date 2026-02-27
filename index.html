@@ -5478,6 +5478,12 @@ const AI_PROVIDERS = [
 
 function getAIConfig() {
   try {
+    // ── أولوية: إعداد المسؤول المركزي من قاعدة البيانات ──
+    const globalCfg = DB.get('global_ai_config');
+    if (globalCfg && globalCfg.apiKey && globalCfg.status === 'active') {
+      return globalCfg;
+    }
+    // fallback: localStorage المحلي (للمسؤول فقط)
     const saved = JSON.parse(localStorage.getItem('sbtp_ai_config') || '{}');
     return {
       provider: saved.provider || 'groq',
@@ -5491,7 +5497,15 @@ function getAIConfig() {
 }
 
 function saveAIConfig(cfg) {
-  localStorage.setItem('sbtp_ai_config', JSON.stringify({ ...getAIConfig(), ...cfg }));
+  const merged = { ...getAIConfig(), ...cfg };
+  localStorage.setItem('sbtp_ai_config', JSON.stringify(merged));
+  // ── إذا كان المسؤول، احفظ في DB المركزية تلقائياً ──
+  try {
+    const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
+    if (user && user.is_admin) {
+      DB.set('global_ai_config', merged);
+    }
+  } catch(e) {}
   // تحديث SmartAI مباشرة (إذا كان معرّفاً)
   try {
     if (typeof SmartAI !== 'undefined' && SmartAI && cfg.provider) {
@@ -6389,110 +6403,13 @@ function patchSmartAIWithSavedConfig() {
   } catch(e) { return; }
   const origCallAPI = SmartAI.callAPI.bind(SmartAI);
   SmartAI.callAPI = async function(userMessage) {
-    const cfg = getAIConfig();
-
     // تتبع الاستخدام
     const stats = JSON.parse(sessionStorage.getItem('ai_session_stats') || '{"count":0}');
     stats.count = (stats.count || 0) + 1;
     sessionStorage.setItem('ai_session_stats', JSON.stringify(stats));
 
-    // إذا لا يوجد مفتاح محفوظ، استخدم Claude API المدمج
-    if (!cfg.apiKey || cfg.status === 'inactive') {
-      return origCallAPI(userMessage);
-    }
-
-    const provider = AI_PROVIDERS.find(p => p.id === cfg.provider) || AI_PROVIDERS[0];
-    const model = cfg.model || provider.model;
-
-    this.history.push({ role: 'user', content: userMessage });
-    const systemPrompt = this.buildSystemPrompt();
-
-    try {
-      let reply;
-
-      if (provider.apiStyle === 'openai') {
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cfg.apiKey}`
-        };
-        if (provider.id === 'openrouter_free') {
-          headers['HTTP-Referer'] = 'https://smartstruct.dz';
-          headers['X-Title'] = 'SmartStruct';
-        }
-        const msgs = [
-          { role: 'system', content: systemPrompt },
-          ...this.history.slice(-10)
-        ];
-        const resp = await fetch(provider.endpoint, {
-          method: 'POST', headers,
-          body: JSON.stringify({ model, messages: msgs, max_tokens: 1024, temperature: 0.7 })
-        });
-        if (!resp.ok) {
-          const e = await resp.json().catch(() => ({}));
-          throw new Error(e.error?.message || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        reply = data.choices?.[0]?.message?.content || 'لم أتمكن من الإجابة.';
-
-      } else if (provider.apiStyle === 'gemini') {
-        const url = `${provider.endpoint}?key=${cfg.apiKey}`;
-        const contents = [];
-        // Gemini يحتاج system في أول رسالة user
-        const historyWithSystem = [
-          { role: 'user', content: 'أنت SmartAI. ' + systemPrompt + '\n\nقل "مفهوم".' },
-          { role: 'assistant', content: 'مفهوم، أنا SmartAI جاهز لمساعدتك.' },
-          ...this.history.slice(-8)
-        ];
-        historyWithSystem.forEach(m => {
-          contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
-        });
-        const resp = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024, temperature: 0.7 } })
-        });
-        if (!resp.ok) {
-          const e = await resp.json().catch(() => ({}));
-          throw new Error(e.error?.message || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم أتمكن من الإجابة.';
-
-      } else if (provider.apiStyle === 'anthropic') {
-        const resp = await fetch(provider.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': cfg.apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
-            model, max_tokens: 1024,
-            system: systemPrompt,
-            messages: this.history.slice(-10)
-          })
-        });
-        if (!resp.ok) {
-          const e = await resp.json().catch(() => ({}));
-          throw new Error(e.error?.message || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        reply = data.content?.[0]?.text || 'لم أتمكن من الإجابة.';
-
-      } else {
-        throw new Error('نوع API غير مدعوم');
-      }
-
-      this.history.push({ role: 'assistant', content: reply });
-      return reply;
-
-    } catch(err) {
-      // في حالة الفشل، حاول Claude المدمج
-      console.warn('AI Provider failed, falling back:', err.message);
-      this.history.pop(); // أزل الرسالة التي أضفناها
-      return origCallAPI(userMessage);
-    }
+    // ── الـ callAPI الجديد يقرأ الإعداد المركزي مباشرة ──
+    return origCallAPI(userMessage);
   };
 }
 
@@ -11069,32 +10986,75 @@ ${JSON.stringify(ctx, null, 2)}
   async callAPI(userMessage) {
     this.history.push({ role: 'user', content: userMessage });
 
-    const body = {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: this.buildSystemPrompt(),
-      messages: this.history.slice(-10) // أحدث 10 رسائل للسياق
-    };
+    // ── قراءة إعداد AI المركزي (يُضبط من المسؤول مرة واحدة للجميع) ──
+    const cfg = getAIConfig();
+    const noKey = !cfg.apiKey || cfg.status === 'inactive' || cfg.status === 'error';
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify(body)
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'خطأ في الاتصال بالخادم');
+    if (noKey) {
+      // المسؤول لم يُعدّ AI بعد — رسالة للمسؤول فقط
+      const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
+      const isAdmin = user && user.is_admin;
+      const guideMsg = isAdmin
+        ? `⚙️ **فعّل SmartAI من لوحة التحكم**\n\nاذهب لـ تبويب **🤖 إعدادات SmartAI** في صفحة الإدارة، أدخل مفتاح API (Groq مجاني ⚡)، واضغط اختبار واحفظ.\n\nبعدها يشتغل الروبوت لجميع المؤسسات تلقائياً.`
+        : `🤖 **SmartAI** في انتظار التفعيل من المسؤول.\n\nسيكون متاحاً قريباً — تواصل مع إدارة المنصة.`;
+      this.history.push({ role: 'assistant', content: guideMsg });
+      return guideMsg;
     }
 
-    const data = await resp.json();
-    const assistantMsg = data.content?.[0]?.text || 'لم أتمكن من الإجابة.';
-    this.history.push({ role: 'assistant', content: assistantMsg });
-    return assistantMsg;
+    // ── إرسال الطلب للمزود المضبوط ──
+    const provider = (typeof AI_PROVIDERS !== 'undefined'
+      ? AI_PROVIDERS.find(p => p.id === cfg.provider)
+      : null) || { endpoint: 'https://api.groq.com/openai/v1/chat/completions', apiStyle: 'openai' };
+
+    const model = cfg.model || 'llama-3.3-70b-versatile';
+    const systemPrompt = this.buildSystemPrompt();
+
+    let resp;
+    if (provider.apiStyle === 'anthropic') {
+      resp = await fetch(provider.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': cfg.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({ model, max_tokens: 1024, system: systemPrompt, messages: this.history.slice(-10) })
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+      const data = await resp.json();
+      const msg = data.content?.[0]?.text || 'لم أتمكن من الإجابة.';
+      this.history.push({ role: 'assistant', content: msg });
+      return msg;
+    } else if (provider.apiStyle === 'gemini') {
+      const url = `${provider.endpoint}?key=${cfg.apiKey}`;
+      const histWithSys = [
+        { role: 'user', content: 'أنت SmartAI. ' + systemPrompt + '\n\nقل "مفهوم".' },
+        { role: 'assistant', content: 'مفهوم.' },
+        ...this.history.slice(-8)
+      ];
+      const contents = histWithSys.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+      resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024 } }) });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+      const data = await resp.json();
+      const msg = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم أتمكن من الإجابة.';
+      this.history.push({ role: 'assistant', content: msg });
+      return msg;
+    } else {
+      // OpenAI style (Groq, OpenRouter, Together, etc.)
+      const msgs = [{ role: 'system', content: systemPrompt }, ...this.history.slice(-10)];
+      const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` };
+      if (cfg.provider === 'openrouter_free') { headers['HTTP-Referer'] = 'https://smartstruct.dz'; headers['X-Title'] = 'SmartStruct'; }
+      resp = await fetch(provider.endpoint || 'https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers,
+        body: JSON.stringify({ model, messages: msgs, max_tokens: 1024, temperature: 0.7 })
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+      const data = await resp.json();
+      const msg = data.choices?.[0]?.message?.content || 'لم أتمكن من الإجابة.';
+      this.history.push({ role: 'assistant', content: msg });
+      return msg;
+    }
   },
 
   /* ── عرض رسالة في الدردشة ── */
@@ -11197,13 +11157,20 @@ ${JSON.stringify(ctx, null, 2)}
           const user = Auth.getUser();
           const tenant = Auth.getTenant();
           const ctx = this.getContext();
+          // تحقق هل الـ AI مُفعّل
+          const aiCfg = getAIConfig();
+          const aiReady = aiCfg.apiKey && aiCfg.status === 'active';
           let greeting;
           if (user && tenant) {
             const firstName = escHtml(user.full_name.split(' ')[0]);
             const companyName = escHtml(tenant.name);
-            greeting = `مرحباً ${firstName} 👋 — **${companyName}**\n\nأنا **SmartAI**، مساعدك الذكي المخصص لمؤسستك.\n\n📊 **ملخص سريع:**\n• **${ctx.المشاريع_النشطة || 0}** مشروع نشط\n• **${ctx.العمال?.العدد_الإجمالي || 0}** عامل\n• الربح الصافي: **${ctx.الماليات?.الربح_الصافي || '0 دج'}**\n\nكيف يمكنني مساعدتك اليوم؟`;
+            if (aiReady) {
+              greeting = `مرحباً ${firstName} 👋 — **${companyName}**\n\nأنا **SmartAI**، مساعدك الذكي المخصص لمؤسستك.\n\n📊 **ملخص سريع:**\n• **${ctx.المشاريع_النشطة || 0}** مشروع نشط\n• **${ctx.العمال?.العدد_الإجمالي || 0}** عامل\n• الربح الصافي: **${ctx.الماليات?.الربح_الصافي || '0 دج'}**\n\nكيف يمكنني مساعدتك اليوم؟`;
+            } else {
+              greeting = `مرحباً ${firstName} 👋 — **${companyName}**\n\nأنا **SmartAI** 🤖، مساعدك الذكي.\n\n⚙️ **لتفعيلي مجاناً:**\n1. اذهب لـ **الإعدادات** ← تبويب **🤖 SmartAI**\n2. اختر **Groq** (مجاني ⚡) وأدخل مفتاح API\n3. سجّل مجاناً في [console.groq.com](https://console.groq.com/keys)\n\nبعد التفعيل سأحلّل مشاريعك بشكل كامل! 🚀`;
+            }
           } else if (user) {
-            greeting = `مرحباً ${escHtml(user.full_name.split(' ')[0])} 👋\n\nأنا **SmartAI**، مساعدك الذكي لإدارة المشاريع.\n\nكيف يمكنني مساعدتك اليوم؟`;
+            greeting = `مرحباً ${escHtml(user.full_name.split(' ')[0])} 👋\n\nأنا **SmartAI**. فعّلني من **الإعدادات ← SmartAI** للحصول على تحليل مخصص.`;
           } else {
             greeting = 'مرحباً! أنا SmartAI. سجّل الدخول للحصول على تحليل مخصص لمشاريعك.';
           }
