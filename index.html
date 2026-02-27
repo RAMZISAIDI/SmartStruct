@@ -2168,9 +2168,9 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
 if (!DB.init) DB.init = function() {
     if (this.get('initialized').length) return;
     this.set('plans', [
-      { id:1, slug:'starter',    name:'المبتدئ',   price:2900,  max_projects:3,  max_workers:15,  max_equipment:0  },
-      { id:2, slug:'pro',        name:'الاحترافي', price:7900,  max_projects:20, max_workers:100, max_equipment:50 },
-      { id:3, slug:'enterprise', name:'المؤسسي',   price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1 },
+      { id:1, slug:'starter',    name:'المبتدئ',   price:2900,  max_projects:3,  max_workers:15,  max_equipment:0,  max_emails:50  },
+      { id:2, slug:'pro',        name:'الاحترافي', price:7900,  max_projects:20, max_workers:100, max_equipment:50, max_emails:500 },
+      { id:3, slug:'enterprise', name:'المؤسسي',   price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1, max_emails:-1  },
     ]);
     this.set('tenants', [
       { id:1, name:'مؤسسة الجزائر للبناء', plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
@@ -3887,13 +3887,16 @@ function doRegister() {
   trialEnd.setDate(trialEnd.getDate() + 14);
   const tenants = DB.get('tenants');
   const newTenantId = tenants.length ? Math.max(...tenants.map(t=>t.id)) + 1 : 2;
+  const registrationDate = new Date().toISOString().split('T')[0];
   const newTenant = {
     id: newTenantId,
     name: company.trim(),
     plan_id: 2, // Pro during trial
     wilaya: wilaya,
     subscription_status: 'trial',
+    trial_start: registrationDate,
     trial_end: trialEnd.toISOString().split('T')[0],
+    created_at: registrationDate,
     is_active: true
   };
   tenants.push(newTenant);
@@ -3944,8 +3947,260 @@ function doRegister() {
   sessionStorage.removeItem('auth_mode');
 
   const daysLeft = 14;
-  Toast.success(L(`🎉 مرحباً ${name.split(' ')[0]}! تجربتك المجانية بدأت — ${daysLeft} يوم متبقي`, `🎉 Bienvenue ${name.split(' ')[0]}! Votre essai gratuit a commencé — ${daysLeft} jours restants`));
-  setTimeout(() => App.navigate('dashboard'), 800);
+
+  // ─── رسالة الترحيب ربوت ───
+  setTimeout(() => App.navigate('dashboard'), 400);
+  setTimeout(() => showWelcomeRobot(name.trim(), daysLeft), 900);
+}
+
+// ─── ربوت الترحيب للحسابات الجديدة ───
+function showWelcomeRobot(userName, daysLeft) {
+  // لا تظهر لو مش أول مرة
+  if (sessionStorage.getItem('sbtp_welcomed')) return;
+  sessionStorage.setItem('sbtp_welcomed', '1');
+
+  const firstName = userName.split(' ')[0];
+  const overlay = document.createElement('div');
+  overlay.id = 'welcomeRobotOverlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;
+    animation:fadeIn .4s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background:var(--surface,#1a1f2e);border-radius:24px;
+      padding:2.5rem 2rem;max-width:480px;width:90%;
+      border:1px solid rgba(255,255,255,0.08);
+      box-shadow:0 30px 80px rgba(0,0,0,0.5);
+      text-align:center;position:relative;
+      animation:slideUp .5s cubic-bezier(0.34,1.56,0.64,1);
+    ">
+      <!-- Robot -->
+      <div style="font-size:5rem;margin-bottom:1rem;animation:robotBounce 1s ease infinite alternate">🤖</div>
+      
+      <!-- Welcome text -->
+      <div style="font-size:1.6rem;font-weight:900;color:var(--text,#fff);margin-bottom:.5rem">
+        ${I18N.currentLang==='ar' ? `مرحباً ${firstName}! 👋` : `Bienvenue ${firstName}! 👋`}
+      </div>
+      <div style="font-size:.9rem;color:var(--dim,#8899aa);margin-bottom:1.5rem;line-height:1.6">
+        ${I18N.currentLang==='ar'
+          ? `أنا <strong style="color:#B89AFF">SmartAI</strong> مساعدك الذكي 🧠<br>تجربتك المجانية بدأت — لديك <strong style="color:#34C38F;font-size:1.1rem">${daysLeft} يوم</strong> لاستكشاف كل الميزات!`
+          : `Je suis <strong style="color:#B89AFF">SmartAI</strong>, votre assistant intelligent 🧠<br>Votre essai gratuit a commencé — <strong style="color:#34C38F;font-size:1.1rem">${daysLeft} jours</strong> pour explorer toutes les fonctionnalités!`
+        }
+      </div>
+      
+      <!-- Features quick list -->
+      <div style="
+        background:rgba(255,255,255,0.03);border-radius:14px;
+        padding:1rem;margin-bottom:1.5rem;text-align:right;
+      ">
+        ${[
+          ['📊', I18N.currentLang==='ar'?'لوحة تحكم ذكية بمؤشرات صحة المؤسسة':'Tableau de bord intelligent'],
+          ['💰', I18N.currentLang==='ar'?'إدارة مالية كاملة ومتكاملة':'Gestion financière complète'],
+          ['👷', I18N.currentLang==='ar'?'متابعة العمال والحضور والرواتب':'Suivi des employés et salaires'],
+          ['🤖', I18N.currentLang==='ar'?'مساعد ذكاء اصطناعي خاص بك':'Assistant IA personnel'],
+        ].map(([icon, text]) => `
+          <div style="display:flex;align-items:center;gap:.6rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+            <span style="font-size:1.1rem">${icon}</span>
+            <span style="font-size:.78rem;color:var(--muted,#aab)">${text}</span>
+            <span style="margin-right:auto;color:#34C38F;font-size:.7rem">✓</span>
+          </div>
+        `).join('')}
+      </div>
+      
+      <!-- CTA Button -->
+      <button onclick="document.getElementById('welcomeRobotOverlay').remove()" style="
+        background:linear-gradient(135deg,#34C38F,#20996F);
+        color:#fff;border:none;border-radius:12px;
+        padding:.85rem 2rem;font-size:1rem;font-weight:800;
+        cursor:pointer;width:100%;font-family:inherit;
+        box-shadow:0 4px 20px rgba(52,195,143,0.3);
+        transition:transform .2s;
+      " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+        ${I18N.currentLang==='ar' ? '🚀 ابدأ الآن!' : '🚀 Commencer maintenant!'}
+      </button>
+      
+      <!-- Days counter bottom -->
+      <div style="margin-top:.8rem;font-size:.72rem;color:var(--dim,#667)">
+        ${I18N.currentLang==='ar' ? `⏱️ التجربة المجانية تنتهي بعد ${daysLeft} يوم` : `⏱️ Essai gratuit se termine dans ${daysLeft} jours`}
+      </div>
+    </div>
+  `;
+
+  // CSS animations
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes robotBounce { from { transform:translateY(0) rotate(-5deg); } to { transform:translateY(-8px) rotate(5deg); } }
+    @keyframes slideUp { from { transform:translateY(40px);opacity:0; } to { transform:translateY(0);opacity:1; } }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(overlay);
+
+  // Close on backdrop click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+}
+
+
+// ══════════════════════════════════════════
+//  نظام التحقق من الخطة المجانية
+// ══════════════════════════════════════════
+const TrialManager = {
+  // احسب الأيام المتبقية بدقة
+  getDaysLeft(tenant) {
+    if (!tenant || !tenant.trial_end) return null;
+    if (tenant.subscription_status !== 'trial') return null;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const end   = new Date(tenant.trial_end); end.setHours(0,0,0,0);
+    return Math.max(-1, Math.ceil((end - today) / 86400000));
+  },
+
+  // هل الحساب منتهي؟ (تجريبي أو مدفوع منتهي)
+  isExpired(tenant) {
+    if (!tenant) return false;
+    // للحسابات التجريبية
+    const days = this.getDaysLeft(tenant);
+    if (days !== null && days < 0) return true;
+    // للخطط المدفوعة المنتهية
+    if (tenant.subscription_status === 'active' && tenant.subscription_end) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const end = new Date(tenant.subscription_end); end.setHours(0,0,0,0);
+      return end < today;
+    }
+    return false;
+  },
+
+  // احسب أيام انتهاء الخطة المدفوعة
+  getPaidDaysLeft(tenant) {
+    if (!tenant || !tenant.subscription_end || tenant.subscription_status !== 'active') return null;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const end = new Date(tenant.subscription_end); end.setHours(0,0,0,0);
+    return Math.ceil((end - today) / 86400000);
+  },
+
+  // هل الحساب نشط؟ (مجاني أو مدفوع)
+  isActive(tenant) {
+    if (!tenant) return false;
+    if (!tenant.is_active) return false;
+    if (tenant.subscription_status === 'active') return true;
+    if (tenant.subscription_status === 'trial') {
+      return this.getDaysLeft(tenant) >= 0;
+    }
+    return false;
+  },
+
+  // تحقق وأوقف عند الانتهاء
+  checkAndEnforce() {
+    const user = Auth.getUser();
+    if (!user || user.is_admin) return; // المسؤول لا يخضع للفحص
+    const tenant = Auth.getTenant();
+    if (!tenant) return;
+
+    if (this.isExpired(tenant)) {
+      // أوقف الحساب
+      const tenants = DB.get('tenants');
+      const t = tenants.find(t => t.id === tenant.id);
+      if (t && t.is_active) {
+        t.is_active = false;
+        t.subscription_status = 'expired';
+        DB.set('tenants', tenants);
+      }
+      // سجّل خروج وأظهر رسالة
+      Auth.currentUser = null;
+      sessionStorage.removeItem('sbtp_user');
+      App.navigate('login');
+      setTimeout(() => this.showExpiredModal(tenant.name), 600);
+    }
+  },
+
+  showExpiredModal(companyName) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:var(--surface,#1a1f2e);border-radius:24px;padding:2.5rem 2rem;max-width:440px;width:90%;text-align:center;border:1px solid rgba(240,78,106,.3);">
+        <div style="font-size:4rem;margin-bottom:1rem">⏰</div>
+        <div style="font-size:1.4rem;font-weight:900;color:#F04E6A;margin-bottom:.6rem">
+          انتهت فترة الاشتراك
+        </div>
+        <div style="font-size:.85rem;color:var(--dim);margin-bottom:1.5rem;line-height:1.6">
+          انتهت فترة اشتراك <strong style="color:var(--text)">${companyName}</strong>.<br>
+          يمكنك طلب تجديد الاشتراك أو الترقية لخطة أعلى.
+        </div>
+        <button onclick="requestPlanUpgrade('${companyName.replace(/'/g,'\'')}');this.closest('div[style*=fixed]').remove()" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#1a1a1a;border:none;border-radius:12px;padding:.8rem 2rem;font-size:.95rem;font-weight:800;cursor:pointer;width:100%;font-family:inherit;margin-bottom:.6rem;">
+          ⬆️ طلب تجديد / ترقية الاشتراك
+        </button>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:.6rem 2rem;font-size:.85rem;font-weight:700;cursor:pointer;width:100%;font-family:inherit;">
+          ← العودة لتسجيل الدخول
+        </button>
+      </div>`;
+    document.body.appendChild(overlay);
+  },
+
+  // إشعار صاحب الحساب قبل انتهاء الخطة بـ 3 أيام
+  checkExpiryWarning() {
+    const user = Auth.getUser();
+    if (!user || user.is_admin) return;
+    const tenant = Auth.getTenant();
+    if (!tenant || !tenant.trial_end) return;
+    const days = this.getDaysLeft(tenant);
+    if (days !== null && days >= 0 && days <= 3) {
+      const warnKey = 'expiry_warned_' + tenant.id + '_' + days;
+      if (sessionStorage.getItem(warnKey)) return;
+      sessionStorage.setItem(warnKey, '1');
+      setTimeout(() => {
+        const msg = days === 0
+          ? `⚠️ تنتهي خطتك اليوم! تواصل مع المسؤول لتجديد الاشتراك.`
+          : `⚠️ تبقى ${days} أيام على انتهاء خطتك. تواصل مع المسؤول لتجديد الاشتراك.`;
+        if (typeof Toast !== 'undefined') Toast.warn(msg);
+      }, 2000);
+    }
+  }
+};
+
+// ── دالة طلب الترقية من صاحب الحساب ──
+function requestPlanUpgrade(companyNameOpt) {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant() || {};
+  const company = companyNameOpt || tenant.name || '—';
+  const plan = Auth.getPlan() || {};
+
+  // سجّل الطلب في قاعدة البيانات
+  const adminNotifs = DB.get('admin_notifications') || [];
+  const alreadyPending = adminNotifs.find(n => n.type === 'upgrade_request' && n.tenant_id === tenant.id && n.status === 'pending');
+  if (alreadyPending) {
+    if (typeof Toast !== 'undefined') Toast.warn('⏳ طلبك مرسل بالفعل — ينتظر موافقة المسؤول');
+    return;
+  }
+  adminNotifs.unshift({
+    id: Date.now(),
+    type: 'upgrade_request',
+    title: 'طلب ترقية / تجديد اشتراك',
+    body: `المؤسسة "${company}" تطلب ترقية من خطة "${plan.name || '—'}"`,
+    user_id: user?.id,
+    tenant_id: tenant.id,
+    tenant_name: company,
+    current_plan: plan.name || '—',
+    date: new Date().toISOString(),
+    status: 'pending',
+    read: false
+  });
+  DB.set('admin_notifications', adminNotifs);
+
+  // إرسال بريد للمسؤول
+  if (typeof EMAILJS !== 'undefined') {
+    EMAILJS.notifyNewAccount({
+      name: user?.full_name || '—',
+      email: user?.email || '—',
+      company: company,
+      wilaya: tenant.wilaya || '—',
+      subject: '⬆️ طلب ترقية اشتراك — ' + company
+    }).catch(() => {});
+  }
+  if (typeof Toast !== 'undefined') Toast.success('✅ تم إرسال طلب الترقية للمسؤول — سيتواصل معك قريباً');
 }
 
 /* ─── DASHBOARD ─── */
@@ -4048,9 +4303,7 @@ Pages.dashboard = function() {
   // Trial banner
   let trialBannerHTML = '';
   if (tenant && tenant.subscription_status === 'trial' && tenant.trial_end) {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const trialEnd = new Date(tenant.trial_end); trialEnd.setHours(0,0,0,0);
-    const daysLeft = Math.max(0, Math.ceil((trialEnd - today) / 86400000));
+    const daysLeft = Math.max(0, TrialManager.getDaysLeft(tenant) ?? 0);
     const pct = Math.round((daysLeft / 14) * 100);
   
     const urgency = daysLeft <= 3 ? 'var(--red)' : daysLeft <= 7 ? 'var(--gold)' : 'var(--green)';
@@ -4066,7 +4319,7 @@ Pages.dashboard = function() {
       </div>
       <div style="display:flex;align-items:center;gap:.6rem">
         <span style="font-size:.75rem;color:var(--dim)">${L('انتهاء التجربة:','Fin de l\'essai:')} ${tenant.trial_end}</span>
-        <button class="btn btn-gold btn-sm" onclick="App.navigate('settings')">${L('ترقية الحساب ↑','Mettre à niveau ↑')}</button>
+        <button class="btn btn-gold btn-sm" onclick="requestPlanUpgrade()">${L('ترقية الحساب ↑','Mettre à niveau ↑')}</button>
       </div>
     </div>`;
   }
@@ -5122,8 +5375,6 @@ Pages.settings = function() {
         <div class="card">
           <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي','Sauvegarde des données')}</div>
           <div style="display:flex;flex-direction:column;gap:.6rem">
-            <!-- Supabase Card -->
-            ${typeof SupabaseSettings !== 'undefined' ? SupabaseSettings.renderCard() : ''}
             <button class="btn btn-green" onclick="exportAllData()" style="justify-content:center">
               📤 ${L('تصدير جميع البيانات (JSON)','Exporter toutes les données (JSON)')}
             </button>
@@ -6103,6 +6354,21 @@ function switchAdminTab(tab) {
       panel.style.display = 'none';
     }
   });
+  // ── مزامنة تلقائية عند فتح تبويب Supabase ──
+  if (tab === 'supabase' && typeof DBHybrid !== 'undefined' && !DBHybrid._useSupabase && SUPABASE_CONFIG.isConfigured) {
+    setTimeout(async () => {
+      const hbStatus = document.getElementById('hbStatus');
+      if (hbStatus) hbStatus.textContent = '⏳ جاري إعادة الاتصال التلقائي...';
+      const ok = await DBHybrid.initSupabase().catch(() => false);
+      if (hbStatus) hbStatus.textContent = ok ? '✅ متصل — Heartbeat نشط كل 30 ثانية' : '⚠️ غير متصل — تأكد من الإعدادات';
+      const badge = document.getElementById('sbStatusBadge');
+      if (badge) {
+        badge.style.background = ok ? 'rgba(52,195,143,0.1)' : 'rgba(232,184,75,0.1)';
+        badge.style.color = ok ? '#34C38F' : '#E8B84B';
+        badge.textContent = ok ? '🟢 متصل بـ Supabase' : '🟡 غير متصل';
+      }
+    }, 300);
+  }
 }
 
 function showAIUsageStats() {
@@ -6249,8 +6515,11 @@ Pages.admin = function() {
     const planColors = ['var(--blue)','var(--gold)','var(--purple)'];
     const planIdx = plans.findIndex(p=>p.id===t.plan_id);
     const planColor = planColors[planIdx] || 'var(--gold)';
-    return `<tr>
-      <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1rem">🏢</div><div><div style="font-weight:700">${escHtml(t.name)}</div><div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(t.wilaya||L('غير محدد','Non défini'))}</div></div></div></td>
+    const createdAtStr = t.created_at ? new Date(t.created_at).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    const planData2 = plans.find(p=>p.id===t.plan_id)||{};
+    const maxEmails = planData2.max_emails ?? -1;
+    const usedEmails = (DB.get('admin_notifications')||[]).filter(n=>n.tenant_id===t.id && n.type==='new_account').length;
+    const emailsLabel = maxEmails === -1 ? '∞ إيميل' : usedEmails + '/' + maxEmails + ' إيميل';
       <td><div dir="ltr" style="font-family:monospace;font-size:.78rem;color:var(--blue)">${escHtml(adminUser?.email||'—')}</div></td>
       <td>
         <div style="display:flex;align-items:center;gap:.4rem">
@@ -6260,6 +6529,7 @@ Pages.admin = function() {
       </td>
       <td><span class="badge" style="background:rgba(${planIdx===0?'74,144,226':planIdx===1?'232,184,75':'155,109,255'},.1);color:${planColor};border:1px solid rgba(${planIdx===0?'74,144,226':planIdx===1?'232,184,75':'155,109,255'},.2)">${escHtml(plan?.name||'—')}</span></td>
       <td><span class="badge ${subCls}">${subLbl}</span></td>
+      <td style="text-align:center;font-size:.78rem;color:${maxEmails!==-1&&usedEmails>=maxEmails?'var(--red)':'var(--muted)'}">${emailsLabel}</td>
       <td style="text-align:center;font-weight:700">${pCount}</td>
       <td style="text-align:center;font-weight:700">${wCount}</td>
       <td><span class="badge ${t.is_active?'badge-active':'badge-delayed'}">${t.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td>
@@ -6371,7 +6641,7 @@ Pages.admin = function() {
           </div>
           <div class="table-wrap" style="border:none;border-radius:0">
             <table>
-              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>${L('المشاريع','Projets')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
+              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>📧 الإيميلات</th><th>${L('المشاريع','Projets')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>
@@ -6402,10 +6672,11 @@ Pages.admin = function() {
           const notifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending');
           if(!notifs.length) return '';
           const nrows = notifs.map(n=>{
-            const isReset = n.type==='reset_password';
-            const icon    = isReset ? '🔑' : '🆕';
-            const badge   = isReset ? 'badge-delayed' : 'badge-active';
-            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : L('حساب جديد','Nouveau compte');
+            const isReset   = n.type==='reset_password';
+            const isUpgrade = n.type==='upgrade_request';
+            const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : '🆕';
+            const badge   = isReset ? 'badge-delayed' : isUpgrade ? 'badge-paused' : 'badge-active';
+            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? 'طلب ترقية' : L('حساب جديد','Nouveau compte');
             const dateStr = new Date(n.date).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
             return `<tr>
               <td><span style="font-size:1.3rem">${icon}</span></td>
@@ -6415,6 +6686,7 @@ Pages.admin = function() {
               <td style="font-size:.75rem;color:var(--dim)">${dateStr}</td>
               <td style="display:flex;gap:.4rem;flex-wrap:wrap">
                 ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
+                ${isUpgrade && n.status==='pending' ? `<button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id})">✅ موافقة</button><button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ رفض</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})">✓ ${L('إخفاء','Masquer')}</button>
               </td>
             </tr>`;
@@ -6566,24 +6838,56 @@ Pages.admin = function() {
             <div style="color:var(--dim)">قم بتحميل ملف supabase-db.js لتفعيل هذه الميزة</div>
           </div>`}
           
-          <!-- Sync Dashboard -->
-          <div class="card" style="margin-top:1rem">
-            <div style="font-weight:800;margin-bottom:1rem">📊 لوحة المزامنة</div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;margin-bottom:1rem">
+          <!-- Auto-Sync Toggle Card -->
+          <div class="card" style="margin-top:1rem;background:rgba(52,195,143,0.03);border:1px solid rgba(52,195,143,0.15)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+              <div>
+                <div style="font-weight:800;font-size:.9rem">⚡ المزامنة التلقائية</div>
+                <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">يبقى Supabase متصلاً ويتزامن تلقائياً بدون إعادة اتصال</div>
+              </div>
+              <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer">
+                <input type="checkbox" id="autoSyncToggle"
+                  ${localStorage.getItem('sbtp_auto_sync')!=='false' ? 'checked' : ''}
+                  onchange="toggleAutoSync(this.checked)"
+                  style="opacity:0;width:0;height:0">
+                <span style="
+                  position:absolute;inset:0;border-radius:26px;
+                  background:${localStorage.getItem('sbtp_auto_sync')!=='false' ? '#34C38F' : 'rgba(255,255,255,0.1)'};
+                  transition:.3s;
+                " id="autoSyncSlider"></span>
+                <span style="
+                  position:absolute;top:3px;right:${localStorage.getItem('sbtp_auto_sync')!=='false' ? '3px' : '22px'};
+                  width:20px;height:20px;border-radius:50%;background:#fff;
+                  transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3);
+                " id="autoSyncKnob"></span>
+              </label>
+            </div>
+            
+            <!-- Heartbeat Status -->
+            <div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:.8rem">
+              <div id="hbDot" style="width:8px;height:8px;border-radius:50%;background:#34C38F;animation:hbPulse 2s infinite"></div>
+              <div style="font-size:.75rem;color:var(--muted)" id="hbStatus">
+                ${typeof DBHybrid!=='undefined' && DBHybrid._useSupabase ? '✅ متصل — Heartbeat نشط كل 30 ثانية' : '⚠️ غير متصل بـ Supabase'}
+              </div>
+              <button onclick="forceReconnectSupabase()" class="btn btn-ghost btn-sm" style="margin-right:auto;font-size:.7rem">🔌 إعادة الاتصال</button>
+            </div>
+
+            <!-- Sync Dashboard -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;margin-bottom:.8rem">
               <div class="stat-card">
                 <div class="stat-icon">🏗️</div>
                 <div class="stat-value" style="color:var(--blue)">${projects?.length||0}</div>
-                <div class="stat-label">مشاريع محلية</div>
+                <div class="stat-label">مشاريع</div>
               </div>
               <div class="stat-card">
                 <div class="stat-icon">👷</div>
                 <div class="stat-value" style="color:var(--green)">${workers?.length||0}</div>
-                <div class="stat-label">عمال مسجلون</div>
+                <div class="stat-label">عمال</div>
               </div>
               <div class="stat-card">
                 <div class="stat-icon">💰</div>
                 <div class="stat-value" style="color:var(--gold)">${(typeof DB!=='undefined'?DB.get('transactions'):[]).length}</div>
-                <div class="stat-label">معاملات مالية</div>
+                <div class="stat-label">معاملات</div>
               </div>
             </div>
             <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
@@ -6591,9 +6895,69 @@ Pages.admin = function() {
                 🔄 مزامنة كل البيانات الآن
               </button>
               <button class="btn btn-ghost" onclick="downloadSchema()" style="flex:1;justify-content:center">
-                📥 تحميل supabase-schema.sql
+                📥 تحميل schema.sql
               </button>
             </div>
+          </div>
+
+          <!-- EmailJS Settings Card -->
+          <div class="card" style="margin-top:1rem;background:rgba(74,144,226,0.03);border:1px solid rgba(74,144,226,0.15)">
+            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
+              <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#4A90E2,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">📧</div>
+              <div>
+                <div style="font-size:.95rem;font-weight:900">EmailJS — إشعارات البريد الإلكتروني</div>
+                <div style="font-size:.7rem;color:var(--dim)">إعداد خادم الإشعارات والرسائل التلقائية</div>
+              </div>
+              <div style="margin-right:auto">
+                <span id="emailjsStatusBadge" style="
+                  padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;
+                  background:rgba(52,195,143,0.1);color:#34C38F;border:1px solid #34C38F44;
+                ">🟢 مُفعَّل</span>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.8rem">
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:.7rem">Service ID</label>
+                <input class="form-input" id="ejServiceId" dir="ltr" style="font-family:monospace;font-size:.75rem"
+                  value="${getEmailJSConfig().SERVICE_ID}"
+                  placeholder="service_xxxxxxx">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:.7rem">Public Key</label>
+                <input class="form-input" id="ejPublicKey" dir="ltr" style="font-family:monospace;font-size:.75rem"
+                  value="${getEmailJSConfig().PUBLIC_KEY}"
+                  placeholder="xxxxxxxxxxxxxxx">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:.7rem">Template (للمسؤول)</label>
+                <input class="form-input" id="ejTemplateAdmin" dir="ltr" style="font-family:monospace;font-size:.75rem"
+                  value="${getEmailJSConfig().TEMPLATE_ADMIN}"
+                  placeholder="template_xxxxxxx">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:.7rem">Template (للمستخدم)</label>
+                <input class="form-input" id="ejTemplateUser" dir="ltr" style="font-family:monospace;font-size:.75rem"
+                  value="${getEmailJSConfig().TEMPLATE_USER}"
+                  placeholder="template_xxxxxxx">
+              </div>
+              <div class="form-group" style="margin:0;grid-column:1/-1">
+                <label class="form-label" style="font-size:.7rem">📬 بريد المسؤول (استقبال الإشعارات)</label>
+                <input class="form-input" id="ejAdminEmail" type="email" dir="ltr"
+                  value="${getEmailJSConfig().ADMIN_EMAIL}"
+                  placeholder="admin@example.com">
+              </div>
+            </div>
+
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+              <button class="btn btn-primary" onclick="saveEmailJSSettings()" style="flex:1;justify-content:center">
+                💾 حفظ إعدادات EmailJS
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="testEmailJS()">
+                🧪 اختبار الإرسال
+              </button>
+            </div>
+            <div id="ejTestResult" style="display:none;margin-top:.7rem;padding:.6rem .8rem;border-radius:8px;font-size:.78rem"></div>
           </div>
 
           <!-- Quick Setup Guide -->
@@ -7036,8 +7400,23 @@ function doLogin() {
   const pass  = document.getElementById('loginPass')?.value;
   const err   = document.getElementById('loginError');
   if (Auth.login(email, pass, currentTab)) {
+    // تحقق من انتهاء التجربة قبل الدخول
+    const _loginTenant = Auth.getTenant();
+    if (_loginTenant && TrialManager.isExpired(_loginTenant)) {
+      Auth.currentUser = null;
+      sessionStorage.removeItem('sbtp_user');
+      setTimeout(() => TrialManager.showExpiredModal(_loginTenant.name), 300);
+      return;
+    }
     Toast.success('✅ تم تسجيل الدخول بنجاح');
-    App.navigate(Auth.getUser().is_admin ? 'admin' : 'dashboard');
+    const _loggedUser = Auth.getUser();
+    // ── إعادة ضبط محادثة SmartAI لكل حساب مؤسسة على حدة ──
+    if (typeof SmartAI !== 'undefined' && _loggedUser && _loggedUser.tenant_id) {
+      SmartAI.resetForTenant(_loggedUser.tenant_id);
+    }
+    App.navigate(_loggedUser.is_admin ? 'admin' : 'dashboard');
+    setTimeout(() => TrialManager.checkAndEnforce(), 200);
+    setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
   } else {
     if (err) err.style.display = 'flex';
     setTimeout(() => { if(err) err.style.display = 'none'; }, 3000);
@@ -7538,6 +7917,42 @@ function dismissNotif(notifId) {
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
   DB.set('admin_notifications', notifs);
+  App.navigate('admin');
+}
+
+// ── موافقة المسؤول على طلب الترقية ──
+function approveUpgrade(notifId, tenantId) {
+  const plan = prompt('أدخل رقم الخطة الجديدة:\n1 = المبتدئ (2,900 دج)\n2 = الاحترافي (7,900 دج)\n3 = المؤسسي (19,900 دج)');
+  const planId = parseInt(plan);
+  if (!planId || planId < 1 || planId > 3) { Toast.error('خطة غير صالحة'); return; }
+  const tenants = DB.get('tenants');
+  const t = tenants.find(x => x.id === tenantId);
+  if (t) {
+    t.plan_id = planId;
+    t.is_active = true;
+    t.subscription_status = 'active';
+    // تمديد لمدة شهر من اليوم
+    const end = new Date();
+    end.setMonth(end.getMonth() + 1);
+    t.subscription_end = end.toISOString().split('T')[0];
+    DB.set('tenants', tenants);
+  }
+  // تحديث الإشعار
+  const notifs = DB.get('admin_notifications') || [];
+  const ni = notifs.findIndex(n => n.id === notifId);
+  if (ni >= 0) { notifs[ni].status = 'approved'; notifs[ni].read = true; }
+  DB.set('admin_notifications', notifs);
+  Toast.success('✅ تم الموافقة على الترقية وتفعيل الحساب');
+  App.navigate('admin');
+}
+
+// ── رفض طلب الترقية ──
+function rejectUpgrade(notifId) {
+  const notifs = DB.get('admin_notifications') || [];
+  const ni = notifs.findIndex(n => n.id === notifId);
+  if (ni >= 0) { notifs[ni].status = 'rejected'; notifs[ni].read = true; }
+  DB.set('admin_notifications', notifs);
+  Toast.warn('تم رفض طلب الترقية');
   App.navigate('admin');
 }
 
@@ -9899,6 +10314,112 @@ DB.init();
   }
 })();
 
+/* ── CSS: Heartbeat pulse animation ── */
+const _hbStyle = document.createElement('style');
+_hbStyle.textContent = `@keyframes hbPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }`;
+document.head.appendChild(_hbStyle);
+
+// ─── Auto-Sync Toggle ───
+function toggleAutoSync(enabled) {
+  localStorage.setItem('sbtp_auto_sync', enabled ? 'true' : 'false');
+  const slider = document.getElementById('autoSyncSlider');
+  const knob   = document.getElementById('autoSyncKnob');
+  const status = document.getElementById('hbStatus');
+  if (slider) slider.style.background = enabled ? '#34C38F' : 'rgba(255,255,255,0.1)';
+  if (knob)   knob.style.right = enabled ? '3px' : '22px';
+  if (enabled) {
+    // أعد تشغيل الـ heartbeat
+    if (typeof DBHybrid !== 'undefined') {
+      DBHybrid._heartbeatInterval = 30000;
+      DBHybrid._startHeartbeat();
+      DBHybrid._setupNetworkEvents();
+    }
+    if (status) status.textContent = '✅ المزامنة التلقائية مُفعَّلة — Heartbeat نشط';
+    typeof Toast !== 'undefined' && Toast.success('✅ المزامنة التلقائية مُفعَّلة');
+  } else {
+    if (typeof DBHybrid !== 'undefined') DBHybrid._stopHeartbeat();
+    if (status) status.textContent = '⏸️ المزامنة التلقائية موقوفة';
+    typeof Toast !== 'undefined' && Toast.warn('⏸️ المزامنة التلقائية موقوفة');
+  }
+}
+
+// ─── Force Reconnect ───
+async function forceReconnectSupabase() {
+  if (typeof DBHybrid === 'undefined' || typeof SUPABASE_CONFIG === 'undefined') {
+    typeof Toast !== 'undefined' && Toast.warn('⚠️ supabase-db.js غير محمّل');
+    return;
+  }
+  const dot    = document.getElementById('hbDot');
+  const status = document.getElementById('hbStatus');
+  if (dot)    dot.style.background = '#E8B84B';
+  if (status) status.textContent = '⏳ جاري إعادة الاتصال...';
+  const ok = await DBHybrid.initSupabase();
+  if (dot)    dot.style.background = ok ? '#34C38F' : '#F04E6A';
+  if (status) status.textContent = ok
+    ? '✅ متصل — Heartbeat نشط كل 30 ثانية'
+    : '❌ فشل الاتصال — تحقق من الإعدادات';
+  typeof Toast !== 'undefined' && (ok
+    ? Toast.success('✅ تم الاتصال بـ Supabase!')
+    : Toast.error('❌ فشل الاتصال بـ Supabase'));
+}
+
+// ─── Save EmailJS Settings ───
+function saveEmailJSSettings() {
+  const cfg = {
+    SERVICE_ID:     (document.getElementById('ejServiceId')?.value||'').trim(),
+    PUBLIC_KEY:     (document.getElementById('ejPublicKey')?.value||'').trim(),
+    TEMPLATE_ADMIN: (document.getElementById('ejTemplateAdmin')?.value||'').trim(),
+    TEMPLATE_USER:  (document.getElementById('ejTemplateUser')?.value||'').trim(),
+    ADMIN_EMAIL:    (document.getElementById('ejAdminEmail')?.value||'').trim(),
+  };
+  if (!cfg.SERVICE_ID || !cfg.PUBLIC_KEY) {
+    typeof Toast !== 'undefined' && Toast.error('❌ Service ID و Public Key مطلوبان');
+    return;
+  }
+  saveEmailJSConfig(cfg);
+  typeof Toast !== 'undefined' && Toast.success('✅ تم حفظ إعدادات EmailJS بنجاح!');
+  const badge = document.getElementById('emailjsStatusBadge');
+  if (badge) { badge.textContent = '🟢 مُفعَّل'; badge.style.color = '#34C38F'; }
+}
+
+// ─── Test EmailJS ───
+async function testEmailJS() {
+  const resultEl = document.getElementById('ejTestResult');
+  if (resultEl) {
+    resultEl.style.display = 'block';
+    resultEl.style.background = 'rgba(232,184,75,0.1)';
+    resultEl.style.color = 'var(--gold)';
+    resultEl.textContent = '⏳ جاري إرسال بريد اختبار...';
+  }
+  try {
+    const cfg = getEmailJSConfig();
+    await emailjs.send(cfg.SERVICE_ID, cfg.TEMPLATE_ADMIN, {
+      to_email:    cfg.ADMIN_EMAIL,
+      to_name:     'المسؤول',
+      user_name:   'اختبار النظام',
+      user_email:  cfg.ADMIN_EMAIL,
+      company_name:'SmartStruct Test',
+      plan_name:   'اختبار',
+      wilaya:      'الجزائر',
+      date:        new Date().toLocaleDateString('ar-DZ'),
+      message:     '✅ هذا بريد اختبار من لوحة تحكم SmartStruct — الإعدادات تعمل بشكل صحيح.',
+    });
+    if (resultEl) {
+      resultEl.style.background = 'rgba(52,195,143,0.1)';
+      resultEl.style.color = '#34C38F';
+      resultEl.textContent = `✅ تم الإرسال بنجاح إلى ${cfg.ADMIN_EMAIL}`;
+    }
+    typeof Toast !== 'undefined' && Toast.success('✅ البريد الاختباري أُرسل بنجاح!');
+  } catch(e) {
+    if (resultEl) {
+      resultEl.style.background = 'rgba(240,78,106,0.1)';
+      resultEl.style.color = '#F79FA9';
+      resultEl.textContent = `❌ فشل الإرسال: ${e.text || e.message || JSON.stringify(e)}`;
+    }
+    typeof Toast !== 'undefined' && Toast.error('❌ فشل إرسال البريد الاختباري');
+  }
+}
+
 /* ── Supabase fallback functions (if supabase-db.js not loaded) ── */
 if (typeof saveSupabaseConfig === 'undefined') {
   function saveSupabaseConfig() { Toast.warn('⚠️ ملف supabase-db.js غير محمّل'); }
@@ -10434,7 +10955,25 @@ const SmartAI = {
   isOpen: false,
   isLoading: false,
   history: [],
+  _currentTenantId: null,  // لتتبع الحساب الحالي ومنع خلط المحادثات
   apiKey: null,
+
+  // إعادة تهيئة المحادثة عند تغيير الحساب
+  resetForTenant(tenantId) {
+    if (this._currentTenantId !== tenantId) {
+      this.history = [];
+      this._currentTenantId = tenantId;
+      // أغلق نافذة الدردشة عند التبديل
+      if (this.isOpen) {
+        const panel = document.getElementById('aiChatPanel');
+        if (panel) panel.style.display = 'none';
+        this.isOpen = false;
+      }
+      // امسح الرسائل المعروضة
+      const msgEl = document.getElementById('aiMessages');
+      if (msgEl) msgEl.innerHTML = '';
+    }
+  },
 
   /* ── الحصول على بيانات السياق من قاعدة البيانات ── */
   getContext() {
@@ -10650,14 +11189,22 @@ ${JSON.stringify(ctx, null, 2)}
       panel.style.display = 'flex';
       panel.style.flexDirection = 'column';
       document.getElementById('aiFabBadge').style.display = 'none';
-      // رسالة ترحيب تلقائية عند أول فتح
+      // رسالة ترحيب شخصية باسم المؤسسة عند أول فتح لكل جلسة
       if (this.history.length === 0) {
         setTimeout(() => {
           const user = Auth.getUser();
+          const tenant = Auth.getTenant();
           const ctx = this.getContext();
-          const greeting = user
-            ? `مرحباً ${escHtml(user.full_name.split(' ')[0])} 👋\n\nأنا **SmartAI**، مساعدك الذكي لإدارة المشاريع.\n\n📊 لديك حالياً:\n• **${ctx.المشاريع_النشطة || 0}** مشروع نشط\n• **${ctx.العمال?.العدد_الإجمالي || 0}** عامل\n• الربح الصافي: **${ctx.الماليات?.الربح_الصافي || '0 دج'}**\n\nكيف يمكنني مساعدتك اليوم؟`
-            : 'مرحباً! أنا SmartAI. سجّل الدخول للحصول على تحليل مخصص لمشاريعك.';
+          let greeting;
+          if (user && tenant) {
+            const firstName = escHtml(user.full_name.split(' ')[0]);
+            const companyName = escHtml(tenant.name);
+            greeting = `مرحباً ${firstName} 👋 — **${companyName}**\n\nأنا **SmartAI**، مساعدك الذكي المخصص لمؤسستك.\n\n📊 **ملخص سريع:**\n• **${ctx.المشاريع_النشطة || 0}** مشروع نشط\n• **${ctx.العمال?.العدد_الإجمالي || 0}** عامل\n• الربح الصافي: **${ctx.الماليات?.الربح_الصافي || '0 دج'}**\n\nكيف يمكنني مساعدتك اليوم؟`;
+          } else if (user) {
+            greeting = `مرحباً ${escHtml(user.full_name.split(' ')[0])} 👋\n\nأنا **SmartAI**، مساعدك الذكي لإدارة المشاريع.\n\nكيف يمكنني مساعدتك اليوم؟`;
+          } else {
+            greeting = 'مرحباً! أنا SmartAI. سجّل الدخول للحصول على تحليل مخصص لمشاريعك.';
+          }
           this.appendMessage('bot', greeting);
         }, 300);
       }
@@ -10927,6 +11474,23 @@ Pages.ai_analysis = function() {
 
 /* ── تهيئة SmartAI بعد تحميل الصفحة ── */
 document.addEventListener('DOMContentLoaded', function() {
+
+  // ─── تشغيل Auto-Sync تلقائياً عند التحميل ───
+  const autoSyncEnabled = localStorage.getItem('sbtp_auto_sync') !== 'false';
+  if (autoSyncEnabled && typeof DBHybrid !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined') {
+    if (SUPABASE_CONFIG.isConfigured) {
+      // الـ heartbeat يبدأ تلقائياً في initSupabase()
+      // لكن نضمن هنا أنه مُشغَّل دائماً
+      setTimeout(() => {
+        if (DBHybrid._useSupabase && !DBHybrid._heartbeatTimer) {
+          DBHybrid._startHeartbeat();
+          DBHybrid._setupNetworkEvents();
+          console.log('🔄 Auto-sync: Heartbeat تم تشغيله تلقائياً');
+        }
+      }, 2000);
+    }
+  }
+
   // إظهار زر AI فقط عند تسجيل الدخول
   function updateAIFabVisibility() {
     const fab = document.getElementById('aiFab');

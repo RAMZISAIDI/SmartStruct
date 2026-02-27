@@ -447,9 +447,9 @@ const DBHybrid = {
   init() {
     if (this.get('initialized').length) return;
     this.set('plans', [
-      { id:1, slug:'starter',    name:'المبتدئ',   price_monthly:2900,  price:2900,  max_projects:3,  max_workers:15,  max_equipment:0  },
-      { id:2, slug:'pro',        name:'الاحترافي', price_monthly:7900,  price:7900,  max_projects:20, max_workers:100, max_equipment:50 },
-      { id:3, slug:'enterprise', name:'المؤسسي',   price_monthly:19900, price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1 },
+      { id:1, slug:'starter',    name:'المبتدئ',   price_monthly:2900,  price:2900,  max_projects:3,  max_workers:15,  max_equipment:0,  max_emails:50  },
+      { id:2, slug:'pro',        name:'الاحترافي', price_monthly:7900,  price:7900,  max_projects:20, max_workers:100, max_equipment:50, max_emails:500 },
+      { id:3, slug:'enterprise', name:'المؤسسي',   price_monthly:19900, price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1, max_emails:-1  },
     ]);
     this.set('tenants', [
       { id:1, name:'مؤسسة الجزائر للبناء', plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
