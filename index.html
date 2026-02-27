@@ -6520,6 +6520,8 @@ Pages.admin = function() {
     const maxEmails = planData2.max_emails ?? -1;
     const usedEmails = (DB.get('admin_notifications')||[]).filter(n=>n.tenant_id===t.id && n.type==='new_account').length;
     const emailsLabel = maxEmails === -1 ? '∞ إيميل' : usedEmails + '/' + maxEmails + ' إيميل';
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1rem">🏢</div><div><div style="font-weight:700">${escHtml(t.name)}</div><div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(t.wilaya||L('غير محدد','Non défini'))} • 📅 ${createdAtStr}</div></div></div></td>
       <td><div dir="ltr" style="font-family:monospace;font-size:.78rem;color:var(--blue)">${escHtml(adminUser?.email||'—')}</div></td>
       <td>
         <div style="display:flex;align-items:center;gap:.4rem">
