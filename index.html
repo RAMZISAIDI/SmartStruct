@@ -2262,29 +2262,6 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
     return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
   }
 };
-/* ══ AUTO-SYNC — رفع تلقائي لـ Supabase عند كل DB.set ══ */
-(function patchDBAutoSync(){
-  var SKIP=['initialized','plans','global_ai_config','admin_notifications'];
-  var orig=DB.set.bind(DB), timer=null, busy=false;
-  function schedule(){
-    if(timer)clearTimeout(timer);
-    timer=setTimeout(async function(){
-      if(busy){timer=setTimeout(schedule,1000);return;}
-      busy=true;
-      var btn=document.getElementById('syncAllBtn');
-      if(btn){btn.innerHTML='⏳ جاري الرفع...';btn.disabled=true;}
-      try{await syncAllDataToSupabase();}catch(e){console.warn('AutoSync:',e.message);}
-      busy=false;
-      if(btn){btn.innerHTML='☁️ رفع تلقائي';btn.disabled=false;}
-    },1500);
-  }
-  DB.set=function(k,v){
-    orig(k,v);
-    var skip=SKIP.indexOf(k)>=0||k.indexOf('sbtp_')===0;
-    if(!skip&&typeof getSupabaseConfig==='function'&&getSupabaseConfig())schedule();
-  };
-})();
-
 // patch init إذا لم يكن موجوداً في DB
 if (!DB.init) DB.init = function() {
     if (this.get('initialized').length) return;
@@ -7646,7 +7623,7 @@ function showDetailTab(btn, tabId) {
 /* ══ cleanForSupabase + SB_SCHEMA ══ */
 const SB_SCHEMA = {
   projects:        ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
-  workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','avatar_color','is_active'],
+  workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','is_active'],
   equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
   transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
   attendance:      ['id','worker_id','date','status','hours','note'],
@@ -7658,7 +7635,7 @@ const SB_SCHEMA = {
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
-  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color'],
+  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status'],
   tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address'],
   notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
 };
@@ -8023,7 +8000,7 @@ async function syncAllDataToSupabase() {
     }
   }
 
-  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع تلقائي'; }
 
   if (errors.length === 0) {
     Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
@@ -8033,6 +8010,29 @@ async function syncAllDataToSupabase() {
     Toast.error('❌ فشل الرفع: ' + errors[0]);
   }
 }
+
+/* ══ AUTO-SYNC — رفع تلقائي لـ Supabase عند كل DB.set ══ */
+(function patchDBAutoSync(){
+  var SKIP=['initialized','plans','global_ai_config','admin_notifications'];
+  var orig=DB.set.bind(DB), timer=null, busy=false;
+  function schedule(){
+    if(timer)clearTimeout(timer);
+    timer=setTimeout(async function(){
+      if(busy){timer=setTimeout(schedule,1000);return;}
+      busy=true;
+      var btn=document.getElementById('syncAllBtn');
+      if(btn){btn.innerHTML='⏳ جاري الرفع...';btn.disabled=true;}
+      try{await syncAllDataToSupabase();}catch(e){console.warn('AutoSync:',e.message);}
+      busy=false;
+      if(btn){btn.innerHTML='☁️ رفع تلقائي';btn.disabled=false;}
+    },1500);
+  }
+  DB.set=function(k,v){
+    orig(k,v);
+    var skip=SKIP.indexOf(k)>=0||k.indexOf('sbtp_')===0;
+    if(!skip&&typeof getSupabaseConfig==='function'&&getSupabaseConfig())schedule();
+  };
+})();
 
 
 function addNote(pid) {
