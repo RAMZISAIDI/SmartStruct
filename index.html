@@ -6,6 +6,35 @@
 <title>SmartStruct v1.0 — منصة إدارة مشاريع المقاولة الجزائرية</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="supabase-db.js"></script>
+<script>
+/* ══ إعدادات Supabase المباشرة — عدّل URL وKey هنا ══ */
+var SUPABASE_HARDCODED = (function() {
+  // ── جرّب أولاً من supabase-db.js ──
+  if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
+    return { url: DBHybrid._supabaseUrl, anonKey: DBHybrid._supabaseKey };
+  }
+  // ── جرّب من localStorage ──
+  try {
+    var cfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (cfg.url && cfg.anonKey) return { url: cfg.url, anonKey: cfg.anonKey };
+  } catch(e) {}
+  // ── إذا لم يُوجد شيء، أعِد null حتى لا يُرسَل شيء ──
+  return { url: '', anonKey: '' };
+})();
+
+// تحديث SUPABASE_HARDCODED عند تغيير الإعدادات
+window.addEventListener('storage', function(e) {
+  if (e.key === 'sbtp_supabase_config') {
+    try {
+      var cfg = JSON.parse(e.newValue || '{}');
+      if (cfg.url && cfg.anonKey) {
+        SUPABASE_HARDCODED.url = cfg.url;
+        SUPABASE_HARDCODED.anonKey = cfg.anonKey;
+      }
+    } catch(err) {}
+  }
+});
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script type="text/javascript"
@@ -4594,7 +4623,8 @@ Pages.dashboard = function() {
       </div>
       <div class="page-actions">
         <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
-        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()">☁️ رفع البيانات</button>
+        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
+        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
     </div>
@@ -7051,10 +7081,43 @@ Pages.admin = function() {
         <!-- TAB CONTENT: Supabase -->
         <div id="adminTabContent_supabase" style="display:none">
           ${typeof SupabaseSettings !== 'undefined' ? SupabaseSettings.renderCard() : `
-          <div class="card" style="text-align:center;padding:3rem">
-            <div style="font-size:3rem;margin-bottom:1rem">🗄️</div>
-            <div style="font-weight:900;font-size:1.2rem;margin-bottom:0.5rem">Supabase — قاعدة البيانات السحابية</div>
-            <div style="color:var(--dim)">قم بتحميل ملف supabase-db.js لتفعيل هذه الميزة</div>
+          <div class="card" style="background:rgba(52,195,143,0.03);border:1px solid rgba(52,195,143,0.2)">
+            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
+              <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#34C38F,#0e9f6e);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0">🗄️</div>
+              <div>
+                <div style="font-size:.95rem;font-weight:900">Supabase — ربط قاعدة البيانات</div>
+                <div style="font-size:.7rem;color:var(--dim)">أدخل بيانات مشروعك من supabase.com → Settings → API</div>
+              </div>
+              <div id="sbStatusBadge" style="margin-right:auto;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;background:rgba(232,184,75,0.1);color:#E8B84B;border:1px solid rgba(232,184,75,0.3)">
+                🔴 غير متصل
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr;gap:.7rem;margin-bottom:1rem">
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:.75rem">🔗 Project URL</label>
+                <input class="form-input" id="sbUrlInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
+                  placeholder="https://xxxxxxxxxxxx.supabase.co"
+                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').url||''}catch(e){return ''}})()\}">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:.75rem">🔑 Anon Public Key</label>
+                <input class="form-input" id="sbKeyInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return ''}})()\}">
+              </div>
+            </div>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+              <button class="btn btn-green" style="flex:1;justify-content:center" onclick="saveSupabaseConfigInline()">
+                💾 حفظ واتصال
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="testSupabaseConnectionInline()">
+                🧪 اختبار الاتصال
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="localStorage.removeItem('sbtp_supabase_config');SUPABASE_HARDCODED.url='';SUPABASE_HARDCODED.anonKey='';Toast.success('تم مسح الإعدادات');App.navigate('admin')">
+                🗑️ مسح
+              </button>
+            </div>
+            <div id="sbTestResult" style="display:none;margin-top:.7rem;padding:.6rem .8rem;border-radius:8px;font-size:.78rem"></div>
           </div>`}
           
           <!-- Auto-Sync Toggle Card -->
@@ -7510,7 +7573,8 @@ function showDetailTab(btn, tabId) {
 
 /* ══ sbSync — رفع فوري لـ Supabase (يجب أن يكون قبل جميع دوال الحفظ) ══ */
 
-/* ══ cleanForSupabase — يحذف الحقول غير الموجودة في schema Supabase ══ */
+
+/* ══ cleanForSupabase + SB_SCHEMA ══ */
 const SB_SCHEMA = {
   projects:        ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
   workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','avatar_color','is_active'],
@@ -7520,31 +7584,65 @@ const SB_SCHEMA = {
   salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
-  invoices:        ['id','tenant_id','number','client','amount','amount_ht','tva_amount','tva_rate','items','date','due_date','status','paid_date','project_id','notes'],
-  documents:       ['id','tenant_id','name','project_id','category','type','size','date','uploader_id','fileName','mimeType'],
+  invoices:        ['id','tenant_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','project_id'],
+  documents:       ['id','tenant_id','name','project_id','category','type','size','date','uploader_id'],
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
-  obligations:     ['id','tenant_id','title','amount','daysLeft','due'],
+  obligations:     ['id','tenant_id','title','amount','due'],
   users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color'],
-  tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address','created_at'],
+  tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address'],
   notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
 };
 
 function cleanForSupabase(table, record) {
   const allowed = SB_SCHEMA[table];
-  if (!allowed) return record; // جدول غير معروف — أرسله كما هو
-  const clean = {}
+  if (!allowed) return record;
+  const clean = {};
+  allowed.forEach(function(col) {
+    if (record[col] !== undefined && record[col] !== null) {
+      // تحويل الأنواع للتأكد من الصحة
+      if (col === 'id' || col.endsWith('_id') || col === 'progress' || col === 'hours') {
+        clean[col] = Number(record[col]) || null;
+      } else if (col === 'budget' || col === 'amount' || col === 'total_spent' ||
+                 col === 'daily_salary' || col === 'monthly_base' || col === 'purchase_price' ||
+                 col === 'unit_price' || col === 'quantity' || col === 'min_quantity' ||
+                 col === 'amount_ht' || col === 'tva_amount' || col === 'tva_rate' || col === 'price') {
+        clean[col] = Number(record[col]) || 0;
+      } else if (col === 'is_active' || col === 'is_admin' || col === 'is_archived' || col === 'read') {
+        clean[col] = Boolean(record[col]);
+      } else {
+        clean[col] = record[col];
+      }
+    } else if (record[col] === null) {
+      clean[col] = null;
+    }
+  });
+  return clean;
+}
 
 async function sbSync(table, record, method='POST') {
   try {
     let sbUrl = '', sbKey = '';
+    // محاولة 1: SUPABASE_HARDCODED
     if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
       sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    if (!sbUrl || !sbKey) return; // Supabase غير مربوط — نتجاهل بصمت
+    // محاولة 2: localStorage مباشرة
+    if (!sbUrl) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+        sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+      } catch(e) {}
+    }
+    // محاولة 3: DBHybrid
+    if (!sbUrl && typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
+      sbUrl = DBHybrid._supabaseUrl; sbKey = DBHybrid._supabaseKey || '';
+    }
+    if (!sbUrl || !sbKey) {
+      console.warn('⚠️ sbSync: Supabase URL/Key مفقود — table=' + table);
+      return;
+    }
+    console.log('🔄 sbSync:', method, table, 'url='+sbUrl.slice(0,30)+'...');
     const headers = {
       'Content-Type': 'application/json',
       'apikey': sbKey,
@@ -7582,6 +7680,85 @@ async function sbSyncUpsert(table, record) {
 /* ══════════════════════════════════════════════════════
    syncAllDataToSupabase — رفع كل بيانات المؤسسة دفعة واحدة
 ══════════════════════════════════════════════════════ */
+/* ══ حفظ إعدادات Supabase مباشرة من الواجهة ══ */
+function saveSupabaseConfigInline() {
+  const url = (document.getElementById('sbUrlInput')?.value || '').trim();
+  const key = (document.getElementById('sbKeyInput')?.value || '').trim();
+  if (!url || !key) { Toast.error('❌ أدخل URL والـ Key كاملين'); return; }
+  if (!url.includes('supabase.co')) { Toast.error('❌ URL غير صحيح — يجب أن يحتوي على supabase.co'); return; }
+
+  const cfg = { url, anonKey: key };
+  localStorage.setItem('sbtp_supabase_config', JSON.stringify(cfg));
+  SUPABASE_HARDCODED.url = url;
+  SUPABASE_HARDCODED.anonKey = key;
+
+  Toast.success('✅ تم حفظ إعدادات Supabase!');
+  
+  // تحديث حالة الاتصال
+  const badge = document.getElementById('sbStatusBadge');
+  if (badge) { badge.textContent = '🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
+}
+
+async function testSupabaseConnectionInline() {
+  const url = (document.getElementById('sbUrlInput')?.value || SUPABASE_HARDCODED.url || '').trim();
+  const key = (document.getElementById('sbKeyInput')?.value || SUPABASE_HARDCODED.anonKey || '').trim();
+  if (!url || !key) { Toast.error('❌ أدخل البيانات أولاً'); return; }
+
+  const result = document.getElementById('sbTestResult');
+  if (result) { result.style.display='block'; result.style.background='rgba(232,184,75,0.1)'; result.style.color='#E8B84B'; result.textContent='⏳ جاري اختبار الاتصال...'; }
+
+  try {
+    const res = await fetch(`${url}/rest/v1/tenants?select=id&limit=1`, {
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+    });
+    if (res.ok) {
+      if (result) { result.style.background='rgba(52,195,143,0.1)'; result.style.color='#34C38F'; result.textContent='✅ الاتصال ناجح! Supabase يعمل بشكل صحيح.'; }
+      const badge = document.getElementById('sbStatusBadge');
+      if (badge) { badge.textContent='🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
+      Toast.success('✅ Supabase متصل بنجاح!');
+    } else {
+      const err = await res.text();
+      if (result) { result.style.background='rgba(240,78,106,0.1)'; result.style.color='#F04E6A'; result.textContent='❌ فشل: ' + err.slice(0,100); }
+      Toast.error('❌ فشل الاتصال — تحقق من URL والـ Key');
+    }
+  } catch(e) {
+    if (result) { result.style.background='rgba(240,78,106,0.1)'; result.style.color='#F04E6A'; result.textContent='❌ خطأ: ' + e.message; }
+    Toast.error('❌ خطأ في الاتصال: ' + e.message);
+  }
+}
+
+function checkSupabaseStatus() {
+  let sbUrl = '', sbKey = '';
+  // فحص كل المصادر
+  const sources = [];
+  
+  if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+    sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
+    sources.push('SUPABASE_HARDCODED ✅');
+  } else { sources.push('SUPABASE_HARDCODED ❌'); }
+  
+  try {
+    const lsCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (lsCfg.url) sources.push('localStorage ✅: ' + lsCfg.url.slice(0,30) + '...');
+    else sources.push('localStorage ❌ (فارغ)');
+    if (!sbUrl && lsCfg.url) { sbUrl = lsCfg.url; sbKey = lsCfg.anonKey; }
+  } catch(e) { sources.push('localStorage ❌ (خطأ)'); }
+  
+  if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
+    sources.push('DBHybrid ✅: ' + DBHybrid._supabaseUrl.slice(0,30) + '...');
+    if (!sbUrl) { sbUrl = DBHybrid._supabaseUrl; sbKey = DBHybrid._supabaseKey; }
+  } else { sources.push('DBHybrid ❌ (غير محمّل)'); }
+  
+  const msg = sources.join('\n') + '\n\n' + (sbUrl ? '✅ URL موجود: ' + sbUrl.slice(0,40) + '...' : '❌ لا يوجد URL — يجب إدخاله في الإعدادات');
+  alert('🔌 حالة Supabase:\n\n' + msg);
+  
+  if (!sbUrl) {
+    if (confirm('❌ Supabase غير مربوط!\n\nهل تريد الذهاب لصفحة الإعدادات لإدخال URL والـ Key؟')) {
+      App.navigate('admin', {tab:'supabase'});
+    }
+  }
+}
+
 async function syncAllDataToSupabase() {
   const btn = document.getElementById('syncAllBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
@@ -11109,12 +11286,6 @@ function importAllData() {
 }
 
 DB.init();
-;
-  allowed.forEach(col => {
-    if (record[col] !== undefined) clean[col] = record[col];
-  });
-  return clean;
-}
 
 /* ══════════════════════════════════════════════════════
    sbSync — رفع فوري لـ Supabase عند كل تعديل
