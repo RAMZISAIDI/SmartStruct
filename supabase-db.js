@@ -7,27 +7,50 @@
  */
 
 // ─── إعداد Supabase ─────────────────────────────────
+// ══════════════════════════════════════════════════════
+//  ⚠️ ضع هنا بيانات Supabase مباشرة — هذا يضمن عمل
+//     التسجيل لجميع المستخدمين على GitHub Pages
+//  اذهب: Supabase Dashboard → Settings → API
+// ══════════════════════════════════════════════════════
+const SUPABASE_HARDCODED = {
+  url:     'https://udinbxcnehcevajhrral.supabase.co',   // ← مثال: 'https://abcxyz.supabase.co'
+  anonKey: 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ'    // ← مثال: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+};
+
 const SUPABASE_CONFIG = {
   url: '',
   anonKey: '',
   get isConfigured() {
     try {
+      // 1. المدمج في الكود (الأولوية الأعلى)
+      if (SUPABASE_HARDCODED.url && SUPABASE_HARDCODED.anonKey) return true;
+      // 2. المحفوظ في localStorage (من لوحة الأدمن)
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       return !!(saved.url && saved.anonKey);
     } catch { return false; }
   },
   load() {
     try {
+      // 1. المدمج في الكود
+      if (SUPABASE_HARDCODED.url && SUPABASE_HARDCODED.anonKey) {
+        this.url     = SUPABASE_HARDCODED.url;
+        this.anonKey = SUPABASE_HARDCODED.anonKey;
+        return true;
+      }
+      // 2. المحفوظ في localStorage
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      this.url = saved.url || '';
+      this.url     = saved.url     || '';
       this.anonKey = saved.anonKey || '';
       return !!(this.url && this.anonKey);
     } catch { return false; }
   },
   save(url, anonKey) {
-    this.url = url;
+    this.url     = url;
     this.anonKey = anonKey;
     localStorage.setItem('sbtp_supabase_config', JSON.stringify({ url, anonKey }));
+    // حدّث الـ HARDCODED أيضاً في الذاكرة
+    SUPABASE_HARDCODED.url     = url;
+    SUPABASE_HARDCODED.anonKey = anonKey;
   }
 };
 

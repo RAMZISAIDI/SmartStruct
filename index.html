@@ -3963,50 +3963,76 @@ async function doRegister() {
   // ── لا تسجيل دخول — عرض شاشة انتظار التفعيل ──
   showPendingActivationScreen(name.trim(), email);
 
-  // ── حفظ في Supabase في الخلفية (بعد الدخول - timeout 8 ثواني) ──
-  const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
-  if (sbCfg.url && sbCfg.anonKey) {
-    const sbH = { 'Content-Type':'application/json', 'apikey':sbCfg.anonKey, 'Authorization':`Bearer ${sbCfg.anonKey}`, 'Prefer':'return=representation' };
-    const fetchWithTimeout = (url, opts, ms=8000) => Promise.race([
-      fetch(url, opts),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
-    ]);
-    setTimeout(async () => {
-      try {
-        // تحقق من Supabase إذا البريد موجود هناك فعلاً (تجنب تعارض IDs)
-        const chk = await fetchWithTimeout(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
-        if (chk.ok && (await chk.json()).length) {
-          console.log('ℹ️ البريد موجود في Supabase بالفعل — تخطي');
-          return;
-        }
-        // حساب IDs الصحيحة من Supabase
-        const [mtR, muR] = await Promise.all([
-          fetchWithTimeout(`${sbCfg.url}/rest/v1/tenants?select=id&order=id.desc&limit=1`, { headers: sbH }),
-          fetchWithTimeout(`${sbCfg.url}/rest/v1/users?select=id&order=id.desc&limit=1`,   { headers: sbH })
-        ]);
-        const [mt, mu] = await Promise.all([mtR.ok?mtR.json():[], muR.ok?muR.json():[]]);
-        const sbMaxT = mt.length ? mt[0].id : 0;
-        const sbMaxU = mu.length ? mu[0].id : 0;
-        // إذا IDs محلية أعلى من Supabase — استخدم المحلية (آمن)
-        const finalTenant = { ...newTenant, id: Math.max(newTenantId, sbMaxT+1) };
-        const finalUser   = { ...newUser,   id: Math.max(newUserId,   sbMaxU+1), tenant_id: finalTenant.id };
-        const finalNotif  = { ...notifData, user_id: finalUser.id, tenant_id: finalTenant.id };
+  // ── حفظ في Supabase ──
+  (async () => {
+    try {
+      // جلب config من SUPABASE_HARDCODED أو localStorage
+      let sbUrl = '', sbKey = '';
+      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+        sbUrl = SUPABASE_HARDCODED.url;
+        sbKey = SUPABASE_HARDCODED.anonKey;
+      } else {
+        const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+        sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+      }
+      if (!sbUrl || !sbKey) {
+        console.warn('⚠️ Supabase غير مربوط — اضبط SUPABASE_HARDCODED في supabase-db.js');
+        return;
+      }
 
-        await fetchWithTimeout(`${sbCfg.url}/rest/v1/tenants`,      { method:'POST', headers:sbH, body:JSON.stringify(finalTenant) });
-        await fetchWithTimeout(`${sbCfg.url}/rest/v1/users`,         { method:'POST', headers:sbH, body:JSON.stringify(finalUser)   });
-        await fetchWithTimeout(`${sbCfg.url}/rest/v1/notifications`, { method:'POST', headers:sbH, body:JSON.stringify(finalNotif)  }).catch(()=>{});
+      const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}`, 'Prefer':'return=representation' };
 
-        // تحديث localStorage بالـ IDs الصحيحة من Supabase
-        const t2 = DB.get('tenants'); const idx_t = t2.findIndex(t=>t.id===newTenantId);
-        if (idx_t > -1) { t2[idx_t] = finalTenant; DB.set('tenants', t2); }
-        const u2 = DB.get('users'); const idx_u = u2.findIndex(u=>u.id===newUserId);
-        if (idx_u > -1) { u2[idx_u] = finalUser; DB.set('users', u2); sessionStorage.setItem('sbtp_user', JSON.stringify(finalUser)); }
+      // 1. تحقق من تكرار البريد
+      const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
+      if (chkR.ok && (await chkR.json()).length) { console.log('ℹ️ البريد موجود في Supabase'); return; }
 
-        console.log('✅ الحساب حُفظ في Supabase بنجاح (في الخلفية)');
-      } catch(e) { console.warn('⚠️ Supabase background save failed (data saved locally):', e.message); }
-    }, 1000); // انتظر ثانية واحدة بعد فتح الداشبورد
-  }
+      // 2. INSERT tenant — بدون id (SERIAL يولّده Supabase تلقائياً)
+      const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          name: company.trim(), plan_id: 2, wilaya: wilaya,
+          subscription_status: 'pending', trial_start: registrationDate,
+          trial_end: trialEndDate, is_active: false
+        })
+      });
+      if (!tRes.ok) throw new Error('tenant: ' + await tRes.text());
+      const [sbTenant] = await tRes.json();
 
+      // 3. INSERT user — بدون id
+      const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          tenant_id: sbTenant.id, full_name: name.trim(), email: email,
+          password: pass, role: 'admin', is_admin: false,
+          is_active: false, account_status: 'pending'
+        })
+      });
+      if (!uRes.ok) throw new Error('user: ' + await uRes.text());
+      const [sbUser] = await uRes.json();
+
+      // 4. INSERT notification
+      await fetch(`${sbUrl}/rest/v1/notifications`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          id: Date.now(), type: 'new_account',
+          title: 'حساب جديد بانتظار المراجعة',
+          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
+          user_id: sbUser.id, tenant_id: sbTenant.id,
+          date: new Date().toISOString(), read: false, status: 'pending'
+        })
+      }).catch(e => console.warn('notif:', e.message));
+
+      // 5. حدّث localStorage بـ IDs الحقيقية
+      const lTenants = DB.get('tenants');
+      const lti = lTenants.findIndex(t => t.id === newTenantId);
+      if (lti > -1) { lTenants[lti].id = sbTenant.id; DB.set('tenants', lTenants); }
+      const lUsers = DB.get('users');
+      const lui = lUsers.findIndex(u => u.id === newUserId);
+      if (lui > -1) { lUsers[lui].id = sbUser.id; lUsers[lui].tenant_id = sbTenant.id; DB.set('users', lUsers); }
+
+      console.log(`✅ Supabase: tenant #${sbTenant.id} + user #${sbUser.id}`);
+    } catch(e) { console.error('❌ Supabase register error:', e.message); }
+  })()
   EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
 }
 
