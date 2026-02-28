@@ -7591,13 +7591,77 @@ function togglePass() {
   if (p) p.type = p.type==='password'?'text':'password';
 }
 
-function doLogin() {
-  const email = document.getElementById('loginEmail')?.value;
-  const pass  = document.getElementById('loginPass')?.value;
+async function doLogin() {
+  const email = (document.getElementById('loginEmail')?.value || '').trim().toLowerCase();
+  const pass  = (document.getElementById('loginPass')?.value  || '');
   const err   = document.getElementById('loginError');
+  const btn   = document.querySelector('.btn-gold');
+
+  if (!email || !pass) {
+    if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
+    return;
+  }
+
+  // ── عرض حالة تحميل ──
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري التحقق...'; }
+
+  try {
+    // ── جلب بيانات المستخدم من Supabase أولاً ──
+    let sbUrl = '', sbKey = '';
+    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+      sbUrl = SUPABASE_HARDCODED.url;
+      sbKey = SUPABASE_HARDCODED.anonKey;
+    } else {
+      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+    }
+
+    if (sbUrl && sbKey) {
+      const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
+
+      // جلب المستخدم من Supabase
+      const uRes = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, { headers: sbH });
+      if (uRes.ok) {
+        const sbUsers = await uRes.json();
+        if (sbUsers.length) {
+          const sbUser = sbUsers[0];
+
+          // جلب المؤسسة من Supabase
+          let sbTenant = null;
+          if (sbUser.tenant_id) {
+            const tRes = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${sbUser.tenant_id}&select=*`, { headers: sbH });
+            if (tRes.ok) {
+              const tArr = await tRes.json();
+              if (tArr.length) sbTenant = tArr[0];
+            }
+          }
+
+          // تحديث localStorage بالبيانات الحديثة من Supabase
+          const localUsers = DB.get('users');
+          const idx = localUsers.findIndex(u => u.email === sbUser.email);
+          if (idx > -1) localUsers[idx] = { ...localUsers[idx], ...sbUser };
+          else localUsers.push(sbUser);
+          DB.set('users', localUsers);
+
+          if (sbTenant) {
+            const localTenants = DB.get('tenants');
+            const tidx = localTenants.findIndex(t => t.id === sbTenant.id);
+            if (tidx > -1) localTenants[tidx] = { ...localTenants[tidx], ...sbTenant };
+            else localTenants.push(sbTenant);
+            DB.set('tenants', localTenants);
+          }
+        }
+      }
+    }
+  } catch(e) {
+    console.warn('⚠️ تعذّر جلب البيانات من Supabase، يُستخدم localStorage:', e.message);
+  }
+
+  // ── تسجيل الدخول من localStorage (المُحدَّث) ──
+  if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); }
+
   const loginResult = Auth.login(email, pass, currentTab);
 
-  // حساب بانتظار التفعيل
   if (loginResult === 'pending') {
     if (err) {
       err.style.display = 'block';
@@ -7615,7 +7679,6 @@ function doLogin() {
   }
 
   if (loginResult) {
-    // تحقق من انتهاء التجربة قبل الدخول
     const _loginTenant = Auth.getTenant();
     if (_loginTenant && TrialManager.isExpired(_loginTenant)) {
       Auth.currentUser = null;
@@ -7625,11 +7688,9 @@ function doLogin() {
     }
     Toast.success('✅ تم تسجيل الدخول بنجاح');
     const _loggedUser = Auth.getUser();
-    // ── إعادة ضبط محادثة SmartAI لكل حساب مؤسسة على حدة ──
     if (typeof SmartAI !== 'undefined' && _loggedUser && _loggedUser.tenant_id) {
       SmartAI.resetForTenant(_loggedUser.tenant_id);
     }
-    // ── تفعيل SmartAI تلقائياً من الإعداد المركزي ──
     setTimeout(() => {
       try {
         const aiCfg = getAIConfig();
