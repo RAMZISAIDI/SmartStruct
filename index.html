@@ -7612,6 +7612,25 @@ async function doLogin() {
 
   if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري التحقق...'; }
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); } };
+  const showErrMsg = (html) => {
+    if (!err) return;
+    err.style.display = 'block';
+    err.style.background = 'rgba(240,78,106,.1)';
+    err.style.border = '1px solid rgba(240,78,106,.3)';
+    err.style.color = '#F79FA9';
+    err.innerHTML = html;
+  };
+  const showPendingMsg = () => {
+    if (!err) return;
+    err.style.display = 'block';
+    err.style.background = 'rgba(232,184,75,.1)';
+    err.style.border = '1px solid rgba(232,184,75,.3)';
+    err.style.color = 'var(--gold)';
+    err.innerHTML = `
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">⏳ حسابك بانتظار التفعيل</div>
+      <div style="font-size:.78rem;opacity:.8">تم استلام طلبك. سيصلك إيميل بعد تفعيل حسابك.</div>
+    `;
+  };
 
   try {
     // ── جلب بيانات Supabase ──
@@ -7623,116 +7642,90 @@ async function doLogin() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-
     if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط');
 
     const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
 
-    // ── جلب المستخدم من Supabase مباشرة ──
+    // ── 1. جلب المستخدم من Supabase ──
     const uRes = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, { headers: sbH });
     if (!uRes.ok) throw new Error('فشل الاتصال بقاعدة البيانات');
     const sbUsers = await uRes.json();
 
     if (!sbUsers.length) {
       resetBtn();
-      if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
+      showErrMsg('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
       return;
     }
 
     const sbUser = sbUsers[0];
 
-    // ── تحقق من كلمة المرور ──
+    // ── 2. تحقق من كلمة المرور ──
     if (sbUser.password !== pass) {
       resetBtn();
-      if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
+      showErrMsg('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
       return;
     }
 
-    // ── تحقق من نوع الحساب ──
-    if (currentTab === 'admin' && !sbUser.is_admin) {
+    // ── 3. تحقق من التفعيل ──
+    if (!sbUser.is_active || sbUser.account_status === 'pending') {
       resetBtn();
-      if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
-      return;
-    }
-    if (currentTab === 'tenant' && (sbUser.is_admin || !sbUser.tenant_id)) {
-      resetBtn();
-      if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
+      showPendingMsg();
       return;
     }
 
-    // ── تحقق من حالة التفعيل للمستخدمين العاديين ──
-    if (currentTab === 'tenant') {
-      if (!sbUser.is_active || sbUser.account_status === 'pending') {
-        resetBtn();
-        if (err) {
-          err.style.display = 'block';
-          err.style.background = 'rgba(232,184,75,.1)';
-          err.style.border = '1px solid rgba(232,184,75,.3)';
-          err.style.color = 'var(--gold)';
-          err.innerHTML = `
-            <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">⏳ حسابك بانتظار التفعيل</div>
-            <div style="font-size:.78rem;opacity:.8">تم استلام طلبك. سيصلك إيميل بعد تفعيل حسابك.</div>
-          `;
-        }
-        return;
-      }
-
-      // جلب المؤسسة من Supabase
+    // ── 4. جلب المؤسسة من Supabase ──
+    let sbTenant = null;
+    if (sbUser.tenant_id) {
       const tRes = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${sbUser.tenant_id}&select=*`, { headers: sbH });
       if (tRes.ok) {
         const tArr = await tRes.json();
-        if (tArr.length) {
-          const sbTenant = tArr[0];
-          if (!sbTenant.is_active || sbTenant.subscription_status === 'pending') {
-            resetBtn();
-            if (err) {
-              err.style.display = 'block';
-              err.style.background = 'rgba(232,184,75,.1)';
-              err.style.border = '1px solid rgba(232,184,75,.3)';
-              err.style.color = 'var(--gold)';
-              err.innerHTML = `
-                <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">⏳ حسابك بانتظار التفعيل</div>
-                <div style="font-size:.78rem;opacity:.8">تم استلام طلبك. سيصلك إيميل بعد تفعيل حسابك.</div>
-              `;
-            }
-            return;
-          }
-          // حفظ المؤسسة في localStorage
-          const localTenants = DB.get('tenants');
-          const tidx = localTenants.findIndex(t => t.id === sbTenant.id);
-          if (tidx > -1) localTenants[tidx] = sbTenant;
-          else localTenants.push(sbTenant);
-          DB.set('tenants', localTenants);
-        }
+        if (tArr.length) sbTenant = tArr[0];
       }
     }
 
-    // ── حفظ المستخدم في localStorage وsessionStorage ──
+    // ── 5. تحقق من تفعيل المؤسسة ──
+    if (!sbUser.is_admin && sbTenant) {
+      if (!sbTenant.is_active || sbTenant.subscription_status === 'pending') {
+        resetBtn();
+        showPendingMsg();
+        return;
+      }
+    }
+
+    // ── 6. حفظ في localStorage بالبيانات الحديثة من Supabase ──
     const localUsers = DB.get('users');
     const uidx = localUsers.findIndex(u => u.email === sbUser.email);
     if (uidx > -1) localUsers[uidx] = sbUser;
     else localUsers.push(sbUser);
     DB.set('users', localUsers);
 
+    if (sbTenant) {
+      const localTenants = DB.get('tenants');
+      const tidx = localTenants.findIndex(t => t.id === sbTenant.id);
+      if (tidx > -1) localTenants[tidx] = sbTenant;
+      else localTenants.push(sbTenant);
+      DB.set('tenants', localTenants);
+    }
+
+    // ── 7. تسجيل الجلسة ──
     Auth.currentUser = sbUser;
     sessionStorage.setItem('sbtp_user', JSON.stringify(sbUser));
     if (sbUser.is_admin) sessionStorage.setItem('sbtp_admin_auth', '1');
 
     resetBtn();
 
-    // ── تحقق من انتهاء التجربة ──
-    const _loginTenant = Auth.getTenant();
-    if (_loginTenant && TrialManager.isExpired(_loginTenant)) {
+    // ── 8. تحقق من انتهاء التجربة ──
+    if (sbTenant && TrialManager.isExpired(sbTenant)) {
       Auth.currentUser = null;
       sessionStorage.removeItem('sbtp_user');
-      setTimeout(() => TrialManager.showExpiredModal(_loginTenant.name), 300);
+      setTimeout(() => TrialManager.showExpiredModal(sbTenant.name), 300);
       return;
     }
 
     Toast.success('✅ تم تسجيل الدخول بنجاح');
-    const _loggedUser = Auth.getUser();
-    if (typeof SmartAI !== 'undefined' && _loggedUser && _loggedUser.tenant_id) {
-      SmartAI.resetForTenant(_loggedUser.tenant_id);
+
+    if (typeof SmartAI !== 'undefined' && sbUser.tenant_id) {
+      SmartAI.resetForTenant(sbUser.tenant_id);
     }
     setTimeout(() => {
       try {
@@ -7747,14 +7740,15 @@ async function doLogin() {
         }
       } catch(e) {}
     }, 100);
-    App.navigate(_loggedUser.is_admin ? 'admin' : 'dashboard');
+
+    App.navigate(sbUser.is_admin ? 'admin' : 'dashboard');
     setTimeout(() => TrialManager.checkAndEnforce(), 200);
     setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
 
   } catch(e) {
     console.error('❌ خطأ في تسجيل الدخول:', e.message);
     resetBtn();
-    if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
+    showErrMsg('❌ حدث خطأ: ' + e.message);
   }
 }
 
