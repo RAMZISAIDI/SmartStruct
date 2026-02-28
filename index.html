@@ -4037,7 +4037,9 @@ async function doRegister() {
     // 7. تسجيل الدخول مباشرة — البيانات مؤكدة في Supabase ✅
     const confirmedUser   = localUsers[localUsers.length - 1];
     const confirmedTenant = localTenants[localTenants.length - 1];
-    Auth.setUser({ ...confirmedUser, companyName: confirmedTenant.name, tenant_id: confirmedTenant.id });
+    const sessionUser = { ...confirmedUser, companyName: confirmedTenant.name };
+    Auth.currentUser = sessionUser;
+    sessionStorage.setItem('sbtp_user', JSON.stringify(sessionUser));
     Toast.success('🎉 تم إنشاء حسابك بنجاح! مرحباً بك في SmartStruct');
     App.navigate('dashboard');
 
