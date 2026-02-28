@@ -3906,8 +3906,12 @@ async function doRegister() {
   const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
   const terms   = (document.getElementById('regTerms')  ||{}).checked||false;
   const errEl   = document.getElementById('registerError');
+  const btnReg  = document.querySelector('.btn-trial');
 
-  const showErr = (msg) => { if (errEl) { errEl.textContent=msg; errEl.style.display='block'; } };
+  const showErr = (msg) => {
+    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+  };
 
   // ── تحقق من الحقول ──
   if (!name.trim())    return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
@@ -3915,51 +3919,13 @@ async function doRegister() {
   if (!email || !email.includes('@')) return showErr(L('❌ البريد الإلكتروني غير صالح','❌ Email invalide'));
   if (pass.length < 6) return showErr(L('❌ كلمة المرور 6 أحرف على الأقل','❌ 6 caractères minimum'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
-  if (errEl) errEl.style.display = 'none';
 
-  // ── تحقق محلي من تكرار البريد (فوري - بدون انتظار) ──
-  const localUsers   = DB.get('users');
-  const localTenants = DB.get('tenants');
-  if (localUsers.find(u => u.email === email))
-    return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
-
-  // ── حساب IDs من localStorage مباشرة (بدون انتظار Supabase) ──
-  const localMaxT = localTenants.length ? Math.max(...localTenants.map(t=>t.id)) : 1;
-  const localMaxU = localUsers.length   ? Math.max(...localUsers.map(u=>u.id))   : 2;
-  const newTenantId = localMaxT + 1;
-  const newUserId   = localMaxU + 1;
-
-  const now = new Date();
-  const registrationDate = now.toISOString().split('T')[0];
-  const trialEndDate = (() => { const d=new Date(); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })();
-
-  const newTenant = {
-    id: newTenantId, name: company.trim(), plan_id: 2, wilaya: wilaya,
-    subscription_status: 'pending', trial_start: registrationDate,
-    trial_end: trialEndDate, created_at: registrationDate,
-    is_active: false  // ← غير نشط حتى يفعّله المسؤول
-  };
-  const newUser = {
-    id: newUserId, tenant_id: newTenantId, full_name: name.trim(),
-    email: email, password: pass, role: 'admin', is_admin: false,
-    is_active: false,          // ← غير نشط حتى يفعّله المسؤول
-    account_status: 'pending'  // ← في انتظار التفعيل
-  };
-  const notifData = {
-    id: Date.now(), type: 'new_account',
-    title: 'حساب جديد بانتظار المراجعة',
-    body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
-    user_id: newUserId, tenant_id: newTenantId,
-    date: now.toISOString(), read: false
-  };
-
-  // ── عرض حالة التحميل أثناء الحفظ ──
-  const btnReg = document.querySelector('.btn-trial');
+  // ── عرض حالة التحميل ──
   if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = '⏳ جاري التسجيل...'; }
   if (errEl) errEl.style.display = 'none';
 
-  // ── حفظ في Supabase أولاً ──
   try {
+    // ── جلب بيانات Supabase ──
     let sbUrl = '', sbKey = '';
     if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
       sbUrl = SUPABASE_HARDCODED.url;
@@ -3968,42 +3934,57 @@ async function doRegister() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط');
+    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
 
-    const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}`, 'Prefer':'return=representation' };
+    const sbH = {
+      'Content-Type': 'application/json',
+      'apikey': sbKey,
+      'Authorization': `Bearer ${sbKey}`,
+      'Prefer': 'return=representation'
+    };
 
-    // 1. تحقق من تكرار البريد في Supabase
+    // 1. تحقق من تكرار البريد مباشرة في Supabase
     const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
     if (chkR.ok && (await chkR.json()).length) {
-      if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
       return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
     }
 
-    // 2. INSERT tenant
+    const now = new Date();
+    const registrationDate = now.toISOString().split('T')[0];
+    const trialEndDate = (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })();
+
+    // 2. INSERT tenant في Supabase
     const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
       method: 'POST', headers: sbH,
       body: JSON.stringify({
         name: company.trim(), plan_id: 2, wilaya: wilaya,
-        subscription_status: 'pending', trial_start: registrationDate,
-        trial_end: trialEndDate, is_active: false
+        subscription_status: 'pending',
+        trial_start: registrationDate,
+        trial_end: trialEndDate,
+        is_active: false
       })
     });
     if (!tRes.ok) throw new Error('فشل حفظ بيانات المؤسسة: ' + await tRes.text());
     const [sbTenant] = await tRes.json();
 
-    // 3. INSERT user
+    // 3. INSERT user في Supabase
     const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
       method: 'POST', headers: sbH,
       body: JSON.stringify({
-        tenant_id: sbTenant.id, full_name: name.trim(), email: email,
-        password: pass, role: 'admin', is_admin: false,
-        is_active: false, account_status: 'pending'
+        tenant_id: sbTenant.id,
+        full_name: name.trim(),
+        email: email,
+        password: pass,
+        role: 'admin',
+        is_admin: false,
+        is_active: false,
+        account_status: 'pending'
       })
     });
     if (!uRes.ok) throw new Error('فشل حفظ بيانات المستخدم: ' + await uRes.text());
     const [sbUser] = await uRes.json();
 
-    // 4. INSERT notification
+    // 4. INSERT notification في Supabase
     await fetch(`${sbUrl}/rest/v1/notifications`, {
       method: 'POST', headers: sbH,
       body: JSON.stringify({
@@ -4011,34 +3992,46 @@ async function doRegister() {
         title: 'حساب جديد بانتظار المراجعة',
         body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
         user_id: sbUser.id, tenant_id: sbTenant.id,
-        date: new Date().toISOString(), read: false, status: 'pending'
+        date: now.toISOString(), read: false, status: 'pending'
       })
     }).catch(() => {});
 
     // 5. حفظ في localStorage بـ IDs الحقيقية من Supabase
-    newTenant.id = sbTenant.id;
-    newUser.id = sbUser.id;
-    newUser.tenant_id = sbTenant.id;
-    notifData.user_id = sbUser.id;
-    notifData.tenant_id = sbTenant.id;
-    localTenants.push(newTenant); DB.set('tenants', localTenants);
-    localUsers.push(newUser);     DB.set('users', localUsers);
+    const localTenants = DB.get('tenants');
+    const localUsers   = DB.get('users');
+    localTenants.push({
+      id: sbTenant.id, name: company.trim(), plan_id: 2, wilaya: wilaya,
+      subscription_status: 'pending', trial_start: registrationDate,
+      trial_end: trialEndDate, is_active: false
+    });
+    localUsers.push({
+      id: sbUser.id, tenant_id: sbTenant.id, full_name: name.trim(),
+      email: email, password: pass, role: 'admin', is_admin: false,
+      is_active: false, account_status: 'pending'
+    });
+    DB.set('tenants', localTenants);
+    DB.set('users', localUsers);
     const adminNotifs = DB.get('admin_notifications') || [];
-    adminNotifs.unshift(notifData);
+    adminNotifs.unshift({
+      id: sbUser.id, type: 'new_account',
+      title: 'حساب جديد بانتظار المراجعة',
+      body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
+      user_id: sbUser.id, tenant_id: sbTenant.id,
+      date: now.toISOString(), read: false, status: 'pending'
+    });
     DB.set('admin_notifications', adminNotifs);
 
     console.log(`✅ Supabase: tenant #${sbTenant.id} + user #${sbUser.id}`);
 
     // 6. إرسال إيميل إشعار للأدمن
-    EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
+    EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
 
-    // 7. عرض شاشة النجاح فقط بعد الحفظ الناجح في Supabase
+    // 7. عرض شاشة النجاح — فقط بعد التأكد من الحفظ في Supabase
     showPendingActivationScreen(name.trim(), email);
 
   } catch(e) {
     console.error('❌ خطأ في التسجيل:', e.message);
-    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
-    showErr('❌ حدث خطأ أثناء التسجيل، يرجى المحاولة مجدداً.');
+    showErr('❌ ' + e.message);
   }
 }
 
