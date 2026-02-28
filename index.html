@@ -2216,6 +2216,17 @@ if (!DB.init) DB.init = function() {
       { id:2, tenant_id:1, project_id:1, user_id:2, text:'تأخر وصول الحديد من المورد، يُتوقع الوصول نهاية الأسبوع.', date:'2024-10-20' },
     ]);
     this.set('initialized', [true]);
+    // ── إعداد AI المركزي — يملؤه المسؤول من لوحة التحكم ──
+    if (!this.get('global_ai_config') || !this.get('global_ai_config').apiKey) {
+      this.set('global_ai_config', {
+        provider: 'groq',
+        apiKey: '',
+        model: 'llama-3.3-70b-versatile',
+        endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+        apiStyle: 'openai',
+        status: 'inactive'
+      });
+    }
   };
 
 /* ══════════════════════════════════════════════════════
@@ -3949,6 +3960,18 @@ function doRegister() {
   const daysLeft = 14;
 
   // ─── رسالة الترحيب ربوت ───
+  // ── تفعيل SmartAI تلقائياً للحساب الجديد ──
+  setTimeout(() => {
+    try {
+      const aiCfg = getAIConfig();
+      if (aiCfg && aiCfg.apiKey && aiCfg.status === 'active') {
+        DEFAULT_AI_CONFIG.apiKey   = aiCfg.apiKey;
+        DEFAULT_AI_CONFIG.provider = aiCfg.provider;
+        DEFAULT_AI_CONFIG.model    = aiCfg.model;
+        DEFAULT_AI_CONFIG.status   = 'active';
+      }
+    } catch(e) {}
+  }, 100);
   setTimeout(() => App.navigate('dashboard'), 400);
   setTimeout(() => showWelcomeRobot(name.trim(), daysLeft), 900);
 }
@@ -5398,6 +5421,19 @@ Pages.settings = function() {
    وكلاء مجانيون مُختارون + Claude API
 ══════════════════════════════════════════════════════ */
 
+/* ── مفتاح AI الافتراضي — يُضبط من المسؤول مرة واحدة ──
+   هذا المفتاح يشتغل لجميع المؤسسات تلقائياً بدون أي إعداد
+   المسؤول يستطيع تغييره من: لوحة الإدارة → SmartAI Settings
+*/
+const DEFAULT_AI_CONFIG = {
+  provider: 'groq',
+  apiKey: '',           // ← المسؤول يضع مفتاحه هنا مرة واحدة
+  model: 'llama-3.3-70b-versatile',
+  endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+  apiStyle: 'openai',
+  status: 'active'
+};
+
 const AI_PROVIDERS = [
   {
     id: 'groq',
@@ -5478,38 +5514,47 @@ const AI_PROVIDERS = [
 
 function getAIConfig() {
   try {
-    // ── أولوية: إعداد المسؤول المركزي من قاعدة البيانات ──
+    // ── الأولوية الوحيدة: الإعداد المركزي من DB (يُضبط من المسؤول ويُقرأ من الجميع) ──
     const globalCfg = DB.get('global_ai_config');
     if (globalCfg && globalCfg.apiKey && globalCfg.status === 'active') {
-      return globalCfg;
+      // حدّث DEFAULT_AI_CONFIG في الذاكرة أيضاً
+      DEFAULT_AI_CONFIG.apiKey    = globalCfg.apiKey;
+      DEFAULT_AI_CONFIG.provider  = globalCfg.provider  || DEFAULT_AI_CONFIG.provider;
+      DEFAULT_AI_CONFIG.model     = globalCfg.model     || DEFAULT_AI_CONFIG.model;
+      DEFAULT_AI_CONFIG.endpoint  = globalCfg.endpoint  || DEFAULT_AI_CONFIG.endpoint;
+      DEFAULT_AI_CONFIG.apiStyle  = globalCfg.apiStyle  || DEFAULT_AI_CONFIG.apiStyle;
+      return { ...DEFAULT_AI_CONFIG, ...globalCfg };
     }
-    // fallback: localStorage المحلي (للمسؤول فقط)
-    const saved = JSON.parse(localStorage.getItem('sbtp_ai_config') || '{}');
-    return {
-      provider: saved.provider || 'groq',
-      apiKey: saved.apiKey || '',
-      model: saved.model || '',
-      status: saved.status || 'inactive',
-      lastTested: saved.lastTested || null,
-      ...saved
-    };
-  } catch(e) { return { provider: 'groq', apiKey: '', model: '', status: 'inactive' }; }
+    // ── fallback: المفتاح المدمج في الكود مباشرة ──
+    if (DEFAULT_AI_CONFIG.apiKey) {
+      return { ...DEFAULT_AI_CONFIG, status: 'active' };
+    }
+    return { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile', status: 'inactive' };
+  } catch(e) { return { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile', status: 'inactive' }; }
 }
 
 function saveAIConfig(cfg) {
-  const merged = { ...getAIConfig(), ...cfg };
-  localStorage.setItem('sbtp_ai_config', JSON.stringify(merged));
-  // ── إذا كان المسؤول، احفظ في DB المركزية تلقائياً ──
+  const base = getAIConfig();
+  const merged = { ...base, ...cfg };
+  // ── احفظ في DB المشتركة (يقرأها كل الأجهزة والحسابات) ──
+  try { DB.set('global_ai_config', merged); } catch(e) {}
+  // ── حدّث localStorage أيضاً كـ cache محلي ──
+  try { localStorage.setItem('sbtp_ai_config', JSON.stringify(merged)); } catch(e) {}
+  // ── حدّث DEFAULT_AI_CONFIG في الذاكرة فوراً ──
   try {
-    const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
-    if (user && user.is_admin) {
-      DB.set('global_ai_config', merged);
+    if (merged.apiKey) {
+      DEFAULT_AI_CONFIG.apiKey   = merged.apiKey;
+      DEFAULT_AI_CONFIG.provider = merged.provider  || DEFAULT_AI_CONFIG.provider;
+      DEFAULT_AI_CONFIG.model    = merged.model     || DEFAULT_AI_CONFIG.model;
+      DEFAULT_AI_CONFIG.endpoint = merged.endpoint  || DEFAULT_AI_CONFIG.endpoint;
+      DEFAULT_AI_CONFIG.apiStyle = merged.apiStyle  || DEFAULT_AI_CONFIG.apiStyle;
+      DEFAULT_AI_CONFIG.status   = merged.status    || 'active';
     }
   } catch(e) {}
-  // تحديث SmartAI مباشرة (إذا كان معرّفاً)
+  // ── حدّث SmartAI مباشرة إذا كان مفتوحاً ──
   try {
-    if (typeof SmartAI !== 'undefined' && SmartAI && cfg.provider) {
-      SmartAI.currentProvider = cfg.provider;
+    if (typeof SmartAI !== 'undefined' && SmartAI) {
+      SmartAI.currentProvider = merged.provider;
     }
   } catch(e) {}
 }
@@ -6002,14 +6047,30 @@ function renderAIProviderSettings() {
   const statusClass = cfg.status === 'active' ? 'ai-status-active' : cfg.status === 'error' ? 'ai-status-error' : 'ai-status-inactive';
   const statusLabel = cfg.status === 'active' ? '✅ متصل ويعمل' : cfg.status === 'error' ? '❌ خطأ في الاتصال' : '⚪ غير مفعّل';
 
+  const defaultKeySet = !!DEFAULT_AI_CONFIG.apiKey;
   return `
-  <div class="card" style="margin-top:1.5rem;border-color:rgba(155,109,255,0.3);background:linear-gradient(135deg,rgba(155,109,255,0.04),rgba(107,63,212,0.02))">
+  <!-- ── بانر المفتاح الافتراضي ── -->
+  <div style="background:${defaultKeySet ? 'rgba(52,195,143,0.08)' : 'rgba(232,184,75,0.08)'};border:1px solid ${defaultKeySet ? 'rgba(52,195,143,0.3)' : 'rgba(232,184,75,0.3)'};border-radius:14px;padding:1rem 1.2rem;margin-bottom:1rem">
+    <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:${defaultKeySet ? '.7rem' : '0'}">
+      <div style="font-size:1.5rem">${defaultKeySet ? '✅' : '⚠️'}</div>
+      <div style="flex:1">
+        <div style="font-weight:900;font-size:.88rem;color:${defaultKeySet ? '#34C38F' : '#E8B84B'}">${defaultKeySet ? 'الروبوت مُفعَّل — يشتغل لجميع المؤسسات تلقائياً' : 'أدخل مفتاح API أدناه ثم حمّل الملف المحدَّث'}</div>
+        <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">${defaultKeySet ? `${DEFAULT_AI_CONFIG.provider} • ${DEFAULT_AI_CONFIG.model.split('-').slice(0,3).join('-')}` : 'اختبر الاتصال ← حمّل index.html المحدَّث ← ارفعه على GitHub'}</div>
+      </div>
+    </div>
+    ${defaultKeySet ? `
+    <button onclick="downloadUpdatedHTML(DEFAULT_AI_CONFIG.apiKey, DEFAULT_AI_CONFIG.provider, DEFAULT_AI_CONFIG.model)" style="background:linear-gradient(135deg,#34C38F,#20996F);color:#fff;border:none;border-radius:10px;padding:.55rem 1.2rem;font-size:.8rem;font-weight:900;cursor:pointer;font-family:inherit;width:100%">
+      📥 تحميل index.html محدَّث (المفتاح مدمج — جاهز للرفع على GitHub)
+    </button>` : ''}
+  </div>
+
+  <div class="card" style="margin-top:0;border-color:rgba(155,109,255,0.3);background:linear-gradient(135deg,rgba(155,109,255,0.04),rgba(107,63,212,0.02))">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.7rem">
       <div style="display:flex;align-items:center;gap:.8rem">
         <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#9B6DFF,#6B3FD4);display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 6px 20px rgba(155,109,255,0.4)">🤖</div>
         <div>
           <div style="font-size:1rem;font-weight:900">SmartAI — إعدادات وكيل الذكاء الاصطناعي</div>
-          <div style="font-size:.75rem;color:var(--muted)">اختر الوكيل المناسب وأدخل مفتاح API للتفعيل</div>
+          <div style="font-size:.75rem;color:var(--muted)">بعد الحفظ والاختبار، انسخ مفتاحك وضعه في DEFAULT_AI_CONFIG.apiKey في الكود</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:.6rem">
@@ -6247,10 +6308,28 @@ async function saveAndTestAIKey() {
 
   try {
     const reply = await testAIConnection(provider, apiKey, model);
-    testResult.className = 'ai-test-result success';
-    testResult.innerHTML = `✅ الاتصال ناجح! رد النموذج: "<em>${reply.substring(0, 80)}...</em>"`;
     saveAIConfig({ provider: cfg.provider, apiKey, model, status: 'active', lastTested: Date.now() });
-    Toast.success('✅ SmartAI تم تفعيله بنجاح!');
+    // ── تحديث DEFAULT_AI_CONFIG فوراً في الذاكرة ──
+    DEFAULT_AI_CONFIG.apiKey = apiKey;
+    DEFAULT_AI_CONFIG.provider = cfg.provider;
+    DEFAULT_AI_CONFIG.model = model;
+    DEFAULT_AI_CONFIG.endpoint = provider.endpoint || DEFAULT_AI_CONFIG.endpoint;
+    DEFAULT_AI_CONFIG.apiStyle = provider.apiStyle || 'openai';
+    DEFAULT_AI_CONFIG.status = 'active';
+
+    testResult.className = 'ai-test-result success';
+    testResult.innerHTML = `
+      <div style="margin-bottom:.8rem;font-size:.88rem;font-weight:800;color:#34C38F">✅ الاتصال ناجح! الروبوت يشتغل الآن.</div>
+      <div style="background:rgba(52,195,143,0.08);border:1px solid rgba(52,195,143,0.25);border-radius:12px;padding:1rem">
+        <div style="font-size:.8rem;font-weight:900;color:var(--text);margin-bottom:.5rem">📥 لتفعيله لجميع المؤسسات بشكل دائم:</div>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.8rem;line-height:1.6">
+          اضغط الزر أدناه لتحميل ملف <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px">index.html</code> محدَّث مع المفتاح مدمج فيه — ثم ارفعه على GitHub بدل القديم.
+        </div>
+        <button onclick="downloadUpdatedHTML('${apiKey}','${cfg.provider}','${model}')" style="background:linear-gradient(135deg,#34C38F,#20996F);color:#fff;border:none;border-radius:10px;padding:.6rem 1.4rem;font-size:.82rem;font-weight:900;cursor:pointer;font-family:inherit;width:100%">
+          📥 تحميل index.html محدَّث (مع المفتاح)
+        </button>
+      </div>`;
+    Toast.success('✅ SmartAI تم تفعيله! حمّل الملف المحدَّث وارفعه على GitHub.');
 
     // تحديث SmartAI engine فوراً
     try {
@@ -7333,6 +7412,20 @@ function doLogin() {
     if (typeof SmartAI !== 'undefined' && _loggedUser && _loggedUser.tenant_id) {
       SmartAI.resetForTenant(_loggedUser.tenant_id);
     }
+    // ── تفعيل SmartAI تلقائياً من الإعداد المركزي ──
+    setTimeout(() => {
+      try {
+        const aiCfg = getAIConfig();
+        if (aiCfg && aiCfg.apiKey && aiCfg.status === 'active') {
+          DEFAULT_AI_CONFIG.apiKey   = aiCfg.apiKey;
+          DEFAULT_AI_CONFIG.provider = aiCfg.provider;
+          DEFAULT_AI_CONFIG.model    = aiCfg.model;
+          DEFAULT_AI_CONFIG.endpoint = aiCfg.endpoint;
+          DEFAULT_AI_CONFIG.apiStyle = aiCfg.apiStyle || 'openai';
+          DEFAULT_AI_CONFIG.status   = 'active';
+        }
+      } catch(e) {}
+    }, 100);
     App.navigate(_loggedUser.is_admin ? 'admin' : 'dashboard');
     setTimeout(() => TrialManager.checkAndEnforce(), 200);
     setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
@@ -7829,6 +7922,69 @@ function confirmResetPass() {
     }
   });
   App.navigate('admin');
+}
+
+// ── توليد وتحميل index.html محدَّث مع مفتاح AI مدمج ──
+function downloadUpdatedHTML(apiKey, provider, model) {
+  Toast.info('⏳ جاري توليد الملف...');
+  try {
+    // قراءة الكود الحالي للصفحة من الـ source
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', window.location.href, false); // sync
+    xhr.send();
+    let html = xhr.responseText;
+
+    // استبدال سطر المفتاح الفارغ بالمفتاح الحقيقي
+    const patterns = [
+      // Pattern 1: apiKey: '',
+      { find: /apiKey:\s*'',\s*\/\/[^\n]*المسؤول[^\n]*/g,
+        replace: `apiKey: '${apiKey}', // ← مُحدَّث تلقائياً من لوحة المسؤول` },
+      // Pattern 2: apiKey: '' (without comment)
+      { find: /const DEFAULT_AI_CONFIG = \{[\s\S]*?apiKey:\s*'[^']*'/,
+        replace: (m) => m.replace(/apiKey:\s*'[^']*'/, `apiKey: '${apiKey}'`) }
+    ];
+
+    let updated = false;
+    // Replace provider and model too
+    html = html.replace(
+      /(const DEFAULT_AI_CONFIG\s*=\s*\{[^}]*provider:\s*')[^']*(')/,
+      `$1${provider}$2`
+    );
+    html = html.replace(
+      /(const DEFAULT_AI_CONFIG\s*=\s*\{[^}]*model:\s*')[^']*(')/,
+      `$1${model}$2`
+    );
+    // Replace apiKey
+    const oldEmpty = `apiKey: '',           // ← المسؤول يضع مفتاحه هنا مرة واحدة`;
+    const oldWithKey = /apiKey: '[^']*',\s*\/\/ ← م[^'\n]*/;
+    if (html.includes(oldEmpty)) {
+      html = html.replace(oldEmpty, `apiKey: '${apiKey}', // ← مُحدَّث من لوحة المسؤول`);
+      updated = true;
+    } else if (oldWithKey.test(html)) {
+      html = html.replace(oldWithKey, `apiKey: '${apiKey}', // ← مُحدَّث من لوحة المسؤول`);
+      updated = true;
+    }
+
+    if (!updated) {
+      // fallback: replace any existing key in DEFAULT_AI_CONFIG block
+      html = html.replace(
+        /(const DEFAULT_AI_CONFIG[\s\S]{0,200}apiKey:\s*')[^']*(')/,
+        `$1${apiKey}$2`
+      );
+    }
+
+    // تحميل الملف
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'index.html';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    Toast.success('✅ تم تحميل index.html المحدَّث — ارفعه على GitHub!');
+  } catch(e) {
+    Toast.error('❌ خطأ: ' + e.message);
+    console.error(e);
+  }
 }
 
 function dismissNotif(notifId) {
