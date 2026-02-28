@@ -112,6 +112,29 @@ const EMAILJS = {
       console.warn('⚠️ EmailJS notifyResetRequest:', e);
       return false;
     }
+  },
+
+  // ── إرسال إيميل تفعيل الحساب للمستخدم الجديد ──
+  async sendActivationEmail(userData) {
+    try {
+      const params = {
+        to_email:    userData.email,
+        to_name:     userData.full_name || userData.name,
+        user_email:  userData.email,
+        user_name:   userData.full_name || userData.name,
+        new_password:userData.password,
+        company_name:userData.company || userData.name,
+        plan_name:   'تجريبي 14 يوم',
+        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
+        message:     `مرحباً ${userData.full_name || userData.name}، تم تفعيل حسابك في SmartStruct بنجاح! يمكنك الآن تسجيل الدخول باستخدام بريدك الإلكتروني وكلمة المرور أدناه.`
+      };
+      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
+      console.log('✅ EmailJS: إيميل التفعيل أُرسل للمستخدم');
+      return true;
+    } catch(e) {
+      console.warn('⚠️ EmailJS sendActivationEmail:', e);
+      return false;
+    }
   }
 };
 </script>
@@ -2236,13 +2259,16 @@ const Auth = {
   currentUser: null,
   login(email, password, type) {
     const users = DB.get('users');
-    const user = users.find(u => u.email === email.trim().toLowerCase() && u.is_active);
+    // ابحث عن المستخدم بالبريد وكلمة المرور بغض النظر عن is_active
+    const user = users.find(u => u.email === email.trim().toLowerCase());
     if (!user || user.password !== password) return false;
     if (type === 'admin' && !user.is_admin) return false;
     if (type === 'tenant' && (user.is_admin || !user.tenant_id)) return false;
-    if (type === 'tenant' && user.tenant_id) {
+    // تحقق من حالة الحساب للمستخدمين (وليس المسؤول)
+    if (type === 'tenant') {
+      if (!user.is_active) return 'pending'; // حساب معلق
       const tenant = DB.get('tenants').find(t => t.id === user.tenant_id);
-      if (!tenant || !tenant.is_active) return false;
+      if (!tenant || !tenant.is_active) return 'pending';
     }
     this.currentUser = user;
     sessionStorage.setItem('sbtp_user', JSON.stringify(user));
@@ -3909,12 +3935,15 @@ async function doRegister() {
 
   const newTenant = {
     id: newTenantId, name: company.trim(), plan_id: 2, wilaya: wilaya,
-    subscription_status: 'trial', trial_start: registrationDate,
-    trial_end: trialEndDate, created_at: registrationDate, is_active: true
+    subscription_status: 'pending', trial_start: registrationDate,
+    trial_end: trialEndDate, created_at: registrationDate,
+    is_active: false  // ← غير نشط حتى يفعّله المسؤول
   };
   const newUser = {
     id: newUserId, tenant_id: newTenantId, full_name: name.trim(),
-    email: email, password: pass, role: 'admin', is_admin: false, is_active: true
+    email: email, password: pass, role: 'admin', is_admin: false,
+    is_active: false,          // ← غير نشط حتى يفعّله المسؤول
+    account_status: 'pending'  // ← في انتظار التفعيل
   };
   const notifData = {
     id: Date.now(), type: 'new_account',
@@ -3931,25 +3960,8 @@ async function doRegister() {
   adminNotifs.unshift(notifData);
   DB.set('admin_notifications', adminNotifs);
 
-  // ── تسجيل الدخول فوراً ──
-  Auth.currentUser = newUser;
-  sessionStorage.setItem('sbtp_user', JSON.stringify(newUser));
-  sessionStorage.removeItem('auth_mode');
-
-  // تفعيل AI
-  try {
-    const aiCfg = getAIConfig();
-    if (aiCfg && aiCfg.apiKey && aiCfg.status === 'active') {
-      DEFAULT_AI_CONFIG.apiKey   = aiCfg.apiKey;
-      DEFAULT_AI_CONFIG.provider = aiCfg.provider;
-      DEFAULT_AI_CONFIG.model    = aiCfg.model;
-      DEFAULT_AI_CONFIG.status   = 'active';
-    }
-  } catch(e) {}
-
-  // التوجيه للداشبورد فوراً
-  setTimeout(() => App.navigate('dashboard'), 200);
-  setTimeout(() => showWelcomeRobot(name.trim(), 14), 800);
+  // ── لا تسجيل دخول — عرض شاشة انتظار التفعيل ──
+  showPendingActivationScreen(name.trim(), email);
 
   // ── حفظ في Supabase في الخلفية (بعد الدخول - timeout 8 ثواني) ──
   const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
@@ -3996,6 +4008,96 @@ async function doRegister() {
   }
 
   EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
+}
+
+// ─── شاشة انتظار تفعيل الحساب ───
+function showPendingActivationScreen(userName, userEmail) {
+  // أزل أي overlay سابق
+  const old = document.getElementById('pendingActivationOverlay');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'pendingActivationOverlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(6,10,16,0.97);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Tajawal',sans-serif;
+    animation:fadeIn .4s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      max-width:480px;width:90%;
+      background:rgba(12,18,32,0.95);
+      border:1px solid rgba(232,184,75,0.2);
+      border-radius:24px;padding:2.5rem 2rem;
+      text-align:center;
+      box-shadow:0 40px 100px rgba(0,0,0,.7);
+    ">
+      <!-- أيقونة ساعة -->
+      <div style="width:80px;height:80px;border-radius:50%;
+        background:linear-gradient(135deg,rgba(232,184,75,.15),rgba(232,184,75,.05));
+        border:2px solid rgba(232,184,75,.3);
+        display:flex;align-items:center;justify-content:center;
+        font-size:2.5rem;margin:0 auto 1.5rem;
+        animation:pulse 2s ease-in-out infinite">
+        ⏳
+      </div>
+
+      <div style="font-size:1.4rem;font-weight:900;color:#EDF2F7;margin-bottom:.6rem">
+        شكراً لتسجيلك ${escHtml(userName)}!
+      </div>
+      <div style="font-size:.9rem;color:#8892A4;margin-bottom:1.5rem;line-height:1.7">
+        تم استلام طلب تسجيلك بنجاح وتم إرسال إشعار للمسؤول.
+      </div>
+
+      <!-- بطاقة الانتظار -->
+      <div style="
+        background:rgba(232,184,75,.06);
+        border:1px solid rgba(232,184,75,.2);
+        border-radius:14px;padding:1.2rem;margin-bottom:1.5rem;
+        text-align:right;
+      ">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
+          <span style="font-size:1.1rem">📋</span>
+          <span style="font-size:.85rem;font-weight:800;color:#E8B84B">ماذا سيحدث بعد ذلك؟</span>
+        </div>
+        <div style="font-size:.8rem;color:#8892A4;line-height:2">
+          <div>✅ تم حفظ بياناتك بنجاح</div>
+          <div>📧 سيراجع المسؤول طلبك قريباً</div>
+          <div>🔔 ستصلك رسالة بريد إلكتروني لتفعيل حسابك</div>
+          <div>🚀 بعدها يمكنك تسجيل الدخول مباشرة</div>
+        </div>
+      </div>
+
+      <!-- البريد الإلكتروني -->
+      <div style="
+        background:rgba(52,195,143,.06);
+        border:1px solid rgba(52,195,143,.2);
+        border-radius:10px;padding:.8rem 1rem;
+        margin-bottom:1.5rem;
+        font-size:.82rem;color:#34C38F;
+        display:flex;align-items:center;gap:.5rem;justify-content:center;
+      ">
+        <span>📬</span>
+        <span>سيُرسَل إيميل التفعيل إلى: <strong dir="ltr">${escHtml(userEmail)}</strong></span>
+      </div>
+
+      <!-- زر العودة لتسجيل الدخول -->
+      <button onclick="document.getElementById('pendingActivationOverlay').remove(); App.navigate('login');"
+        style="
+          width:100%;padding:.85rem;
+          background:linear-gradient(135deg,#E8B84B,#C49030);
+          color:#09120A;border:none;border-radius:12px;
+          font-family:'Tajawal',sans-serif;font-size:.95rem;font-weight:900;
+          cursor:pointer;
+        ">
+        ← العودة لصفحة تسجيل الدخول
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
 }
 
 // ─── ربوت الترحيب للحسابات الجديدة ───
@@ -6589,7 +6691,12 @@ Pages.admin = function() {
       <td style="text-align:center;font-size:.78rem;color:${maxEmails!==-1&&usedEmails>=maxEmails?'var(--red)':'var(--muted)'}">${emailsLabel}</td>
       <td style="text-align:center;font-weight:700">${pCount}</td>
       <td style="text-align:center;font-weight:700">${wCount}</td>
-      <td><span class="badge ${t.is_active?'badge-active':'badge-delayed'}">${t.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td>
+      <td>${(()=>{
+        const isPending = !t.is_active && t.subscription_status==='pending';
+        const cls = t.is_active ? 'badge-active' : isPending ? 'badge-paused' : 'badge-delayed';
+        const lbl = t.is_active ? L('نشط','Actif') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
+        return `<span class="badge ${cls}">${lbl}</span>`;
+      })()}</td>
       <td><div style="display:flex;gap:.3rem"><button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})">${t.is_active?'⏸️':'▶️'}</button><button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button></div></td>
     </tr>`;
   }).join('');
@@ -6732,17 +6839,23 @@ Pages.admin = function() {
           const nrows = notifs.map(n=>{
             const isReset   = n.type==='reset_password';
             const isUpgrade = n.type==='upgrade_request';
+            const isNew     = n.type==='new_account';
             const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : '🆕';
-            const badge   = isReset ? 'badge-delayed' : isUpgrade ? 'badge-paused' : 'badge-active';
-            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? 'طلب ترقية' : L('حساب جديد','Nouveau compte');
+            const badge   = isReset ? 'badge-delayed' : isUpgrade ? 'badge-paused' : 'badge-paused';
+            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? 'طلب ترقية' : L('حساب جديد — بانتظار التفعيل','Nouveau compte — En attente');
             const dateStr = new Date(n.date).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+            // تحقق هل الحساب لا يزال معلقاً
+            const linkedUser = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
+            const isPending  = linkedUser && !linkedUser.is_active;
             return `<tr>
               <td><span style="font-size:1.3rem">${icon}</span></td>
               <td style="font-weight:700">${escHtml(n.title)}</td>
               <td style="font-size:.82rem;color:var(--muted)">${escHtml(n.body)}</td>
-              <td><span class="badge ${badge}">${badgeTxt}</span></td>
+              <td><span class="badge ${isPending?'badge-paused':badge}">${isPending?'⏳ '+badgeTxt:(isNew?'✅ مُفعَّل':badgeTxt)}</span></td>
               <td style="font-size:.75rem;color:var(--dim)">${dateStr}</td>
               <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+                ${isNew && isPending ? `<button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id},${n.tenant_id})">✅ تفعيل وإرسال إيميل</button>` : ''}
+                ${isNew && !isPending ? `<span style="font-size:.75rem;color:var(--green)">✅ مُفعَّل</span>` : ''}
                 ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
                 ${isUpgrade && n.status==='pending' ? `<button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id})">✅ موافقة</button><button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ رفض</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})">✓ ${L('إخفاء','Masquer')}</button>
@@ -7457,7 +7570,26 @@ function doLogin() {
   const email = document.getElementById('loginEmail')?.value;
   const pass  = document.getElementById('loginPass')?.value;
   const err   = document.getElementById('loginError');
-  if (Auth.login(email, pass, currentTab)) {
+  const loginResult = Auth.login(email, pass, currentTab);
+
+  // حساب بانتظار التفعيل
+  if (loginResult === 'pending') {
+    if (err) {
+      err.style.display = 'block';
+      err.style.background = 'rgba(232,184,75,.1)';
+      err.style.border = '1px solid rgba(232,184,75,.3)';
+      err.style.color = 'var(--gold)';
+      err.innerHTML = `
+        <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">⏳ حسابك بانتظار التفعيل</div>
+        <div style="font-size:.78rem;opacity:.8">
+          تم استلام طلبك. سيتصل بك المسؤول وسيصلك إيميل بعد تفعيل حسابك.
+        </div>
+      `;
+    }
+    return;
+  }
+
+  if (loginResult) {
     // تحقق من انتهاء التجربة قبل الدخول
     const _loginTenant = Auth.getTenant();
     if (_loginTenant && TrialManager.isExpired(_loginTenant)) {
@@ -7738,6 +7870,64 @@ function changePassword() {
   DB.set('users',users); user.password=newPass; sessionStorage.setItem('sbtp_user',JSON.stringify(user));
   Toast.success(L('✅ تم تغيير كلمة المرور','✅ Mot de passe modifié avec succès'));
   ['pwCurrent','pwNew','pwConfirm'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+
+// ── تفعيل حساب جديد من الإشعار ──
+async function activateAccount(notifId, userId, tenantId) {
+  const btn = event?.target;
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled=true; btn.textContent='⏳ جاري التفعيل...'; }
+
+  try {
+    const users   = DB.get('users');
+    const tenants = DB.get('tenants');
+    const user    = users.find(u => u.id === userId);
+    const tenant  = tenants.find(t => t.id === tenantId);
+    if (!user)   { Toast.error('❌ المستخدم غير موجود'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+    if (!tenant) { Toast.error('❌ المؤسسة غير موجودة'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+
+    // تفعيل محلي
+    user.is_active       = true;
+    user.account_status  = 'active';
+    tenant.is_active            = true;
+    tenant.subscription_status  = 'trial';
+    DB.set('users', users);
+    DB.set('tenants', tenants);
+
+    // تحديث الإشعار
+    const notifs = DB.get('admin_notifications') || [];
+    const notif  = notifs.find(n => n.id === notifId);
+    if (notif) { notif.status = 'activated'; notif.read = true; }
+    DB.set('admin_notifications', notifs);
+
+    // تفعيل في Supabase
+    const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
+    if (sbCfg.url && sbCfg.anonKey) {
+      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}` };
+      Promise.all([
+        fetch(`${sbCfg.url}/rest/v1/users?id=eq.${userId}`,     { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
+        fetch(`${sbCfg.url}/rest/v1/tenants?id=eq.${tenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
+        fetch(`${sbCfg.url}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
+      ]).catch(()=>{});
+    }
+
+    // إرسال إيميل التفعيل للمستخدم
+    const ok = await EMAILJS.sendActivationEmail({
+      email:     user.email,
+      full_name: user.full_name,
+      password:  user.password,
+      company:   tenant.name || '',
+    });
+
+    Toast.success(ok
+      ? `✅ تم تفعيل حساب "${user.full_name}" وإرسال إيميل الدخول`
+      : `✅ تم التفعيل — تحقق من إعدادات EmailJS لإرسال الإيميل`
+    );
+    App.navigate('admin');
+  } catch(e) {
+    Toast.error('❌ فشل التفعيل: ' + e.message);
+    if (btn) { btn.disabled=false; btn.textContent=origText; }
+  }
 }
 
 function toggleTenant(id) {
