@@ -321,6 +321,46 @@ const DBHybrid = {
     // مزامنة البيانات المتراكمة أثناء الانقطاع
     setTimeout(() => syncToSupabase(), 1000);
 
+    // ── جلب AI config من Supabase للمستخدم الحالي ──
+    setTimeout(async () => {
+      try {
+        const aiResp = await fetch(`${this._sb._url}/rest/v1/global_settings?key=eq.global_ai_config&select=value`, {
+          headers: this._sb.headers()
+        });
+        if (aiResp.ok) {
+          const rows = await aiResp.json();
+          if (rows.length && rows[0].value) {
+            const cfg = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+            if (cfg.apiKey) {
+              try { localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg)); } catch(e) {}
+              console.log('✅ SmartAI config مُحدَّث من Supabase');
+            }
+          }
+        }
+        // ── جلب المستخدمين والمؤسسات الجديدة ──
+        const tResp = await fetch(`${this._sb._url}/rest/v1/tenants?order=id.asc`, { headers: this._sb.headers() });
+        const uResp = await fetch(`${this._sb._url}/rest/v1/users?order=id.asc`, { headers: this._sb.headers() });
+        if (tResp.ok) {
+          const sbTenants = await tResp.json();
+          if (sbTenants.length) {
+            const localKey = 'sbtp5_tenants';
+            try { const cur = JSON.parse(localStorage.getItem(localKey)||'[]');
+              const merged = [...sbTenants]; cur.forEach(lt => { if(!merged.find(st=>st.id===lt.id)) merged.push(lt); });
+              localStorage.setItem(localKey, JSON.stringify(merged)); } catch(e) {}
+          }
+        }
+        if (uResp.ok) {
+          const sbUsers = await uResp.json();
+          if (sbUsers.length) {
+            const localKey = 'sbtp5_users';
+            try { const cur = JSON.parse(localStorage.getItem(localKey)||'[]');
+              const merged = [...sbUsers]; cur.forEach(lu => { if(!merged.find(su=>su.id===lu.id)) merged.push(lu); });
+              localStorage.setItem(localKey, JSON.stringify(merged)); } catch(e) {}
+          }
+        }
+      } catch(e) {}
+    }, 1500);
+
     // تحديث الـ UI
     this._updateConnectionBadge(true);
 
@@ -372,7 +412,8 @@ const DBHybrid = {
       'projects', 'workers', 'transactions', 'equipment',
       'materials', 'attendance', 'invoices', 'salary_records',
       'kanban_tasks', 'documents', 'obligations', 'notes',
-      'tenants', 'users', 'plans', 'notifications'
+      'tenants', 'users', 'plans', 'notifications',
+      'global_settings', 'admin_notifications'
     ];
     if (!SYNCABLE_TABLES.includes(key)) return;
 
@@ -417,12 +458,54 @@ const DBHybrid = {
     }
   },
 
-  // ─── مزامنة أولية: localStorage → Supabase ────────────
+  // ─── مزامنة أولية: localStorage → Supabase + Supabase → localStorage ────────────
   async _initialSync() {
+    // دفع البيانات المحلية لـ Supabase
     const tables = ['plans', 'tenants', 'users'];
     for (const t of tables) {
       const local = this.get(t);
       if (local.length) await this._syncTableToSupabase(t, local).catch(() => {});
+    }
+
+    // ── سحب بيانات Supabase (المستخدمون الجدد والمؤسسات والإعدادات) ──
+    try {
+      // سحب المؤسسات
+      const sbTenants = await this._sb.select('tenants').catch(() => []);
+      if (sbTenants.length) {
+        const local = this.get('tenants');
+        const merged = [...sbTenants];
+        local.forEach(lt => { if (!merged.find(st => st.id === lt.id)) merged.push(lt); });
+        localStorage.setItem('sbtp5_tenants', JSON.stringify(merged));
+      }
+      // سحب المستخدمين
+      const sbUsers = await this._sb.select('users').catch(() => []);
+      if (sbUsers.length) {
+        const local = this.get('users');
+        const merged = [...sbUsers];
+        local.forEach(lu => { if (!merged.find(su => su.id === lu.id)) merged.push(lu); });
+        localStorage.setItem('sbtp5_users', JSON.stringify(merged));
+      }
+      // سحب إعداد AI المركزي
+      const aiRows = await this._sb.select('global_settings', { key: 'global_ai_config' }).catch(() => []);
+      if (aiRows.length && aiRows[0].value) {
+        const cfg = typeof aiRows[0].value === 'string' ? JSON.parse(aiRows[0].value) : aiRows[0].value;
+        if (cfg.apiKey) {
+          localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
+          console.log('✅ AI config مُحمَّل من Supabase');
+        }
+      }
+      // سحب الإشعارات
+      const sbNotifs = await this._sb.select('notifications').catch(() => []);
+      if (sbNotifs.length) {
+        const local = this.get('admin_notifications') || [];
+        const merged = [...sbNotifs];
+        local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
+        localStorage.setItem('sbtp5_admin_notifications', JSON.stringify(
+          merged.sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
+        ));
+      }
+    } catch(e) {
+      console.warn('⚠️ فشل سحب البيانات من Supabase:', e.message);
     }
   },
 

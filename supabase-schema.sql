@@ -380,3 +380,45 @@ ON CONFLICT (email) DO NOTHING;
 SELECT setval('plans_id_seq', 10);
 SELECT setval('tenants_id_seq', 10);
 SELECT setval('users_id_seq', 10);
+
+-- ══════════════════════════════════════════════════════
+--  جداول إضافية مطلوبة للنظام
+-- ══════════════════════════════════════════════════════
+
+-- جدول الإعدادات العامة (AI config وغيره — مشترك بين جميع المستخدمين)
+CREATE TABLE IF NOT EXISTS global_settings (
+  key         VARCHAR(100) PRIMARY KEY,
+  value       JSONB NOT NULL DEFAULT '{}',
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- جدول الإشعارات (تسجيلات جديدة، طلبات إعادة كلمة المرور...)
+CREATE TABLE IF NOT EXISTS notifications (
+  id          BIGINT PRIMARY KEY,
+  type        VARCHAR(50) NOT NULL DEFAULT 'info',
+  title       TEXT,
+  body        TEXT,
+  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  tenant_id   INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  date        TIMESTAMPTZ DEFAULT NOW(),
+  read        BOOLEAN DEFAULT FALSE,
+  status      VARCHAR(20) DEFAULT 'pending',
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS على الجدولين الجديدين
+ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all on global_settings" ON global_settings FOR ALL USING (true);
+CREATE POLICY "Allow all on notifications" ON notifications FOR ALL USING (true);
+
+-- Index على notifications
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant ON notifications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_type   ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_read   ON notifications(read);
+
+-- إعادة تعيين تسلسل الـ sequences لتجنب تعارض الـ IDs مع البيانات التجريبية
+SELECT setval('plans_id_seq',   (SELECT COALESCE(MAX(id),10) FROM plans)   + 100);
+SELECT setval('tenants_id_seq', (SELECT COALESCE(MAX(id),10) FROM tenants) + 100);
+SELECT setval('users_id_seq',   (SELECT COALESCE(MAX(id),10) FROM users)   + 100);

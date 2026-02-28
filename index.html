@@ -3871,7 +3871,7 @@ function togglePassReg() {
   if (i) i.type = i.type === 'password' ? 'text' : 'password';
 }
 
-function doRegister() {
+async function doRegister() {
 
   const name = (document.getElementById('regName')||{}).value||'';
   const company = (document.getElementById('regCompany')||{}).value||'';
@@ -3880,7 +3880,9 @@ function doRegister() {
   const wilaya = (document.getElementById('regWilaya')||{}).value||'';
   const terms = (document.getElementById('regTerms')||{}).checked||false;
   const errEl = document.getElementById('registerError');
+  const succEl = document.getElementById('registerSuccess');
   const showErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  const showSucc = (msg) => { if (succEl) { succEl.textContent = msg; succEl.style.display = 'block'; succEl.style.background='rgba(52,195,143,.1)'; succEl.style.border='1px solid rgba(52,195,143,.3)'; succEl.style.color='var(--green)'; } };
 
   if (!name.trim()) return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
   if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب','❌ Le nom de l\'entreprise est requis'));
@@ -3888,47 +3890,186 @@ function doRegister() {
   if (pass.length < 6) return showErr(L('❌ كلمة المرور يجب أن تكون 6 أحرف على الأقل','❌ Le mot de passe doit contenir au moins 6 caractères'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
 
-  const users = DB.get('users');
-  if (users.find(u => u.email === email)) return showErr(L('❌ هذا البريد الإلكتروني مستخدم بالفعل','❌ Cet email est déjà utilisé'));
-
   if (errEl) errEl.style.display = 'none';
 
-  // Create tenant with trial plan
+  // ── زر التسجيل: حالة تحميل ──
+  const regBtn = document.querySelector('button[onclick="doRegister()"]');
+  if (regBtn) { regBtn.disabled = true; regBtn.textContent = '⏳ جاري إنشاء الحساب...'; }
+
+  // ══════════════════════════════════════════════════════
+  // 1️⃣ محاولة الحفظ في Supabase (المصدر المركزي)
+  // ══════════════════════════════════════════════════════
+  const sbCfg = (() => {
+    try { return JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}'); } catch { return {}; }
+  })();
+  const hasSupabase = !!(sbCfg.url && sbCfg.anonKey);
+
   const trialEnd = new Date();
   trialEnd.setDate(trialEnd.getDate() + 14);
-  const tenants = DB.get('tenants');
-  const newTenantId = tenants.length ? Math.max(...tenants.map(t=>t.id)) + 1 : 2;
   const registrationDate = new Date().toISOString().split('T')[0];
-  const newTenant = {
-    id: newTenantId,
-    name: company.trim(),
-    plan_id: 2, // Pro during trial
-    wilaya: wilaya,
-    subscription_status: 'trial',
-    trial_start: registrationDate,
-    trial_end: trialEnd.toISOString().split('T')[0],
-    created_at: registrationDate,
-    is_active: true
-  };
-  tenants.push(newTenant);
-  DB.set('tenants', tenants);
 
-  // Create user
-  const newUserId = users.length ? Math.max(...users.map(u=>u.id)) + 1 : 3;
-  const newUser = {
-    id: newUserId,
-    tenant_id: newTenantId,
-    full_name: name.trim(),
-    email: email,
-    password: pass,
-    role: 'admin',
-    is_admin: false,
-    is_active: true
-  };
-  users.push(newUser);
-  DB.set('users', users);
+  let newTenantId, newUserId, newUser, newTenant;
 
-  // ─── إشعار المسؤول بالتسجيل الجديد ───
+  if (hasSupabase) {
+    // ── جلب من Supabase للتحقق من البريد وحساب الـ IDs ──
+    try {
+      showSucc('⏳ جاري التحقق والحفظ في قاعدة البيانات...');
+
+      const sbHeaders = {
+        'Content-Type': 'application/json',
+        'apikey': sbCfg.anonKey,
+        'Authorization': `Bearer ${sbCfg.anonKey}`,
+        'Prefer': 'return=representation'
+      };
+
+      // التحقق من البريد الإلكتروني في Supabase
+      const checkResp = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbHeaders });
+      if (checkResp.ok) {
+        const existing = await checkResp.json();
+        if (existing.length) {
+          if (regBtn) { regBtn.disabled = false; regBtn.textContent = L('🚀 إنشاء الحساب','🚀 Créer le compte'); }
+          if (succEl) succEl.style.display = 'none';
+          return showErr(L('❌ هذا البريد الإلكتروني مستخدم بالفعل','❌ Cet email est déjà utilisé'));
+        }
+      }
+
+      // ── جلب أعلى ID من Supabase لضمان عدم التعارض ──
+      const maxTenantResp = await fetch(`${sbCfg.url}/rest/v1/tenants?select=id&order=id.desc&limit=1`, { headers: sbHeaders });
+      const maxTenants = maxTenantResp.ok ? await maxTenantResp.json() : [];
+      const maxUserResp = await fetch(`${sbCfg.url}/rest/v1/users?select=id&order=id.desc&limit=1`, { headers: sbHeaders });
+      const maxUsers = maxUserResp.ok ? await maxUserResp.json() : [];
+
+      // حساب ID بناءً على الـ localStorage + Supabase (الأعلى يأخذ الأولوية)
+      const localTenants = DB.get('tenants');
+      const localUsers = DB.get('users');
+      const localMaxTenant = localTenants.length ? Math.max(...localTenants.map(t=>t.id)) : 1;
+      const localMaxUser = localUsers.length ? Math.max(...localUsers.map(u=>u.id)) : 2;
+      const sbMaxTenant = maxTenants.length ? maxTenants[0].id : 1;
+      const sbMaxUser = maxUsers.length ? maxUsers[0].id : 2;
+
+      newTenantId = Math.max(localMaxTenant, sbMaxTenant) + 1;
+      newUserId = Math.max(localMaxUser, sbMaxUser) + 1;
+
+      newTenant = {
+        id: newTenantId,
+        name: company.trim(),
+        plan_id: 2,
+        wilaya: wilaya,
+        subscription_status: 'trial',
+        trial_start: registrationDate,
+        trial_end: trialEnd.toISOString().split('T')[0],
+        created_at: registrationDate,
+        is_active: true
+      };
+
+      newUser = {
+        id: newUserId,
+        tenant_id: newTenantId,
+        full_name: name.trim(),
+        email: email,
+        password: pass,
+        role: 'admin',
+        is_admin: false,
+        is_active: true
+      };
+
+      // ── حفظ المؤسسة في Supabase ──
+      const tResp = await fetch(`${sbCfg.url}/rest/v1/tenants`, {
+        method: 'POST',
+        headers: sbHeaders,
+        body: JSON.stringify(newTenant)
+      });
+      if (!tResp.ok) throw new Error(await tResp.text());
+
+      // ── حفظ المستخدم في Supabase ──
+      const uResp = await fetch(`${sbCfg.url}/rest/v1/users`, {
+        method: 'POST',
+        headers: sbHeaders,
+        body: JSON.stringify(newUser)
+      });
+      if (!uResp.ok) throw new Error(await uResp.text());
+
+      // ── حفظ إشعار المسؤول في Supabase ──
+      const notifData = {
+        id: Date.now(),
+        type: 'new_account',
+        title: 'حساب جديد بانتظار المراجعة',
+        body: `قامت مؤسسة "${company.trim()}" بالتسجيل — ${name.trim()} (${email})`,
+        user_id: newUserId,
+        tenant_id: newTenantId,
+        date: new Date().toISOString(),
+        read: false
+      };
+      await fetch(`${sbCfg.url}/rest/v1/notifications`, {
+        method: 'POST',
+        headers: sbHeaders,
+        body: JSON.stringify(notifData)
+      }).catch(() => {}); // لا تفشل إذا الجدول غير موجود
+
+      console.log('✅ تم حفظ التسجيل في Supabase بنجاح');
+
+    } catch(sbErr) {
+      console.warn('⚠️ Supabase فشل، يُحفظ محلياً:', sbErr.message);
+      hasSupabaseOk = false;
+      // نكمل مع localStorage
+    }
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 2️⃣ الحفظ في localStorage (دائماً — كـ cache محلي)
+  // ══════════════════════════════════════════════════════
+  if (!newTenantId) {
+    // لم نحسبها من Supabase → احسبها من localStorage
+    const localTenants = DB.get('tenants');
+    const localUsers = DB.get('users');
+
+    // التحقق من البريد محلياً
+    if (localUsers.find(u => u.email === email)) {
+      if (regBtn) { regBtn.disabled = false; regBtn.textContent = L('🚀 إنشاء الحساب','🚀 Créer le compte'); }
+      if (succEl) succEl.style.display = 'none';
+      return showErr(L('❌ هذا البريد الإلكتروني مستخدم بالفعل','❌ Cet email est déjà utilisé'));
+    }
+
+    newTenantId = localTenants.length ? Math.max(...localTenants.map(t=>t.id)) + 1 : 2;
+    newUserId = localUsers.length ? Math.max(...localUsers.map(u=>u.id)) + 1 : 3;
+
+    newTenant = {
+      id: newTenantId,
+      name: company.trim(),
+      plan_id: 2,
+      wilaya: wilaya,
+      subscription_status: 'trial',
+      trial_start: registrationDate,
+      trial_end: trialEnd.toISOString().split('T')[0],
+      created_at: registrationDate,
+      is_active: true
+    };
+
+    newUser = {
+      id: newUserId,
+      tenant_id: newTenantId,
+      full_name: name.trim(),
+      email: email,
+      password: pass,
+      role: 'admin',
+      is_admin: false,
+      is_active: true
+    };
+  }
+
+  // حفظ في localStorage دائماً
+  const localTenants = DB.get('tenants');
+  if (!localTenants.find(t => t.id === newTenantId)) {
+    localTenants.push(newTenant);
+    DB.set('tenants', localTenants);
+  }
+  const localUsers = DB.get('users');
+  if (!localUsers.find(u => u.id === newUserId)) {
+    localUsers.push(newUser);
+    DB.set('users', localUsers);
+  }
+
+  // ── إشعار المسؤول في localStorage ──
   const adminNotifs = DB.get('admin_notifications') || [];
   adminNotifs.unshift({
     id: Date.now(),
@@ -3942,7 +4083,7 @@ function doRegister() {
   });
   DB.set('admin_notifications', adminNotifs);
 
-  // ─── إرسال إيميل للمسؤول عبر EmailJS ───
+  // ── إرسال إيميل للمسؤول عبر EmailJS ──
   EMAILJS.notifyNewAccount({
     name:    name.trim(),
     email:   email,
@@ -3952,16 +4093,49 @@ function doRegister() {
     if (ok) console.log('📧 إيميل إشعار المسؤول أُرسل بنجاح');
   });
 
-  // Auto-login
-  Auth.currentUser = newUser;
-  sessionStorage.setItem('sbtp_user', JSON.stringify(newUser));
-  sessionStorage.removeItem('auth_mode');
-
-  const daysLeft = 14;
-
-  // ─── رسالة الترحيب ربوت ───
-  // ── تفعيل SmartAI تلقائياً للحساب الجديد ──
-  setTimeout(() => {
+  // ══════════════════════════════════════════════════════
+  // 3️⃣ جلب إعداد AI المركزي من Supabase للمستخدم الجديد
+  // ══════════════════════════════════════════════════════
+  if (hasSupabase) {
+    try {
+      const sbHeaders = {
+        'Content-Type': 'application/json',
+        'apikey': sbCfg.anonKey,
+        'Authorization': `Bearer ${sbCfg.anonKey}`
+      };
+      // جلب إعداد AI الذي ضبطه المسؤول من Supabase
+      // يُخزَّن في جدول كـ key/value أو نستخدم الـ localStorage المشترك
+      // نجرب جدول global_settings
+      const aiResp = await fetch(`${sbCfg.url}/rest/v1/global_settings?key=eq.global_ai_config&select=value`, { headers: sbHeaders });
+      if (aiResp.ok) {
+        const aiRows = await aiResp.json();
+        if (aiRows.length && aiRows[0].value) {
+          const adminAICfg = typeof aiRows[0].value === 'string' ? JSON.parse(aiRows[0].value) : aiRows[0].value;
+          if (adminAICfg.apiKey && adminAICfg.status === 'active') {
+            DB.set('global_ai_config', adminAICfg);
+            DEFAULT_AI_CONFIG.apiKey   = adminAICfg.apiKey;
+            DEFAULT_AI_CONFIG.provider = adminAICfg.provider || DEFAULT_AI_CONFIG.provider;
+            DEFAULT_AI_CONFIG.model    = adminAICfg.model    || DEFAULT_AI_CONFIG.model;
+            DEFAULT_AI_CONFIG.endpoint = adminAICfg.endpoint || DEFAULT_AI_CONFIG.endpoint;
+            DEFAULT_AI_CONFIG.apiStyle = adminAICfg.apiStyle || DEFAULT_AI_CONFIG.apiStyle;
+            DEFAULT_AI_CONFIG.status   = 'active';
+            console.log('✅ SmartAI: تم تحميل إعداد المسؤول من Supabase');
+          }
+        }
+      }
+    } catch(e) {
+      console.warn('⚠️ لم يتم تحميل AI config من Supabase:', e.message);
+      // fallback: استخدم الإعداد المحلي
+      const localAI = DB.get('global_ai_config');
+      if (localAI && localAI.apiKey) {
+        DEFAULT_AI_CONFIG.apiKey   = localAI.apiKey;
+        DEFAULT_AI_CONFIG.provider = localAI.provider || DEFAULT_AI_CONFIG.provider;
+        DEFAULT_AI_CONFIG.model    = localAI.model    || DEFAULT_AI_CONFIG.model;
+        DEFAULT_AI_CONFIG.status   = 'active';
+      }
+    }
+  } else {
+    // بدون Supabase: استخدم الإعداد المحلي
     try {
       const aiCfg = getAIConfig();
       if (aiCfg && aiCfg.apiKey && aiCfg.status === 'active') {
@@ -3971,7 +4145,18 @@ function doRegister() {
         DEFAULT_AI_CONFIG.status   = 'active';
       }
     } catch(e) {}
-  }, 100);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 4️⃣ تسجيل الدخول وتوجيه المستخدم
+  // ══════════════════════════════════════════════════════
+  Auth.currentUser = newUser;
+  sessionStorage.setItem('sbtp_user', JSON.stringify(newUser));
+  sessionStorage.removeItem('auth_mode');
+
+  if (regBtn) { regBtn.disabled = false; regBtn.textContent = L('🚀 إنشاء الحساب','🚀 Créer le compte'); }
+
+  const daysLeft = 14;
   setTimeout(() => App.navigate('dashboard'), 400);
   setTimeout(() => showWelcomeRobot(name.trim(), daysLeft), 900);
 }
@@ -5427,7 +5612,7 @@ Pages.settings = function() {
 */
 const DEFAULT_AI_CONFIG = {
   provider: 'groq',
-  apiKey: '',           // ← المسؤول يضع مفتاحه هنا مرة واحدة
+  apiKey: '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', // ← مُحدَّث من لوحة المسؤول
   model: 'llama-3.3-70b-versatile',
   endpoint: 'https://api.groq.com/openai/v1/chat/completions',
   apiStyle: 'openai',
@@ -5514,10 +5699,9 @@ const AI_PROVIDERS = [
 
 function getAIConfig() {
   try {
-    // ── الأولوية الوحيدة: الإعداد المركزي من DB (يُضبط من المسؤول ويُقرأ من الجميع) ──
+    // ── 1. الأولوية: الإعداد المركزي من localStorage (مزامن من Supabase) ──
     const globalCfg = DB.get('global_ai_config');
     if (globalCfg && globalCfg.apiKey && globalCfg.status === 'active') {
-      // حدّث DEFAULT_AI_CONFIG في الذاكرة أيضاً
       DEFAULT_AI_CONFIG.apiKey    = globalCfg.apiKey;
       DEFAULT_AI_CONFIG.provider  = globalCfg.provider  || DEFAULT_AI_CONFIG.provider;
       DEFAULT_AI_CONFIG.model     = globalCfg.model     || DEFAULT_AI_CONFIG.model;
@@ -5525,7 +5709,7 @@ function getAIConfig() {
       DEFAULT_AI_CONFIG.apiStyle  = globalCfg.apiStyle  || DEFAULT_AI_CONFIG.apiStyle;
       return { ...DEFAULT_AI_CONFIG, ...globalCfg };
     }
-    // ── fallback: المفتاح المدمج في الكود مباشرة ──
+    // ── 2. fallback: المفتاح المدمج في الكود ──
     if (DEFAULT_AI_CONFIG.apiKey) {
       return { ...DEFAULT_AI_CONFIG, status: 'active' };
     }
@@ -5533,14 +5717,42 @@ function getAIConfig() {
   } catch(e) { return { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile', status: 'inactive' }; }
 }
 
+// ── جلب AI config من Supabase وتخزينه محلياً (يُستدعى عند أول تحميل) ──
+async function fetchAIConfigFromSupabase() {
+  try {
+    const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (!sbCfg.url || !sbCfg.anonKey) return;
+    const resp = await fetch(`${sbCfg.url}/rest/v1/global_settings?key=eq.global_ai_config&select=value`, {
+      headers: { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` }
+    });
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length || !rows[0].value) return;
+    const remoteCfg = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+    if (remoteCfg.apiKey && remoteCfg.status === 'active') {
+      DB.set('global_ai_config', remoteCfg);
+      DEFAULT_AI_CONFIG.apiKey   = remoteCfg.apiKey;
+      DEFAULT_AI_CONFIG.provider = remoteCfg.provider || DEFAULT_AI_CONFIG.provider;
+      DEFAULT_AI_CONFIG.model    = remoteCfg.model    || DEFAULT_AI_CONFIG.model;
+      DEFAULT_AI_CONFIG.endpoint = remoteCfg.endpoint || DEFAULT_AI_CONFIG.endpoint;
+      DEFAULT_AI_CONFIG.apiStyle = remoteCfg.apiStyle || DEFAULT_AI_CONFIG.apiStyle;
+      DEFAULT_AI_CONFIG.status   = 'active';
+      console.log('✅ SmartAI: تم تحميل إعداد AI من Supabase تلقائياً');
+    }
+  } catch(e) { /* silent */ }
+}
+// تحميل تلقائي عند بدء التطبيق
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(fetchAIConfigFromSupabase, 1500));
+} else {
+  setTimeout(fetchAIConfigFromSupabase, 1500);
+}
+
 function saveAIConfig(cfg) {
   const base = getAIConfig();
   const merged = { ...base, ...cfg };
-  // ── احفظ في DB المشتركة (يقرأها كل الأجهزة والحسابات) ──
   try { DB.set('global_ai_config', merged); } catch(e) {}
-  // ── حدّث localStorage أيضاً كـ cache محلي ──
   try { localStorage.setItem('sbtp_ai_config', JSON.stringify(merged)); } catch(e) {}
-  // ── حدّث DEFAULT_AI_CONFIG في الذاكرة فوراً ──
   try {
     if (merged.apiKey) {
       DEFAULT_AI_CONFIG.apiKey   = merged.apiKey;
@@ -5551,10 +5763,20 @@ function saveAIConfig(cfg) {
       DEFAULT_AI_CONFIG.status   = merged.status    || 'active';
     }
   } catch(e) {}
-  // ── حدّث SmartAI مباشرة إذا كان مفتوحاً ──
   try {
     if (typeof SmartAI !== 'undefined' && SmartAI) {
       SmartAI.currentProvider = merged.provider;
+    }
+  } catch(e) {}
+  // ─── حفظ إعداد AI في Supabase حتى تراه جميع الحسابات الجديدة ───
+  try {
+    const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (sbCfg.url && sbCfg.anonKey) {
+      const sbHeaders = { 'Content-Type': 'application/json', 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}`, 'Prefer': 'resolution=merge-duplicates,return=representation' };
+      fetch(`${sbCfg.url}/rest/v1/global_settings`, {
+        method: 'POST', headers: sbHeaders,
+        body: JSON.stringify({ key: 'global_ai_config', value: merged, updated_at: new Date().toISOString() })
+      }).then(r => { if (r.ok) console.log('✅ AI config حُفظ في Supabase'); }).catch(() => {});
     }
   } catch(e) {}
 }
@@ -6494,6 +6716,52 @@ function patchSmartAIWithSavedConfig() {
 
 /* ─── ADMIN ─── */
 Pages.admin = function() {
+
+  // ── مزامنة بيانات المستخدمين والمؤسسات من Supabase تلقائياً ──
+  (async () => {
+    try {
+      const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+      if (!sbCfg.url || !sbCfg.anonKey) return;
+      const h = { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` };
+
+      // جلب المؤسسات
+      const tResp = await fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h });
+      if (tResp.ok) {
+        const sbTenants = await tResp.json();
+        if (sbTenants.length) {
+          const local = DB.get('tenants');
+          // دمج: Supabase يأخذ الأولوية، والمحلية تُضاف إن لم تكن موجودة
+          const merged = [...sbTenants];
+          local.forEach(lt => { if (!merged.find(st => st.id === lt.id)) merged.push(lt); });
+          DB.set('tenants', merged);
+        }
+      }
+      // جلب المستخدمين
+      const uResp = await fetch(`${sbCfg.url}/rest/v1/users?order=id.asc`, { headers: h });
+      if (uResp.ok) {
+        const sbUsers = await uResp.json();
+        if (sbUsers.length) {
+          const local = DB.get('users');
+          const merged = [...sbUsers];
+          local.forEach(lu => { if (!merged.find(su => su.id === lu.id)) merged.push(lu); });
+          DB.set('users', merged);
+        }
+      }
+      // جلب الإشعارات من Supabase
+      const nResp = await fetch(`${sbCfg.url}/rest/v1/notifications?order=id.desc&limit=100`, { headers: h });
+      if (nResp.ok) {
+        const sbNotifs = await nResp.json();
+        if (sbNotifs.length) {
+          const local = DB.get('admin_notifications') || [];
+          const merged = [...sbNotifs];
+          local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
+          DB.set('admin_notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
+        }
+      }
+      // إعادة رسم الصفحة بعد المزامنة
+      if (App.currentPage === 'admin') App.navigate('admin');
+    } catch(e) { /* silent */ }
+  })();
 
   const tenants=DB.get('tenants'), users=DB.get('users'), plans=DB.get('plans');
   const projects=DB.get('projects'), workers=DB.get('workers');
@@ -7741,7 +8009,7 @@ function saveTenantPlan(tenantId) {
   App.navigate('admin');
 }
 
-function addTenant() {
+async function addTenant() {
 
   const name=document.getElementById('atName')?.value?.trim();
   const email=document.getElementById('atEmail')?.value?.trim().toLowerCase();
@@ -7749,13 +8017,55 @@ function addTenant() {
   const admin=document.getElementById('atAdmin')?.value?.trim();
   const planId=Number(document.getElementById('atPlan')?.value);
   if(!name||!email||!pass||!admin){Toast.error(L('أكمل جميع الحقول المطلوبة','Remplissez tous les champs requis'));return;}
+
+  // ── التحقق من البريد ──
   const users=DB.get('users');
   if(users.find(u=>u.email===email)){Toast.error(L('هذا البريد مستخدم بالفعل','Cet email est déjà utilisé'));return;}
+
+  // ── إنشاء كائنات المؤسسة والمستخدم ──
+  const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch{return {};} })();
+  const hasSupabase = !!(sbCfg.url && sbCfg.anonKey);
+
+  let newTenantId, newUserId;
+
+  if (hasSupabase) {
+    try {
+      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}`,'Prefer':'return=representation' };
+      // التحقق من البريد في Supabase
+      const chk = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, {headers:sbH});
+      if (chk.ok && (await chk.json()).length) { Toast.error(L('هذا البريد مستخدم في Supabase بالفعل','Email déjà utilisé dans Supabase')); return; }
+      // أعلى ID
+      const mt = await (await fetch(`${sbCfg.url}/rest/v1/tenants?select=id&order=id.desc&limit=1`,{headers:sbH})).json().catch(()=>[]);
+      const mu = await (await fetch(`${sbCfg.url}/rest/v1/users?select=id&order=id.desc&limit=1`,{headers:sbH})).json().catch(()=>[]);
+      const localTenants=DB.get('tenants'), localUsers=DB.get('users');
+      newTenantId = Math.max(mt[0]?.id||1, localTenants.length?Math.max(...localTenants.map(t=>t.id)):1) + 1;
+      newUserId   = Math.max(mu[0]?.id||2, localUsers.length?Math.max(...localUsers.map(u=>u.id)):2) + 1;
+    } catch(e) { console.warn('Supabase ID fetch failed:', e.message); }
+  }
+
   const tenants=DB.get('tenants');
-  const newTenant={id:DB.nextId('tenants'),name,plan_id:planId,wilaya:'',is_active:true,subscription_status:'active'};
+  if (!newTenantId) newTenantId = tenants.length?Math.max(...tenants.map(t=>t.id))+1:2;
+  if (!newUserId)   newUserId   = users.length?Math.max(...users.map(u=>u.id))+1:3;
+
+  const newTenant={id:newTenantId,name,plan_id:planId,wilaya:'',is_active:true,subscription_status:'active',created_at:new Date().toISOString().split('T')[0]};
+  const newUser={id:newUserId,tenant_id:newTenantId,full_name:admin,email,password:pass,role:'admin',is_admin:false,is_active:true};
+
+  // ── حفظ في localStorage ──
   tenants.push(newTenant); DB.set('tenants',tenants);
-  users.push({id:DB.nextId('users'),tenant_id:newTenant.id,full_name:admin,email,password:pass,role:'admin',is_admin:false,is_active:true});
-  DB.set('users',users); Toast.success(L(`✅ تم إنشاء مؤسسة "${name}" بنجاح`,`✅ Entreprise "${name}" créée avec succès`)); App.navigate('admin');
+  users.push(newUser);     DB.set('users',users);
+
+  // ── حفظ في Supabase ──
+  if (hasSupabase) {
+    try {
+      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}`,'Prefer':'return=representation' };
+      await fetch(`${sbCfg.url}/rest/v1/tenants`,{method:'POST',headers:sbH,body:JSON.stringify(newTenant)}).catch(()=>{});
+      await fetch(`${sbCfg.url}/rest/v1/users`,{method:'POST',headers:sbH,body:JSON.stringify(newUser)}).catch(()=>{});
+      console.log('✅ المؤسسة والمستخدم حُفظا في Supabase');
+    } catch(e) { console.warn('⚠️ فشل الحفظ في Supabase:', e.message); }
+  }
+
+  Toast.success(L(`✅ تم إنشاء مؤسسة "${name}" بنجاح`,`✅ Entreprise "${name}" créée avec succès`));
+  App.navigate('admin');
 }
 
 /* ══════════════════════════════════════════════════════
