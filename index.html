@@ -4031,9 +4031,14 @@ async function doRegister() {
       if (lui > -1) { lUsers[lui].id = sbUser.id; lUsers[lui].tenant_id = sbTenant.id; DB.set('users', lUsers); }
 
       console.log(`✅ Supabase: tenant #${sbTenant.id} + user #${sbUser.id}`);
-    } catch(e) { console.error('❌ Supabase register error:', e.message); }
+      // إرسال إيميل للمسؤول بعد حفظ Supabase
+      await EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
+    } catch(e) {
+      console.error('❌ Supabase register error:', e.message);
+      // أرسل الإيميل حتى لو فشل Supabase
+      EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
+    }
   })()
-  EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
 }
 
 // ─── شاشة انتظار تفعيل الحساب ───
@@ -6723,7 +6728,15 @@ Pages.admin = function() {
         const lbl = t.is_active ? L('نشط','Actif') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
         return `<span class="badge ${cls}">${lbl}</span>`;
       })()}</td>
-      <td><div style="display:flex;gap:.3rem"><button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})">${t.is_active?'⏸️':'▶️'}</button><button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button></div></td>
+      <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
+        ${(!t.is_active && t.subscription_status==='pending') ? (() => {
+          const pendUser = users.find(u=>u.tenant_id===t.id&&!u.is_admin);
+          const pendNotif = (DB.get('admin_notifications')||[]).find(n=>n.type==='new_account'&&n.tenant_id===t.id&&n.status!=='activated');
+          if(pendUser && pendNotif) return `<button class="btn btn-sm btn-green" onclick="activateAccount(${pendNotif.id},${pendUser.id},${t.id})">✅ تفعيل</button>`;
+          return `<button class="btn btn-sm btn-green" onclick="toggleTenant(${t.id})">▶️</button>`;
+        })() : `<button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})">${t.is_active?'⏸️':'▶️'}</button>`}
+        <button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button>
+      </div></td>
     </tr>`;
   }).join('');
 
@@ -6759,8 +6772,12 @@ Pages.admin = function() {
             🤖 إعدادات SmartAI
           </button>
           <button id="adminTab_notif" onclick="switchAdminTab('notif')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted);position:relative">
             📧 الإشعارات والبريد
+            ${(()=>{
+              const pendingNotifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending');
+              return pendingNotifs.length ? `<span style="position:absolute;top:4px;left:8px;background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:.65rem;display:inline-flex;align-items:center;justify-content:center;font-weight:900">${pendingNotifs.length}</span>` : '';
+            })()}
           </button>
           <button id="adminTab_supabase" onclick="switchAdminTab('supabase')"
             style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
@@ -6770,6 +6787,28 @@ Pages.admin = function() {
 
         <!-- TAB CONTENT: المؤسسات -->
         <div id="adminTabContent_tenants" style="display:block">
+
+        <!-- ══ Pending Accounts Alert ══ -->
+        \${(()=>{
+          const pendingUsers  = (DB.get('users')||[]).filter(u=>!u.is_active && !u.is_admin);
+          if(!pendingUsers.length) return '';
+          return \`<div style="
+            background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.05));
+            border:2px solid rgba(232,184,75,.4);border-radius:16px;
+            padding:1rem 1.3rem;margin-bottom:1.3rem;
+            display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
+            <div style="display:flex;align-items:center;gap:.7rem">
+              <span style="font-size:1.6rem">🔔</span>
+              <div>
+                <div style="font-weight:900;font-size:.95rem;color:var(--gold)">\${pendingUsers.length} حساب بانتظار التفعيل</div>
+                <div style="font-size:.78rem;color:var(--muted)">
+                  \${pendingUsers.map(u=>\`<strong style="color:var(--text)">\${escHtml(u.full_name)}</strong> (\${escHtml(u.email)})\`).join(' • ')}
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-gold btn-sm" onclick="switchAdminTab('notif')">✅ تفعيل الحسابات ←</button>
+          </div>\`;
+        })()}
 
         <!-- Stats -->
         <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
@@ -6860,7 +6899,7 @@ Pages.admin = function() {
 
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
-          const notifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending');
+          const notifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending'||(n.type==='new_account'&&n.status!=='activated'));
           if(!notifs.length) return '';
           const nrows = notifs.map(n=>{
             const isReset   = n.type==='reset_password';
@@ -7926,15 +7965,27 @@ async function activateAccount(notifId, userId, tenantId) {
     if (notif) { notif.status = 'activated'; notif.read = true; }
     DB.set('admin_notifications', notifs);
 
-    // تفعيل في Supabase
+    // تفعيل في Supabase — نستخدم email و tenant name للبحث (لأن local IDs قد تختلف عن Supabase IDs)
     const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
     if (sbCfg.url && sbCfg.anonKey) {
-      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}` };
-      Promise.all([
-        fetch(`${sbCfg.url}/rest/v1/users?id=eq.${userId}`,     { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
-        fetch(`${sbCfg.url}/rest/v1/tenants?id=eq.${tenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
-        fetch(`${sbCfg.url}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
-      ]).catch(()=>{});
+      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}`, 'Prefer':'return=representation' };
+      try {
+        // ابحث عن المستخدم بالبريد الإلكتروني
+        const sbUserRes = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(user.email)}&select=id,tenant_id`, { headers: sbH });
+        const sbUsers = sbUserRes.ok ? await sbUserRes.json() : [];
+        if (sbUsers.length) {
+          const sbUserId   = sbUsers[0].id;
+          const sbTenantId = sbUsers[0].tenant_id;
+          await Promise.all([
+            fetch(`${sbCfg.url}/rest/v1/users?id=eq.${sbUserId}`,     { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
+            fetch(`${sbCfg.url}/rest/v1/tenants?id=eq.${sbTenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
+            fetch(`${sbCfg.url}/rest/v1/notifications?user_id=eq.${sbUserId}&status=eq.pending`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
+          ]);
+          console.log('✅ Supabase: account activated for', user.email);
+        } else {
+          console.warn('⚠️ المستخدم غير موجود في Supabase، تم التفعيل محلياً فقط');
+        }
+      } catch(sbErr) { console.warn('⚠️ Supabase activation error:', sbErr.message); }
     }
 
     // إرسال إيميل التفعيل للمستخدم
