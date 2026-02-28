@@ -2216,111 +2216,6 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
     return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
   }
 };
-
-/* ═══════════════════════════════════════════
-   Auto Sync to Supabase (رفع تلقائي عند أي تعديل)
-   - يعتمد على syncAllDataToSupabase الموجودة في هذا الملف
-   - يعمل بشكل Debounce لتجنب كثرة الطلبات
-   - يمكن إيقافه بوضع: localStorage.setItem('sbtp_autosync','0')
-   ═══════════════════════════════════════════ */
-const AutoSync = (function(){
-  const LS_KEY = 'sbtp_autosync';            // '1' تشغيل (افتراضي) | '0' إيقاف
-  const LS_LAST = 'sbtp_autosync_last_ts';
-  const LS_ERR  = 'sbtp_autosync_last_err';
-  const LS_STATS= 'sbtp_autosync_stats';    // اختياري للإحصاءات
-  const DATA_KEYS = new Set([
-    'projects','workers','equipment','transactions','attendance',
-    'salary_records','materials','stock_movements','invoices',
-    'documents','kanban_tasks','notes','users','tenants'
-  ]);
-  let timer = null;
-  let inFlight = false;
-  let pending = false;
-  let lastReason = '';
-
-  function isEnabled() {
-    const v = localStorage.getItem(LS_KEY);
-    return (v === null || v === '' || v === '1' || v === 'true');
-  }
-  function canSyncNow() {
-    if (!navigator.onLine) return false;
-    const user = (typeof Auth !== 'undefined' && Auth.getUser) ? Auth.getUser() : null;
-    if (!user || !user.tenant_id) return false;
-    const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
-    if (!cfg || !cfg.url || !cfg.key) return false;
-    return true;
-  }
-  function bumpStats(ok){
-    try{
-      const s = JSON.parse(localStorage.getItem(LS_STATS)||'{}');
-      s.total = (s.total||0)+1;
-      if(ok) s.ok=(s.ok||0)+1; else s.fail=(s.fail||0)+1;
-      s.last = Date.now();
-      localStorage.setItem(LS_STATS, JSON.stringify(s));
-    }catch(e){}
-  }
-  async function flushNow(reason='') {
-    if (!isEnabled()) return;
-    if (!canSyncNow()) return;
-    if (inFlight) { pending = true; return; }
-    inFlight = true;
-    try{
-      lastReason = reason || lastReason || 'auto';
-      localStorage.setItem(LS_LAST, String(Date.now()));
-      // نستخدم نفس دالة "رفع البيانات" الحالية
-      await syncAllDataToSupabase();
-      localStorage.removeItem(LS_ERR);
-      bumpStats(true);
-    } catch(e){
-      try{ localStorage.setItem(LS_ERR, String(e && e.message ? e.message : e)); }catch(err){}
-      bumpStats(false);
-      console.warn('⚠️ AutoSync flush error:', e);
-    } finally{
-      inFlight = false;
-      if (pending) { pending = false; schedule('pending'); }
-    }
-  }
-  function schedule(reason='change', delayMs=2500) {
-    if (!isEnabled()) return;
-    lastReason = reason;
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(()=>flushNow(reason), delayMs);
-  }
-  function keyToTable(key){
-    // obligations مخزنة محلياً بصيغة obligations_<tenantId>
-    if (key && key.startsWith('obligations_')) return 'obligations';
-    if (DATA_KEYS.has(key)) return key;
-    return null;
-  }
-  function onLocalWrite(key){
-    const table = keyToTable(key);
-    if (!table) return; // تجاهل مفاتيح غير بيانات (settings/ui/...)
-    // رفع تلقائي بعد أي تعديل
-    schedule('db:'+table, 2500);
-  }
-
-  // Flush عند رجوع الإنترنت أو عند العودة للتطبيق
-  window.addEventListener('online', ()=> schedule('online', 1500));
-  document.addEventListener('visibilitychange', ()=>{
-    if (!document.hidden) schedule('focus', 1200);
-  });
-
-  return {
-    isEnabled,
-    schedule,
-    flushNow,
-    onLocalWrite
-  };
-})();
-
-// ── Hook: أي DB.set يصير → جدولة رفع تلقائي ──
-(function(){
-  const _origSet = DB.set.bind(DB);
-  DB.set = function(key, val){
-    _origSet(key, val);
-    try { AutoSync.onLocalWrite(key); } catch(e){}
-  };
-})();
 // patch init إذا لم يكن موجوداً في DB
 if (!DB.init) DB.init = function() {
     if (this.get('initialized').length) return;
@@ -4729,7 +4624,7 @@ Pages.dashboard = function() {
       <div class="page-actions">
         <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
         <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
-
+        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
     </div>
