@@ -7511,8 +7511,10 @@ function addNote(pid) {
   if (!text) { Toast.error('أدخل نص الملاحظة'); return; }
   const user = Auth.getUser();
   const notes = DB.get('notes');
-  notes.push({ id:DB.nextId('notes'), tenant_id:user.tenant_id, project_id:pid, user_id:user.id, text, date:todayStr() });
+  const newNote = { id:DB.nextId('notes'), tenant_id:user.tenant_id, project_id:pid, user_id:user.id, text, date:todayStr() };
+  notes.push(newNote);
   DB.set('notes', notes);
+  sbSync('notes', newNote, 'POST').catch(()=>{});
   Toast.success('تمت إضافة الملاحظة');
   App.navigate('project_detail', {id:pid});
 }
@@ -7520,6 +7522,7 @@ function addNote(pid) {
 function deleteNote(id, pid) {
   if (!confirm('حذف هذه الملاحظة؟')) return;
   DB.set('notes', DB.get('notes').filter(n=>n.id!==id));
+  sbSyncDelete('notes', id).catch(()=>{});
   Toast.success('تم حذف الملاحظة');
   App.navigate('project_detail', {id:pid});
 }
@@ -7530,8 +7533,10 @@ function addMat() {
   if (!name) { Toast.error('أدخل اسم المادة'); return; }
   const tid = Auth.getUser().tenant_id;
   const mats = DB.get('materials');
-  mats.push({ id:DB.nextId('materials'), tenant_id:tid, name, unit:document.getElementById('mUnit')?.value||'قطعة', quantity:Number(document.getElementById('mQty')?.value)||0, min_quantity:Number(document.getElementById('mMinQty')?.value)||5, unit_price:Number(document.getElementById('mPrice')?.value)||0, project_id:Number(document.getElementById('mProject')?.value)||null, supplier:document.getElementById('mSupplier')?.value||'' });
+  const newMat = { id:DB.nextId('materials'), tenant_id:tid, name, unit:document.getElementById('mUnit')?.value||'قطعة', quantity:Number(document.getElementById('mQty')?.value)||0, min_quantity:Number(document.getElementById('mMinQty')?.value)||5, unit_price:Number(document.getElementById('mPrice')?.value)||0, project_id:Number(document.getElementById('mProject')?.value)||null, supplier:document.getElementById('mSupplier')?.value||'' };
+  mats.push(newMat);
   DB.set('materials', mats);
+  sbSync('materials', newMat, 'POST').catch(()=>{});
   Toast.success('✅ تمت إضافة المادة');
   App.navigate('materials');
 }
@@ -7541,12 +7546,14 @@ function updateMatQty(id, delta) {
   const idx = mats.findIndex(m=>m.id===id); if (idx<0) return;
   mats[idx].quantity = Math.max(0, (mats[idx].quantity||0) + delta);
   DB.set('materials', mats);
+  sbSync('materials', mats[idx], 'PATCH').catch(()=>{});
   App.navigate('materials');
 }
 
 function deleteMat(id) {
   if (!confirm('حذف هذه المادة؟')) return;
   DB.set('materials', DB.get('materials').filter(m=>m.id!==id));
+  sbSyncDelete('materials', id).catch(()=>{});
   Toast.success('تم الحذف'); App.navigate('materials');
 }
 
@@ -7771,8 +7778,10 @@ function addProject() {
   if (!name) { Toast.error('أدخل اسم المشروع'); return; }
   const tid = Auth.getUser().tenant_id;
   const projs = DB.get('projects');
-  projs.push({ id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false });
+  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false };
+  projs.push(newProject);
   DB.set('projects', projs);
+  sbSync('projects', newProject, 'POST').catch(()=>{});
   Toast.success('✅ تم إضافة المشروع');
   App.navigate('projects');
 }
@@ -7792,14 +7801,18 @@ function saveProject() {
   const id=Number(document.getElementById('epId').value);
   const projs=DB.get('projects'); const idx=projs.findIndex(p=>p.id===id); if(idx<0) return;
   projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
-  DB.set('projects',projs); Toast.success('✅ تم تحديث المشروع');
+  DB.set('projects',projs);
+  sbSync('projects', projs[idx], 'PATCH').catch(()=>{});
+  Toast.success('✅ تم تحديث المشروع');
   if (App.currentPage==='project_detail') App.navigate('project_detail',{id});
   else App.navigate('projects');
 }
 
 function deleteProject(id,name) {
   if(!confirm(`حذف المشروع "${name}"؟`)) return;
-  DB.set('projects', DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p));
+  const updProjs = DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p);
+  DB.set('projects', updProjs);
+  sbSync('projects', {id, is_archived:true}, 'PATCH').catch(()=>{});
   Toast.success('تم حذف المشروع'); App.navigate('projects');
 }
 
@@ -7807,8 +7820,11 @@ function addWorker() {
   const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
   if(!name||!role){Toast.error('أدخل الاسم والمهنة');return;}
   const tid=Auth.getUser().tenant_id; const ws=DB.get('workers');
-  ws.push({ id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' });
-  DB.set('workers',ws); Toast.success('✅ تم إضافة العامل'); App.navigate('workers');
+  const newWorker = { id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' };
+  ws.push(newWorker);
+  DB.set('workers',ws);
+  sbSync('workers', newWorker, 'POST').catch(()=>{});
+  Toast.success('✅ تم إضافة العامل'); App.navigate('workers');
 }
 
 function editWorker(id) {
@@ -7824,12 +7840,15 @@ function saveWorker() {
   const id=Number(document.getElementById('ewId').value); const ws=DB.get('workers');
   const idx=ws.findIndex(w=>w.id===id); if(idx<0) return;
   ws[idx]={...ws[idx], full_name:document.getElementById('ewName').value, role:document.getElementById('ewRole').value, phone:document.getElementById('ewPhone').value, daily_salary:Number(document.getElementById('ewSalary').value)||0, contract_type:document.getElementById('ewContract').value, project_id:Number(document.getElementById('ewProject').value)||null };
-  DB.set('workers',ws); Toast.success('✅ تم تحديث العامل'); App.navigate('workers');
+  DB.set('workers',ws);
+  sbSync('workers', ws[idx], 'PATCH').catch(()=>{});
+  Toast.success('✅ تم تحديث العامل'); App.navigate('workers');
 }
 
 function deleteWorker(id,name) {
   if(!confirm(`حذف العامل "${name}"؟`)) return;
   DB.set('workers', DB.get('workers').filter(w=>w.id!==id));
+  sbSyncDelete('workers', id).catch(()=>{});
   Toast.success('تم حذف العامل'); App.navigate('workers');
 }
 
@@ -7847,18 +7866,24 @@ function addEquip() {
   const name=document.getElementById('eName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المعدة');return;}
   const tid=Auth.getUser().tenant_id; const eq=DB.get('equipment');
-  eq.push({ id:DB.nextId('equipment'), tenant_id:tid, name, model:document.getElementById('eModel')?.value||'', plate_number:document.getElementById('ePlate')?.value||'', icon:document.getElementById('eIcon')?.value||'🚜', status:'active', purchase_price:Number(document.getElementById('ePrice')?.value)||0, project_id:Number(document.getElementById('eProject')?.value)||null, notes:document.getElementById('eNotes')?.value||'' });
-  DB.set('equipment',eq); Toast.success('✅ تم إضافة المعدة'); App.navigate('equipment');
+  const newEquip = { id:DB.nextId('equipment'), tenant_id:tid, name, model:document.getElementById('eModel')?.value||'', plate_number:document.getElementById('ePlate')?.value||'', icon:document.getElementById('eIcon')?.value||'🚜', status:'active', purchase_price:Number(document.getElementById('ePrice')?.value)||0, project_id:Number(document.getElementById('eProject')?.value)||null, notes:document.getElementById('eNotes')?.value||'' };
+  eq.push(newEquip);
+  DB.set('equipment',eq);
+  sbSync('equipment', newEquip, 'POST').catch(()=>{});
+  Toast.success('✅ تم إضافة المعدة'); App.navigate('equipment');
 }
 
 function updateEquipStatus(id,status) {
-  DB.set('equipment', DB.get('equipment').map(e=>e.id===id?{...e,status}:e));
+  const updEquip = DB.get('equipment').map(e=>e.id===id?{...e,status}:e);
+  DB.set('equipment', updEquip);
+  sbSync('equipment', {id, status}, 'PATCH').catch(()=>{});
   Toast.success('تم تحديث حالة المعدة');
 }
 
 function deleteEquip(id,name) {
   if(!confirm(`حذف "${name}"؟`)) return;
   DB.set('equipment', DB.get('equipment').filter(e=>e.id!==id));
+  sbSyncDelete('equipment', id).catch(()=>{});
   Toast.success('تم حذف المعدة'); App.navigate('equipment');
 }
 
@@ -7890,11 +7915,13 @@ function addTx() {
   const tid=Auth.getUser().tenant_id; const txs=DB.get('transactions');
   const pid=Number(document.getElementById('txProject')?.value)||null;
   const type=document.getElementById('txType')?.value||'expense';
-  txs.push({ id:DB.nextId('transactions'), tenant_id:tid, type, category:document.getElementById('txCat')?.value||'أخرى', amount, description:desc, project_id:pid, date:document.getElementById('txDate')?.value||todayStr(), payment_method:document.getElementById('txPayment')?.value||'cash', supplier:document.getElementById('txSupplier')?.value||'' });
+  const newTx = { id:DB.nextId('transactions'), tenant_id:tid, type, category:document.getElementById('txCat')?.value||'أخرى', amount, description:desc, project_id:pid, date:document.getElementById('txDate')?.value||todayStr(), payment_method:document.getElementById('txPayment')?.value||'cash', supplier:document.getElementById('txSupplier')?.value||'' };
+  txs.push(newTx);
   DB.set('transactions',txs);
+  sbSync('transactions', newTx, 'POST').catch(()=>{});
   if(type==='expense'&&pid){
     const projs=DB.get('projects'); const pidx=projs.findIndex(p=>p.id===pid);
-    if(pidx>=0){projs[pidx].total_spent=DB.get('transactions').filter(t=>t.project_id===pid&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);DB.set('projects',projs);}
+    if(pidx>=0){projs[pidx].total_spent=DB.get('transactions').filter(t=>t.project_id===pid&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);DB.set('projects',projs);sbSync('projects',projs[pidx],'PATCH').catch(()=>{});}
   }
   Toast.success('✅ تم إضافة المعاملة'); App.navigate('transactions');
 }
@@ -7902,6 +7929,7 @@ function addTx() {
 function deleteTx(id) {
   if(!confirm('حذف هذه المعاملة؟')) return;
   DB.set('transactions', DB.get('transactions').filter(t=>t.id!==id));
+  sbSyncDelete('transactions', id).catch(()=>{});
   Toast.success('تم حذف المعاملة'); App.navigate('transactions');
 }
 
@@ -7914,6 +7942,7 @@ function saveAtt(wid, date, status) {
     att.push({id: DB.nextId('attendance'), worker_id: wid, date: date, status: status, hours: 8, note: ''});
   }
   DB.set('attendance', att);
+  sbSync('attendance', att[att.findIndex(a=>a.worker_id===wid&&a.date===date)], idx>=0?'PATCH':'POST').catch(()=>{});
   // Live update the row
   var row = document.getElementById('attrow_' + wid);
   if (!row) return;
@@ -7934,7 +7963,7 @@ function saveAtt(wid, date, status) {
 function saveAttHours(wid, date, hours) {
   var att = DB.get('attendance');
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
-  if (idx >= 0) { att[idx].hours = Number(hours); DB.set('attendance', att); }
+  if (idx >= 0) { att[idx].hours = Number(hours); DB.set('attendance', att); sbSync('attendance', att[idx], 'PATCH').catch(()=>{}); }
 }
 
 function saveAttNote(wid, date, note) {
@@ -7971,6 +8000,8 @@ function saveTenantSettings() {
   const tid=Auth.getUser().tenant_id;
   const tenants=DB.get('tenants').map(t=>t.id===tid?{...t,name:document.getElementById('setName')?.value||t.name,wilaya:document.getElementById('setWilaya')?.value||t.wilaya,phone:document.getElementById('setPhone')?.value||t.phone,rc_number:document.getElementById('setRc')?.value||t.rc_number}:t);
   DB.set('tenants',tenants);
+  const updTenant = tenants.find(t=>t.id===tid);
+  if (updTenant) sbSync('tenants', updTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل إعدادات الشركة','Modification paramètres société'), { icon: '⚙️' });
   Toast.success(L('✅ تم حفظ الإعدادات','✅ Paramètres sauvegardés'));
 }
@@ -8997,6 +9028,7 @@ function addKanbanTask() {
 function deleteKanbanTask(id) {
   if (!confirm('حذف هذه المهمة؟')) return;
   DB.set('kanban_tasks', DB.get('kanban_tasks').filter(t => t.id !== id));
+  sbSyncDelete('kanban_tasks', id).catch(()=>{});
   Toast.success('تم الحذف'); App.navigate('kanban');
 }
 function quickAddTask(col) {
@@ -10868,6 +10900,53 @@ function importAllData() {
 
 DB.init();
 
+/* ══════════════════════════════════════════════════════
+   sbSync — رفع فوري لـ Supabase عند كل تعديل
+══════════════════════════════════════════════════════ */
+async function sbSync(table, record, method='POST') {
+  try {
+    let sbUrl = '', sbKey = '';
+    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+      sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
+    } else {
+      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+    }
+    if (!sbUrl || !sbKey) return; // Supabase غير مربوط — نتجاهل بصمت
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': sbKey,
+      'Authorization': `Bearer ${sbKey}`,
+      'Prefer': 'return=representation'
+    };
+    let url = `${sbUrl}/rest/v1/${table}`;
+    if (method === 'PATCH' || method === 'DELETE') url += `?id=eq.${record.id}`;
+    const body = method === 'DELETE' ? undefined : JSON.stringify(record);
+    const res = await fetch(url, { method, headers, body });
+    if (!res.ok) {
+      const err = await res.text();
+      console.warn(`⚠️ sbSync [${method} ${table}]:`, err);
+    } else {
+      console.log(`✅ sbSync [${method} ${table}] id=${record.id}`);
+    }
+  } catch(e) {
+    console.warn('⚠️ sbSync error:', e.message);
+  }
+}
+
+async function sbSyncDelete(table, id) {
+  return sbSync(table, { id }, 'DELETE');
+}
+
+async function sbSyncUpsert(table, record) {
+  // UPSERT: إذا كان السجل موجوداً (له id من Supabase) نعمل PATCH، وإلا POST
+  const method = record._fromSupabase ? 'PATCH' : 'POST';
+  const cleanRecord = { ...record };
+  delete cleanRecord._fromSupabase;
+  return sbSync(table, cleanRecord, method);
+}
+
+
 // ─── تأكد دائماً من وجود بيانات المستخدمين الأساسية ───
 (function ensureUsers() {
   const users = DB.get('users');
@@ -11504,8 +11583,10 @@ function saveObligation() {
   if (!title || !amount || !due) { Toast.error(L('يرجى ملء جميع الحقول','Veuillez remplir tous les champs')); return; }
   const daysLeft = Math.ceil((new Date(due) - new Date()) / 86400000);
   const obs = DB.get('obligations_'+tid) || [];
-  obs.push({ id: Date.now(), title, amount, daysLeft, due });
+  const newOb = { id: Date.now(), title, amount, daysLeft, due, tenant_id: tid };
+  obs.push(newOb);
   DB.set('obligations_'+tid, obs);
+  sbSync('obligations', newOb, 'POST').catch(()=>{});
   addAuditLog(L('إضافة التزام: ','Ajout obligation: ') + title, { after: fmt(amount) + ' ' + L('دج','DA'), icon: '⏰' });
   Toast.success(L('✅ تم إضافة الالتزام','✅ Obligation ajoutée'));
   App.navigate('obligations');
@@ -11515,6 +11596,7 @@ function deleteObligation(id) {
   const tid = Auth.getUser().tenant_id;
   const obs = (DB.get('obligations_'+tid) || []).filter(o=>o.id != id);
   DB.set('obligations_'+tid, obs);
+  sbSyncDelete('obligations', id).catch(()=>{});
   Toast.success(L('تم الحذف','Supprimé'));
   App.navigate('obligations');
 }
