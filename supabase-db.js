@@ -13,8 +13,8 @@
 //  اذهب: Supabase Dashboard → Settings → API
 // ══════════════════════════════════════════════════════
 const SUPABASE_HARDCODED = {
-  url:     'https://udinbxcnehcevajhrral.supabase.co',   // ← مثال: 'https://abcxyz.supabase.co'
-  anonKey: 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ'    // ← مثال: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  url:     'https://udinbxcnehcevajhrral.supabase.co',
+  anonKey: 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ'
 };
 
 const SUPABASE_CONFIG = {
