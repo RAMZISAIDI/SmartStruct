@@ -7506,6 +7506,52 @@ function showDetailTab(btn, tabId) {
 }
 
 /* ─── NOTES ─── */
+
+/* ══ sbSync — رفع فوري لـ Supabase (يجب أن يكون قبل جميع دوال الحفظ) ══ */
+async function sbSync(table, record, method='POST') {
+  try {
+    let sbUrl = '', sbKey = '';
+    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+      sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
+    } else {
+      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+    }
+    if (!sbUrl || !sbKey) return; // Supabase غير مربوط — نتجاهل بصمت
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': sbKey,
+      'Authorization': `Bearer ${sbKey}`,
+      'Prefer': 'return=representation'
+    };
+    let url = `${sbUrl}/rest/v1/${table}`;
+    if (method === 'PATCH' || method === 'DELETE') url += `?id=eq.${record.id}`;
+    const body = method === 'DELETE' ? undefined : JSON.stringify(record);
+    const res = await fetch(url, { method, headers, body });
+    if (!res.ok) {
+      const err = await res.text();
+      console.warn(`⚠️ sbSync [${method} ${table}]:`, err);
+    } else {
+      console.log(`✅ sbSync [${method} ${table}] id=${record.id}`);
+    }
+  } catch(e) {
+    console.warn('⚠️ sbSync error:', e.message);
+  }
+}
+
+async function sbSyncDelete(table, id) {
+  return sbSync(table, { id }, 'DELETE');
+}
+
+async function sbSyncUpsert(table, record) {
+  // UPSERT: إذا كان السجل موجوداً (له id من Supabase) نعمل PATCH، وإلا POST
+  const method = record._fromSupabase ? 'PATCH' : 'POST';
+  const cleanRecord = { ...record };
+  delete cleanRecord._fromSupabase;
+  return sbSync(table, cleanRecord, method);
+}
+
+
 function addNote(pid) {
   const text = document.getElementById('noteText')?.value?.trim();
   if (!text) { Toast.error('أدخل نص الملاحظة'); return; }
@@ -10938,49 +10984,6 @@ DB.init();
 /* ══════════════════════════════════════════════════════
    sbSync — رفع فوري لـ Supabase عند كل تعديل
 ══════════════════════════════════════════════════════ */
-async function sbSync(table, record, method='POST') {
-  try {
-    let sbUrl = '', sbKey = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
-    }
-    if (!sbUrl || !sbKey) return; // Supabase غير مربوط — نتجاهل بصمت
-    const headers = {
-      'Content-Type': 'application/json',
-      'apikey': sbKey,
-      'Authorization': `Bearer ${sbKey}`,
-      'Prefer': 'return=representation'
-    };
-    let url = `${sbUrl}/rest/v1/${table}`;
-    if (method === 'PATCH' || method === 'DELETE') url += `?id=eq.${record.id}`;
-    const body = method === 'DELETE' ? undefined : JSON.stringify(record);
-    const res = await fetch(url, { method, headers, body });
-    if (!res.ok) {
-      const err = await res.text();
-      console.warn(`⚠️ sbSync [${method} ${table}]:`, err);
-    } else {
-      console.log(`✅ sbSync [${method} ${table}] id=${record.id}`);
-    }
-  } catch(e) {
-    console.warn('⚠️ sbSync error:', e.message);
-  }
-}
-
-async function sbSyncDelete(table, id) {
-  return sbSync(table, { id }, 'DELETE');
-}
-
-async function sbSyncUpsert(table, record) {
-  // UPSERT: إذا كان السجل موجوداً (له id من Supabase) نعمل PATCH، وإلا POST
-  const method = record._fromSupabase ? 'PATCH' : 'POST';
-  const cleanRecord = { ...record };
-  delete cleanRecord._fromSupabase;
-  return sbSync(table, cleanRecord, method);
-}
-
 
 // ─── تأكد دائماً من وجود بيانات المستخدمين الأساسية ───
 (function ensureUsers() {
