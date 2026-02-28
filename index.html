@@ -4693,7 +4693,6 @@ Pages.dashboard = function() {
       <div class="page-actions">
         <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
         <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="يرفع تلقائياً عند كل تعديل — أو اضغط للرفع الفوري">☁️ رفع تلقائي</button>
-        <button id="pullBtn" class="btn btn-sm" style="background:rgba(52,195,143,.15);border:1px solid rgba(52,195,143,.4);color:#34C38F;font-weight:700" onclick="(function(){const u=Auth.getUser();if(!u||!u.tenant_id){Toast.error('❌ يجب تسجيل الدخول أولاً');return;}const btn=document.getElementById('pullBtn');btn.disabled=true;btn.innerHTML='⏳ جاري السحب...';pullFromSupabase(u.tenant_id,{silent:false}).then(ok=>{btn.disabled=false;btn.innerHTML='⬇️ سحب من Cloud';if(ok)App.render();});})();" title="سحب أحدث البيانات من Supabase إلى الجهاز">⬇️ سحب من Cloud</button>
         <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
@@ -7740,7 +7739,117 @@ function cleanForSupabase(table, record) {
     clean[col] = v;
   });
 
-  return clean;
+  
+/* ══ إدخال محمي + تحقق قبل الإرسال إلى Supabase ══ */
+function _trimStr(v){ return (v===null||v===undefined) ? '' : String(v).trim(); }
+
+function safeDate(v){
+  // يُرجع YYYY-MM-DD أو null
+  const t = _trimStr(v);
+  if (!t) return null;
+  // browser <input type="date"> يعيد YYYY-MM-DD غالباً
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  // دعم DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(t)) {
+    const [dd,mm,yyyy] = t.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return null; // أي صيغة أخرى تُرفض
+}
+
+function safeNumber(v, opts){
+  opts = opts || {};
+  const t = _trimStr(v);
+  if (!t) return opts.allowNull ? null : (opts.fallback ?? 0);
+  // منع الفواصل والمسافات
+  const n = Number(t.replace(/,/g,''));
+  if (!Number.isFinite(n)) return opts.allowNull ? null : (opts.fallback ?? 0);
+  if (Number.isFinite(opts.min) && n < opts.min) return opts.min;
+  if (Number.isFinite(opts.max) && n > opts.max) return opts.max;
+  return n;
+}
+
+function safeId(v){ 
+  const n = safeNumber(v, {allowNull:true});
+  return (Number.isFinite(n) && n > 0) ? Math.trunc(n) : null;
+}
+
+function validateSupabaseRecord(table, rec){
+  // rec يُفترض أنه خرج من cleanForSupabase(table, record)
+  const errors = [];
+  if (!SB_SCHEMA[table]) return { ok:true, errors };
+  const dateCols = [
+    'start_date','end_date','hire_date','date','due_date','paid_date','trial_start','trial_end','due','created_at'
+  ];
+  const idCols = ['id','tenant_id','project_id','worker_id','material_id','user_id','plan_id','uploader_id','assignee_id'];
+  const boolCols = ['is_active','is_admin','is_archived','read'];
+  const numCols = [
+    'budget','amount','total_spent','daily_salary','monthly_base','purchase_price',
+    'unit_price','quantity','min_quantity','amount_ht','tva_amount','tva_rate','progress','hours','price'
+  ];
+
+  for (const k of Object.keys(rec||{})){
+    const v = rec[k];
+    if (v === undefined) { errors.push(`${k}: undefined`); continue; }
+
+    if (idCols.includes(k)){
+      if (!(v===null || (typeof v==='number' && Number.isFinite(v) && v>0))) errors.push(`${k}: يجب أن يكون رقم ID صالح`);
+      continue;
+    }
+    if (boolCols.includes(k)){
+      if (!(typeof v==='boolean' || v===null)) errors.push(`${k}: يجب أن يكون true/false`);
+      continue;
+    }
+    if (numCols.includes(k)){
+      if (!(typeof v==='number' && Number.isFinite(v))) errors.push(`${k}: يجب أن يكون رقم`);
+      continue;
+    }
+    if (dateCols.includes(k) || /_date$/.test(k)){
+      if (v===null) continue;
+      if (typeof v !== 'string') { errors.push(`${k}: يجب أن يكون تاريخ نصي`); continue; }
+      const t = v.trim();
+      if (!t) { errors.push(`${k}: تاريخ فارغ`); continue; }
+      // نقبل YYYY-MM-DD أو timestamp ISO (لـ created_at إن وُجد)
+      if (!(/^\d{4}-\d{2}-\d{2}$/.test(t) || /^\d{4}-\d{2}-\d{2}T/.test(t))) {
+        errors.push(`${k}: صيغة تاريخ غير صحيحة (استعمل YYYY-MM-DD)`);
+      }
+      continue;
+    }
+  }
+  return { ok: errors.length===0, errors };
+}
+
+function applyInputGuards(){
+  // حماية عامة لكل الحقول الرقمية والتواريخ
+  document.querySelectorAll('input[type="number"]').forEach(inp=>{
+    if (!inp.hasAttribute('step')) inp.setAttribute('step','1');
+    if (!inp.hasAttribute('min')) inp.setAttribute('min','0');
+  });
+
+  const progress = document.getElementById('epProgress');
+  if (progress){ progress.setAttribute('min','0'); progress.setAttribute('max','100'); progress.setAttribute('step','1'); }
+
+  // ميزانيات/مبالغ: امنع السالب
+  ['pBudget','epBudget','wSalary','ewSalary','ePrice','txAmount'].forEach(id=>{
+    const el=document.getElementById(id); 
+    if(el){ el.setAttribute('min','0'); el.setAttribute('step','1'); }
+  });
+
+  // هواتف: أرقام فقط (مرن) — لا يمنع اللصق لكن ينبه
+  ['pPhone','wPhone','ewPhone'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.setAttribute('inputmode','numeric');
+    el.setAttribute('pattern','[0-9+ ]{6,20}');
+    el.addEventListener('input', ()=>{
+      el.value = el.value.replace(/[^0-9+ ]/g,'');
+    });
+  });
+}
+
+// تشغيل الحماية بعد تحميل الواجهة
+document.addEventListener('DOMContentLoaded', applyInputGuards);
+return clean;
 }
 
 /* ══ getSupabaseConfig — مصدر موحّد يقرأ أحدث إعدادات Supabase دائماً ══ */
@@ -7787,6 +7896,16 @@ async function sbSync(table, record, method='POST') {
     if (method === 'PATCH' || method === 'DELETE') url += `?id=eq.${record.id}`;
 
     const cleanRecord = method === 'DELETE' ? record : cleanForSupabase(table, record);
+    // تحقق أخير قبل الإرسال — يمنع أخطاء Supabase (date/number/id)
+    if (method !== 'DELETE') {
+      const chk = validateSupabaseRecord(table, cleanRecord);
+      if (!chk.ok) {
+        Toast.error('❌ بيانات غير متوافقة مع Supabase: ' + chk.errors.slice(0,3).join(' | '));
+        console.warn('❌ Supabase validation failed', table, cleanRecord, chk.errors);
+        return;
+      }
+    }
+
     const body = method === 'DELETE' ? undefined : JSON.stringify(cleanRecord);
 
     const res = await fetch(url, { method, headers, body });
@@ -8003,7 +8122,18 @@ async function syncAllDataToSupabase() {
       const BATCH = 50;
       for (let i = 0; i < records.length; i += BATCH) {
         const batch = records.slice(i, i + BATCH);
-        const cleanBatch = batch.map(r => cleanForSupabase(table, r));
+        // تنظيف + تحقق قبل الرفع
+        const cleanBatchAll = batch.map(r => cleanForSupabase(table, r));
+        const cleanBatch = [];
+        for (const r of cleanBatchAll) {
+          const chk = validateSupabaseRecord(table, r);
+          if (chk.ok) cleanBatch.push(r);
+          else {
+            errors.push(`${table}#${r.id||'?'}: ${chk.errors[0]}`);
+            console.warn('⚠️ سجل تم تجاهله بسبب عدم التوافق:', table, r, chk.errors);
+          }
+        }
+        if (cleanBatch.length === 0) continue;
         const res = await fetch(`${sbUrl}/rest/v1/${table}`, {
           method: 'POST',
           headers,
@@ -8052,112 +8182,6 @@ async function syncAllDataToSupabase() {
   }
 }
 
-
-/* ══════════════════════════════════════════════════════
-   pullFromSupabase — سحب كل بيانات المؤسسة من Supabase إلى localStorage
-══════════════════════════════════════════════════════ */
-async function pullFromSupabase(tenantId, options = {}) {
-  const { silent = false, showProgress = true } = options;
-
-  const sbCfg = getSupabaseConfig();
-  if (!sbCfg || !sbCfg.url || !sbCfg.key) {
-    if (!silent) Toast.warn('⚠️ Supabase غير مربوط — البيانات محلية فقط');
-    return false;
-  }
-
-  const { url: sbUrl, key: sbKey } = sbCfg;
-  const headers = {
-    'apikey': sbKey,
-    'Authorization': `Bearer ${sbKey}`,
-    'Content-Type': 'application/json'
-  };
-
-  if (showProgress && !silent) Toast.info('⏳ جاري سحب بيانات المؤسسة من Supabase...');
-
-  // قائمة الجداول المطلوب سحبها مع الفلتر المناسب
-  const tablesToPull = [
-    { table: 'projects',       filter: `tenant_id=eq.${tenantId}` },
-    { table: 'workers',        filter: `tenant_id=eq.${tenantId}` },
-    { table: 'equipment',      filter: `tenant_id=eq.${tenantId}` },
-    { table: 'transactions',   filter: `tenant_id=eq.${tenantId}` },
-    { table: 'materials',      filter: `tenant_id=eq.${tenantId}` },
-    { table: 'invoices',       filter: `tenant_id=eq.${tenantId}` },
-    { table: 'documents',      filter: `tenant_id=eq.${tenantId}` },
-    { table: 'kanban_tasks',   filter: `tenant_id=eq.${tenantId}` },
-    { table: 'notes',          filter: `tenant_id=eq.${tenantId}` },
-    { table: 'obligations',    filter: `tenant_id=eq.${tenantId}` },
-    { table: 'salary_records', filter: `tenant_id=eq.${tenantId}` },
-    { table: 'stock_movements',filter: `tenant_id=eq.${tenantId}` },
-    { table: 'attendance',     filter: null }, // سيُصفَّى بعد جلبه عبر worker_ids
-  ];
-
-  let totalPulled = 0;
-  let errors = [];
-
-  // جلب worker_ids لفلترة attendance
-  const localWorkerIds = DB.get('workers').filter(w => w.tenant_id === tenantId).map(w => w.id);
-
-  for (const { table, filter } of tablesToPull) {
-    try {
-      let url = `${sbUrl}/rest/v1/${table}?select=*&limit=1000`;
-      if (filter) url += `&${filter}`;
-
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        const errText = await res.text();
-        // جدول غير موجود في Supabase — تخطَّه بصمت
-        if (res.status === 404 || errText.includes('does not exist')) {
-          console.info(`ℹ️ pullFromSupabase: جدول "${table}" غير موجود في Supabase — تم التخطي`);
-          continue;
-        }
-        errors.push(`${table}: ${errText.slice(0, 80)}`);
-        continue;
-      }
-
-      let records = await res.json();
-      if (!Array.isArray(records)) continue;
-
-      // فلترة attendance يدوياً
-      if (table === 'attendance') {
-        const wids = DB.get('workers').filter(w => w.tenant_id === tenantId).map(w => w.id);
-        records = records.filter(a => wids.includes(a.worker_id));
-      }
-
-      if (records.length === 0) continue;
-
-      // دمج مع البيانات المحلية (الأولوية لـ Supabase)
-      const existing = DB.get(table);
-      const merged = [...existing];
-      for (const rec of records) {
-        const idx = merged.findIndex(e => e.id === rec.id);
-        if (idx > -1) merged[idx] = rec; // تحديث
-        else merged.push(rec);           // إضافة
-      }
-      DB.set(table, merged);
-      totalPulled += records.length;
-      console.log(`✅ pullFromSupabase [${table}]: ${records.length} سجل`);
-
-    } catch(e) {
-      errors.push(`${table}: ${e.message}`);
-      console.warn(`⚠️ pullFromSupabase [${table}]:`, e.message);
-    }
-  }
-
-  if (!silent) {
-    if (errors.length === 0) {
-      Toast.success(`✅ تم سحب ${totalPulled} سجل من Supabase بنجاح!`);
-    } else if (totalPulled > 0) {
-      Toast.warn(`⚠️ سُحب ${totalPulled} سجل — فشل ${errors.length} جدول`);
-      console.warn('pullFromSupabase errors:', errors);
-    } else if (totalPulled === 0 && errors.length === 0) {
-      Toast.info('ℹ️ لا توجد بيانات في Supabase لهذه المؤسسة بعد');
-    } else {
-      Toast.error('❌ فشل السحب: ' + errors[0]);
-    }
-  }
-
-  return totalPulled > 0;
-}
 
 function addNote(pid) {
   const text = document.getElementById('noteText')?.value?.trim();
@@ -8416,11 +8440,6 @@ async function doLogin() {
     }, 100);
 
     App.navigate(sbUser.is_admin ? 'admin' : 'dashboard');
-    // ── سحب بيانات المؤسسة من Supabase بعد تسجيل الدخول ──
-    if (sbUser.tenant_id && typeof pullFromSupabase === 'function') {
-      setTimeout(() => pullFromSupabase(sbUser.tenant_id, { silent: false, showProgress: true })
-        .then(ok => { if (ok) App.render(); }), 300);
-    }
     setTimeout(() => TrialManager.checkAndEnforce(), 200);
     setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
 
@@ -8436,7 +8455,22 @@ function addProject() {
   if (!name) { Toast.error('أدخل اسم المشروع'); return; }
   const tid = Auth.getUser().tenant_id;
   const projs = DB.get('projects');
-  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false };
+  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name,
+    project_type: _trimStr(document.getElementById('pType')?.value),
+    wilaya: _trimStr(document.getElementById('pWilaya')?.value),
+    client_name: _trimStr(document.getElementById('pClient')?.value),
+    phone: _trimStr(document.getElementById('pPhone')?.value),
+    budget: safeNumber(document.getElementById('pBudget')?.value, {min:0, fallback:0}),
+    total_spent: 0,
+    progress: 0,
+    status: 'active',
+    color: document.getElementById('pColor')?.value || '#4A90E2',
+    phase: _trimStr(document.getElementById('pPhase')?.value),
+    description: _trimStr(document.getElementById('pDesc')?.value),
+    start_date: safeDate(document.getElementById('pStart')?.value),
+    end_date: safeDate(document.getElementById('pEnd')?.value),
+    is_archived: false
+  };
   projs.push(newProject);
   DB.set('projects', projs);
   sbSync('projects', newProject, 'POST').catch(()=>{});
@@ -8458,7 +8492,18 @@ function editProject(id) {
 function saveProject() {
   const id=Number(document.getElementById('epId').value);
   const projs=DB.get('projects'); const idx=projs.findIndex(p=>p.id===id); if(idx<0) return;
-  projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
+  projs[idx] = {
+    ...projs[idx],
+    project_type: _trimStr(document.getElementById('epType')?.value) || _trimStr(projs[idx].project_type),
+    name: _trimStr(document.getElementById('epName')?.value),
+    wilaya: _trimStr(document.getElementById('epWilaya')?.value),
+    status: _trimStr(document.getElementById('epStatus')?.value),
+    progress: safeNumber(document.getElementById('epProgress')?.value, {min:0, max:100, fallback:0}),
+    budget: safeNumber(document.getElementById('epBudget')?.value, {min:0, fallback:0}),
+    phase: _trimStr(document.getElementById('epPhase')?.value),
+    client_name: _trimStr(document.getElementById('epClient')?.value),
+    end_date: safeDate(document.getElementById('epEnd')?.value)
+  };
   DB.set('projects',projs);
   sbSync('projects', projs[idx], 'PATCH').catch(()=>{});
   Toast.success('✅ تم تحديث المشروع');
@@ -8478,7 +8523,20 @@ function addWorker() {
   const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
   if(!name||!role){Toast.error('أدخل الاسم والمهنة');return;}
   const tid=Auth.getUser().tenant_id; const ws=DB.get('workers');
-  const newWorker = { id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' };
+  const newWorker = {
+    id: DB.nextId('workers'),
+    tenant_id: tid,
+    full_name: name,
+    role: role,
+    phone: _trimStr(document.getElementById('wPhone')?.value),
+    national_id: _trimStr(document.getElementById('wNid')?.value),
+    daily_salary: safeNumber(document.getElementById('wSalary')?.value, {min:0, fallback:0}),
+    contract_type: _trimStr(document.getElementById('wContract')?.value) || 'daily',
+    project_id: safeId(document.getElementById('wProject')?.value),
+    hire_date: safeDate(document.getElementById('wHire')?.value),
+    color: document.getElementById('wColor')?.value || '#4A90E2',
+    is_active: true
+  };
   ws.push(newWorker);
   DB.set('workers',ws);
   sbSync('workers', newWorker, 'POST').catch(()=>{});
@@ -8497,7 +8555,15 @@ function editWorker(id) {
 function saveWorker() {
   const id=Number(document.getElementById('ewId').value); const ws=DB.get('workers');
   const idx=ws.findIndex(w=>w.id===id); if(idx<0) return;
-  ws[idx]={...ws[idx], full_name:document.getElementById('ewName').value, role:document.getElementById('ewRole').value, phone:document.getElementById('ewPhone').value, daily_salary:Number(document.getElementById('ewSalary').value)||0, contract_type:document.getElementById('ewContract').value, project_id:Number(document.getElementById('ewProject').value)||null };
+  ws[idx] = {
+    ...ws[idx],
+    full_name: _trimStr(document.getElementById('ewName')?.value),
+    role: _trimStr(document.getElementById('ewRole')?.value),
+    phone: _trimStr(document.getElementById('ewPhone')?.value),
+    daily_salary: safeNumber(document.getElementById('ewSalary')?.value, {min:0, fallback:0}),
+    contract_type: _trimStr(document.getElementById('ewContract')?.value),
+    project_id: safeId(document.getElementById('ewProject')?.value)
+  };
   DB.set('workers',ws);
   sbSync('workers', ws[idx], 'PATCH').catch(()=>{});
   Toast.success('✅ تم تحديث العامل'); App.navigate('workers');
@@ -12992,7 +13058,9 @@ Auth.load();
 App.render();
 setTimeout(() => { if (Auth.getUser()) checkOnboarding(); }, 500);
 // Auto-run simulator if on simulator page
-if (App.currentPage === 'simulator') setTimeout(() => { if (typeof runSimulator === 'function') runSimulator(); }, 100);
+document.addEventListener('DOMContentLoaded', () => {
+  if (App.currentPage === 'simulator') runSimulator();
+});
 (function(){
   let touchTask = null, touchClone = null, lastCol = null;
   function getColFromPoint(x, y) {
