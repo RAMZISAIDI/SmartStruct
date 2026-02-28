@@ -7509,6 +7509,32 @@ function showDetailTab(btn, tabId) {
 /* ─── NOTES ─── */
 
 /* ══ sbSync — رفع فوري لـ Supabase (يجب أن يكون قبل جميع دوال الحفظ) ══ */
+
+/* ══ cleanForSupabase — يحذف الحقول غير الموجودة في schema Supabase ══ */
+const SB_SCHEMA = {
+  projects:        ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
+  workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','avatar_color','is_active'],
+  equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
+  transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
+  attendance:      ['id','worker_id','date','status','hours','note'],
+  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
+  materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
+  stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
+  invoices:        ['id','tenant_id','number','client','amount','amount_ht','tva_amount','tva_rate','items','date','due_date','status','paid_date','project_id','notes'],
+  documents:       ['id','tenant_id','name','project_id','category','type','size','date','uploader_id','fileName','mimeType'],
+  kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
+  notes:           ['id','tenant_id','project_id','user_id','text','date'],
+  obligations:     ['id','tenant_id','title','amount','daysLeft','due'],
+  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color'],
+  tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address','created_at'],
+  notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
+};
+
+function cleanForSupabase(table, record) {
+  const allowed = SB_SCHEMA[table];
+  if (!allowed) return record; // جدول غير معروف — أرسله كما هو
+  const clean = {}
+
 async function sbSync(table, record, method='POST') {
   try {
     let sbUrl = '', sbKey = '';
@@ -11083,31 +11109,7 @@ function importAllData() {
 }
 
 DB.init();
-
-/* ══ cleanForSupabase — يحذف الحقول غير الموجودة في schema Supabase ══ */
-const SB_SCHEMA = {
-  projects:        ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
-  workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','avatar_color','is_active'],
-  equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
-  transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
-  attendance:      ['id','worker_id','date','status','hours','note'],
-  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
-  materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
-  stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
-  invoices:        ['id','tenant_id','number','client','amount','amount_ht','tva_amount','tva_rate','items','date','due_date','status','paid_date','project_id','notes'],
-  documents:       ['id','tenant_id','name','project_id','category','type','size','date','uploader_id','fileName','mimeType'],
-  kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
-  notes:           ['id','tenant_id','project_id','user_id','text','date'],
-  obligations:     ['id','tenant_id','title','amount','daysLeft','due'],
-  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color'],
-  tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address','created_at'],
-  notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
-};
-
-function cleanForSupabase(table, record) {
-  const allowed = SB_SCHEMA[table];
-  if (!allowed) return record; // جدول غير معروف — أرسله كما هو
-  const clean = {};
+;
   allowed.forEach(col => {
     if (record[col] !== undefined) clean[col] = record[col];
   });
