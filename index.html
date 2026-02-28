@@ -5684,7 +5684,11 @@ function getAIConfig() {
 // ── جلب AI config من Supabase وتخزينه محلياً (يُستدعى عند أول تحميل) ──
 async function fetchAIConfigFromSupabase() {
   try {
-    const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    const sbCfg = (() => {
+      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
+        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
+    })();
     if (!sbCfg.url || !sbCfg.anonKey) return;
     const resp = await fetch(`${sbCfg.url}/rest/v1/global_settings?key=eq.global_ai_config&select=value`, {
       headers: { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` }
@@ -5734,7 +5738,11 @@ function saveAIConfig(cfg) {
   } catch(e) {}
   // ─── حفظ إعداد AI في Supabase حتى تراه جميع الحسابات الجديدة ───
   try {
-    const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    const sbCfg = (() => {
+      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
+        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
+    })();
     if (sbCfg.url && sbCfg.anonKey) {
       const sbHeaders = { 'Content-Type': 'application/json', 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}`, 'Prefer': 'resolution=merge-duplicates,return=representation' };
       fetch(`${sbCfg.url}/rest/v1/global_settings`, {
@@ -8024,14 +8032,23 @@ async function activateAccount(notifId, userId, tenantId) {
     DB.set('admin_notifications', notifs);
 
     // تفعيل في Supabase
-    const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
-    if (sbCfg.url && sbCfg.anonKey) {
-      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}` };
-      Promise.all([
-        fetch(`${sbCfg.url}/rest/v1/users?id=eq.${userId}`,     { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
-        fetch(`${sbCfg.url}/rest/v1/tenants?id=eq.${tenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
-        fetch(`${sbCfg.url}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
-      ]).catch(()=>{});
+    let sbUrl2 = '', sbKey2 = '';
+    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+      sbUrl2 = SUPABASE_HARDCODED.url;
+      sbKey2 = SUPABASE_HARDCODED.anonKey;
+    } else {
+      const _cfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
+      sbUrl2 = _cfg.url || ''; sbKey2 = _cfg.anonKey || '';
+    }
+    if (sbUrl2 && sbKey2) {
+      const sbH = { 'Content-Type':'application/json','apikey':sbKey2,'Authorization':`Bearer ${sbKey2}` };
+      await Promise.all([
+        fetch(`${sbUrl2}/rest/v1/users?id=eq.${userId}`,          { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
+        fetch(`${sbUrl2}/rest/v1/tenants?id=eq.${tenantId}`,      { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
+        fetch(`${sbUrl2}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
+      ]).catch(e => { throw new Error('فشل التفعيل في Supabase: ' + e.message); });
+    } else {
+      throw new Error('Supabase غير مربوط — تحقق من إعدادات SUPABASE_HARDCODED');
     }
 
     // إرسال إيميل التفعيل للمستخدم
@@ -8122,7 +8139,11 @@ async function syncAdminFromSupabase() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التحديث...'; }
 
   try {
-    const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    const sbCfg = (() => {
+      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
+        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
+    })();
     if (!sbCfg.url || !sbCfg.anonKey) {
       if (typeof Toast !== 'undefined') Toast.warn('⚠️ لم يتم ضبط Supabase بعد');
       return;
@@ -8188,7 +8209,11 @@ async function addTenant() {
   if(users.find(u=>u.email===email)){Toast.error(L('هذا البريد مستخدم بالفعل','Cet email est déjà utilisé'));return;}
 
   // ── إنشاء كائنات المؤسسة والمستخدم ──
-  const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch{return {};} })();
+  const sbCfg = (() => {
+      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
+        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
+    })();
   const hasSupabase = !!(sbCfg.url && sbCfg.anonKey);
 
   let newTenantId, newUserId;
