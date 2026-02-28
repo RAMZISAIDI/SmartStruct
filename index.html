@@ -3880,82 +3880,33 @@ async function doRegister() {
   const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
   const terms   = (document.getElementById('regTerms')  ||{}).checked||false;
   const errEl   = document.getElementById('registerError');
-  const succEl  = document.getElementById('registerSuccess');
 
-  const showErr  = (msg) => {
-    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
-    if (succEl) succEl.style.display = 'none';
-  };
-  const showSucc = (msg, color) => {
-    if (succEl) {
-      succEl.textContent = msg; succEl.style.display = 'block';
-      succEl.style.background = color==='warn' ? 'rgba(232,184,75,.1)' : 'rgba(52,195,143,.1)';
-      succEl.style.border = color==='warn' ? '1px solid rgba(232,184,75,.3)' : '1px solid rgba(52,195,143,.3)';
-      succEl.style.color = color==='warn' ? 'var(--gold)' : 'var(--green)';
-    }
-  };
+  const showErr = (msg) => { if (errEl) { errEl.textContent=msg; errEl.style.display='block'; } };
 
-  // تحقق من الحقول
+  // ── تحقق من الحقول ──
   if (!name.trim())    return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
-  if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب','❌ Le nom de l\'entreprise est requis'));
+  if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب',"❌ Le nom de l'entreprise est requis"));
   if (!email || !email.includes('@')) return showErr(L('❌ البريد الإلكتروني غير صالح','❌ Email invalide'));
   if (pass.length < 6) return showErr(L('❌ كلمة المرور 6 أحرف على الأقل','❌ 6 caractères minimum'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
-
   if (errEl) errEl.style.display = 'none';
 
-  const regBtn   = document.querySelector('button[onclick="doRegister()"]');
-  const resetBtn = () => { if (regBtn) { regBtn.disabled=false; regBtn.textContent=L('🚀 إنشاء الحساب','🚀 Créer le compte'); } };
-  if (regBtn) { regBtn.disabled=true; regBtn.textContent='⏳ جاري إنشاء الحساب...'; }
+  // ── تحقق محلي من تكرار البريد (فوري - بدون انتظار) ──
+  const localUsers   = DB.get('users');
+  const localTenants = DB.get('tenants');
+  if (localUsers.find(u => u.email === email))
+    return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
 
-  // إعداد Supabase
-  const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
-  const hasSB = !!(sbCfg.url && sbCfg.anonKey);
-  const sbH   = hasSB ? { 'Content-Type':'application/json', 'apikey':sbCfg.anonKey, 'Authorization':`Bearer ${sbCfg.anonKey}`, 'Prefer':'return=representation' } : null;
+  // ── حساب IDs من localStorage مباشرة (بدون انتظار Supabase) ──
+  const localMaxT = localTenants.length ? Math.max(...localTenants.map(t=>t.id)) : 1;
+  const localMaxU = localUsers.length   ? Math.max(...localUsers.map(u=>u.id))   : 2;
+  const newTenantId = localMaxT + 1;
+  const newUserId   = localMaxU + 1;
 
-  const now          = new Date();
+  const now = new Date();
   const registrationDate = now.toISOString().split('T')[0];
   const trialEndDate = (() => { const d=new Date(); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })();
 
-  // ── 1. التحقق من تكرار البريد ──
-  try {
-    if (hasSB) {
-      showSucc('⏳ جاري التحقق...', 'warn');
-      const chk = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
-      if (chk.ok) {
-        const exists = await chk.json();
-        if (exists.length) { resetBtn(); return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé')); }
-      }
-    }
-    const localUsers2 = DB.get('users');
-    if (localUsers2.find(u => u.email === email)) { resetBtn(); return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé')); }
-  } catch(e) {
-    const localUsers2 = DB.get('users');
-    if (localUsers2.find(u => u.email === email)) { resetBtn(); return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé')); }
-  }
-
-  // ── 2. حساب IDs ──
-  const localTenants = DB.get('tenants');
-  const localUsers   = DB.get('users');
-  const localMaxT = localTenants.length ? Math.max(...localTenants.map(t=>t.id)) : 1;
-  const localMaxU = localUsers.length   ? Math.max(...localUsers.map(u=>u.id))   : 2;
-  let newTenantId = localMaxT + 1;
-  let newUserId   = localMaxU + 1;
-
-  if (hasSB) {
-    try {
-      showSucc('⏳ جاري إنشاء الحساب...', 'warn');
-      const [mtR, muR] = await Promise.all([
-        fetch(`${sbCfg.url}/rest/v1/tenants?select=id&order=id.desc&limit=1`, { headers: sbH }),
-        fetch(`${sbCfg.url}/rest/v1/users?select=id&order=id.desc&limit=1`,   { headers: sbH })
-      ]);
-      const [mt, mu] = await Promise.all([mtR.ok?mtR.json():Promise.resolve([]), muR.ok?muR.json():Promise.resolve([])]);
-      if (mt.length) newTenantId = Math.max(newTenantId, mt[0].id + 1);
-      if (mu.length) newUserId   = Math.max(newUserId,   mu[0].id + 1);
-    } catch(e) { /* استخدم القيم المحلية */ }
-  }
-
-  // ── 3. بناء الكائنات ──
   const newTenant = {
     id: newTenantId, name: company.trim(), plan_id: 2, wilaya: wilaya,
     subscription_status: 'trial', trial_start: registrationDate,
@@ -3973,28 +3924,19 @@ async function doRegister() {
     date: now.toISOString(), read: false
   };
 
-  // ── 4. حفظ في localStorage (دائماً - يضمن عمل التطبيق فوراً) ──
-  if (!localTenants.find(t => t.id === newTenantId)) { localTenants.push(newTenant); DB.set('tenants', localTenants); }
-  if (!localUsers.find(u   => u.id === newUserId))   { localUsers.push(newUser);     DB.set('users',   localUsers);   }
+  // ── حفظ في localStorage فوراً (يضمن الدخول بدون انتظار) ──
+  localTenants.push(newTenant); DB.set('tenants', localTenants);
+  localUsers.push(newUser);     DB.set('users', localUsers);
   const adminNotifs = DB.get('admin_notifications') || [];
   adminNotifs.unshift(notifData);
   DB.set('admin_notifications', adminNotifs);
 
-  // ── 5. حفظ في Supabase في الخلفية (لا يوقف التسجيل) ──
-  if (hasSB) {
-    (async () => {
-      try {
-        await fetch(`${sbCfg.url}/rest/v1/tenants`,      { method:'POST', headers:sbH, body:JSON.stringify(newTenant)  });
-        await fetch(`${sbCfg.url}/rest/v1/users`,         { method:'POST', headers:sbH, body:JSON.stringify(newUser)    });
-        await fetch(`${sbCfg.url}/rest/v1/notifications`, { method:'POST', headers:sbH, body:JSON.stringify(notifData)  }).catch(()=>{});
-        console.log('✅ الحساب الجديد حُفظ في Supabase');
-      } catch(sbErr) { console.warn('⚠️ Supabase save failed (data saved locally):', sbErr.message); }
-    })();
-  }
+  // ── تسجيل الدخول فوراً ──
+  Auth.currentUser = newUser;
+  sessionStorage.setItem('sbtp_user', JSON.stringify(newUser));
+  sessionStorage.removeItem('auth_mode');
 
-  // ── 6. إيميل + AI + تسجيل الدخول ──
-  EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
-
+  // تفعيل AI
   try {
     const aiCfg = getAIConfig();
     if (aiCfg && aiCfg.apiKey && aiCfg.status === 'active') {
@@ -4005,12 +3947,55 @@ async function doRegister() {
     }
   } catch(e) {}
 
-  Auth.currentUser = newUser;
-  sessionStorage.setItem('sbtp_user', JSON.stringify(newUser));
-  sessionStorage.removeItem('auth_mode');
-  resetBtn();
-  setTimeout(() => App.navigate('dashboard'), 400);
-  setTimeout(() => showWelcomeRobot(name.trim(), 14), 900);
+  // التوجيه للداشبورد فوراً
+  setTimeout(() => App.navigate('dashboard'), 200);
+  setTimeout(() => showWelcomeRobot(name.trim(), 14), 800);
+
+  // ── حفظ في Supabase في الخلفية (بعد الدخول - timeout 8 ثواني) ──
+  const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
+  if (sbCfg.url && sbCfg.anonKey) {
+    const sbH = { 'Content-Type':'application/json', 'apikey':sbCfg.anonKey, 'Authorization':`Bearer ${sbCfg.anonKey}`, 'Prefer':'return=representation' };
+    const fetchWithTimeout = (url, opts, ms=8000) => Promise.race([
+      fetch(url, opts),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+    ]);
+    setTimeout(async () => {
+      try {
+        // تحقق من Supabase إذا البريد موجود هناك فعلاً (تجنب تعارض IDs)
+        const chk = await fetchWithTimeout(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
+        if (chk.ok && (await chk.json()).length) {
+          console.log('ℹ️ البريد موجود في Supabase بالفعل — تخطي');
+          return;
+        }
+        // حساب IDs الصحيحة من Supabase
+        const [mtR, muR] = await Promise.all([
+          fetchWithTimeout(`${sbCfg.url}/rest/v1/tenants?select=id&order=id.desc&limit=1`, { headers: sbH }),
+          fetchWithTimeout(`${sbCfg.url}/rest/v1/users?select=id&order=id.desc&limit=1`,   { headers: sbH })
+        ]);
+        const [mt, mu] = await Promise.all([mtR.ok?mtR.json():[], muR.ok?muR.json():[]]);
+        const sbMaxT = mt.length ? mt[0].id : 0;
+        const sbMaxU = mu.length ? mu[0].id : 0;
+        // إذا IDs محلية أعلى من Supabase — استخدم المحلية (آمن)
+        const finalTenant = { ...newTenant, id: Math.max(newTenantId, sbMaxT+1) };
+        const finalUser   = { ...newUser,   id: Math.max(newUserId,   sbMaxU+1), tenant_id: finalTenant.id };
+        const finalNotif  = { ...notifData, user_id: finalUser.id, tenant_id: finalTenant.id };
+
+        await fetchWithTimeout(`${sbCfg.url}/rest/v1/tenants`,      { method:'POST', headers:sbH, body:JSON.stringify(finalTenant) });
+        await fetchWithTimeout(`${sbCfg.url}/rest/v1/users`,         { method:'POST', headers:sbH, body:JSON.stringify(finalUser)   });
+        await fetchWithTimeout(`${sbCfg.url}/rest/v1/notifications`, { method:'POST', headers:sbH, body:JSON.stringify(finalNotif)  }).catch(()=>{});
+
+        // تحديث localStorage بالـ IDs الصحيحة من Supabase
+        const t2 = DB.get('tenants'); const idx_t = t2.findIndex(t=>t.id===newTenantId);
+        if (idx_t > -1) { t2[idx_t] = finalTenant; DB.set('tenants', t2); }
+        const u2 = DB.get('users'); const idx_u = u2.findIndex(u=>u.id===newUserId);
+        if (idx_u > -1) { u2[idx_u] = finalUser; DB.set('users', u2); sessionStorage.setItem('sbtp_user', JSON.stringify(finalUser)); }
+
+        console.log('✅ الحساب حُفظ في Supabase بنجاح (في الخلفية)');
+      } catch(e) { console.warn('⚠️ Supabase background save failed (data saved locally):', e.message); }
+    }, 1000); // انتظر ثانية واحدة بعد فتح الداشبورد
+  }
+
+  EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
 }
 
 // ─── ربوت الترحيب للحسابات الجديدة ───
