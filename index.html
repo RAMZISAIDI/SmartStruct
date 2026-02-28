@@ -3843,7 +3843,7 @@ function renderRegisterForm(L) {
         <span style="color:var(--green)">${L('(إلزامي)','(Obligatoire)')}</span>
       </label>
     </div>
-    <button class="btn-trial" style="width:100%;justify-content:center;padding:.9rem;font-size:1rem;margin-top:.8rem;border-radius:var(--radius)" onclick="doRegister()">
+    <button class="btn-trial" id="registerSubmitBtn" style="width:100%;justify-content:center;padding:.9rem;font-size:1rem;margin-top:.8rem;border-radius:var(--radius)" onclick="doRegister()">
       🚀 ${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer')}</button>
     <div style="text-align:center;margin-top:.8rem;font-size:.75rem;color:var(--dim)">
       ${L('لديك حساب بالفعل؟','Vous avez déjà un compte ?')}
@@ -3906,8 +3906,12 @@ async function doRegister() {
   const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
   const terms   = (document.getElementById('regTerms')  ||{}).checked||false;
   const errEl   = document.getElementById('registerError');
+  const regBtn  = document.getElementById('registerSubmitBtn') || document.querySelector('[onclick="doRegister()"]');
 
-  const showErr = (msg) => { if (errEl) { errEl.textContent=msg; errEl.style.display='block'; } };
+  const showErr = (msg) => {
+    if (errEl) { errEl.textContent=msg; errEl.style.display='block'; }
+    if (regBtn) { regBtn.disabled=false; regBtn.textContent='🚀 إنشاء الحساب المجاني'; }
+  };
 
   // ── تحقق من الحقول ──
   if (!name.trim())    return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
@@ -3917,132 +3921,165 @@ async function doRegister() {
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
   if (errEl) errEl.style.display = 'none';
 
-  // ── تحقق محلي من تكرار البريد (فوري - بدون انتظار) ──
+  // ── تحقق محلي من تكرار البريد ──
   const localUsers   = DB.get('users');
   const localTenants = DB.get('tenants');
   if (localUsers.find(u => u.email === email))
     return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
 
-  // ── حساب IDs من localStorage مباشرة (بدون انتظار Supabase) ──
-  const localMaxT = localTenants.length ? Math.max(...localTenants.map(t=>t.id)) : 1;
-  const localMaxU = localUsers.length   ? Math.max(...localUsers.map(u=>u.id))   : 2;
-  const newTenantId = localMaxT + 1;
-  const newUserId   = localMaxU + 1;
+  // ── تعطيل الزر ومؤشر التحميل ──
+  if (regBtn) { regBtn.disabled=true; regBtn.textContent='⏳ جاري التسجيل...'; }
 
   const now = new Date();
   const registrationDate = now.toISOString().split('T')[0];
   const trialEndDate = (() => { const d=new Date(); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })();
 
-  const newTenant = {
-    id: newTenantId, name: company.trim(), plan_id: 2, wilaya: wilaya,
-    subscription_status: 'pending', trial_start: registrationDate,
-    trial_end: trialEndDate, created_at: registrationDate,
-    is_active: false  // ← غير نشط حتى يفعّله المسؤول
-  };
-  const newUser = {
-    id: newUserId, tenant_id: newTenantId, full_name: name.trim(),
-    email: email, password: pass, role: 'admin', is_admin: false,
-    is_active: false,          // ← غير نشط حتى يفعّله المسؤول
-    account_status: 'pending'  // ← في انتظار التفعيل
-  };
-  const notifData = {
-    id: Date.now(), type: 'new_account',
-    title: 'حساب جديد بانتظار المراجعة',
-    body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
-    user_id: newUserId, tenant_id: newTenantId,
-    date: now.toISOString(), read: false
+  // ══════════════════════════════════════════════════════
+  // محاولة الرفع لـ Supabase أولاً (الأولوية القصوى)
+  // ══════════════════════════════════════════════════════
+  let sbTenantId = null, sbUserId = null, sbNotifId = null;
+
+  const getSbConfig = () => {
+    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED && SUPABASE_HARDCODED.url)
+      return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+    try { return JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}'); } catch { return {}; }
   };
 
-  // ── حفظ في localStorage فوراً (يضمن الدخول بدون انتظار) ──
-  localTenants.push(newTenant); DB.set('tenants', localTenants);
-  localUsers.push(newUser);     DB.set('users', localUsers);
+  const sbCfg = getSbConfig();
+  const hasSupabase = !!(sbCfg.url && sbCfg.anonKey);
+
+  if (hasSupabase) {
+    try {
+      const sbH = {
+        'Content-Type': 'application/json',
+        'apikey': sbCfg.anonKey,
+        'Authorization': `Bearer ${sbCfg.anonKey}`,
+        'Prefer': 'return=representation'
+      };
+
+      // 1. تحقق من تكرار البريد في Supabase
+      const chkRes = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
+      if (chkRes.ok) {
+        const existing = await chkRes.json();
+        if (existing.length > 0) return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
+      }
+
+      // 2. إدراج المؤسسة في Supabase (بدون id — SERIAL تلقائي)
+      const tRes = await fetch(`${sbCfg.url}/rest/v1/tenants`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          name: company.trim(), plan_id: 2, wilaya: wilaya || null,
+          subscription_status: 'pending',
+          trial_start: registrationDate, trial_end: trialEndDate,
+          created_at: now.toISOString(), is_active: false
+        })
+      });
+      if (!tRes.ok) {
+        const errText = await tRes.text();
+        console.error('Supabase tenant insert error:', errText);
+        throw new Error('فشل حفظ المؤسسة: ' + errText);
+      }
+      const tenantArr = await tRes.json();
+      sbTenantId = tenantArr[0]?.id || tenantArr?.id;
+      if (!sbTenantId) throw new Error('لم يتم إرجاع ID المؤسسة من Supabase');
+      console.log('✅ Supabase tenant created, id=', sbTenantId);
+
+      // 3. إدراج المستخدم في Supabase
+      const uRes = await fetch(`${sbCfg.url}/rest/v1/users`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          tenant_id: sbTenantId, full_name: name.trim(),
+          email: email, password: pass,
+          role: 'admin', is_admin: false,
+          is_active: false, account_status: 'pending',
+          created_at: now.toISOString()
+        })
+      });
+      if (!uRes.ok) {
+        const errText = await uRes.text();
+        console.error('Supabase user insert error:', errText);
+        throw new Error('فشل حفظ المستخدم: ' + errText);
+      }
+      const userArr = await uRes.json();
+      sbUserId = userArr[0]?.id || userArr?.id;
+      if (!sbUserId) throw new Error('لم يتم إرجاع ID المستخدم من Supabase');
+      console.log('✅ Supabase user created, id=', sbUserId);
+
+      // 4. إدراج الإشعار في Supabase
+      sbNotifId = Date.now();
+      await fetch(`${sbCfg.url}/rest/v1/notifications`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          id: sbNotifId, type: 'new_account',
+          title: 'حساب جديد بانتظار المراجعة',
+          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
+          user_id: sbUserId, tenant_id: sbTenantId,
+          date: now.toISOString(), read: false, status: 'pending'
+        })
+      }).catch(e => console.warn('Supabase notif insert warn:', e.message));
+
+      console.log('✅ Supabase: جميع البيانات رُفعت بنجاح — tenant#' + sbTenantId + ' user#' + sbUserId);
+
+    } catch(sbErr) {
+      console.error('❌ Supabase register error:', sbErr.message);
+      // لا نوقف التسجيل — نكمل بـ localStorage فقط
+      sbTenantId = null; sbUserId = null;
+    }
+  } else {
+    console.warn('⚠️ Supabase غير مضبوط — حفظ محلي فقط');
+  }
+
+  // ══════════════════════════════════════════════════════
+  // حفظ في localStorage (دائماً — بـ IDs الحقيقية من Supabase إن وُجدت)
+  // ══════════════════════════════════════════════════════
+  const localMaxT = localTenants.length ? Math.max(...localTenants.map(t=>t.id||0)) : 1;
+  const localMaxU = localUsers.length   ? Math.max(...localUsers.map(u=>u.id||0))   : 2;
+  const finalTenantId = sbTenantId || (localMaxT + 1);
+  const finalUserId   = sbUserId   || (localMaxU + 1);
+  const finalNotifId  = sbNotifId  || Date.now();
+
+  const newTenant = {
+    id: finalTenantId, name: company.trim(), plan_id: 2, wilaya: wilaya || null,
+    subscription_status: 'pending', trial_start: registrationDate,
+    trial_end: trialEndDate, created_at: registrationDate, is_active: false,
+    _sb_synced: !!sbTenantId
+  };
+  const newUser = {
+    id: finalUserId, tenant_id: finalTenantId, full_name: name.trim(),
+    email: email, password: pass, role: 'admin', is_admin: false,
+    is_active: false, account_status: 'pending',
+    _sb_synced: !!sbUserId
+  };
+  const notifData = {
+    id: finalNotifId, type: 'new_account',
+    title: 'حساب جديد بانتظار المراجعة',
+    body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
+    user_id: finalUserId, tenant_id: finalTenantId,
+    date: now.toISOString(), read: false, status: 'pending'
+  };
+
+  // إزالة أي سجل قديم بنفس البريد (حماية من التكرار)
+  const cleanUsers = localUsers.filter(u => u.email !== email);
+  cleanUsers.push(newUser);
+  DB.set('users', cleanUsers);
+
+  const cleanTenants = localTenants.filter(t => t.id !== finalTenantId);
+  cleanTenants.push(newTenant);
+  DB.set('tenants', cleanTenants);
+
   const adminNotifs = DB.get('admin_notifications') || [];
   adminNotifs.unshift(notifData);
   DB.set('admin_notifications', adminNotifs);
 
-  // ── لا تسجيل دخول — عرض شاشة انتظار التفعيل ──
-  showPendingActivationScreen(name.trim(), email);
+  // ── إرسال إيميل إشعار للمسؤول ──
+  EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(()=>{});
 
-  // ── حفظ في Supabase ──
-  (async () => {
-    try {
-      // جلب config من SUPABASE_HARDCODED أو localStorage
-      let sbUrl = '', sbKey = '';
-      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-        sbUrl = SUPABASE_HARDCODED.url;
-        sbKey = SUPABASE_HARDCODED.anonKey;
-      } else {
-        const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-        sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
-      }
-      if (!sbUrl || !sbKey) {
-        console.warn('⚠️ Supabase غير مربوط — اضبط SUPABASE_HARDCODED في supabase-db.js');
-        return;
-      }
-
-      const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}`, 'Prefer':'return=representation' };
-
-      // 1. تحقق من تكرار البريد
-      const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
-      if (chkR.ok && (await chkR.json()).length) { console.log('ℹ️ البريد موجود في Supabase'); return; }
-
-      // 2. INSERT tenant — بدون id (SERIAL يولّده Supabase تلقائياً)
-      const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
-        method: 'POST', headers: sbH,
-        body: JSON.stringify({
-          name: company.trim(), plan_id: 2, wilaya: wilaya,
-          subscription_status: 'pending', trial_start: registrationDate,
-          trial_end: trialEndDate, is_active: false
-        })
-      });
-      if (!tRes.ok) throw new Error('tenant: ' + await tRes.text());
-      const [sbTenant] = await tRes.json();
-
-      // 3. INSERT user — بدون id
-      const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
-        method: 'POST', headers: sbH,
-        body: JSON.stringify({
-          tenant_id: sbTenant.id, full_name: name.trim(), email: email,
-          password: pass, role: 'admin', is_admin: false,
-          is_active: false, account_status: 'pending'
-        })
-      });
-      if (!uRes.ok) throw new Error('user: ' + await uRes.text());
-      const [sbUser] = await uRes.json();
-
-      // 4. INSERT notification
-      await fetch(`${sbUrl}/rest/v1/notifications`, {
-        method: 'POST', headers: sbH,
-        body: JSON.stringify({
-          id: Date.now(), type: 'new_account',
-          title: 'حساب جديد بانتظار المراجعة',
-          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
-          user_id: sbUser.id, tenant_id: sbTenant.id,
-          date: new Date().toISOString(), read: false, status: 'pending'
-        })
-      }).catch(e => console.warn('notif:', e.message));
-
-      // 5. حدّث localStorage بـ IDs الحقيقية
-      const lTenants = DB.get('tenants');
-      const lti = lTenants.findIndex(t => t.id === newTenantId);
-      if (lti > -1) { lTenants[lti].id = sbTenant.id; DB.set('tenants', lTenants); }
-      const lUsers = DB.get('users');
-      const lui = lUsers.findIndex(u => u.id === newUserId);
-      if (lui > -1) { lUsers[lui].id = sbUser.id; lUsers[lui].tenant_id = sbTenant.id; DB.set('users', lUsers); }
-
-      console.log(`✅ Supabase: tenant #${sbTenant.id} + user #${sbUser.id}`);
-      // إرسال إيميل للمسؤول بعد حفظ Supabase
-      await EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
-    } catch(e) {
-      console.error('❌ Supabase register error:', e.message);
-      // أرسل الإيميل حتى لو فشل Supabase
-      EMAILJS.notifyNewAccount({ name:name.trim(), email, company:company.trim(), wilaya }).catch(()=>{});
-    }
-  })()
+  // ── عرض شاشة انتظار التفعيل ──
+  showPendingActivationScreen(name.trim(), email, !!sbTenantId);
 }
 
 // ─── شاشة انتظار تفعيل الحساب ───
-function showPendingActivationScreen(userName, userEmail) {
+function showPendingActivationScreen(userName, userEmail, sbSynced) {
   // أزل أي overlay سابق
   const old = document.getElementById('pendingActivationOverlay');
   if (old) old.remove();
@@ -4094,7 +4131,7 @@ function showPendingActivationScreen(userName, userEmail) {
           <span style="font-size:.85rem;font-weight:800;color:#E8B84B">ماذا سيحدث بعد ذلك؟</span>
         </div>
         <div style="font-size:.8rem;color:#8892A4;line-height:2">
-          <div>✅ تم حفظ بياناتك بنجاح</div>
+          <div>${sbSynced ? '✅ تم رفع بياناتك إلى Supabase بنجاح' : '✅ تم حفظ بياناتك محلياً'}</div>
           <div>📧 سيراجع المسؤول طلبك قريباً</div>
           <div>🔔 ستصلك رسالة بريد إلكتروني لتفعيل حسابك</div>
           <div>🚀 بعدها يمكنك تسجيل الدخول مباشرة</div>
@@ -6687,6 +6724,86 @@ function patchSmartAIWithSavedConfig() {
 /* ─── ADMIN ─── */
 Pages.admin = function() {
 
+  // ── مزامنة تلقائية خفية من Supabase عند كل فتح للوحة الإدارة ──
+  (async () => {
+    try {
+      const getSbCfg = () => {
+        if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED && SUPABASE_HARDCODED.url)
+          return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+        try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
+      };
+      const cfg = getSbCfg();
+      if (!cfg.url || !cfg.anonKey) return;
+      const h = { 'apikey': cfg.anonKey, 'Authorization': `Bearer ${cfg.anonKey}` };
+
+      // جلب المستخدمين والمؤسسات والإشعارات من Supabase بصمت
+      const [tResp, uResp, nResp] = await Promise.all([
+        fetch(`${cfg.url}/rest/v1/tenants?order=id.asc`, { headers: h }),
+        fetch(`${cfg.url}/rest/v1/users?order=id.asc`, { headers: h }),
+        fetch(`${cfg.url}/rest/v1/notifications?order=id.desc&limit=500`, { headers: h })
+      ]);
+
+      let changed = false;
+
+      if (tResp.ok) {
+        const sbTenants = await tResp.json();
+        if (Array.isArray(sbTenants) && sbTenants.length) {
+          const local = DB.get('tenants');
+          const merged = [...sbTenants];
+          local.forEach(lt => { if (!merged.find(st => st.id === lt.id)) merged.push(lt); });
+          DB.set('tenants', merged);
+          changed = true;
+        }
+      }
+      if (uResp.ok) {
+        const sbUsers = await uResp.json();
+        if (Array.isArray(sbUsers) && sbUsers.length) {
+          const local = DB.get('users');
+          const merged = [...sbUsers];
+          local.forEach(lu => { if (!merged.find(su => su.id === lu.id)) merged.push(lu); });
+          DB.set('users', merged);
+          changed = true;
+        }
+      }
+      if (nResp.ok) {
+        const sbNotifs = await nResp.json();
+        if (Array.isArray(sbNotifs) && sbNotifs.length) {
+          const local = DB.get('admin_notifications') || [];
+          const merged = [...sbNotifs];
+          local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
+          DB.set('admin_notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
+          changed = true;
+        }
+      }
+
+      // إعادة رسم الصفحة إذا تغيرت البيانات
+      if (changed) {
+        const badge = document.getElementById('sbStatusBadge');
+        if (badge) { badge.style.color='#34C38F'; badge.textContent='🟢 متصل بـ Supabase'; }
+        // تحديث عداد الإشعارات في الزر
+        const notifBtn = document.getElementById('adminTab_notif');
+        if (notifBtn) {
+          const cnt = (DB.get('admin_notifications')||[]).filter(n=>
+            n.status==='pending' || (n.type==='new_account' && n.status!=='activated')
+          ).length;
+          const existingBadge = notifBtn.querySelector('.notif-live-badge');
+          if (existingBadge) existingBadge.remove();
+          if (cnt > 0) {
+            const sp = document.createElement('span');
+            sp.className = 'notif-live-badge';
+            sp.style.cssText = 'position:absolute;top:3px;left:6px;background:#F04E6A;color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:.62rem;display:inline-flex;align-items:center;justify-content:center;font-weight:900;padding:0 3px';
+            sp.textContent = cnt;
+            notifBtn.appendChild(sp);
+          }
+          // تحديث بانر الحسابات المعلقة
+          App.navigate('admin');
+        }
+      }
+    } catch(e) {
+      console.warn('⚠️ Auto-sync admin warning:', e.message);
+    }
+  })();
+
   const tenants=DB.get('tenants'), users=DB.get('users'), plans=DB.get('plans');
   const projects=DB.get('projects'), workers=DB.get('workers');
   const totalRevenue = DB.get('transactions').filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
@@ -6728,15 +6845,18 @@ Pages.admin = function() {
         const lbl = t.is_active ? L('نشط','Actif') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
         return `<span class="badge ${cls}">${lbl}</span>`;
       })()}</td>
-      <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
-        ${(!t.is_active && t.subscription_status==='pending') ? (() => {
-          const pendUser = users.find(u=>u.tenant_id===t.id&&!u.is_admin);
-          const pendNotif = (DB.get('admin_notifications')||[]).find(n=>n.type==='new_account'&&n.tenant_id===t.id&&n.status!=='activated');
-          if(pendUser && pendNotif) return `<button class="btn btn-sm btn-green" onclick="activateAccount(${pendNotif.id},${pendUser.id},${t.id})">✅ تفعيل</button>`;
-          return `<button class="btn btn-sm btn-green" onclick="toggleTenant(${t.id})">▶️</button>`;
-        })() : `<button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})">${t.is_active?'⏸️':'▶️'}</button>`}
-        <button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button>
-      </div></td>
+      <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">${(()=>{
+        if (!t.is_active && t.subscription_status === 'pending') {
+          // حساب معلق — ابحث عن إشعاره
+          const pUser = users.find(u => u.tenant_id === t.id && !u.is_admin);
+          const pNotif = (DB.get('admin_notifications')||[]).find(n => n.type==='new_account' && n.tenant_id===t.id && n.status!=='activated');
+          const activateBtn = pUser && pNotif
+            ? `<button class="btn btn-sm btn-green" onclick="activateAccount(${pNotif.id},${pUser.id},${t.id})" title="تفعيل وإرسال إيميل للمستخدم">✅ تفعيل</button>`
+            : `<button class="btn btn-sm btn-green" onclick="toggleTenant(${t.id})" title="تفعيل المؤسسة">▶️ تفعيل</button>`;
+          return activateBtn + `<button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button>`;
+        }
+        return `<button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})">${t.is_active?'⏸️':'▶️'}</button><button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button>`;
+      })()}</div></td>
     </tr>`;
   }).join('');
 
@@ -6775,8 +6895,12 @@ Pages.admin = function() {
             style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted);position:relative">
             📧 الإشعارات والبريد
             ${(()=>{
-              const pendingNotifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending');
-              return pendingNotifs.length ? `<span style="position:absolute;top:4px;left:8px;background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:.65rem;display:inline-flex;align-items:center;justify-content:center;font-weight:900">${pendingNotifs.length}</span>` : '';
+              const cnt = (DB.get('admin_notifications')||[]).filter(n=>
+                n.status==='pending' || (n.type==='new_account' && n.status!=='activated')
+              ).length;
+              return cnt > 0
+                ? `<span style="position:absolute;top:3px;left:6px;background:#F04E6A;color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:.62rem;display:inline-flex;align-items:center;justify-content:center;font-weight:900;padding:0 3px">${cnt}</span>`
+                : '';
             })()}
           </button>
           <button id="adminTab_supabase" onclick="switchAdminTab('supabase')"
@@ -6788,26 +6912,33 @@ Pages.admin = function() {
         <!-- TAB CONTENT: المؤسسات -->
         <div id="adminTabContent_tenants" style="display:block">
 
-        <!-- ══ Pending Accounts Alert ══ -->
-        \${(()=>{
-          const pendingUsers  = (DB.get('users')||[]).filter(u=>!u.is_active && !u.is_admin);
-          if(!pendingUsers.length) return '';
-          return \`<div style="
-            background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.05));
-            border:2px solid rgba(232,184,75,.4);border-radius:16px;
-            padding:1rem 1.3rem;margin-bottom:1.3rem;
-            display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
-            <div style="display:flex;align-items:center;gap:.7rem">
-              <span style="font-size:1.6rem">🔔</span>
+        <!-- ══ تنبيه الحسابات المعلقة ══ -->
+        ${(()=>{
+          const pendingUsers = (DB.get('users')||[]).filter(u => !u.is_active && !u.is_admin && u.account_status === 'pending');
+          if (!pendingUsers.length) return '';
+          const items = pendingUsers.map(u => {
+            const nt = (DB.get('admin_notifications')||[]).find(n => n.type==='new_account' && n.user_id===u.id && n.status!=='activated');
+            const tenant = (DB.get('tenants')||[]).find(t => t.id === u.tenant_id);
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .9rem;background:rgba(255,255,255,.03);border-radius:10px;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem">
               <div>
-                <div style="font-weight:900;font-size:.95rem;color:var(--gold)">\${pendingUsers.length} حساب بانتظار التفعيل</div>
-                <div style="font-size:.78rem;color:var(--muted)">
-                  \${pendingUsers.map(u=>\`<strong style="color:var(--text)">\${escHtml(u.full_name)}</strong> (\${escHtml(u.email)})\`).join(' • ')}
-                </div>
+                <span style="font-weight:800;color:var(--text)">${escHtml(u.full_name)}</span>
+                <span style="color:var(--muted);font-size:.8rem"> • ${escHtml(u.email)}</span>
+                ${tenant ? `<span style="color:var(--dim);font-size:.75rem"> • 🏢 ${escHtml(tenant.name)}</span>` : ''}
               </div>
+              ${nt ? `<button class="btn btn-green btn-sm" onclick="activateAccount(${nt.id},${u.id},${u.tenant_id})">✅ تفعيل وإرسال إيميل</button>` : `<button class="btn btn-green btn-sm" onclick="toggleTenant(${u.tenant_id})">▶️ تفعيل يدوي</button>`}
+            </div>`;
+          }).join('');
+          return `<div style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.03));border:1px solid rgba(232,184,75,.3);border-radius:16px;padding:1rem 1.2rem;margin-bottom:1.3rem">
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.9rem">
+              <span style="font-size:1.4rem">🔔</span>
+              <div>
+                <div style="font-weight:900;color:var(--gold);font-size:.95rem">${pendingUsers.length} حساب جديد بانتظار التفعيل</div>
+                <div style="font-size:.75rem;color:var(--dim)">راجع كل حساب وفعّله لإرسال بيانات الدخول للمستخدم</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="margin-right:auto" onclick="switchAdminTab('notif')">📧 عرض الإشعارات ←</button>
             </div>
-            <button class="btn btn-gold btn-sm" onclick="switchAdminTab('notif')">✅ تفعيل الحسابات ←</button>
-          </div>\`;
+            ${items}
+          </div>`;
         })()}
 
         <!-- Stats -->
@@ -6899,7 +7030,13 @@ Pages.admin = function() {
 
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
-          const notifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending'||(n.type==='new_account'&&n.status!=='activated'));
+          // إظهار: غير مقروء، أو pending، أو حسابات جديدة لم تُفعَّل بعد
+          const allAdminNotifs = DB.get('admin_notifications') || [];
+          const notifs = allAdminNotifs.filter(n =>
+            !n.read ||
+            n.status === 'pending' ||
+            (n.type === 'new_account' && n.status !== 'activated')
+          );
           if(!notifs.length) return '';
           const nrows = notifs.map(n=>{
             const isReset   = n.type==='reset_password';
@@ -7944,14 +8081,15 @@ async function activateAccount(notifId, userId, tenantId) {
   if (btn) { btn.disabled=true; btn.textContent='⏳ جاري التفعيل...'; }
 
   try {
+    // جلب البيانات المحلية
     const users   = DB.get('users');
     const tenants = DB.get('tenants');
     const user    = users.find(u => u.id === userId);
     const tenant  = tenants.find(t => t.id === tenantId);
-    if (!user)   { Toast.error('❌ المستخدم غير موجود'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
-    if (!tenant) { Toast.error('❌ المؤسسة غير موجودة'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+    if (!user)   { Toast.error('❌ المستخدم غير موجود (id=' + userId + ')'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+    if (!tenant) { Toast.error('❌ المؤسسة غير موجودة (id=' + tenantId + ')'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
 
-    // تفعيل محلي
+    // ── تفعيل محلي ──
     user.is_active       = true;
     user.account_status  = 'active';
     tenant.is_active            = true;
@@ -7959,36 +8097,98 @@ async function activateAccount(notifId, userId, tenantId) {
     DB.set('users', users);
     DB.set('tenants', tenants);
 
-    // تحديث الإشعار
+    // تحديث الإشعار المحلي
     const notifs = DB.get('admin_notifications') || [];
     const notif  = notifs.find(n => n.id === notifId);
     if (notif) { notif.status = 'activated'; notif.read = true; }
     DB.set('admin_notifications', notifs);
 
-    // تفعيل في Supabase — نستخدم email و tenant name للبحث (لأن local IDs قد تختلف عن Supabase IDs)
-    const sbCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
+    // ── تفعيل في Supabase — نبحث بالبريد الإلكتروني (ليس بالـ local ID) ──
+    const getSbCfg = () => {
+      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED && SUPABASE_HARDCODED.url)
+        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
+    };
+    const sbCfg = getSbCfg();
+
     if (sbCfg.url && sbCfg.anonKey) {
-      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}`, 'Prefer':'return=representation' };
       try {
-        // ابحث عن المستخدم بالبريد الإلكتروني
-        const sbUserRes = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(user.email)}&select=id,tenant_id`, { headers: sbH });
-        const sbUsers = sbUserRes.ok ? await sbUserRes.json() : [];
-        if (sbUsers.length) {
-          const sbUserId   = sbUsers[0].id;
-          const sbTenantId = sbUsers[0].tenant_id;
+        const sbH = {
+          'Content-Type': 'application/json',
+          'apikey': sbCfg.anonKey,
+          'Authorization': `Bearer ${sbCfg.anonKey}`,
+          'Prefer': 'return=representation'
+        };
+
+        // ابحث عن المستخدم بالبريد الإلكتروني للحصول على الـ ID الحقيقي في Supabase
+        const sbUserRes = await fetch(
+          `${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(user.email)}&select=id,tenant_id`,
+          { headers: sbH }
+        );
+        if (!sbUserRes.ok) throw new Error('Supabase user lookup failed: ' + sbUserRes.status);
+
+        const sbUsers = await sbUserRes.json();
+        if (sbUsers.length > 0) {
+          const sbUid = sbUsers[0].id;
+          const sbTid = sbUsers[0].tenant_id;
+
           await Promise.all([
-            fetch(`${sbCfg.url}/rest/v1/users?id=eq.${sbUserId}`,     { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
-            fetch(`${sbCfg.url}/rest/v1/tenants?id=eq.${sbTenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
-            fetch(`${sbCfg.url}/rest/v1/notifications?user_id=eq.${sbUserId}&status=eq.pending`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
+            fetch(`${sbCfg.url}/rest/v1/users?id=eq.${sbUid}`, {
+              method: 'PATCH', headers: sbH,
+              body: JSON.stringify({ is_active: true, account_status: 'active' })
+            }),
+            fetch(`${sbCfg.url}/rest/v1/tenants?id=eq.${sbTid}`, {
+              method: 'PATCH', headers: sbH,
+              body: JSON.stringify({ is_active: true, subscription_status: 'trial' })
+            }),
+            fetch(`${sbCfg.url}/rest/v1/notifications?user_id=eq.${sbUid}&status=eq.pending`, {
+              method: 'PATCH', headers: sbH,
+              body: JSON.stringify({ status: 'activated', read: true })
+            })
           ]);
-          console.log('✅ Supabase: account activated for', user.email);
+
+          console.log('✅ Supabase: تم تفعيل المستخدم #' + sbUid + ' في المؤسسة #' + sbTid);
+
+          // حدّث localStorage بـ IDs الحقيقية من Supabase (لتزامن مستقبلي صحيح)
+          const lu = DB.get('users');
+          const li = lu.findIndex(u2 => u2.id === userId);
+          if (li > -1) { lu[li]._sb_id = sbUid; lu[li]._sb_tenant_id = sbTid; lu[li]._sb_synced = true; DB.set('users', lu); }
+
         } else {
-          console.warn('⚠️ المستخدم غير موجود في Supabase، تم التفعيل محلياً فقط');
+          // المستخدم غير موجود في Supabase — يعني التسجيل لم يُرفع (offline)
+          // نرفعه الآن
+          console.warn('⚠️ المستخدم غير موجود في Supabase، جاري رفعه الآن...');
+          const regDate = tenant.created_at || new Date().toISOString().split('T')[0];
+          const tRes = await fetch(`${sbCfg.url}/rest/v1/tenants`, {
+            method: 'POST', headers: sbH,
+            body: JSON.stringify({
+              name: tenant.name, plan_id: tenant.plan_id || 2, wilaya: tenant.wilaya || null,
+              subscription_status: 'trial', trial_start: tenant.trial_start || regDate,
+              trial_end: tenant.trial_end || regDate, created_at: tenant.created_at || regDate,
+              is_active: true
+            })
+          }).catch(()=>null);
+          const sbNewTenant = tRes && tRes.ok ? (await tRes.json())[0] : null;
+
+          if (sbNewTenant) {
+            const uRes = await fetch(`${sbCfg.url}/rest/v1/users`, {
+              method: 'POST', headers: sbH,
+              body: JSON.stringify({
+                tenant_id: sbNewTenant.id, full_name: user.full_name, email: user.email,
+                password: user.password, role: 'admin', is_admin: false,
+                is_active: true, account_status: 'active'
+              })
+            }).catch(()=>null);
+            console.log('✅ Supabase: رُفع الحساب المؤجل للمستخدم', user.email);
+          }
         }
-      } catch(sbErr) { console.warn('⚠️ Supabase activation error:', sbErr.message); }
+      } catch(sbErr) {
+        console.warn('⚠️ Supabase activation sync warning:', sbErr.message);
+        // التفعيل المحلي نجح، لا نوقف العملية
+      }
     }
 
-    // إرسال إيميل التفعيل للمستخدم
+    // ── إرسال إيميل التفعيل للمستخدم ──
     const ok = await EMAILJS.sendActivationEmail({
       email:     user.email,
       full_name: user.full_name,
@@ -8003,6 +8203,7 @@ async function activateAccount(notifId, userId, tenantId) {
     App.navigate('admin');
   } catch(e) {
     Toast.error('❌ فشل التفعيل: ' + e.message);
+    console.error('activateAccount error:', e);
     if (btn) { btn.disabled=false; btn.textContent=origText; }
   }
 }
@@ -8076,9 +8277,14 @@ async function syncAdminFromSupabase() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التحديث...'; }
 
   try {
-    const sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    let sbCfg = {};
+    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED && SUPABASE_HARDCODED.url) {
+      sbCfg = { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
+    } else {
+      try { sbCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}'); } catch {}
+    }
     if (!sbCfg.url || !sbCfg.anonKey) {
-      if (typeof Toast !== 'undefined') Toast.warn('⚠️ لم يتم ضبط Supabase بعد');
+      if (typeof Toast !== 'undefined') Toast.warn('⚠️ لم يتم ضبط Supabase بعد — اذهب لتبويب قاعدة البيانات');
       return;
     }
     const h = { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` };
