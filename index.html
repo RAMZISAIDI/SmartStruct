@@ -7971,10 +7971,14 @@ function saveAttNote(wid, date, note) {
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
   if (idx >= 0) {
     att[idx].note = note;
+    DB.set('attendance', att);
+    sbSync('attendance', att[idx], 'PATCH').catch(()=>{});
   } else {
-    att.push({id: DB.nextId('attendance'), worker_id: wid, date: date, status: '', hours: 8, note: note});
+    const newAtt = {id: DB.nextId('attendance'), worker_id: wid, date: date, status: '', hours: 8, note: note};
+    att.push(newAtt);
+    DB.set('attendance', att);
+    sbSync('attendance', newAtt, 'POST').catch(()=>{});
   }
-  DB.set('attendance', att);
 }
 
 function markAllStatus(status, date) {
@@ -8015,6 +8019,8 @@ function saveLegalSettings() {
   const address = document.getElementById('setAddress')?.value||'';
   const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, nif, nis, tva_rate: parseFloat(tva), address }:t);
   DB.set('tenants', tenants);
+  const updLegalTenant = tenants.find(t=>t.id===tid);
+  if (updLegalTenant) sbSync('tenants', updLegalTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل البيانات القانونية','Modification données légales'), { icon: '🔖' });
   Toast.success(L('✅ تم حفظ البيانات القانونية','✅ Données légales sauvegardées'));
 }
@@ -8038,6 +8044,7 @@ function changePassword() {
   if(user.password!==current){Toast.error(L('كلمة المرور الحالية غير صحيحة','Mot de passe actuel incorrect'));return;}
   const users=DB.get('users').map(u=>u.id===user.id?{...u,password:newPass}:u);
   DB.set('users',users); user.password=newPass; sessionStorage.setItem('sbtp_user',JSON.stringify(user));
+  sbSync('users', {id:user.id, password:newPass}, 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تغيير كلمة المرور','✅ Mot de passe modifié avec succès'));
   ['pwCurrent','pwNew','pwConfirm'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
 }
@@ -8164,7 +8171,9 @@ function saveTenantPlan(tenantId) {
 
   const planId = Number(document.getElementById('editPlanSelect')?.value);
   const subStatus = document.getElementById('editSubStatus')?.value || 'active';
-  DB.set('tenants', DB.get('tenants').map(t=>t.id===tenantId?{...t, plan_id:planId, subscription_status:subStatus}:t));
+  const updatedTenants = DB.get('tenants').map(t=>t.id===tenantId?{...t, plan_id:planId, subscription_status:subStatus}:t);
+  DB.set('tenants', updatedTenants);
+  sbSync('tenants', {id:tenantId, plan_id:planId, subscription_status:subStatus}, 'PATCH').catch(()=>{});
   document.getElementById('editPlanOverlay')?.remove();
   Toast.success(L('✅ تم تحديث خطة المؤسسة','✅ Plan de l\'entreprise mis à jour'));
   App.navigate('admin');
@@ -9010,7 +9019,7 @@ function kanbanDrop(e, colKey) {
   if (!_dragTaskId) return;
   const tasks = DB.get('kanban_tasks');
   const idx = tasks.findIndex(t => t.id === _dragTaskId);
-  if (idx >= 0) { tasks[idx].col = colKey; DB.set('kanban_tasks', tasks); }
+  if (idx >= 0) { tasks[idx].col = colKey; DB.set('kanban_tasks', tasks); sbSync('kanban_tasks', tasks[idx], 'PATCH').catch(()=>{}); }
   _dragTaskId = null;
   App.navigate('kanban');
   Toast.success('✅ تم نقل المهمة');
@@ -9020,8 +9029,10 @@ function addKanbanTask() {
   if (!title) { Toast.error('أدخل عنوان المهمة'); return; }
   const tid = Auth.getUser().tenant_id;
   const tasks = DB.get('kanban_tasks');
-  tasks.push({id:DB.nextId('kanban_tasks'),tenant_id:tid,title,project_id:Number(document.getElementById('taskProject')?.value)||null,priority:document.getElementById('taskPriority')?.value||'medium',assignee_id:Number(document.getElementById('taskAssignee')?.value)||null,due_date:document.getElementById('taskDue')?.value||null,col:document.getElementById('taskCol')?.value||'todo'});
+  const newTask = {id:DB.nextId('kanban_tasks'),tenant_id:tid,title,project_id:Number(document.getElementById('taskProject')?.value)||null,priority:document.getElementById('taskPriority')?.value||'medium',assignee_id:Number(document.getElementById('taskAssignee')?.value)||null,due_date:document.getElementById('taskDue')?.value||null,col:document.getElementById('taskCol')?.value||'todo'};
+  tasks.push(newTask);
   DB.set('kanban_tasks', tasks);
+  sbSync('kanban_tasks', newTask, 'POST').catch(()=>{});
   Toast.success('✅ تم إضافة المهمة');
   App.navigate('kanban');
 }
@@ -9320,11 +9331,15 @@ function paySalary(wid, monthKey, amount) {
   if (records.find(r=>r.worker_id===wid&&r.month_key===monthKey)) { Toast.warn('تم صرف الراتب مسبقاً'); return; }
   const worker = DB.get('workers').find(w=>w.id===wid);
   const tid = Auth.getUser().tenant_id;
-  records.push({id:DB.nextId('salary_records'),tenant_id:tid,worker_id:wid,month_key:monthKey,amount,paid_date:todayStr()});
+  const newSalary = {id:DB.nextId('salary_records'),tenant_id:tid,worker_id:wid,month_key:monthKey,amount,paid_date:todayStr()};
+  records.push(newSalary);
   DB.set('salary_records', records);
+  sbSync('salary_records', newSalary, 'POST').catch(()=>{});
   const txs = DB.get('transactions');
-  txs.push({id:DB.nextId('transactions'),tenant_id:tid,project_id:worker?.project_id||null,type:'expense',category:'رواتب العمال',amount,description:`راتب ${worker?.full_name||''} — ${monthKey}`,date:todayStr(),payment_method:'bank',worker_id:wid});
+  const salTx = {id:DB.nextId('transactions'),tenant_id:tid,project_id:worker?.project_id||null,type:'expense',category:'رواتب العمال',amount,description:`راتب ${worker?.full_name||''} — ${monthKey}`,date:todayStr(),payment_method:'bank',worker_id:wid};
+  txs.push(salTx);
   DB.set('transactions', txs);
+  sbSync('transactions', salTx, 'POST').catch(()=>{});
   Toast.success(`✅ تم صرف راتب ${worker?.full_name||''}`);
   App.navigate('salary', {monthKey});
 }
@@ -9348,6 +9363,8 @@ function payAllSalaries(monthKey) {
     }
   });
   DB.set('salary_records', records);
+  // Sync all new salary records to Supabase
+  records.filter(r=>r.paid_date===todayStr()).forEach(r => sbSync('salary_records', r, 'POST').catch(()=>{}));
   Toast.success(`✅ تم صرف رواتب ${paid} عامل`);
   App.navigate('salary', {monthKey});
 }
@@ -9639,6 +9656,7 @@ function addInvoiceItem() {
     items
   });
   DB.set('invoices',invs);
+  sbSync('invoices', invs[invs.length-1], 'POST').catch(()=>{});
   Toast.success(L('✅ تم إضافة الفاتورة','✅ Facture créée avec succès'));
   App.navigate('invoices');
 }
@@ -9646,6 +9664,7 @@ function addInvoiceItem() {
 function deleteInvoiceItem(id) {
   if(!confirm(L('حذف هذه الفاتورة؟','Supprimer cette facture ?')))return;
   DB.set('invoices',DB.get('invoices').filter(i=>i.id!==id));
+  sbSyncDelete('invoices', id).catch(()=>{});
   Toast.success(L('تم الحذف','Supprimé'));
   App.navigate('invoices');
 }
@@ -9657,6 +9676,7 @@ function markInvoicePaid(id) {
   invs[idx].status='paid';
   invs[idx].paid_date=todayStr();
   DB.set('invoices',invs);
+  sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تأشير الفاتورة كمدفوعة','✅ Facture marquée comme payée'));
   App.navigate('invoices');
 }
@@ -9979,8 +9999,11 @@ function addMaterialItem(){
   const name=document.getElementById('matName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المادة');return;}
   const mats=DB.get('materials');
-  mats.push({id:DB.nextId('materials'),tenant_id:Auth.getUser().tenant_id,name,unit:document.getElementById('matUnit')?.value||'وحدة',quantity:Number(document.getElementById('matQty')?.value)||0,min_quantity:Number(document.getElementById('matMin')?.value)||5,unit_price:Number(document.getElementById('matPrice')?.value)||0,project_id:Number(document.getElementById('matProj')?.value)||null,supplier:document.getElementById('matSupplier')?.value||''});
-  DB.set('materials',mats);Toast.success('✅ تم إضافة المادة');App.navigate('inventory');
+  const newMatItem = {id:DB.nextId('materials'),tenant_id:Auth.getUser().tenant_id,name,unit:document.getElementById('matUnit')?.value||'وحدة',quantity:Number(document.getElementById('matQty')?.value)||0,min_quantity:Number(document.getElementById('matMin')?.value)||5,unit_price:Number(document.getElementById('matPrice')?.value)||0,project_id:Number(document.getElementById('matProj')?.value)||null,supplier:document.getElementById('matSupplier')?.value||''};
+  mats.push(newMatItem);
+  DB.set('materials',mats);
+  sbSync('materials', newMatItem, 'POST').catch(()=>{});
+  Toast.success('✅ تم إضافة المادة');App.navigate('inventory');
 }
 function openStockMove(matId,type){
   document.getElementById('stockMatId').value=matId;
@@ -10002,9 +10025,12 @@ function confirmStockMoveV5(){
   if(type==='out'&&mats[idx].quantity<qty){Toast.error('الكمية المطلوبة أكبر من المخزون');return;}
   mats[idx].quantity=type==='in'?mats[idx].quantity+qty:mats[idx].quantity-qty;
   DB.set('materials',mats);
+  sbSync('materials', mats[idx], 'PATCH').catch(()=>{});
   const mvs=DB.get('stock_movements');
-  mvs.push({id:DB.nextId('stock_movements'),tenant_id:Auth.getUser().tenant_id,material_id:matId,type,quantity:qty,date:todayStr(),note});
+  const newMv = {id:DB.nextId('stock_movements'),tenant_id:Auth.getUser().tenant_id,material_id:matId,type,quantity:qty,date:todayStr(),note};
+  mvs.push(newMv);
   DB.set('stock_movements',mvs);
+  sbSync('stock_movements', newMv, 'POST').catch(()=>{});
   if(mats[idx].quantity<=mats[idx].min_quantity){
     addNotification(Auth.getUser().tenant_id,'تنبيه المخزون',`مخزون "${mats[idx].name}" وصل للحد الأدنى (${mats[idx].quantity} ${mats[idx].unit})`,'warn');
     Toast.warn(`⚠️ تنبيه: مخزون "${mats[idx].name}" منخفض!`);
@@ -10196,6 +10222,9 @@ function uploadDocItem(){
   try {
     docs.push(newDoc);
     DB.set('documents', docs);
+    // Sync metadata only to Supabase (no fileData to avoid size issues)
+    const docMeta = {...newDoc, fileData: null};
+    sbSync('documents', docMeta, 'POST').catch(()=>{});
     window._docFileTemp = null;
     Toast.success(L('✅ تم رفع الوثيقة','✅ Document ajouté'));
     App.navigate('documents');
@@ -10205,6 +10234,7 @@ function uploadDocItem(){
     newDoc.fileName = null;
     docs[docs.length-1] = newDoc;
     DB.set('documents', docs);
+    sbSync('documents', newDoc, 'POST').catch(()=>{});
     window._docFileTemp = null;
     Toast.error(L('⚠️ الملف كبير جداً للتخزين، تم حفظ البيانات فقط','⚠️ Fichier trop volumineux, métadonnées sauvegardées'));
     App.navigate('documents');
@@ -10227,6 +10257,7 @@ function deleteDocItem(id){
 
   if(!confirm(L('حذف هذه الوثيقة؟','Supprimer ce document ?')))return;
   DB.set('documents',DB.get('documents').filter(d=>d.id!==id));
+  sbSyncDelete('documents', id).catch(()=>{});
   Toast.success(L('تم الحذف','Supprimé'));
   App.navigate('documents');
 }
@@ -10363,12 +10394,15 @@ Pages.team = function() {
 function changeUserRoleV5(uid,role){
   const users = DB.get('users').map(u=>u.id===uid?{...u,role}:u);
   DB.set('users', users);
+  sbSync('users', {id:uid, role}, 'PATCH').catch(()=>{});
   Toast.success(`✅ ${L('تم تغيير الدور إلى','Rôle changé en')} "${ROLE_NAMES[role]}"`);
   App.navigate('team');
 }
 function toggleUserActive(uid){
   const users=DB.get('users').map(u=>u.id===uid?{...u,is_active:!u.is_active}:u);
   DB.set('users',users);
+  const updUser = users.find(u=>u.id===uid);
+  if (updUser) sbSync('users', {id:uid, is_active:updUser.is_active}, 'PATCH').catch(()=>{});
   Toast.success(L('تم تحديث حالة المستخدم','Statut utilisateur mis à jour'));
   App.navigate('team');
 }
@@ -10410,6 +10444,7 @@ function inviteUserV5(){
     avatar_color:colors[users.length%colors.length]
   });
   DB.set('users',users);
+  sbSync('users', users[users.length-1], 'POST').catch(()=>{});
   Toast.success(`✅ ${L('تم إضافة','Ajouté :')} ${name} ${L('بدور','avec rôle')} "${ROLE_NAMES[role]}"`);
   App.navigate('team');
 }
