@@ -4594,6 +4594,7 @@ Pages.dashboard = function() {
       </div>
       <div class="page-actions">
         <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
+        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()">☁️ رفع البيانات</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
     </div>
@@ -7549,6 +7550,106 @@ async function sbSyncUpsert(table, record) {
   const cleanRecord = { ...record };
   delete cleanRecord._fromSupabase;
   return sbSync(table, cleanRecord, method);
+}
+
+/* ══════════════════════════════════════════════════════
+   syncAllDataToSupabase — رفع كل بيانات المؤسسة دفعة واحدة
+══════════════════════════════════════════════════════ */
+async function syncAllDataToSupabase() {
+  const btn = document.getElementById('syncAllBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
+
+  const user = Auth.getUser();
+  if (!user || !user.tenant_id) {
+    Toast.error('❌ يجب تسجيل الدخول أولاً');
+    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+    return;
+  }
+  const tid = user.tenant_id;
+
+  // ── جلب إعدادات Supabase ──
+  let sbUrl = '', sbKey = '';
+  if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+    sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
+  } else {
+    const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+  }
+  if (!sbUrl || !sbKey) {
+    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات');
+    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+    return;
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': sbKey,
+    'Authorization': `Bearer ${sbKey}`,
+    'Prefer': 'resolution=merge-duplicates,return=representation'
+  };
+
+  // ── جمع كل بيانات المؤسسة ──
+  const tables = {
+    projects:        DB.get('projects').filter(p => p.tenant_id === tid),
+    workers:         DB.get('workers').filter(w => w.tenant_id === tid),
+    equipment:       DB.get('equipment').filter(e => e.tenant_id === tid),
+    transactions:    DB.get('transactions').filter(t => t.tenant_id === tid),
+    attendance:      (function() {
+                       const wids = DB.get('workers').filter(w=>w.tenant_id===tid).map(w=>w.id);
+                       return DB.get('attendance').filter(a => wids.includes(a.worker_id));
+                     })(),
+    salary_records:  DB.get('salary_records').filter(r => r.tenant_id === tid),
+    materials:       DB.get('materials').filter(m => m.tenant_id === tid),
+    stock_movements: DB.get('stock_movements').filter(s => s.tenant_id === tid),
+    invoices:        DB.get('invoices').filter(i => i.tenant_id === tid),
+    documents:       DB.get('documents').filter(d => d.tenant_id === tid).map(d => ({...d, fileData: null})),
+    kanban_tasks:    DB.get('kanban_tasks').filter(k => k.tenant_id === tid),
+    notes:           DB.get('notes').filter(n => n.tenant_id === tid),
+    obligations:     (DB.get('obligations_'+tid) || []).map(o => ({...o, tenant_id: tid})),
+    users:           DB.get('users').filter(u => u.tenant_id === tid),
+    tenants:         DB.get('tenants').filter(t => t.id === tid),
+  };
+
+  let totalSent = 0;
+  let errors = [];
+
+  // ── UPSERT كل جدول ──
+  for (const [table, records] of Object.entries(tables)) {
+    if (!records || records.length === 0) continue;
+    try {
+      // إرسال على دفعات (max 50 سجل لكل طلب)
+      const BATCH = 50;
+      for (let i = 0; i < records.length; i += BATCH) {
+        const batch = records.slice(i, i + BATCH);
+        const res = await fetch(`${sbUrl}/rest/v1/${table}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(batch)
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          errors.push(`${table}: ${errText.slice(0,80)}`);
+          console.warn(`⚠️ syncAll [${table}]:`, errText);
+        } else {
+          totalSent += batch.length;
+          console.log(`✅ syncAll [${table}]: ${batch.length} سجل`);
+        }
+      }
+    } catch(e) {
+      errors.push(`${table}: ${e.message}`);
+      console.warn(`⚠️ syncAll [${table}]:`, e.message);
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+
+  if (errors.length === 0) {
+    Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
+  } else if (totalSent > 0) {
+    Toast.warn(`⚠️ رُفع ${totalSent} سجل — فشل ${errors.length} جدول: ${errors[0]}`);
+  } else {
+    Toast.error('❌ فشل الرفع: ' + errors[0]);
+  }
 }
 
 
