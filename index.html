@@ -7598,11 +7598,29 @@ function cleanForSupabase(table, record) {
   const allowed = SB_SCHEMA[table];
   if (!allowed) return record;
   const clean = {};
+  // الحقول الاختيارية التي تقبل null (foreign keys)
+  const nullableIds = ['project_id','worker_id','material_id','user_id','plan_id','uploader_id','assignee_id'];
   allowed.forEach(function(col) {
-    if (record[col] !== undefined && record[col] !== null) {
-      // تحويل الأنواع للتأكد من الصحة
-      if (col === 'id' || col.endsWith('_id') || col === 'progress' || col === 'hours') {
-        clean[col] = Number(record[col]) || null;
+    if (record[col] !== undefined) {
+      if (record[col] === null || record[col] === '' || record[col] === 0 && col.endsWith('_id')) {
+        // حقول ID الاختيارية: نرسل null صريح
+        if (nullableIds.includes(col)) {
+          clean[col] = null;
+        } else if (record[col] === null) {
+          clean[col] = null;
+        }
+        // لا ترسل '' كـ null للحقول العادية — أبقها كما هي
+        else if (record[col] !== '') {
+          clean[col] = record[col];
+        }
+      } else if (col === 'id' || col === 'tenant_id') {
+        const n = Number(record[col]);
+        clean[col] = n || null;
+      } else if (nullableIds.includes(col)) {
+        const n = Number(record[col]);
+        clean[col] = n > 0 ? n : null;
+      } else if (col === 'progress' || col === 'hours') {
+        clean[col] = Number(record[col]) || 0;
       } else if (col === 'budget' || col === 'amount' || col === 'total_spent' ||
                  col === 'daily_salary' || col === 'monthly_base' || col === 'purchase_price' ||
                  col === 'unit_price' || col === 'quantity' || col === 'min_quantity' ||
@@ -7613,50 +7631,76 @@ function cleanForSupabase(table, record) {
       } else {
         clean[col] = record[col];
       }
-    } else if (record[col] === null) {
-      clean[col] = null;
     }
   });
   return clean;
 }
 
+/* ══ getSupabaseConfig — مصدر موحّد يقرأ أحدث إعدادات Supabase دائماً ══ */
+function getSupabaseConfig() {
+  // 1: localStorage (الأحدث دائماً — يُحدَّث عند الحفظ)
+  try {
+    const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (saved.url && saved.anonKey) return { url: saved.url, key: saved.anonKey };
+  } catch(e) {}
+  // 2: SUPABASE_HARDCODED (محمّل عند بداية الصفحة)
+  if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
+    return { url: SUPABASE_HARDCODED.url, key: SUPABASE_HARDCODED.anonKey };
+  }
+  // 3: DBHybrid
+  if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
+    return { url: DBHybrid._supabaseUrl, key: DBHybrid._supabaseKey || '' };
+  }
+  return null;
+}
+
 async function sbSync(table, record, method='POST') {
   try {
-    let sbUrl = '', sbKey = '';
-    // محاولة 1: SUPABASE_HARDCODED
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-    }
-    // محاولة 2: localStorage مباشرة
-    if (!sbUrl) {
-      try {
-        const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-        sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
-      } catch(e) {}
-    }
-    // محاولة 3: DBHybrid
-    if (!sbUrl && typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
-      sbUrl = DBHybrid._supabaseUrl; sbKey = DBHybrid._supabaseKey || '';
-    }
-    if (!sbUrl || !sbKey) {
-      console.warn('⚠️ sbSync: Supabase URL/Key مفقود — table=' + table);
+    const cfg = getSupabaseConfig();
+    if (!cfg || !cfg.url || !cfg.key) {
+      console.warn('⚠️ sbSync: Supabase غير مربوط — table=' + table);
       return;
     }
-    console.log('🔄 sbSync:', method, table, 'url='+sbUrl.slice(0,30)+'...');
+    const { url: sbUrl, key: sbKey } = cfg;
+    console.log('🔄 sbSync:', method, table, 'id='+record.id);
+
+    // POST = UPSERT (resolution=merge-duplicates) لتجنب خطأ التكرار
+    const preferHeader = method === 'POST'
+      ? 'resolution=merge-duplicates,return=representation'
+      : 'return=representation';
+
     const headers = {
       'Content-Type': 'application/json',
       'apikey': sbKey,
       'Authorization': `Bearer ${sbKey}`,
-      'Prefer': 'return=representation'
+      'Prefer': preferHeader
     };
+
     let url = `${sbUrl}/rest/v1/${table}`;
     if (method === 'PATCH' || method === 'DELETE') url += `?id=eq.${record.id}`;
+
     const cleanRecord = method === 'DELETE' ? record : cleanForSupabase(table, record);
     const body = method === 'DELETE' ? undefined : JSON.stringify(cleanRecord);
+
     const res = await fetch(url, { method, headers, body });
     if (!res.ok) {
       const err = await res.text();
-      console.warn(`⚠️ sbSync [${method} ${table}]:`, err);
+      console.warn(`⚠️ sbSync [${method} ${table}] id=${record.id}:`, err);
+      // محاولة ثانية: إذا فشل POST جرّب PATCH
+      if (method === 'POST' && record.id) {
+        console.log('🔄 sbSync: إعادة المحاولة بـ PATCH...');
+        const patchUrl = `${sbUrl}/rest/v1/${table}?id=eq.${record.id}`;
+        const patchRes = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=representation' },
+          body: JSON.stringify(cleanRecord)
+        });
+        if (patchRes.ok) {
+          console.log(`✅ sbSync [PATCH fallback ${table}] id=${record.id}`);
+        } else {
+          console.warn(`❌ sbSync [PATCH fallback ${table}]:`, await patchRes.text());
+        }
+      }
     } else {
       console.log(`✅ sbSync [${method} ${table}] id=${record.id}`);
     }
@@ -7689,14 +7733,46 @@ function saveSupabaseConfigInline() {
 
   const cfg = { url, anonKey: key };
   localStorage.setItem('sbtp_supabase_config', JSON.stringify(cfg));
-  SUPABASE_HARDCODED.url = url;
-  SUPABASE_HARDCODED.anonKey = key;
 
-  Toast.success('✅ تم حفظ إعدادات Supabase!');
-  
+  // تحديث فوري لكل المتغيرات العالمية
+  if (typeof SUPABASE_HARDCODED !== 'undefined') {
+    SUPABASE_HARDCODED.url = url;
+    SUPABASE_HARDCODED.anonKey = key;
+  }
+  // تحديث DBHybrid إن كان موجوداً
+  if (typeof DBHybrid !== 'undefined') {
+    DBHybrid._supabaseUrl = url;
+    DBHybrid._supabaseKey = key;
+    if (typeof DBHybrid.initSupabase === 'function') {
+      DBHybrid.initSupabase().catch(()=>{});
+    }
+  }
+
+  Toast.success('✅ تم حفظ إعدادات Supabase — جاري التحقق من الاتصال...');
+
+  // تحقق تلقائي من الاتصال بعد الحفظ
+  setTimeout(async () => {
+    try {
+      const res = await fetch(`${url}/rest/v1/tenants?select=id&limit=1`, {
+        headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+      });
+      const badge = document.getElementById('sbStatusBadge');
+      if (res.ok) {
+        Toast.success('✅ Supabase متصل بنجاح!');
+        if (badge) { badge.textContent='🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
+      } else {
+        const err = await res.text();
+        Toast.error('⚠️ الإعدادات حُفظت لكن الاتصال فشل: ' + err.slice(0,60));
+        if (badge) { badge.textContent='🔴 خطأ في الاتصال'; badge.style.color='#F04E6A'; }
+      }
+    } catch(e) {
+      Toast.warn('⚠️ الإعدادات حُفظت — تحقق من اتصال الإنترنت');
+    }
+  }, 500);
+
   // تحديث حالة الاتصال
   const badge = document.getElementById('sbStatusBadge');
-  if (badge) { badge.textContent = '🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
+  if (badge) { badge.textContent = '⏳ جاري التحقق...'; badge.style.background='rgba(232,184,75,0.1)'; badge.style.color='#E8B84B'; badge.style.borderColor='rgba(232,184,75,0.3)'; }
 }
 
 async function testSupabaseConnectionInline() {
@@ -7772,18 +7848,13 @@ async function syncAllDataToSupabase() {
   const tid = user.tenant_id;
 
   // ── جلب إعدادات Supabase ──
-  let sbUrl = '', sbKey = '';
-  if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-    sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-  } else {
-    const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-    sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
-  }
-  if (!sbUrl || !sbKey) {
-    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات');
+  const sbCfg = getSupabaseConfig();
+  if (!sbCfg || !sbCfg.url || !sbCfg.key) {
+    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
     if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
+  const { url: sbUrl, key: sbKey } = sbCfg;
 
   const headers = {
     'Content-Type': 'application/json',
@@ -7833,8 +7904,25 @@ async function syncAllDataToSupabase() {
         });
         if (!res.ok) {
           const errText = await res.text();
-          errors.push(`${table}: ${errText.slice(0,80)}`);
           console.warn(`⚠️ syncAll [${table}]:`, errText);
+          // إذا كان خطأ تكرار، نجرب PATCH على كل سجل بشكل مستقل
+          if (errText.includes('duplicate') || errText.includes('23505') || errText.includes('conflict')) {
+            console.log(`🔄 syncAll [${table}]: جاري UPSERT فردي للـ ${cleanBatch.length} سجل...`);
+            for (const r of cleanBatch) {
+              if (!r.id) continue;
+              try {
+                const pr = await fetch(`${sbUrl}/rest/v1/${table}?id=eq.${r.id}`, {
+                  method: 'PATCH',
+                  headers: { ...headers, 'Prefer': 'return=representation' },
+                  body: JSON.stringify(r)
+                });
+                if (pr.ok) totalSent++;
+                else errors.push(`${table}#${r.id}: ${(await pr.text()).slice(0,60)}`);
+              } catch(pe) { errors.push(`${table}#${r.id}: ${pe.message}`); }
+            }
+          } else {
+            errors.push(`${table}: ${errText.slice(0,100)}`);
+          }
         } else {
           totalSent += batch.length;
           console.log(`✅ syncAll [${table}]: ${batch.length} سجل`);
