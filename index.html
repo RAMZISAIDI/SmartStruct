@@ -7597,42 +7597,62 @@ const SB_SCHEMA = {
 function cleanForSupabase(table, record) {
   const allowed = SB_SCHEMA[table];
   if (!allowed) return record;
-  const clean = {};
-  // الحقول الاختيارية التي تقبل null (foreign keys)
+
+  // الحقول الاختيارية (FK) التي تقبل null
   const nullableIds = ['project_id','worker_id','material_id','user_id','plan_id','uploader_id','assignee_id'];
+
+  const clean = {};
   allowed.forEach(function(col) {
-    if (record[col] !== undefined) {
-      if (record[col] === null || record[col] === '' || record[col] === 0 && col.endsWith('_id')) {
-        // حقول ID الاختيارية: نرسل null صريح
-        if (nullableIds.includes(col)) {
-          clean[col] = null;
-        } else if (record[col] === null) {
-          clean[col] = null;
-        }
-        // لا ترسل '' كـ null للحقول العادية — أبقها كما هي
-        else if (record[col] !== '') {
-          clean[col] = record[col];
-        }
-      } else if (col === 'id' || col === 'tenant_id') {
-        const n = Number(record[col]);
-        clean[col] = n || null;
-      } else if (nullableIds.includes(col)) {
-        const n = Number(record[col]);
-        clean[col] = n > 0 ? n : null;
-      } else if (col === 'progress' || col === 'hours') {
-        clean[col] = Number(record[col]) || 0;
-      } else if (col === 'budget' || col === 'amount' || col === 'total_spent' ||
-                 col === 'daily_salary' || col === 'monthly_base' || col === 'purchase_price' ||
-                 col === 'unit_price' || col === 'quantity' || col === 'min_quantity' ||
-                 col === 'amount_ht' || col === 'tva_amount' || col === 'tva_rate' || col === 'price') {
-        clean[col] = Number(record[col]) || 0;
-      } else if (col === 'is_active' || col === 'is_admin' || col === 'is_archived' || col === 'read') {
-        clean[col] = Boolean(record[col]);
-      } else {
-        clean[col] = record[col];
-      }
+    let v = record ? record[col] : undefined;
+
+    // مهم: لتفادي خطأ PostgREST PGRST102 في الإدراج الجماعي (Bulk Insert)
+    // يجب أن تكون مفاتيح كل الكائنات متطابقة. لذلك نُرجِع كل الأعمدة دائماً
+    // ونحوّل undefined إلى null.
+    if (v === undefined) v = null;
+
+    // تطبيع القيم
+    if (v === null) {
+      clean[col] = null;
+      return;
     }
+
+    if (col === 'id' || col === 'tenant_id') {
+      const n = Number(v);
+      clean[col] = Number.isFinite(n) && n > 0 ? n : null;
+      return;
+    }
+
+    if (nullableIds.includes(col)) {
+      // IDs اختيارية
+      const n = Number(v);
+      clean[col] = Number.isFinite(n) && n > 0 ? n : null;
+      return;
+    }
+
+    if (col === 'progress' || col === 'hours') {
+      const n = Number(v);
+      clean[col] = Number.isFinite(n) ? n : 0;
+      return;
+    }
+
+    if ([
+      'budget','amount','total_spent','daily_salary','monthly_base','purchase_price',
+      'unit_price','quantity','min_quantity','amount_ht','tva_amount','tva_rate','price'
+    ].includes(col)) {
+      const n = Number(v);
+      clean[col] = Number.isFinite(n) ? n : 0;
+      return;
+    }
+
+    if (['is_active','is_admin','is_archived','read'].includes(col)) {
+      clean[col] = Boolean(v);
+      return;
+    }
+
+    // لا تحوّل النصوص الفارغة إلى null إلا إذا كانت FK (تمت معالجتها أعلاه)
+    clean[col] = v;
   });
+
   return clean;
 }
 
