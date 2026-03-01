@@ -4623,7 +4623,7 @@ Pages.dashboard = function() {
       </div>
       <div class="page-actions">
         <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
-        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
+        <button id="syncAllBtn" style="display:none" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
         <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
@@ -10377,7 +10377,45 @@ function printInvoiceWindow(id) {
   </div>
   ${inv.description?`<div style="clear:both;margin-top:16px;padding:10px;background:#f9f9f9;border-radius:6px;font-size:11px;color:#555"><strong>${isAr?'ملاحظات:':'Notes / Conditions:'}</strong><br>${escHtml(inv.description)}</div>`:''}
   <div class="footer">SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme algérienne de gestion BTP'}<br>${isAr?'تم إنشاؤها بتاريخ:':'Généré le:'} ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')} — ${escHtml(inv.number)}</div>
-  </body></html>`);
+  
+<!-- ════════════════════════════════
+     AUTO SYNC ENABLED
+════════════════════════════════ -->
+<script>
+let syncRunning = false;
+
+async function autoSync(){
+  if(syncRunning) return;
+  if (typeof syncAllDataToSupabase !== "function") return;
+  syncRunning = true;
+  try {
+    await syncAllDataToSupabase();
+    console.log("☁️ Auto Sync executed");
+  } catch(e){
+    console.warn("Auto Sync Error:", e);
+  }
+  syncRunning = false;
+}
+
+// رفع كل 30 ثانية
+setInterval(autoSync, 30000);
+
+// رفع عند إغلاق الصفحة
+window.addEventListener("beforeunload", function () {
+  if (typeof syncAllDataToSupabase === "function") {
+    syncAllDataToSupabase();
+  }
+});
+
+// رفع مباشر بعد أي حفظ (إذا تم استخدام localStorage)
+const originalSetItem = localStorage.setItem;
+localStorage.setItem = function(key, value){
+  originalSetItem.apply(this, arguments);
+  autoSync();
+};
+</script>
+
+</body></html>`);
   win.document.close();
 }
 
@@ -11443,6 +11481,44 @@ function exportReportPDF() {
 <div class="no-print" style="text-align:center;margin-top:20px">
   <button onclick="window.print()" style="background:#C49030;color:#fff;border:none;padding:10px 30px;border-radius:8px;cursor:pointer;font-size:14px">🖨️ ${L('طباعة / حفظ PDF','Imprimer / Enregistrer PDF')}</button>
 </div>
+
+<!-- ════════════════════════════════
+     AUTO SYNC ENABLED
+════════════════════════════════ -->
+<script>
+let syncRunning = false;
+
+async function autoSync(){
+  if(syncRunning) return;
+  if (typeof syncAllDataToSupabase !== "function") return;
+  syncRunning = true;
+  try {
+    await syncAllDataToSupabase();
+    console.log("☁️ Auto Sync executed");
+  } catch(e){
+    console.warn("Auto Sync Error:", e);
+  }
+  syncRunning = false;
+}
+
+// رفع كل 30 ثانية
+setInterval(autoSync, 30000);
+
+// رفع عند إغلاق الصفحة
+window.addEventListener("beforeunload", function () {
+  if (typeof syncAllDataToSupabase === "function") {
+    syncAllDataToSupabase();
+  }
+});
+
+// رفع مباشر بعد أي حفظ (إذا تم استخدام localStorage)
+const originalSetItem = localStorage.setItem;
+localStorage.setItem = function(key, value){
+  originalSetItem.apply(this, arguments);
+  autoSync();
+};
+</script>
+
 </body></html>`;
 
   const win = window.open('','_blank');
@@ -12951,5 +13027,43 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 </script>
+
+<!-- ════════════════════════════════
+     AUTO SYNC ENABLED
+════════════════════════════════ -->
+<script>
+let syncRunning = false;
+
+async function autoSync(){
+  if(syncRunning) return;
+  if (typeof syncAllDataToSupabase !== "function") return;
+  syncRunning = true;
+  try {
+    await syncAllDataToSupabase();
+    console.log("☁️ Auto Sync executed");
+  } catch(e){
+    console.warn("Auto Sync Error:", e);
+  }
+  syncRunning = false;
+}
+
+// رفع كل 30 ثانية
+setInterval(autoSync, 30000);
+
+// رفع عند إغلاق الصفحة
+window.addEventListener("beforeunload", function () {
+  if (typeof syncAllDataToSupabase === "function") {
+    syncAllDataToSupabase();
+  }
+});
+
+// رفع مباشر بعد أي حفظ (إذا تم استخدام localStorage)
+const originalSetItem = localStorage.setItem;
+localStorage.setItem = function(key, value){
+  originalSetItem.apply(this, arguments);
+  autoSync();
+};
+</script>
+
 </body>
 </html>
