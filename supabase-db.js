@@ -166,39 +166,18 @@ const SupabaseClient = {
   async testConnection() {
     try {
       if (!this._url || !this._key) return false;
-
-      // ── أولاً: جرّب health endpoint (لا يحتاج جداول) ──
-      const healthResp = await fetch(`${this._url}/rest/v1/`, {
-        headers: {
-          'apikey': this._key,
-          'Authorization': `Bearer ${this._key}`
-        },
-        signal: AbortSignal.timeout(10000)
-      });
-
-      // 200 أو 400 = السيرفر يعمل والمفتاح مقبول
-      if (healthResp.status === 401 || healthResp.status === 403) {
-        console.warn('🔑 Supabase: مشكلة في المصادقة (Key غير صحيح)');
-        return false;
-      }
-      if (healthResp.ok || healthResp.status === 400) {
-        console.log('✅ Supabase: متصل عبر health check');
-        return true;
-      }
-
-      // ── ثانياً: جرّب جدول plans ──
       const resp = await fetch(`${this._url}/rest/v1/plans?select=id&limit=1`, {
         headers: this.headers(),
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(10000) // timeout 10 ثوانٍ
       });
+      // 401/403 = مشكلة في الـ key، 200/206 = متصل
       if (resp.status === 401 || resp.status === 403) {
         console.warn('🔑 Supabase: مشكلة في المصادقة (Key منتهي أو غير صحيح)');
         return false;
       }
-      // 404 = الجدول غير موجود لكن الاتصال يعمل
-      if (resp.status === 404 || resp.ok) return true;
-      return false;
+      return resp.ok;
     } catch (e) {
+      // AbortError = timeout، NetworkError = انقطاع
       if (e.name === 'TimeoutError' || e.name === 'AbortError') {
         console.warn('⏱️ Supabase: انتهت مهلة الاتصال');
       }
@@ -213,10 +192,6 @@ const DBHybrid = {
   _useSupabase: false,
   _syncQueue: [],
   _syncing: false,
-
-  // ── مشاركة البيانات مع index.html ──────────────────────
-  get _supabaseUrl()  { return SUPABASE_HARDCODED.url; },
-  get _supabaseKey()  { return SUPABASE_HARDCODED.anonKey; },
 
   // ─── نظام المراقبة وإعادة الاتصال ──────────────────────
   _heartbeatTimer: null,
@@ -840,7 +815,7 @@ const SupabaseSettings = {
           <label class="form-label">🔑 Supabase Anon Key (Public Key)</label>
           <div style="position:relative">
             <input class="form-input" id="sbKey" type="password"
-              placeholder="sb_publishable_... أو eyJhbGciOiJIUzI1NiIs..."
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               dir="ltr"
               value="${cfg.anonKey||''}"
               style="font-family:monospace;font-size:0.75rem;padding-left:2.5rem">
@@ -872,7 +847,7 @@ const SupabaseSettings = {
         <div style="color:var(--dim);line-height:1.8">
           1. اذهب إلى <a href="https://supabase.com" target="_blank" style="color:var(--green)">supabase.com</a> وأنشئ مشروعاً مجانياً<br>
           2. افتح <strong style="color:var(--text)">Settings → API</strong> في لوحة تحكم Supabase<br>
-          3. انسخ <strong style="color:var(--text)">Project URL</strong> و <strong style="color:var(--text)">Publishable API Key</strong><br>
+          3. انسخ <strong style="color:var(--text)">Project URL</strong> و <strong style="color:var(--text)">anon public key</strong><br>
           4. قم بتشغيل ملف <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:4px">supabase-schema.sql</code> في <strong style="color:var(--text)">SQL Editor</strong>
         </div>
         <div style="margin-top:0.8rem;display:flex;gap:0.5rem">
