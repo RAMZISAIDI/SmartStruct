@@ -5,10 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartStruct v1.0 — منصة إدارة مشاريع المقاولة الجزائرية</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="supabase-db.js"></script>
-
-<!-- ✅ تم حذف سكربت إعدادات Supabase المكرر لتفادي تعارض SUPABASE_HARDCODED -->
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script type="text/javascript"
@@ -113,29 +109,6 @@ const EMAILJS = {
       return true;
     } catch(e) {
       console.warn('⚠️ EmailJS notifyResetRequest:', e);
-      return false;
-    }
-  },
-
-  // ── إرسال إيميل تفعيل الحساب للمستخدم الجديد ──
-  async sendActivationEmail(userData) {
-    try {
-      const params = {
-        to_email:    userData.email,
-        to_name:     userData.full_name || userData.name,
-        user_email:  userData.email,
-        user_name:   userData.full_name || userData.name,
-        new_password:userData.password,
-        company_name:userData.company || userData.name,
-        plan_name:   'تجريبي 14 يوم',
-        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
-        message:     `مرحباً ${userData.full_name || userData.name}، تم تفعيل حسابك في SmartStruct بنجاح! يمكنك الآن تسجيل الدخول باستخدام بريدك الإلكتروني وكلمة المرور أدناه.`
-      };
-      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
-      console.log('✅ EmailJS: إيميل التفعيل أُرسل للمستخدم');
-      return true;
-    } catch(e) {
-      console.warn('⚠️ EmailJS sendActivationEmail:', e);
       return false;
     }
   }
@@ -2178,9 +2151,7 @@ function ssLogo(size=22, dark=false) {
   </svg>`;
 }
 
-// ─── DB يستخدم DBHybrid (Supabase + localStorage fallback) ────
-// DBHybrid معرّف في supabase-db.js ويُحمّل قبل هذا الملف
-const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
+const DB = {
   get(key) {
     try { return JSON.parse(localStorage.getItem('sbtp5_' + key)) || []; } catch { return []; }
   },
@@ -2188,15 +2159,13 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
   nextId(key) {
     const items = this.get(key);
     return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
-  }
-};
-// patch init إذا لم يكن موجوداً في DB
-if (!DB.init) DB.init = function() {
+  },
+  init() {
     if (this.get('initialized').length) return;
     this.set('plans', [
-      { id:1, slug:'starter',    name:'المبتدئ',   price:2900,  max_projects:3,  max_workers:15,  max_equipment:0,  max_emails:50  },
-      { id:2, slug:'pro',        name:'الاحترافي', price:7900,  max_projects:20, max_workers:100, max_equipment:50, max_emails:500 },
-      { id:3, slug:'enterprise', name:'المؤسسي',   price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1, max_emails:-1  },
+      { id:1, slug:'starter',    name:'المبتدئ',   price:2900,  max_projects:3,  max_workers:15,  max_equipment:0  },
+      { id:2, slug:'pro',        name:'الاحترافي', price:7900,  max_projects:20, max_workers:100, max_equipment:50 },
+      { id:3, slug:'enterprise', name:'المؤسسي',   price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1 },
     ]);
     this.set('tenants', [
       { id:1, name:'مؤسسة الجزائر للبناء', plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
@@ -2242,18 +2211,8 @@ if (!DB.init) DB.init = function() {
       { id:2, tenant_id:1, project_id:1, user_id:2, text:'تأخر وصول الحديد من المورد، يُتوقع الوصول نهاية الأسبوع.', date:'2024-10-20' },
     ]);
     this.set('initialized', [true]);
-    // ── إعداد AI المركزي — يملؤه المسؤول من لوحة التحكم ──
-    if (!this.get('global_ai_config') || !this.get('global_ai_config').apiKey) {
-      this.set('global_ai_config', {
-        provider: 'groq',
-        apiKey: '',
-        model: 'llama-3.3-70b-versatile',
-        endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-        apiStyle: 'openai',
-        status: 'inactive'
-      });
-    }
-  };
+  }
+};
 
 /* ══════════════════════════════════════════════════════
    AUTH
@@ -2262,16 +2221,13 @@ const Auth = {
   currentUser: null,
   login(email, password, type) {
     const users = DB.get('users');
-    // ابحث عن المستخدم بالبريد وكلمة المرور بغض النظر عن is_active
-    const user = users.find(u => u.email === email.trim().toLowerCase());
+    const user = users.find(u => u.email === email.trim().toLowerCase() && u.is_active);
     if (!user || user.password !== password) return false;
     if (type === 'admin' && !user.is_admin) return false;
     if (type === 'tenant' && (user.is_admin || !user.tenant_id)) return false;
-    // تحقق من حالة الحساب للمستخدمين (وليس المسؤول)
-    if (type === 'tenant') {
-      if (!user.is_active) return 'pending'; // حساب معلق
+    if (type === 'tenant' && user.tenant_id) {
       const tenant = DB.get('tenants').find(t => t.id === user.tenant_id);
-      if (!tenant || !tenant.is_active) return 'pending';
+      if (!tenant || !tenant.is_active) return false;
     }
     this.currentUser = user;
     sessionStorage.setItem('sbtp_user', JSON.stringify(user));
@@ -3743,12 +3699,7 @@ function renderLoginForm(L) {
     <div class="login-tabs">
       <button class="login-tab active" id="tabTenant" onclick="switchTab('tenant')">🏢 ${L('مؤسسة','Entreprise')}</button>
     </div>
-    <div id="loginError" style="display:none" class="alert alert-error">
-      ❌ ${L('البريد الإلكتروني أو كلمة المرور غير صحيحة','Email ou mot de passe incorrect')}
-      <div style="font-size:0.75rem;margin-top:0.4rem;opacity:0.85">
-        ${L('💡 للتجربة: demo@algerie-construction.dz / Demo@1234','💡 Démo: demo@algerie-construction.dz / Demo@1234')}
-      </div>
-    </div>
+    <div id="loginError" style="display:none" class="alert alert-error">❌ ${L('البريد الإلكتروني أو كلمة المرور غير صحيحة','Email ou mot de passe incorrect')}</div>
     <div class="form-group">
       <label class="form-label">${L('البريد الإلكتروني','Email')}</label>
       <input class="form-input" id="loginEmail" type="email" placeholder="example@company.dz" dir="ltr">
@@ -3767,12 +3718,6 @@ function renderLoginForm(L) {
       <span style="color:var(--gold);cursor:pointer;font-weight:700" onclick="showForgotModal()">
         🔑 ${L('نسيت كلمة المرور؟','Mot de passe oublié ?')}
       </span>
-    </div>
-    <div style="text-align:center;margin-top:0.5rem">
-      <button onclick="document.getElementById('loginEmail').value='demo@algerie-construction.dz';document.getElementById('loginPass').value='Demo@1234'" 
-        style="background:rgba(52,195,143,0.08);border:1px dashed rgba(52,195,143,0.3);color:#34C38F;padding:0.4rem 1rem;border-radius:8px;cursor:pointer;font-size:0.75rem;font-family:inherit">
-        🚀 ${L('ملء بيانات الحساب التجريبي','Remplir compte démo')}
-      </button>
     </div>
     <div style="text-align:center;margin-top:.6rem;font-size:.8rem;color:var(--dim)">
       ${L('ليس لديك حساب؟','Pas encore de compte ?')}
@@ -3900,496 +3845,92 @@ function togglePassReg() {
   if (i) i.type = i.type === 'password' ? 'text' : 'password';
 }
 
-async function doRegister() {
+function doRegister() {
 
-  const name    = (document.getElementById('regName')  ||{}).value||'';
+  const name = (document.getElementById('regName')||{}).value||'';
   const company = (document.getElementById('regCompany')||{}).value||'';
-  const email   = ((document.getElementById('regEmail') ||{}).value||'').trim().toLowerCase();
-  const pass    = (document.getElementById('regPass')   ||{}).value||'';
-  const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
-  const terms   = (document.getElementById('regTerms')  ||{}).checked||false;
-  const errEl   = document.getElementById('registerError');
-  const btnReg  = document.querySelector('.btn-trial');
+  const email = ((document.getElementById('regEmail')||{}).value||'').trim().toLowerCase();
+  const pass = (document.getElementById('regPass')||{}).value||'';
+  const wilaya = (document.getElementById('regWilaya')||{}).value||'';
+  const terms = (document.getElementById('regTerms')||{}).checked||false;
+  const errEl = document.getElementById('registerError');
+  const showErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
 
-  const showErr = (msg) => {
-    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
-    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
-  };
-
-  // ── تحقق من الحقول ──
-  if (!name.trim())    return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
-  if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب',"❌ Le nom de l'entreprise est requis"));
+  if (!name.trim()) return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
+  if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب','❌ Le nom de l\'entreprise est requis'));
   if (!email || !email.includes('@')) return showErr(L('❌ البريد الإلكتروني غير صالح','❌ Email invalide'));
-  if (pass.length < 6) return showErr(L('❌ كلمة المرور 6 أحرف على الأقل','❌ 6 caractères minimum'));
+  if (pass.length < 6) return showErr(L('❌ كلمة المرور يجب أن تكون 6 أحرف على الأقل','❌ Le mot de passe doit contenir au moins 6 caractères'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
 
-  // ── عرض حالة التحميل ──
-  if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = '⏳ جاري التسجيل...'; }
+  const users = DB.get('users');
+  if (users.find(u => u.email === email)) return showErr(L('❌ هذا البريد الإلكتروني مستخدم بالفعل','❌ Cet email est déjà utilisé'));
+
   if (errEl) errEl.style.display = 'none';
 
-  try {
-    // ── جلب بيانات Supabase ──
-    let sbUrl = '', sbKey = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl = SUPABASE_HARDCODED.url;
-      sbKey = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
-    }
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
+  // Create tenant with trial plan
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + 14);
+  const tenants = DB.get('tenants');
+  const newTenantId = tenants.length ? Math.max(...tenants.map(t=>t.id)) + 1 : 2;
+  const newTenant = {
+    id: newTenantId,
+    name: company.trim(),
+    plan_id: 2, // Pro during trial
+    wilaya: wilaya,
+    subscription_status: 'trial',
+    trial_end: trialEnd.toISOString().split('T')[0],
+    is_active: true
+  };
+  tenants.push(newTenant);
+  DB.set('tenants', tenants);
 
-    const sbH = {
-      'Content-Type': 'application/json',
-      'apikey': sbKey,
-      'Authorization': `Bearer ${sbKey}`,
-      'Prefer': 'return=representation'
-    };
+  // Create user
+  const newUserId = users.length ? Math.max(...users.map(u=>u.id)) + 1 : 3;
+  const newUser = {
+    id: newUserId,
+    tenant_id: newTenantId,
+    full_name: name.trim(),
+    email: email,
+    password: pass,
+    role: 'admin',
+    is_admin: false,
+    is_active: true
+  };
+  users.push(newUser);
+  DB.set('users', users);
 
-    // 1. تحقق من تكرار البريد مباشرة في Supabase
-    const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
-    if (chkR.ok && (await chkR.json()).length) {
-      return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
-    }
-
-    const now = new Date();
-    const registrationDate = now.toISOString().split('T')[0];
-    const trialEndDate = (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })();
-
-    // 2. INSERT tenant في Supabase
-    const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
-      method: 'POST', headers: sbH,
-      body: JSON.stringify({
-        name: company.trim(), plan_id: 2, wilaya: wilaya,
-        subscription_status: 'trial',
-        trial_start: registrationDate,
-        trial_end: trialEndDate,
-        is_active: true
-      })
-    });
-    if (!tRes.ok) throw new Error('فشل حفظ بيانات المؤسسة: ' + await tRes.text());
-    const [sbTenant] = await tRes.json();
-
-    // 3. INSERT user في Supabase
-    const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
-      method: 'POST', headers: sbH,
-      body: JSON.stringify({
-        tenant_id: sbTenant.id,
-        full_name: name.trim(),
-        email: email,
-        password: pass,
-        role: 'admin',
-        is_admin: false,
-        is_active: true,
-        account_status: 'active'
-      })
-    });
-    if (!uRes.ok) throw new Error('فشل حفظ بيانات المستخدم: ' + await uRes.text());
-    const [sbUser] = await uRes.json();
-
-    // 4. INSERT notification في Supabase
-    // ── التحقق من حفظ بيانات المستخدم في Supabase قبل السماح بالدخول ──
-    const verifyRes = await fetch(`${sbUrl}/rest/v1/users?id=eq.${sbUser.id}&select=id,is_active,account_status`, { headers: sbH });
-    if (!verifyRes.ok) throw new Error('فشل التحقق من حفظ البيانات في Supabase');
-    const verifyData = await verifyRes.json();
-    if (!verifyData.length || !verifyData[0].is_active) {
-      throw new Error('لم يتم حفظ البيانات بشكل صحيح في Supabase — حاول مرة أخرى');
-    }
-    console.log(`✅ Supabase تم التحقق: tenant #${sbTenant.id} + user #${sbUser.id} — is_active: true`);
-
-    // 4. INSERT notification في Supabase (للأرشيف)
-    await fetch(`${sbUrl}/rest/v1/notifications`, {
-      method: 'POST', headers: sbH,
-      body: JSON.stringify({
-        id: Date.now(), type: 'new_account',
-        title: 'حساب جديد تم تفعيله تلقائياً',
-        body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
-        user_id: sbUser.id, tenant_id: sbTenant.id,
-        date: now.toISOString(), read: false, status: 'activated'
-      })
-    }).catch(() => {});
-
-    // 5. حفظ في localStorage بـ IDs الحقيقية من Supabase
-    const localTenants = DB.get('tenants');
-    const localUsers   = DB.get('users');
-    localTenants.push({
-      id: sbTenant.id, name: company.trim(), plan_id: 2, wilaya: wilaya,
-      subscription_status: 'trial', trial_start: registrationDate,
-      trial_end: trialEndDate, is_active: true
-    });
-    localUsers.push({
-      id: sbUser.id, tenant_id: sbTenant.id, full_name: name.trim(),
-      email: email, password: pass, role: 'admin', is_admin: false,
-      is_active: true, account_status: 'active'
-    });
-    DB.set('tenants', localTenants);
-    DB.set('users', localUsers);
-    const adminNotifs = DB.get('admin_notifications') || [];
-    adminNotifs.unshift({
-      id: sbUser.id, type: 'new_account',
-      title: 'حساب جديد تم تفعيله تلقائياً',
-      body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
-      user_id: sbUser.id, tenant_id: sbTenant.id,
-      date: now.toISOString(), read: false, status: 'activated'
-    });
-    DB.set('admin_notifications', adminNotifs);
-
-    // 6. إرسال إيميل إشعار للأدمن
-    EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
-
-    // 7. تسجيل الدخول مباشرة — البيانات مؤكدة في Supabase ✅
-    const confirmedUser   = localUsers[localUsers.length - 1];
-    const confirmedTenant = localTenants[localTenants.length - 1];
-    const sessionUser = { ...confirmedUser, companyName: confirmedTenant.name };
-    Auth.currentUser = sessionUser;
-    sessionStorage.setItem('sbtp_user', JSON.stringify(sessionUser));
-    Toast.success('🎉 تم إنشاء حسابك بنجاح! مرحباً بك في SmartStruct');
-    App.navigate('dashboard');
-
-  } catch(e) {
-    console.error('❌ خطأ في التسجيل:', e.message);
-    showErr('❌ ' + e.message);
-  }
-}
-
-// ─── شاشة انتظار تفعيل الحساب ───
-function showPendingActivationScreen(userName, userEmail) {
-  // أزل أي overlay سابق
-  const old = document.getElementById('pendingActivationOverlay');
-  if (old) old.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'pendingActivationOverlay';
-  overlay.style.cssText = `
-    position:fixed;inset:0;z-index:9999;
-    background:rgba(6,10,16,0.97);
-    display:flex;align-items:center;justify-content:center;
-    font-family:'Tajawal',sans-serif;
-    animation:fadeIn .4s ease;
-  `;
-  overlay.innerHTML = `
-    <div style="
-      max-width:480px;width:90%;
-      background:rgba(12,18,32,0.95);
-      border:1px solid rgba(232,184,75,0.2);
-      border-radius:24px;padding:2.5rem 2rem;
-      text-align:center;
-      box-shadow:0 40px 100px rgba(0,0,0,.7);
-    ">
-      <!-- أيقونة ساعة -->
-      <div style="width:80px;height:80px;border-radius:50%;
-        background:linear-gradient(135deg,rgba(232,184,75,.15),rgba(232,184,75,.05));
-        border:2px solid rgba(232,184,75,.3);
-        display:flex;align-items:center;justify-content:center;
-        font-size:2.5rem;margin:0 auto 1.5rem;
-        animation:pulse 2s ease-in-out infinite">
-        ⏳
-      </div>
-
-      <div style="font-size:1.4rem;font-weight:900;color:#EDF2F7;margin-bottom:.6rem">
-        شكراً لتسجيلك ${escHtml(userName)}!
-      </div>
-      <div style="font-size:.9rem;color:#8892A4;margin-bottom:1.5rem;line-height:1.7">
-        تم استلام طلب تسجيلك بنجاح وتم إرسال إشعار للمسؤول.
-      </div>
-
-      <!-- بطاقة الانتظار -->
-      <div style="
-        background:rgba(232,184,75,.06);
-        border:1px solid rgba(232,184,75,.2);
-        border-radius:14px;padding:1.2rem;margin-bottom:1.5rem;
-        text-align:right;
-      ">
-        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
-          <span style="font-size:1.1rem">📋</span>
-          <span style="font-size:.85rem;font-weight:800;color:#E8B84B">ماذا سيحدث بعد ذلك؟</span>
-        </div>
-        <div style="font-size:.8rem;color:#8892A4;line-height:2">
-          <div>✅ تم حفظ بياناتك بنجاح</div>
-          <div>📧 سيراجع المسؤول طلبك قريباً</div>
-          <div>🔔 ستصلك رسالة بريد إلكتروني لتفعيل حسابك</div>
-          <div>🚀 بعدها يمكنك تسجيل الدخول مباشرة</div>
-        </div>
-      </div>
-
-      <!-- البريد الإلكتروني -->
-      <div style="
-        background:rgba(52,195,143,.06);
-        border:1px solid rgba(52,195,143,.2);
-        border-radius:10px;padding:.8rem 1rem;
-        margin-bottom:1.5rem;
-        font-size:.82rem;color:#34C38F;
-        display:flex;align-items:center;gap:.5rem;justify-content:center;
-      ">
-        <span>📬</span>
-        <span>سيُرسَل إيميل التفعيل إلى: <strong dir="ltr">${escHtml(userEmail)}</strong></span>
-      </div>
-
-      <!-- زر العودة لتسجيل الدخول -->
-      <button onclick="document.getElementById('pendingActivationOverlay').remove(); App.navigate('login');"
-        style="
-          width:100%;padding:.85rem;
-          background:linear-gradient(135deg,#E8B84B,#C49030);
-          color:#09120A;border:none;border-radius:12px;
-          font-family:'Tajawal',sans-serif;font-size:.95rem;font-weight:900;
-          cursor:pointer;
-        ">
-        ← العودة لصفحة تسجيل الدخول
-      </button>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-}
-
-// ─── ربوت الترحيب للحسابات الجديدة ───
-function showWelcomeRobot(userName, daysLeft) {
-  // لا تظهر لو مش أول مرة
-  if (sessionStorage.getItem('sbtp_welcomed')) return;
-  sessionStorage.setItem('sbtp_welcomed', '1');
-
-  const firstName = userName.split(' ')[0];
-  const overlay = document.createElement('div');
-  overlay.id = 'welcomeRobotOverlay';
-  overlay.style.cssText = `
-    position:fixed;inset:0;z-index:9999;
-    background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);
-    display:flex;align-items:center;justify-content:center;
-    animation:fadeIn .4s ease;
-  `;
-  overlay.innerHTML = `
-    <div style="
-      background:var(--surface,#1a1f2e);border-radius:24px;
-      padding:2.5rem 2rem;max-width:480px;width:90%;
-      border:1px solid rgba(255,255,255,0.08);
-      box-shadow:0 30px 80px rgba(0,0,0,0.5);
-      text-align:center;position:relative;
-      animation:slideUp .5s cubic-bezier(0.34,1.56,0.64,1);
-    ">
-      <!-- Robot -->
-      <div style="font-size:5rem;margin-bottom:1rem;animation:robotBounce 1s ease infinite alternate">🤖</div>
-      
-      <!-- Welcome text -->
-      <div style="font-size:1.6rem;font-weight:900;color:var(--text,#fff);margin-bottom:.5rem">
-        ${I18N.currentLang==='ar' ? `مرحباً ${firstName}! 👋` : `Bienvenue ${firstName}! 👋`}
-      </div>
-      <div style="font-size:.9rem;color:var(--dim,#8899aa);margin-bottom:1.5rem;line-height:1.6">
-        ${I18N.currentLang==='ar'
-          ? `أنا <strong style="color:#B89AFF">SmartAI</strong> مساعدك الذكي 🧠<br>تجربتك المجانية بدأت — لديك <strong style="color:#34C38F;font-size:1.1rem">${daysLeft} يوم</strong> لاستكشاف كل الميزات!`
-          : `Je suis <strong style="color:#B89AFF">SmartAI</strong>, votre assistant intelligent 🧠<br>Votre essai gratuit a commencé — <strong style="color:#34C38F;font-size:1.1rem">${daysLeft} jours</strong> pour explorer toutes les fonctionnalités!`
-        }
-      </div>
-      
-      <!-- Features quick list -->
-      <div style="
-        background:rgba(255,255,255,0.03);border-radius:14px;
-        padding:1rem;margin-bottom:1.5rem;text-align:right;
-      ">
-        ${[
-          ['📊', I18N.currentLang==='ar'?'لوحة تحكم ذكية بمؤشرات صحة المؤسسة':'Tableau de bord intelligent'],
-          ['💰', I18N.currentLang==='ar'?'إدارة مالية كاملة ومتكاملة':'Gestion financière complète'],
-          ['👷', I18N.currentLang==='ar'?'متابعة العمال والحضور والرواتب':'Suivi des employés et salaires'],
-          ['🤖', I18N.currentLang==='ar'?'مساعد ذكاء اصطناعي خاص بك':'Assistant IA personnel'],
-        ].map(([icon, text]) => `
-          <div style="display:flex;align-items:center;gap:.6rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-            <span style="font-size:1.1rem">${icon}</span>
-            <span style="font-size:.78rem;color:var(--muted,#aab)">${text}</span>
-            <span style="margin-right:auto;color:#34C38F;font-size:.7rem">✓</span>
-          </div>
-        `).join('')}
-      </div>
-      
-      <!-- CTA Button -->
-      <button onclick="document.getElementById('welcomeRobotOverlay').remove()" style="
-        background:linear-gradient(135deg,#34C38F,#20996F);
-        color:#fff;border:none;border-radius:12px;
-        padding:.85rem 2rem;font-size:1rem;font-weight:800;
-        cursor:pointer;width:100%;font-family:inherit;
-        box-shadow:0 4px 20px rgba(52,195,143,0.3);
-        transition:transform .2s;
-      " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-        ${I18N.currentLang==='ar' ? '🚀 ابدأ الآن!' : '🚀 Commencer maintenant!'}
-      </button>
-      
-      <!-- Days counter bottom -->
-      <div style="margin-top:.8rem;font-size:.72rem;color:var(--dim,#667)">
-        ${I18N.currentLang==='ar' ? `⏱️ التجربة المجانية تنتهي بعد ${daysLeft} يوم` : `⏱️ Essai gratuit se termine dans ${daysLeft} jours`}
-      </div>
-    </div>
-  `;
-
-  // CSS animations
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes robotBounce { from { transform:translateY(0) rotate(-5deg); } to { transform:translateY(-8px) rotate(5deg); } }
-    @keyframes slideUp { from { transform:translateY(40px);opacity:0; } to { transform:translateY(0);opacity:1; } }
-    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-  `;
-  document.head.appendChild(style);
-  document.body.appendChild(overlay);
-
-  // Close on backdrop click
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-}
-
-
-// ══════════════════════════════════════════
-//  نظام التحقق من الخطة المجانية
-// ══════════════════════════════════════════
-const TrialManager = {
-  // احسب الأيام المتبقية بدقة
-  getDaysLeft(tenant) {
-    if (!tenant || !tenant.trial_end) return null;
-    if (tenant.subscription_status !== 'trial') return null;
-    const today = new Date(); today.setHours(0,0,0,0);
-    const end   = new Date(tenant.trial_end); end.setHours(0,0,0,0);
-    return Math.max(-1, Math.ceil((end - today) / 86400000));
-  },
-
-  // هل الحساب منتهي؟ (تجريبي أو مدفوع منتهي)
-  isExpired(tenant) {
-    if (!tenant) return false;
-    // للحسابات التجريبية
-    const days = this.getDaysLeft(tenant);
-    if (days !== null && days < 0) return true;
-    // للخطط المدفوعة المنتهية
-    if (tenant.subscription_status === 'active' && tenant.subscription_end) {
-      const today = new Date(); today.setHours(0,0,0,0);
-      const end = new Date(tenant.subscription_end); end.setHours(0,0,0,0);
-      return end < today;
-    }
-    return false;
-  },
-
-  // احسب أيام انتهاء الخطة المدفوعة
-  getPaidDaysLeft(tenant) {
-    if (!tenant || !tenant.subscription_end || tenant.subscription_status !== 'active') return null;
-    const today = new Date(); today.setHours(0,0,0,0);
-    const end = new Date(tenant.subscription_end); end.setHours(0,0,0,0);
-    return Math.ceil((end - today) / 86400000);
-  },
-
-  // هل الحساب نشط؟ (مجاني أو مدفوع)
-  isActive(tenant) {
-    if (!tenant) return false;
-    if (!tenant.is_active) return false;
-    if (tenant.subscription_status === 'active') return true;
-    if (tenant.subscription_status === 'trial') {
-      return this.getDaysLeft(tenant) >= 0;
-    }
-    return false;
-  },
-
-  // تحقق وأوقف عند الانتهاء
-  checkAndEnforce() {
-    const user = Auth.getUser();
-    if (!user || user.is_admin) return; // المسؤول لا يخضع للفحص
-    const tenant = Auth.getTenant();
-    if (!tenant) return;
-
-    if (this.isExpired(tenant)) {
-      // أوقف الحساب
-      const tenants = DB.get('tenants');
-      const t = tenants.find(t => t.id === tenant.id);
-      if (t && t.is_active) {
-        t.is_active = false;
-        t.subscription_status = 'expired';
-        DB.set('tenants', tenants);
-      }
-      // سجّل خروج وأظهر رسالة
-      Auth.currentUser = null;
-      sessionStorage.removeItem('sbtp_user');
-      App.navigate('login');
-      setTimeout(() => this.showExpiredModal(tenant.name), 600);
-    }
-  },
-
-  showExpiredModal(companyName) {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `
-      <div style="background:var(--surface,#1a1f2e);border-radius:24px;padding:2.5rem 2rem;max-width:440px;width:90%;text-align:center;border:1px solid rgba(240,78,106,.3);">
-        <div style="font-size:4rem;margin-bottom:1rem">⏰</div>
-        <div style="font-size:1.4rem;font-weight:900;color:#F04E6A;margin-bottom:.6rem">
-          انتهت فترة الاشتراك
-        </div>
-        <div style="font-size:.85rem;color:var(--dim);margin-bottom:1.5rem;line-height:1.6">
-          انتهت فترة اشتراك <strong style="color:var(--text)">${companyName}</strong>.<br>
-          يمكنك طلب تجديد الاشتراك أو الترقية لخطة أعلى.
-        </div>
-        <button onclick="requestPlanUpgrade('${companyName.replace(/'/g,'\'')}');this.closest('div[style*=fixed]').remove()" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#1a1a1a;border:none;border-radius:12px;padding:.8rem 2rem;font-size:.95rem;font-weight:800;cursor:pointer;width:100%;font-family:inherit;margin-bottom:.6rem;">
-          ⬆️ طلب تجديد / ترقية الاشتراك
-        </button>
-        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:.6rem 2rem;font-size:.85rem;font-weight:700;cursor:pointer;width:100%;font-family:inherit;">
-          ← العودة لتسجيل الدخول
-        </button>
-      </div>`;
-    document.body.appendChild(overlay);
-  },
-
-  // إشعار صاحب الحساب قبل انتهاء الخطة بـ 3 أيام
-  checkExpiryWarning() {
-    const user = Auth.getUser();
-    if (!user || user.is_admin) return;
-    const tenant = Auth.getTenant();
-    if (!tenant || !tenant.trial_end) return;
-    const days = this.getDaysLeft(tenant);
-    if (days !== null && days >= 0 && days <= 3) {
-      const warnKey = 'expiry_warned_' + tenant.id + '_' + days;
-      if (sessionStorage.getItem(warnKey)) return;
-      sessionStorage.setItem(warnKey, '1');
-      setTimeout(() => {
-        const msg = days === 0
-          ? `⚠️ تنتهي خطتك اليوم! تواصل مع المسؤول لتجديد الاشتراك.`
-          : `⚠️ تبقى ${days} أيام على انتهاء خطتك. تواصل مع المسؤول لتجديد الاشتراك.`;
-        if (typeof Toast !== 'undefined') Toast.warn(msg);
-      }, 2000);
-    }
-  }
-};
-
-// ── دالة طلب الترقية من صاحب الحساب ──
-function requestPlanUpgrade(companyNameOpt) {
-  const user = Auth.getUser();
-  const tenant = Auth.getTenant() || {};
-  const company = companyNameOpt || tenant.name || '—';
-  const plan = Auth.getPlan() || {};
-
-  // سجّل الطلب في قاعدة البيانات
+  // ─── إشعار المسؤول بالتسجيل الجديد ───
   const adminNotifs = DB.get('admin_notifications') || [];
-  const alreadyPending = adminNotifs.find(n => n.type === 'upgrade_request' && n.tenant_id === tenant.id && n.status === 'pending');
-  if (alreadyPending) {
-    if (typeof Toast !== 'undefined') Toast.warn('⏳ طلبك مرسل بالفعل — ينتظر موافقة المسؤول');
-    return;
-  }
   adminNotifs.unshift({
     id: Date.now(),
-    type: 'upgrade_request',
-    title: 'طلب ترقية / تجديد اشتراك',
-    body: `المؤسسة "${company}" تطلب ترقية من خطة "${plan.name || '—'}"`,
-    user_id: user?.id,
-    tenant_id: tenant.id,
-    tenant_name: company,
-    current_plan: plan.name || '—',
+    type: 'new_account',
+    title: 'حساب جديد بانتظار المراجعة',
+    body: `قامت مؤسسة "${company.trim()}" بالتسجيل — ${name.trim()} (${email})`,
+    user_id: newUserId,
+    tenant_id: newTenantId,
     date: new Date().toISOString(),
-    status: 'pending',
     read: false
   });
   DB.set('admin_notifications', adminNotifs);
 
-  // إرسال بريد للمسؤول
-  if (typeof EMAILJS !== 'undefined') {
-    EMAILJS.notifyNewAccount({
-      name: user?.full_name || '—',
-      email: user?.email || '—',
-      company: company,
-      wilaya: tenant.wilaya || '—',
-      subject: '⬆️ طلب ترقية اشتراك — ' + company
-    }).catch(() => {});
-  }
-  if (typeof Toast !== 'undefined') Toast.success('✅ تم إرسال طلب الترقية للمسؤول — سيتواصل معك قريباً');
+  // ─── إرسال إيميل للمسؤول عبر EmailJS ───
+  EMAILJS.notifyNewAccount({
+    name:    name.trim(),
+    email:   email,
+    company: company.trim(),
+    wilaya:  wilaya
+  }).then(ok => {
+    if (ok) console.log('📧 إيميل إشعار المسؤول أُرسل بنجاح');
+  });
+
+  // Auto-login
+  Auth.currentUser = newUser;
+  sessionStorage.setItem('sbtp_user', JSON.stringify(newUser));
+  sessionStorage.removeItem('auth_mode');
+
+  const daysLeft = 14;
+  Toast.success(L(`🎉 مرحباً ${name.split(' ')[0]}! تجربتك المجانية بدأت — ${daysLeft} يوم متبقي`, `🎉 Bienvenue ${name.split(' ')[0]}! Votre essai gratuit a commencé — ${daysLeft} jours restants`));
+  setTimeout(() => App.navigate('dashboard'), 800);
 }
 
 /* ─── DASHBOARD ─── */
@@ -4492,7 +4033,9 @@ Pages.dashboard = function() {
   // Trial banner
   let trialBannerHTML = '';
   if (tenant && tenant.subscription_status === 'trial' && tenant.trial_end) {
-    const daysLeft = Math.max(0, TrialManager.getDaysLeft(tenant) ?? 0);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const trialEnd = new Date(tenant.trial_end); trialEnd.setHours(0,0,0,0);
+    const daysLeft = Math.max(0, Math.ceil((trialEnd - today) / 86400000));
     const pct = Math.round((daysLeft / 14) * 100);
   
     const urgency = daysLeft <= 3 ? 'var(--red)' : daysLeft <= 7 ? 'var(--gold)' : 'var(--green)';
@@ -4508,7 +4051,7 @@ Pages.dashboard = function() {
       </div>
       <div style="display:flex;align-items:center;gap:.6rem">
         <span style="font-size:.75rem;color:var(--dim)">${L('انتهاء التجربة:','Fin de l\'essai:')} ${tenant.trial_end}</span>
-        <button class="btn btn-gold btn-sm" onclick="requestPlanUpgrade()">${L('ترقية الحساب ↑','Mettre à niveau ↑')}</button>
+        <button class="btn btn-gold btn-sm" onclick="App.navigate('settings')">${L('ترقية الحساب ↑','Mettre à niveau ↑')}</button>
       </div>
     </div>`;
   }
@@ -4597,8 +4140,6 @@ Pages.dashboard = function() {
       </div>
       <div class="page-actions">
         <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
-        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
-        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
     </div>
@@ -5589,19 +5130,6 @@ Pages.settings = function() {
    وكلاء مجانيون مُختارون + Claude API
 ══════════════════════════════════════════════════════ */
 
-/* ── مفتاح AI الافتراضي — يُضبط من المسؤول مرة واحدة ──
-   هذا المفتاح يشتغل لجميع المؤسسات تلقائياً بدون أي إعداد
-   المسؤول يستطيع تغييره من: لوحة الإدارة → SmartAI Settings
-*/
-const DEFAULT_AI_CONFIG = {
-  provider: 'groq',
-  apiKey: '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', // ← مُحدَّث من لوحة المسؤول
-  model: 'llama-3.3-70b-versatile',
-  endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-  apiStyle: 'openai',
-  status: 'active'
-};
-
 const AI_PROVIDERS = [
   {
     id: 'groq',
@@ -5682,92 +5210,24 @@ const AI_PROVIDERS = [
 
 function getAIConfig() {
   try {
-    // ── 1. الأولوية: الإعداد المركزي من localStorage (مزامن من Supabase) ──
-    const globalCfg = DB.get('global_ai_config');
-    if (globalCfg && globalCfg.apiKey && globalCfg.status === 'active') {
-      DEFAULT_AI_CONFIG.apiKey    = globalCfg.apiKey;
-      DEFAULT_AI_CONFIG.provider  = globalCfg.provider  || DEFAULT_AI_CONFIG.provider;
-      DEFAULT_AI_CONFIG.model     = globalCfg.model     || DEFAULT_AI_CONFIG.model;
-      DEFAULT_AI_CONFIG.endpoint  = globalCfg.endpoint  || DEFAULT_AI_CONFIG.endpoint;
-      DEFAULT_AI_CONFIG.apiStyle  = globalCfg.apiStyle  || DEFAULT_AI_CONFIG.apiStyle;
-      return { ...DEFAULT_AI_CONFIG, ...globalCfg };
-    }
-    // ── 2. fallback: المفتاح المدمج في الكود ──
-    if (DEFAULT_AI_CONFIG.apiKey) {
-      return { ...DEFAULT_AI_CONFIG, status: 'active' };
-    }
-    return { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile', status: 'inactive' };
-  } catch(e) { return { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile', status: 'inactive' }; }
-}
-
-// ── جلب AI config من Supabase وتخزينه محلياً (يُستدعى عند أول تحميل) ──
-async function fetchAIConfigFromSupabase() {
-  try {
-    const sbCfg = (() => {
-      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
-        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
-      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
-    })();
-    if (!sbCfg.url || !sbCfg.anonKey) return;
-    const resp = await fetch(`${sbCfg.url}/rest/v1/global_settings?key=eq.global_ai_config&select=value`, {
-      headers: { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` }
-    });
-    if (!resp.ok) return;
-    const rows = await resp.json();
-    if (!rows.length || !rows[0].value) return;
-    const remoteCfg = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
-    if (remoteCfg.apiKey && remoteCfg.status === 'active') {
-      DB.set('global_ai_config', remoteCfg);
-      DEFAULT_AI_CONFIG.apiKey   = remoteCfg.apiKey;
-      DEFAULT_AI_CONFIG.provider = remoteCfg.provider || DEFAULT_AI_CONFIG.provider;
-      DEFAULT_AI_CONFIG.model    = remoteCfg.model    || DEFAULT_AI_CONFIG.model;
-      DEFAULT_AI_CONFIG.endpoint = remoteCfg.endpoint || DEFAULT_AI_CONFIG.endpoint;
-      DEFAULT_AI_CONFIG.apiStyle = remoteCfg.apiStyle || DEFAULT_AI_CONFIG.apiStyle;
-      DEFAULT_AI_CONFIG.status   = 'active';
-      console.log('✅ SmartAI: تم تحميل إعداد AI من Supabase تلقائياً');
-    }
-  } catch(e) { /* silent */ }
-}
-// تحميل تلقائي عند بدء التطبيق
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => setTimeout(fetchAIConfigFromSupabase, 1500));
-} else {
-  setTimeout(fetchAIConfigFromSupabase, 1500);
+    const saved = JSON.parse(localStorage.getItem('sbtp_ai_config') || '{}');
+    return {
+      provider: saved.provider || 'groq',
+      apiKey: saved.apiKey || '',
+      model: saved.model || '',
+      status: saved.status || 'inactive',
+      lastTested: saved.lastTested || null,
+      ...saved
+    };
+  } catch(e) { return { provider: 'groq', apiKey: '', model: '', status: 'inactive' }; }
 }
 
 function saveAIConfig(cfg) {
-  const base = getAIConfig();
-  const merged = { ...base, ...cfg };
-  try { DB.set('global_ai_config', merged); } catch(e) {}
-  try { localStorage.setItem('sbtp_ai_config', JSON.stringify(merged)); } catch(e) {}
+  localStorage.setItem('sbtp_ai_config', JSON.stringify({ ...getAIConfig(), ...cfg }));
+  // تحديث SmartAI مباشرة (إذا كان معرّفاً)
   try {
-    if (merged.apiKey) {
-      DEFAULT_AI_CONFIG.apiKey   = merged.apiKey;
-      DEFAULT_AI_CONFIG.provider = merged.provider  || DEFAULT_AI_CONFIG.provider;
-      DEFAULT_AI_CONFIG.model    = merged.model     || DEFAULT_AI_CONFIG.model;
-      DEFAULT_AI_CONFIG.endpoint = merged.endpoint  || DEFAULT_AI_CONFIG.endpoint;
-      DEFAULT_AI_CONFIG.apiStyle = merged.apiStyle  || DEFAULT_AI_CONFIG.apiStyle;
-      DEFAULT_AI_CONFIG.status   = merged.status    || 'active';
-    }
-  } catch(e) {}
-  try {
-    if (typeof SmartAI !== 'undefined' && SmartAI) {
-      SmartAI.currentProvider = merged.provider;
-    }
-  } catch(e) {}
-  // ─── حفظ إعداد AI في Supabase حتى تراه جميع الحسابات الجديدة ───
-  try {
-    const sbCfg = (() => {
-      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
-        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
-      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
-    })();
-    if (sbCfg.url && sbCfg.anonKey) {
-      const sbHeaders = { 'Content-Type': 'application/json', 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}`, 'Prefer': 'resolution=merge-duplicates,return=representation' };
-      fetch(`${sbCfg.url}/rest/v1/global_settings`, {
-        method: 'POST', headers: sbHeaders,
-        body: JSON.stringify({ key: 'global_ai_config', value: merged, updated_at: new Date().toISOString() })
-      }).then(r => { if (r.ok) console.log('✅ AI config حُفظ في Supabase'); }).catch(() => {});
+    if (typeof SmartAI !== 'undefined' && SmartAI && cfg.provider) {
+      SmartAI.currentProvider = cfg.provider;
     }
   } catch(e) {}
 }
@@ -6260,30 +5720,14 @@ function renderAIProviderSettings() {
   const statusClass = cfg.status === 'active' ? 'ai-status-active' : cfg.status === 'error' ? 'ai-status-error' : 'ai-status-inactive';
   const statusLabel = cfg.status === 'active' ? '✅ متصل ويعمل' : cfg.status === 'error' ? '❌ خطأ في الاتصال' : '⚪ غير مفعّل';
 
-  const defaultKeySet = !!DEFAULT_AI_CONFIG.apiKey;
   return `
-  <!-- ── بانر المفتاح الافتراضي ── -->
-  <div style="background:${defaultKeySet ? 'rgba(52,195,143,0.08)' : 'rgba(232,184,75,0.08)'};border:1px solid ${defaultKeySet ? 'rgba(52,195,143,0.3)' : 'rgba(232,184,75,0.3)'};border-radius:14px;padding:1rem 1.2rem;margin-bottom:1rem">
-    <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:${defaultKeySet ? '.7rem' : '0'}">
-      <div style="font-size:1.5rem">${defaultKeySet ? '✅' : '⚠️'}</div>
-      <div style="flex:1">
-        <div style="font-weight:900;font-size:.88rem;color:${defaultKeySet ? '#34C38F' : '#E8B84B'}">${defaultKeySet ? 'الروبوت مُفعَّل — يشتغل لجميع المؤسسات تلقائياً' : 'أدخل مفتاح API أدناه ثم حمّل الملف المحدَّث'}</div>
-        <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">${defaultKeySet ? `${DEFAULT_AI_CONFIG.provider} • ${DEFAULT_AI_CONFIG.model.split('-').slice(0,3).join('-')}` : 'اختبر الاتصال ← حمّل index.html المحدَّث ← ارفعه على GitHub'}</div>
-      </div>
-    </div>
-    ${defaultKeySet ? `
-    <button onclick="downloadUpdatedHTML(DEFAULT_AI_CONFIG.apiKey, DEFAULT_AI_CONFIG.provider, DEFAULT_AI_CONFIG.model)" style="background:linear-gradient(135deg,#34C38F,#20996F);color:#fff;border:none;border-radius:10px;padding:.55rem 1.2rem;font-size:.8rem;font-weight:900;cursor:pointer;font-family:inherit;width:100%">
-      📥 تحميل index.html محدَّث (المفتاح مدمج — جاهز للرفع على GitHub)
-    </button>` : ''}
-  </div>
-
-  <div class="card" style="margin-top:0;border-color:rgba(155,109,255,0.3);background:linear-gradient(135deg,rgba(155,109,255,0.04),rgba(107,63,212,0.02))">
+  <div class="card" style="margin-top:1.5rem;border-color:rgba(155,109,255,0.3);background:linear-gradient(135deg,rgba(155,109,255,0.04),rgba(107,63,212,0.02))">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.7rem">
       <div style="display:flex;align-items:center;gap:.8rem">
         <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#9B6DFF,#6B3FD4);display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 6px 20px rgba(155,109,255,0.4)">🤖</div>
         <div>
           <div style="font-size:1rem;font-weight:900">SmartAI — إعدادات وكيل الذكاء الاصطناعي</div>
-          <div style="font-size:.75rem;color:var(--muted)">بعد الحفظ والاختبار، انسخ مفتاحك وضعه في DEFAULT_AI_CONFIG.apiKey في الكود</div>
+          <div style="font-size:.75rem;color:var(--muted)">اختر الوكيل المناسب وأدخل مفتاح API للتفعيل</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:.6rem">
@@ -6521,28 +5965,10 @@ async function saveAndTestAIKey() {
 
   try {
     const reply = await testAIConnection(provider, apiKey, model);
-    saveAIConfig({ provider: cfg.provider, apiKey, model, status: 'active', lastTested: Date.now() });
-    // ── تحديث DEFAULT_AI_CONFIG فوراً في الذاكرة ──
-    DEFAULT_AI_CONFIG.apiKey = apiKey;
-    DEFAULT_AI_CONFIG.provider = cfg.provider;
-    DEFAULT_AI_CONFIG.model = model;
-    DEFAULT_AI_CONFIG.endpoint = provider.endpoint || DEFAULT_AI_CONFIG.endpoint;
-    DEFAULT_AI_CONFIG.apiStyle = provider.apiStyle || 'openai';
-    DEFAULT_AI_CONFIG.status = 'active';
-
     testResult.className = 'ai-test-result success';
-    testResult.innerHTML = `
-      <div style="margin-bottom:.8rem;font-size:.88rem;font-weight:800;color:#34C38F">✅ الاتصال ناجح! الروبوت يشتغل الآن.</div>
-      <div style="background:rgba(52,195,143,0.08);border:1px solid rgba(52,195,143,0.25);border-radius:12px;padding:1rem">
-        <div style="font-size:.8rem;font-weight:900;color:var(--text);margin-bottom:.5rem">📥 لتفعيله لجميع المؤسسات بشكل دائم:</div>
-        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.8rem;line-height:1.6">
-          اضغط الزر أدناه لتحميل ملف <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px">index.html</code> محدَّث مع المفتاح مدمج فيه — ثم ارفعه على GitHub بدل القديم.
-        </div>
-        <button onclick="downloadUpdatedHTML('${apiKey}','${cfg.provider}','${model}')" style="background:linear-gradient(135deg,#34C38F,#20996F);color:#fff;border:none;border-radius:10px;padding:.6rem 1.4rem;font-size:.82rem;font-weight:900;cursor:pointer;font-family:inherit;width:100%">
-          📥 تحميل index.html محدَّث (مع المفتاح)
-        </button>
-      </div>`;
-    Toast.success('✅ SmartAI تم تفعيله! حمّل الملف المحدَّث وارفعه على GitHub.');
+    testResult.innerHTML = `✅ الاتصال ناجح! رد النموذج: "<em>${reply.substring(0, 80)}...</em>"`;
+    saveAIConfig({ provider: cfg.provider, apiKey, model, status: 'active', lastTested: Date.now() });
+    Toast.success('✅ SmartAI تم تفعيله بنجاح!');
 
     // تحديث SmartAI engine فوراً
     try {
@@ -6644,14 +6070,13 @@ function clearAIKey() {
 }
 
 function switchAdminTab(tab) {
-  const tabs = ['tenants','ai','notif','supabase'];
-  const colors = { tenants:'var(--gold)', ai:'#9B6DFF', notif:'var(--blue)', supabase:'#34C38F' };
+  const tabs = ['tenants','ai','notif'];
   tabs.forEach(t => {
     const btn = document.getElementById('adminTab_' + t);
     const panel = document.getElementById('adminTabContent_' + t);
     if (!btn || !panel) return;
     if (t === tab) {
-      btn.style.background = colors[t] || 'var(--gold)';
+      btn.style.background = t === 'ai' ? '#9B6DFF' : t === 'notif' ? 'var(--blue)' : 'var(--gold)';
       btn.style.color = t === 'ai' ? '#fff' : '#1a1a1a';
       panel.style.display = 'block';
     } else {
@@ -6660,21 +6085,6 @@ function switchAdminTab(tab) {
       panel.style.display = 'none';
     }
   });
-  // ── مزامنة تلقائية عند فتح تبويب Supabase ──
-  if (tab === 'supabase' && typeof DBHybrid !== 'undefined' && !DBHybrid._useSupabase && SUPABASE_CONFIG.isConfigured) {
-    setTimeout(async () => {
-      const hbStatus = document.getElementById('hbStatus');
-      if (hbStatus) hbStatus.textContent = '⏳ جاري إعادة الاتصال التلقائي...';
-      const ok = await DBHybrid.initSupabase().catch(() => false);
-      if (hbStatus) hbStatus.textContent = ok ? '✅ متصل — Heartbeat نشط كل 30 ثانية' : '⚠️ غير متصل — تأكد من الإعدادات';
-      const badge = document.getElementById('sbStatusBadge');
-      if (badge) {
-        badge.style.background = ok ? 'rgba(52,195,143,0.1)' : 'rgba(232,184,75,0.1)';
-        badge.style.color = ok ? '#34C38F' : '#E8B84B';
-        badge.textContent = ok ? '🟢 متصل بـ Supabase' : '🟡 غير متصل';
-      }
-    }, 300);
-  }
 }
 
 function showAIUsageStats() {
@@ -6695,13 +6105,110 @@ function patchSmartAIWithSavedConfig() {
   } catch(e) { return; }
   const origCallAPI = SmartAI.callAPI.bind(SmartAI);
   SmartAI.callAPI = async function(userMessage) {
+    const cfg = getAIConfig();
+
     // تتبع الاستخدام
     const stats = JSON.parse(sessionStorage.getItem('ai_session_stats') || '{"count":0}');
     stats.count = (stats.count || 0) + 1;
     sessionStorage.setItem('ai_session_stats', JSON.stringify(stats));
 
-    // ── الـ callAPI الجديد يقرأ الإعداد المركزي مباشرة ──
-    return origCallAPI(userMessage);
+    // إذا لا يوجد مفتاح محفوظ، استخدم Claude API المدمج
+    if (!cfg.apiKey || cfg.status === 'inactive') {
+      return origCallAPI(userMessage);
+    }
+
+    const provider = AI_PROVIDERS.find(p => p.id === cfg.provider) || AI_PROVIDERS[0];
+    const model = cfg.model || provider.model;
+
+    this.history.push({ role: 'user', content: userMessage });
+    const systemPrompt = this.buildSystemPrompt();
+
+    try {
+      let reply;
+
+      if (provider.apiStyle === 'openai') {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cfg.apiKey}`
+        };
+        if (provider.id === 'openrouter_free') {
+          headers['HTTP-Referer'] = 'https://smartstruct.dz';
+          headers['X-Title'] = 'SmartStruct';
+        }
+        const msgs = [
+          { role: 'system', content: systemPrompt },
+          ...this.history.slice(-10)
+        ];
+        const resp = await fetch(provider.endpoint, {
+          method: 'POST', headers,
+          body: JSON.stringify({ model, messages: msgs, max_tokens: 1024, temperature: 0.7 })
+        });
+        if (!resp.ok) {
+          const e = await resp.json().catch(() => ({}));
+          throw new Error(e.error?.message || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        reply = data.choices?.[0]?.message?.content || 'لم أتمكن من الإجابة.';
+
+      } else if (provider.apiStyle === 'gemini') {
+        const url = `${provider.endpoint}?key=${cfg.apiKey}`;
+        const contents = [];
+        // Gemini يحتاج system في أول رسالة user
+        const historyWithSystem = [
+          { role: 'user', content: 'أنت SmartAI. ' + systemPrompt + '\n\nقل "مفهوم".' },
+          { role: 'assistant', content: 'مفهوم، أنا SmartAI جاهز لمساعدتك.' },
+          ...this.history.slice(-8)
+        ];
+        historyWithSystem.forEach(m => {
+          contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+        });
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024, temperature: 0.7 } })
+        });
+        if (!resp.ok) {
+          const e = await resp.json().catch(() => ({}));
+          throw new Error(e.error?.message || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم أتمكن من الإجابة.';
+
+      } else if (provider.apiStyle === 'anthropic') {
+        const resp = await fetch(provider.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': cfg.apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model, max_tokens: 1024,
+            system: systemPrompt,
+            messages: this.history.slice(-10)
+          })
+        });
+        if (!resp.ok) {
+          const e = await resp.json().catch(() => ({}));
+          throw new Error(e.error?.message || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        reply = data.content?.[0]?.text || 'لم أتمكن من الإجابة.';
+
+      } else {
+        throw new Error('نوع API غير مدعوم');
+      }
+
+      this.history.push({ role: 'assistant', content: reply });
+      return reply;
+
+    } catch(err) {
+      // في حالة الفشل، حاول Claude المدمج
+      console.warn('AI Provider failed, falling back:', err.message);
+      this.history.pop(); // أزل الرسالة التي أضفناها
+      return origCallAPI(userMessage);
+    }
   };
 }
 
@@ -6724,13 +6231,8 @@ Pages.admin = function() {
     const planColors = ['var(--blue)','var(--gold)','var(--purple)'];
     const planIdx = plans.findIndex(p=>p.id===t.plan_id);
     const planColor = planColors[planIdx] || 'var(--gold)';
-    const createdAtStr = t.created_at ? new Date(t.created_at).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-    const planData2 = plans.find(p=>p.id===t.plan_id)||{};
-    const maxEmails = planData2.max_emails ?? -1;
-    const usedEmails = (DB.get('admin_notifications')||[]).filter(n=>n.tenant_id===t.id && n.type==='new_account').length;
-    const emailsLabel = maxEmails === -1 ? '∞ إيميل' : usedEmails + '/' + maxEmails + ' إيميل';
     return `<tr>
-      <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1rem">🏢</div><div><div style="font-weight:700">${escHtml(t.name)}</div><div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(t.wilaya||L('غير محدد','Non défini'))} • 📅 ${createdAtStr}</div></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1rem">🏢</div><div><div style="font-weight:700">${escHtml(t.name)}</div><div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(t.wilaya||L('غير محدد','Non défini'))}</div></div></div></td>
       <td><div dir="ltr" style="font-family:monospace;font-size:.78rem;color:var(--blue)">${escHtml(adminUser?.email||'—')}</div></td>
       <td>
         <div style="display:flex;align-items:center;gap:.4rem">
@@ -6740,15 +6242,9 @@ Pages.admin = function() {
       </td>
       <td><span class="badge" style="background:rgba(${planIdx===0?'74,144,226':planIdx===1?'232,184,75':'155,109,255'},.1);color:${planColor};border:1px solid rgba(${planIdx===0?'74,144,226':planIdx===1?'232,184,75':'155,109,255'},.2)">${escHtml(plan?.name||'—')}</span></td>
       <td><span class="badge ${subCls}">${subLbl}</span></td>
-      <td style="text-align:center;font-size:.78rem;color:${maxEmails!==-1&&usedEmails>=maxEmails?'var(--red)':'var(--muted)'}">${emailsLabel}</td>
       <td style="text-align:center;font-weight:700">${pCount}</td>
       <td style="text-align:center;font-weight:700">${wCount}</td>
-      <td>${(()=>{
-        const isPending = !t.is_active && t.subscription_status==='pending';
-        const cls = t.is_active ? 'badge-active' : isPending ? 'badge-paused' : 'badge-delayed';
-        const lbl = t.is_active ? L('نشط','Actif') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
-        return `<span class="badge ${cls}">${lbl}</span>`;
-      })()}</td>
+      <td><span class="badge ${t.is_active?'badge-active':'badge-delayed'}">${t.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td>
       <td><div style="display:flex;gap:.3rem"><button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})">${t.is_active?'⏸️':'▶️'}</button><button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})">⚙️</button></div></td>
     </tr>`;
   }).join('');
@@ -6769,7 +6265,6 @@ Pages.admin = function() {
           </div>
           <div class="page-actions">
             <button class="btn btn-ghost btn-sm" data-nav="landing">🌐 ${L('الموقع','Site')}</button>
-            <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Sync Supabase')}</button>
             <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter entreprise')}</button>
           </div>
         </div>
@@ -6787,10 +6282,6 @@ Pages.admin = function() {
           <button id="adminTab_notif" onclick="switchAdminTab('notif')"
             style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
             📧 الإشعارات والبريد
-          </button>
-          <button id="adminTab_supabase" onclick="switchAdminTab('supabase')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            🗄️ قاعدة البيانات Supabase
           </button>
         </div>
 
@@ -6858,7 +6349,7 @@ Pages.admin = function() {
           </div>
           <div class="table-wrap" style="border:none;border-radius:0">
             <table>
-              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>📧 الإيميلات</th><th>${L('المشاريع','Projets')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
+              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>${L('المشاريع','Projets')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>
@@ -6889,27 +6380,19 @@ Pages.admin = function() {
           const notifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending');
           if(!notifs.length) return '';
           const nrows = notifs.map(n=>{
-            const isReset   = n.type==='reset_password';
-            const isUpgrade = n.type==='upgrade_request';
-            const isNew     = n.type==='new_account';
-            const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : '🆕';
-            const badge   = isReset ? 'badge-delayed' : isUpgrade ? 'badge-paused' : 'badge-paused';
-            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? 'طلب ترقية' : L('حساب جديد — بانتظار التفعيل','Nouveau compte — En attente');
+            const isReset = n.type==='reset_password';
+            const icon    = isReset ? '🔑' : '🆕';
+            const badge   = isReset ? 'badge-delayed' : 'badge-active';
+            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : L('حساب جديد','Nouveau compte');
             const dateStr = new Date(n.date).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-            // تحقق هل الحساب لا يزال معلقاً
-            const linkedUser = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
-            const isPending  = linkedUser && !linkedUser.is_active;
             return `<tr>
               <td><span style="font-size:1.3rem">${icon}</span></td>
               <td style="font-weight:700">${escHtml(n.title)}</td>
               <td style="font-size:.82rem;color:var(--muted)">${escHtml(n.body)}</td>
-              <td><span class="badge ${isPending?'badge-paused':badge}">${isPending?'⏳ '+badgeTxt:(isNew?'✅ مُفعَّل':badgeTxt)}</span></td>
+              <td><span class="badge ${badge}">${badgeTxt}</span></td>
               <td style="font-size:.75rem;color:var(--dim)">${dateStr}</td>
               <td style="display:flex;gap:.4rem;flex-wrap:wrap">
-                ${isNew && isPending ? `<button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id},${n.tenant_id})">✅ تفعيل وإرسال إيميل</button>` : ''}
-                ${isNew && !isPending ? `<span style="font-size:.75rem;color:var(--green)">✅ مُفعَّل</span>` : ''}
                 ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
-                ${isUpgrade && n.status==='pending' ? `<button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id})">✅ موافقة</button><button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ رفض</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})">✓ ${L('إخفاء','Masquer')}</button>
               </td>
             </tr>`;
@@ -7051,193 +6534,6 @@ Pages.admin = function() {
         <div id="adminTabContent_ai" style="display:none">
           ${renderAIProviderSettings()}
         </div><!-- END adminTabContent_ai -->
-
-        <!-- TAB CONTENT: Supabase -->
-        <div id="adminTabContent_supabase" style="display:none">
-          ${typeof SupabaseSettings !== 'undefined' ? SupabaseSettings.renderCard() : `
-          <div class="card" style="background:rgba(52,195,143,0.03);border:1px solid rgba(52,195,143,0.2)">
-            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
-              <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#34C38F,#0e9f6e);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0">🗄️</div>
-              <div>
-                <div style="font-size:.95rem;font-weight:900">Supabase — ربط قاعدة البيانات</div>
-                <div style="font-size:.7rem;color:var(--dim)">أدخل بيانات مشروعك من supabase.com → Settings → API</div>
-              </div>
-              <div id="sbStatusBadge" style="margin-right:auto;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;background:rgba(232,184,75,0.1);color:#E8B84B;border:1px solid rgba(232,184,75,0.3)">
-                🔴 غير متصل
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr;gap:.7rem;margin-bottom:1rem">
-              <div class="form-group" style="margin:0">
-                <label class="form-label" style="font-size:.75rem">🔗 Project URL</label>
-                <input class="form-input" id="sbUrlInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
-                  placeholder="https://xxxxxxxxxxxx.supabase.co"
-                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').url||''}catch(e){return ''}})()\}">
-              </div>
-              <div class="form-group" style="margin:0">
-                <label class="form-label" style="font-size:.75rem">🔑 Anon Public Key</label>
-                <input class="form-input" id="sbKeyInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return ''}})()\}">
-              </div>
-            </div>
-            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-              <button class="btn btn-green" style="flex:1;justify-content:center" onclick="saveSupabaseConfigInline()">
-                💾 حفظ واتصال
-              </button>
-              <button class="btn btn-ghost btn-sm" onclick="testSupabaseConnectionInline()">
-                🧪 اختبار الاتصال
-              </button>
-              <button class="btn btn-ghost btn-sm" onclick="localStorage.removeItem('sbtp_supabase_config');SUPABASE_HARDCODED.url='';SUPABASE_HARDCODED.anonKey='';Toast.success('تم مسح الإعدادات');App.navigate('admin')">
-                🗑️ مسح
-              </button>
-            </div>
-            <div id="sbTestResult" style="display:none;margin-top:.7rem;padding:.6rem .8rem;border-radius:8px;font-size:.78rem"></div>
-          </div>`}
-          
-          <!-- Auto-Sync Toggle Card -->
-          <div class="card" style="margin-top:1rem;background:rgba(52,195,143,0.03);border:1px solid rgba(52,195,143,0.15)">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-              <div>
-                <div style="font-weight:800;font-size:.9rem">⚡ المزامنة التلقائية</div>
-                <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">يبقى Supabase متصلاً ويتزامن تلقائياً بدون إعادة اتصال</div>
-              </div>
-              <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer">
-                <input type="checkbox" id="autoSyncToggle"
-                  ${localStorage.getItem('sbtp_auto_sync')!=='false' ? 'checked' : ''}
-                  onchange="toggleAutoSync(this.checked)"
-                  style="opacity:0;width:0;height:0">
-                <span style="
-                  position:absolute;inset:0;border-radius:26px;
-                  background:${localStorage.getItem('sbtp_auto_sync')!=='false' ? '#34C38F' : 'rgba(255,255,255,0.1)'};
-                  transition:.3s;
-                " id="autoSyncSlider"></span>
-                <span style="
-                  position:absolute;top:3px;right:${localStorage.getItem('sbtp_auto_sync')!=='false' ? '3px' : '22px'};
-                  width:20px;height:20px;border-radius:50%;background:#fff;
-                  transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3);
-                " id="autoSyncKnob"></span>
-              </label>
-            </div>
-            
-            <!-- Heartbeat Status -->
-            <div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;background:rgba(255,255,255,0.03);border-radius:10px;margin-bottom:.8rem">
-              <div id="hbDot" style="width:8px;height:8px;border-radius:50%;background:#34C38F;animation:hbPulse 2s infinite"></div>
-              <div style="font-size:.75rem;color:var(--muted)" id="hbStatus">
-                ${typeof DBHybrid!=='undefined' && DBHybrid._useSupabase ? '✅ متصل — Heartbeat نشط كل 30 ثانية' : '⚠️ غير متصل بـ Supabase'}
-              </div>
-              <button onclick="forceReconnectSupabase()" class="btn btn-ghost btn-sm" style="margin-right:auto;font-size:.7rem">🔌 إعادة الاتصال</button>
-            </div>
-
-            <!-- Sync Dashboard -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;margin-bottom:.8rem">
-              <div class="stat-card">
-                <div class="stat-icon">🏗️</div>
-                <div class="stat-value" style="color:var(--blue)">${projects?.length||0}</div>
-                <div class="stat-label">مشاريع</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-icon">👷</div>
-                <div class="stat-value" style="color:var(--green)">${workers?.length||0}</div>
-                <div class="stat-label">عمال</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-icon">💰</div>
-                <div class="stat-value" style="color:var(--gold)">${(typeof DB!=='undefined'?DB.get('transactions'):[]).length}</div>
-                <div class="stat-label">معاملات</div>
-              </div>
-            </div>
-            <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
-              <button class="btn btn-green" onclick="syncToSupabase()" style="flex:1;justify-content:center">
-                🔄 مزامنة كل البيانات الآن
-              </button>
-              <button class="btn btn-ghost" onclick="downloadSchema()" style="flex:1;justify-content:center">
-                📥 تحميل schema.sql
-              </button>
-            </div>
-          </div>
-
-          <!-- EmailJS Settings Card -->
-          <div class="card" style="margin-top:1rem;background:rgba(74,144,226,0.03);border:1px solid rgba(74,144,226,0.15)">
-            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
-              <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#4A90E2,#2563eb);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">📧</div>
-              <div>
-                <div style="font-size:.95rem;font-weight:900">EmailJS — إشعارات البريد الإلكتروني</div>
-                <div style="font-size:.7rem;color:var(--dim)">إعداد خادم الإشعارات والرسائل التلقائية</div>
-              </div>
-              <div style="margin-right:auto">
-                <span id="emailjsStatusBadge" style="
-                  padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;
-                  background:rgba(52,195,143,0.1);color:#34C38F;border:1px solid #34C38F44;
-                ">🟢 مُفعَّل</span>
-              </div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.8rem">
-              <div class="form-group" style="margin:0">
-                <label class="form-label" style="font-size:.7rem">Service ID</label>
-                <input class="form-input" id="ejServiceId" dir="ltr" style="font-family:monospace;font-size:.75rem"
-                  value="${getEmailJSConfig().SERVICE_ID}"
-                  placeholder="service_xxxxxxx">
-              </div>
-              <div class="form-group" style="margin:0">
-                <label class="form-label" style="font-size:.7rem">Public Key</label>
-                <input class="form-input" id="ejPublicKey" dir="ltr" style="font-family:monospace;font-size:.75rem"
-                  value="${getEmailJSConfig().PUBLIC_KEY}"
-                  placeholder="xxxxxxxxxxxxxxx">
-              </div>
-              <div class="form-group" style="margin:0">
-                <label class="form-label" style="font-size:.7rem">Template (للمسؤول)</label>
-                <input class="form-input" id="ejTemplateAdmin" dir="ltr" style="font-family:monospace;font-size:.75rem"
-                  value="${getEmailJSConfig().TEMPLATE_ADMIN}"
-                  placeholder="template_xxxxxxx">
-              </div>
-              <div class="form-group" style="margin:0">
-                <label class="form-label" style="font-size:.7rem">Template (للمستخدم)</label>
-                <input class="form-input" id="ejTemplateUser" dir="ltr" style="font-family:monospace;font-size:.75rem"
-                  value="${getEmailJSConfig().TEMPLATE_USER}"
-                  placeholder="template_xxxxxxx">
-              </div>
-              <div class="form-group" style="margin:0;grid-column:1/-1">
-                <label class="form-label" style="font-size:.7rem">📬 بريد المسؤول (استقبال الإشعارات)</label>
-                <input class="form-input" id="ejAdminEmail" type="email" dir="ltr"
-                  value="${getEmailJSConfig().ADMIN_EMAIL}"
-                  placeholder="admin@example.com">
-              </div>
-            </div>
-
-            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-              <button class="btn btn-primary" onclick="saveEmailJSSettings()" style="flex:1;justify-content:center">
-                💾 حفظ إعدادات EmailJS
-              </button>
-              <button class="btn btn-ghost btn-sm" onclick="testEmailJS()">
-                🧪 اختبار الإرسال
-              </button>
-            </div>
-            <div id="ejTestResult" style="display:none;margin-top:.7rem;padding:.6rem .8rem;border-radius:8px;font-size:.78rem"></div>
-          </div>
-
-          <!-- Quick Setup Guide -->
-          <div class="card" style="margin-top:1rem">
-            <div style="font-weight:800;margin-bottom:1rem">🚀 دليل الإعداد السريع</div>
-            <div style="display:flex;flex-direction:column;gap:0.8rem">
-              ${[
-                {num:'1', title:'أنشئ مشروع Supabase مجاني', desc:'اذهب إلى supabase.com وسجّل حساباً مجانياً وأنشئ مشروعاً جديداً', link:'https://supabase.com/dashboard'},
-                {num:'2', title:'شغّل ملف Schema SQL', desc:'افتح SQL Editor في Supabase وألصق محتوى ملف supabase-schema.sql', link:null},
-                {num:'3', title:'انسخ بيانات الاتصال', desc:'من Settings → API: انسخ Project URL وanon public key', link:null},
-                {num:'4', title:'أدخل البيانات في الإعدادات', desc:'أدخل URL والمفتاح في الحقول أعلاه واضغط "حفظ واختبار"', link:null},
-              ].map(s=>`
-                <div style="display:flex;align-items:flex-start;gap:1rem;padding:0.8rem;background:rgba(255,255,255,0.02);border-radius:10px">
-                  <div style="width:30px;height:30px;border-radius:50%;background:rgba(52,195,143,0.15);border:1px solid rgba(52,195,143,0.3);display:flex;align-items:center;justify-content:center;font-weight:900;color:#34C38F;font-size:0.9rem;flex-shrink:0">${s.num}</div>
-                  <div style="flex:1">
-                    <div style="font-weight:800;font-size:0.85rem;margin-bottom:0.2rem">${s.title}</div>
-                    <div style="font-size:0.75rem;color:var(--dim)">${s.desc}</div>
-                    ${s.link?`<a href="${s.link}" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:0.5rem;font-size:0.72rem">🔗 فتح الرابط</a>`:''}
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        </div><!-- END adminTabContent_supabase -->
 
         <!-- Add Tenant Modal -->
         <div class="modal-overlay" id="addTenantModal">
@@ -7544,411 +6840,13 @@ function showDetailTab(btn, tabId) {
 }
 
 /* ─── NOTES ─── */
-
-/* ══ sbSync — رفع فوري لـ Supabase (يجب أن يكون قبل جميع دوال الحفظ) ══ */
-
-
-/* ══ cleanForSupabase + SB_SCHEMA ══ */
-const SB_SCHEMA = {
-  projects:        ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
-  workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','avatar_color','is_active'],
-  equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
-  transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
-  attendance:      ['id','worker_id','date','status','hours','note'],
-  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
-  materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
-  stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
-  invoices:        ['id','tenant_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','project_id'],
-  documents:       ['id','tenant_id','name','project_id','category','type','size','date','uploader_id'],
-  kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
-  notes:           ['id','tenant_id','project_id','user_id','text','date'],
-  obligations:     ['id','tenant_id','title','amount','due'],
-  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color'],
-  tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address'],
-  notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
-};
-
-function cleanForSupabase(table, record) {
-  const allowed = SB_SCHEMA[table];
-  if (!allowed) return record;
-
-  // الحقول الاختيارية (FK) التي تقبل null
-  const nullableIds = ['project_id','worker_id','material_id','user_id','plan_id','uploader_id','assignee_id'];
-
-  const clean = {};
-  allowed.forEach(function(col) {
-    let v = record ? record[col] : undefined;
-
-    // مهم: لتفادي خطأ PostgREST PGRST102 في الإدراج الجماعي (Bulk Insert)
-    // يجب أن تكون مفاتيح كل الكائنات متطابقة. لذلك نُرجِع كل الأعمدة دائماً
-    // ونحوّل undefined إلى null.
-    if (v === undefined) v = null;
-
-    // تطبيع القيم
-    if (v === null) {
-      clean[col] = null;
-      return;
-    }
-
-    if (col === 'id' || col === 'tenant_id') {
-      const n = Number(v);
-      clean[col] = Number.isFinite(n) && n > 0 ? n : null;
-      return;
-    }
-
-    if (nullableIds.includes(col)) {
-      // IDs اختيارية
-      const n = Number(v);
-      clean[col] = Number.isFinite(n) && n > 0 ? n : null;
-      return;
-    }
-
-    if (col === 'progress' || col === 'hours') {
-      const n = Number(v);
-      clean[col] = Number.isFinite(n) ? n : 0;
-      return;
-    }
-
-    if ([
-      'budget','amount','total_spent','daily_salary','monthly_base','purchase_price',
-      'unit_price','quantity','min_quantity','amount_ht','tva_amount','tva_rate','price'
-    ].includes(col)) {
-      const n = Number(v);
-      clean[col] = Number.isFinite(n) ? n : 0;
-      return;
-    }
-
-    if (['is_active','is_admin','is_archived','read'].includes(col)) {
-      clean[col] = Boolean(v);
-      return;
-    }
-
-    // لا تحوّل النصوص الفارغة إلى null إلا إذا كانت FK (تمت معالجتها أعلاه)
-    clean[col] = v;
-  });
-
-  return clean;
-}
-
-/* ══ getSupabaseConfig — مصدر موحّد يقرأ أحدث إعدادات Supabase دائماً ══ */
-function getSupabaseConfig() {
-  // 1: localStorage (الأحدث دائماً — يُحدَّث عند الحفظ)
-  try {
-    const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-    if (saved.url && saved.anonKey) return { url: saved.url, key: saved.anonKey };
-  } catch(e) {}
-  // 2: SUPABASE_HARDCODED (محمّل عند بداية الصفحة)
-  if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-    return { url: SUPABASE_HARDCODED.url, key: SUPABASE_HARDCODED.anonKey };
-  }
-  // 3: DBHybrid
-  if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
-    return { url: DBHybrid._supabaseUrl, key: DBHybrid._supabaseKey || '' };
-  }
-  return null;
-}
-
-async function sbSync(table, record, method='POST') {
-  try {
-    const cfg = getSupabaseConfig();
-    if (!cfg || !cfg.url || !cfg.key) {
-      console.warn('⚠️ sbSync: Supabase غير مربوط — table=' + table);
-      return;
-    }
-    const { url: sbUrl, key: sbKey } = cfg;
-    console.log('🔄 sbSync:', method, table, 'id='+record.id);
-
-    // POST = UPSERT (resolution=merge-duplicates) لتجنب خطأ التكرار
-    const preferHeader = method === 'POST'
-      ? 'resolution=merge-duplicates,return=representation'
-      : 'return=representation';
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'apikey': sbKey,
-      'Authorization': `Bearer ${sbKey}`,
-      'Prefer': preferHeader
-    };
-
-    let url = `${sbUrl}/rest/v1/${table}`;
-    if (method === 'PATCH' || method === 'DELETE') url += `?id=eq.${record.id}`;
-
-    const cleanRecord = method === 'DELETE' ? record : cleanForSupabase(table, record);
-    const body = method === 'DELETE' ? undefined : JSON.stringify(cleanRecord);
-
-    const res = await fetch(url, { method, headers, body });
-    if (!res.ok) {
-      const err = await res.text();
-      console.warn(`⚠️ sbSync [${method} ${table}] id=${record.id}:`, err);
-      // محاولة ثانية: إذا فشل POST جرّب PATCH
-      if (method === 'POST' && record.id) {
-        console.log('🔄 sbSync: إعادة المحاولة بـ PATCH...');
-        const patchUrl = `${sbUrl}/rest/v1/${table}?id=eq.${record.id}`;
-        const patchRes = await fetch(patchUrl, {
-          method: 'PATCH',
-          headers: { ...headers, 'Prefer': 'return=representation' },
-          body: JSON.stringify(cleanRecord)
-        });
-        if (patchRes.ok) {
-          console.log(`✅ sbSync [PATCH fallback ${table}] id=${record.id}`);
-        } else {
-          console.warn(`❌ sbSync [PATCH fallback ${table}]:`, await patchRes.text());
-        }
-      }
-    } else {
-      console.log(`✅ sbSync [${method} ${table}] id=${record.id}`);
-    }
-  } catch(e) {
-    console.warn('⚠️ sbSync error:', e.message);
-  }
-}
-
-async function sbSyncDelete(table, id) {
-  return sbSync(table, { id }, 'DELETE');
-}
-
-async function sbSyncUpsert(table, record) {
-  // UPSERT: إذا كان السجل موجوداً (له id من Supabase) نعمل PATCH، وإلا POST
-  const method = record._fromSupabase ? 'PATCH' : 'POST';
-  const cleanRecord = { ...record };
-  delete cleanRecord._fromSupabase;
-  return sbSync(table, cleanRecord, method);
-}
-
-/* ══════════════════════════════════════════════════════
-   syncAllDataToSupabase — رفع كل بيانات المؤسسة دفعة واحدة
-══════════════════════════════════════════════════════ */
-/* ══ حفظ إعدادات Supabase مباشرة من الواجهة ══ */
-function saveSupabaseConfigInline() {
-  const url = (document.getElementById('sbUrlInput')?.value || '').trim();
-  const key = (document.getElementById('sbKeyInput')?.value || '').trim();
-  if (!url || !key) { Toast.error('❌ أدخل URL والـ Key كاملين'); return; }
-  if (!url.includes('supabase.co')) { Toast.error('❌ URL غير صحيح — يجب أن يحتوي على supabase.co'); return; }
-
-  const cfg = { url, anonKey: key };
-  localStorage.setItem('sbtp_supabase_config', JSON.stringify(cfg));
-
-  // تحديث فوري لكل المتغيرات العالمية
-  if (typeof SUPABASE_HARDCODED !== 'undefined') {
-    SUPABASE_HARDCODED.url = url;
-    SUPABASE_HARDCODED.anonKey = key;
-  }
-  // تحديث DBHybrid إن كان موجوداً
-  if (typeof DBHybrid !== 'undefined') {
-    DBHybrid._supabaseUrl = url;
-    DBHybrid._supabaseKey = key;
-    if (typeof DBHybrid.initSupabase === 'function') {
-      DBHybrid.initSupabase().catch(()=>{});
-    }
-  }
-
-  Toast.success('✅ تم حفظ إعدادات Supabase — جاري التحقق من الاتصال...');
-
-  // تحقق تلقائي من الاتصال بعد الحفظ
-  setTimeout(async () => {
-    try {
-      const res = await fetch(`${url}/rest/v1/tenants?select=id&limit=1`, {
-        headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-      });
-      const badge = document.getElementById('sbStatusBadge');
-      if (res.ok) {
-        Toast.success('✅ Supabase متصل بنجاح!');
-        if (badge) { badge.textContent='🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
-      } else {
-        const err = await res.text();
-        Toast.error('⚠️ الإعدادات حُفظت لكن الاتصال فشل: ' + err.slice(0,60));
-        if (badge) { badge.textContent='🔴 خطأ في الاتصال'; badge.style.color='#F04E6A'; }
-      }
-    } catch(e) {
-      Toast.warn('⚠️ الإعدادات حُفظت — تحقق من اتصال الإنترنت');
-    }
-  }, 500);
-
-  // تحديث حالة الاتصال
-  const badge = document.getElementById('sbStatusBadge');
-  if (badge) { badge.textContent = '⏳ جاري التحقق...'; badge.style.background='rgba(232,184,75,0.1)'; badge.style.color='#E8B84B'; badge.style.borderColor='rgba(232,184,75,0.3)'; }
-}
-
-async function testSupabaseConnectionInline() {
-  const url = (document.getElementById('sbUrlInput')?.value || SUPABASE_HARDCODED.url || '').trim();
-  const key = (document.getElementById('sbKeyInput')?.value || SUPABASE_HARDCODED.anonKey || '').trim();
-  if (!url || !key) { Toast.error('❌ أدخل البيانات أولاً'); return; }
-
-  const result = document.getElementById('sbTestResult');
-  if (result) { result.style.display='block'; result.style.background='rgba(232,184,75,0.1)'; result.style.color='#E8B84B'; result.textContent='⏳ جاري اختبار الاتصال...'; }
-
-  try {
-    const res = await fetch(`${url}/rest/v1/tenants?select=id&limit=1`, {
-      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-    });
-    if (res.ok) {
-      if (result) { result.style.background='rgba(52,195,143,0.1)'; result.style.color='#34C38F'; result.textContent='✅ الاتصال ناجح! Supabase يعمل بشكل صحيح.'; }
-      const badge = document.getElementById('sbStatusBadge');
-      if (badge) { badge.textContent='🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
-      Toast.success('✅ Supabase متصل بنجاح!');
-    } else {
-      const err = await res.text();
-      if (result) { result.style.background='rgba(240,78,106,0.1)'; result.style.color='#F04E6A'; result.textContent='❌ فشل: ' + err.slice(0,100); }
-      Toast.error('❌ فشل الاتصال — تحقق من URL والـ Key');
-    }
-  } catch(e) {
-    if (result) { result.style.background='rgba(240,78,106,0.1)'; result.style.color='#F04E6A'; result.textContent='❌ خطأ: ' + e.message; }
-    Toast.error('❌ خطأ في الاتصال: ' + e.message);
-  }
-}
-
-function checkSupabaseStatus() {
-  let sbUrl = '', sbKey = '';
-  // فحص كل المصادر
-  const sources = [];
-  
-  if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-    sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-    sources.push('SUPABASE_HARDCODED ✅');
-  } else { sources.push('SUPABASE_HARDCODED ❌'); }
-  
-  try {
-    const lsCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-    if (lsCfg.url) sources.push('localStorage ✅: ' + lsCfg.url.slice(0,30) + '...');
-    else sources.push('localStorage ❌ (فارغ)');
-    if (!sbUrl && lsCfg.url) { sbUrl = lsCfg.url; sbKey = lsCfg.anonKey; }
-  } catch(e) { sources.push('localStorage ❌ (خطأ)'); }
-  
-  if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
-    sources.push('DBHybrid ✅: ' + DBHybrid._supabaseUrl.slice(0,30) + '...');
-    if (!sbUrl) { sbUrl = DBHybrid._supabaseUrl; sbKey = DBHybrid._supabaseKey; }
-  } else { sources.push('DBHybrid ❌ (غير محمّل)'); }
-  
-  const msg = sources.join('\n') + '\n\n' + (sbUrl ? '✅ URL موجود: ' + sbUrl.slice(0,40) + '...' : '❌ لا يوجد URL — يجب إدخاله في الإعدادات');
-  alert('🔌 حالة Supabase:\n\n' + msg);
-  
-  if (!sbUrl) {
-    if (confirm('❌ Supabase غير مربوط!\n\nهل تريد الذهاب لصفحة الإعدادات لإدخال URL والـ Key؟')) {
-      App.navigate('admin', {tab:'supabase'});
-    }
-  }
-}
-
-async function syncAllDataToSupabase() {
-  const btn = document.getElementById('syncAllBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
-
-  const user = Auth.getUser();
-  if (!user || !user.tenant_id) {
-    Toast.error('❌ يجب تسجيل الدخول أولاً');
-    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
-    return;
-  }
-  const tid = user.tenant_id;
-
-  // ── جلب إعدادات Supabase ──
-  const sbCfg = getSupabaseConfig();
-  if (!sbCfg || !sbCfg.url || !sbCfg.key) {
-    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
-    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
-    return;
-  }
-  const { url: sbUrl, key: sbKey } = sbCfg;
-
-  const headers = {
-    'Content-Type': 'application/json',
-    'apikey': sbKey,
-    'Authorization': `Bearer ${sbKey}`,
-    'Prefer': 'resolution=merge-duplicates,return=representation'
-  };
-
-  // ── جمع كل بيانات المؤسسة ──
-  const tables = {
-    projects:        DB.get('projects').filter(p => p.tenant_id === tid),
-    workers:         DB.get('workers').filter(w => w.tenant_id === tid),
-    equipment:       DB.get('equipment').filter(e => e.tenant_id === tid),
-    transactions:    DB.get('transactions').filter(t => t.tenant_id === tid),
-    attendance:      (function() {
-                       const wids = DB.get('workers').filter(w=>w.tenant_id===tid).map(w=>w.id);
-                       return DB.get('attendance').filter(a => wids.includes(a.worker_id));
-                     })(),
-    salary_records:  DB.get('salary_records').filter(r => r.tenant_id === tid),
-    materials:       DB.get('materials').filter(m => m.tenant_id === tid),
-    stock_movements: DB.get('stock_movements').filter(s => s.tenant_id === tid),
-    invoices:        DB.get('invoices').filter(i => i.tenant_id === tid),
-    documents:       DB.get('documents').filter(d => d.tenant_id === tid).map(d => ({...d, fileData: null})),
-    kanban_tasks:    DB.get('kanban_tasks').filter(k => k.tenant_id === tid),
-    notes:           DB.get('notes').filter(n => n.tenant_id === tid),
-    obligations:     (DB.get('obligations_'+tid) || []).map(o => ({...o, tenant_id: tid})),
-    users:           DB.get('users').filter(u => u.tenant_id === tid),
-    tenants:         DB.get('tenants').filter(t => t.id === tid),
-  };
-
-  let totalSent = 0;
-  let errors = [];
-
-  // ── UPSERT كل جدول ──
-  for (const [table, records] of Object.entries(tables)) {
-    if (!records || records.length === 0) continue;
-    try {
-      // إرسال على دفعات (max 50 سجل لكل طلب)
-      const BATCH = 50;
-      for (let i = 0; i < records.length; i += BATCH) {
-        const batch = records.slice(i, i + BATCH);
-        const cleanBatch = batch.map(r => cleanForSupabase(table, r));
-        const res = await fetch(`${sbUrl}/rest/v1/${table}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(cleanBatch)
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          console.warn(`⚠️ syncAll [${table}]:`, errText);
-          // إذا كان خطأ تكرار، نجرب PATCH على كل سجل بشكل مستقل
-          if (errText.includes('duplicate') || errText.includes('23505') || errText.includes('conflict')) {
-            console.log(`🔄 syncAll [${table}]: جاري UPSERT فردي للـ ${cleanBatch.length} سجل...`);
-            for (const r of cleanBatch) {
-              if (!r.id) continue;
-              try {
-                const pr = await fetch(`${sbUrl}/rest/v1/${table}?id=eq.${r.id}`, {
-                  method: 'PATCH',
-                  headers: { ...headers, 'Prefer': 'return=representation' },
-                  body: JSON.stringify(r)
-                });
-                if (pr.ok) totalSent++;
-                else errors.push(`${table}#${r.id}: ${(await pr.text()).slice(0,60)}`);
-              } catch(pe) { errors.push(`${table}#${r.id}: ${pe.message}`); }
-            }
-          } else {
-            errors.push(`${table}: ${errText.slice(0,100)}`);
-          }
-        } else {
-          totalSent += batch.length;
-          console.log(`✅ syncAll [${table}]: ${batch.length} سجل`);
-        }
-      }
-    } catch(e) {
-      errors.push(`${table}: ${e.message}`);
-      console.warn(`⚠️ syncAll [${table}]:`, e.message);
-    }
-  }
-
-  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
-
-  if (errors.length === 0) {
-    Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
-  } else if (totalSent > 0) {
-    Toast.warn(`⚠️ رُفع ${totalSent} سجل — فشل ${errors.length} جدول: ${errors[0]}`);
-  } else {
-    Toast.error('❌ فشل الرفع: ' + errors[0]);
-  }
-}
-
-
 function addNote(pid) {
   const text = document.getElementById('noteText')?.value?.trim();
   if (!text) { Toast.error('أدخل نص الملاحظة'); return; }
   const user = Auth.getUser();
   const notes = DB.get('notes');
-  const newNote = { id:DB.nextId('notes'), tenant_id:user.tenant_id, project_id:pid, user_id:user.id, text, date:todayStr() };
-  notes.push(newNote);
+  notes.push({ id:DB.nextId('notes'), tenant_id:user.tenant_id, project_id:pid, user_id:user.id, text, date:todayStr() });
   DB.set('notes', notes);
-  sbSync('notes', newNote, 'POST').catch(()=>{});
   Toast.success('تمت إضافة الملاحظة');
   App.navigate('project_detail', {id:pid});
 }
@@ -7956,7 +6854,6 @@ function addNote(pid) {
 function deleteNote(id, pid) {
   if (!confirm('حذف هذه الملاحظة؟')) return;
   DB.set('notes', DB.get('notes').filter(n=>n.id!==id));
-  sbSyncDelete('notes', id).catch(()=>{});
   Toast.success('تم حذف الملاحظة');
   App.navigate('project_detail', {id:pid});
 }
@@ -7967,10 +6864,8 @@ function addMat() {
   if (!name) { Toast.error('أدخل اسم المادة'); return; }
   const tid = Auth.getUser().tenant_id;
   const mats = DB.get('materials');
-  const newMat = { id:DB.nextId('materials'), tenant_id:tid, name, unit:document.getElementById('mUnit')?.value||'قطعة', quantity:Number(document.getElementById('mQty')?.value)||0, min_quantity:Number(document.getElementById('mMinQty')?.value)||5, unit_price:Number(document.getElementById('mPrice')?.value)||0, project_id:Number(document.getElementById('mProject')?.value)||null, supplier:document.getElementById('mSupplier')?.value||'' };
-  mats.push(newMat);
+  mats.push({ id:DB.nextId('materials'), tenant_id:tid, name, unit:document.getElementById('mUnit')?.value||'قطعة', quantity:Number(document.getElementById('mQty')?.value)||0, min_quantity:Number(document.getElementById('mMinQty')?.value)||5, unit_price:Number(document.getElementById('mPrice')?.value)||0, project_id:Number(document.getElementById('mProject')?.value)||null, supplier:document.getElementById('mSupplier')?.value||'' });
   DB.set('materials', mats);
-  sbSync('materials', newMat, 'POST').catch(()=>{});
   Toast.success('✅ تمت إضافة المادة');
   App.navigate('materials');
 }
@@ -7980,14 +6875,12 @@ function updateMatQty(id, delta) {
   const idx = mats.findIndex(m=>m.id===id); if (idx<0) return;
   mats[idx].quantity = Math.max(0, (mats[idx].quantity||0) + delta);
   DB.set('materials', mats);
-  sbSync('materials', mats[idx], 'PATCH').catch(()=>{});
   App.navigate('materials');
 }
 
 function deleteMat(id) {
   if (!confirm('حذف هذه المادة؟')) return;
   DB.set('materials', DB.get('materials').filter(m=>m.id!==id));
-  sbSyncDelete('materials', id).catch(()=>{});
   Toast.success('تم الحذف'); App.navigate('materials');
 }
 
@@ -8054,156 +6947,16 @@ function togglePass() {
   if (p) p.type = p.type==='password'?'text':'password';
 }
 
-async function doLogin() {
-  const email = (document.getElementById('loginEmail')?.value || '').trim().toLowerCase();
-  const pass  = (document.getElementById('loginPass')?.value  || '');
+function doLogin() {
+  const email = document.getElementById('loginEmail')?.value;
+  const pass  = document.getElementById('loginPass')?.value;
   const err   = document.getElementById('loginError');
-  const btn   = document.querySelector('.btn-gold');
-
-  if (!email || !pass) {
-    if (err) { err.style.display = 'flex'; setTimeout(() => err.style.display = 'none', 3000); }
-    return;
-  }
-
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري التحقق...'; }
-  const resetBtn = () => { if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); } };
-  const showErrMsg = (html) => {
-    if (!err) return;
-    err.style.display = 'block';
-    err.style.background = 'rgba(240,78,106,.1)';
-    err.style.border = '1px solid rgba(240,78,106,.3)';
-    err.style.color = '#F79FA9';
-    err.innerHTML = html;
-  };
-  const showPendingMsg = () => {
-    if (!err) return;
-    err.style.display = 'block';
-    err.style.background = 'rgba(232,184,75,.1)';
-    err.style.border = '1px solid rgba(232,184,75,.3)';
-    err.style.color = 'var(--gold)';
-    err.innerHTML = `
-      <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">⏳ حسابك بانتظار التفعيل</div>
-      <div style="font-size:.78rem;opacity:.8">تم استلام طلبك. سيصلك إيميل بعد تفعيل حسابك.</div>
-    `;
-  };
-
-  try {
-    // ── جلب بيانات Supabase ──
-    let sbUrl = '', sbKey = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl = SUPABASE_HARDCODED.url;
-      sbKey = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
-    }
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط');
-
-    const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
-
-    // ── 1. جلب المستخدم من Supabase ──
-    const uRes = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, { headers: sbH });
-    if (!uRes.ok) throw new Error('فشل الاتصال بقاعدة البيانات');
-    const sbUsers = await uRes.json();
-
-    if (!sbUsers.length) {
-      resetBtn();
-      showErrMsg('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
-      return;
-    }
-
-    const sbUser = sbUsers[0];
-
-    // ── 2. تحقق من كلمة المرور ──
-    if (sbUser.password !== pass) {
-      resetBtn();
-      showErrMsg('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
-      return;
-    }
-
-    // ── 3. تحقق من التفعيل ──
-    if (!sbUser.is_active || sbUser.account_status === 'pending') {
-      resetBtn();
-      showPendingMsg();
-      return;
-    }
-
-    // ── 4. جلب المؤسسة من Supabase ──
-    let sbTenant = null;
-    if (sbUser.tenant_id) {
-      const tRes = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${sbUser.tenant_id}&select=*`, { headers: sbH });
-      if (tRes.ok) {
-        const tArr = await tRes.json();
-        if (tArr.length) sbTenant = tArr[0];
-      }
-    }
-
-    // ── 5. تحقق من تفعيل المؤسسة ──
-    if (!sbUser.is_admin && sbTenant) {
-      if (!sbTenant.is_active || sbTenant.subscription_status === 'pending') {
-        resetBtn();
-        showPendingMsg();
-        return;
-      }
-    }
-
-    // ── 6. حفظ في localStorage بالبيانات الحديثة من Supabase ──
-    const localUsers = DB.get('users');
-    const uidx = localUsers.findIndex(u => u.email === sbUser.email);
-    if (uidx > -1) localUsers[uidx] = sbUser;
-    else localUsers.push(sbUser);
-    DB.set('users', localUsers);
-
-    if (sbTenant) {
-      const localTenants = DB.get('tenants');
-      const tidx = localTenants.findIndex(t => t.id === sbTenant.id);
-      if (tidx > -1) localTenants[tidx] = sbTenant;
-      else localTenants.push(sbTenant);
-      DB.set('tenants', localTenants);
-    }
-
-    // ── 7. تسجيل الجلسة ──
-    Auth.currentUser = sbUser;
-    sessionStorage.setItem('sbtp_user', JSON.stringify(sbUser));
-    if (sbUser.is_admin) sessionStorage.setItem('sbtp_admin_auth', '1');
-
-    resetBtn();
-
-    // ── 8. تحقق من انتهاء التجربة ──
-    if (sbTenant && TrialManager.isExpired(sbTenant)) {
-      Auth.currentUser = null;
-      sessionStorage.removeItem('sbtp_user');
-      setTimeout(() => TrialManager.showExpiredModal(sbTenant.name), 300);
-      return;
-    }
-
+  if (Auth.login(email, pass, currentTab)) {
     Toast.success('✅ تم تسجيل الدخول بنجاح');
-
-    if (typeof SmartAI !== 'undefined' && sbUser.tenant_id) {
-      SmartAI.resetForTenant(sbUser.tenant_id);
-    }
-    setTimeout(() => {
-      try {
-        const aiCfg = getAIConfig();
-        if (aiCfg && aiCfg.apiKey && aiCfg.status === 'active') {
-          DEFAULT_AI_CONFIG.apiKey   = aiCfg.apiKey;
-          DEFAULT_AI_CONFIG.provider = aiCfg.provider;
-          DEFAULT_AI_CONFIG.model    = aiCfg.model;
-          DEFAULT_AI_CONFIG.endpoint = aiCfg.endpoint;
-          DEFAULT_AI_CONFIG.apiStyle = aiCfg.apiStyle || 'openai';
-          DEFAULT_AI_CONFIG.status   = 'active';
-        }
-      } catch(e) {}
-    }, 100);
-
-    App.navigate(sbUser.is_admin ? 'admin' : 'dashboard');
-    setTimeout(() => TrialManager.checkAndEnforce(), 200);
-    setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
-
-  } catch(e) {
-    console.error('❌ خطأ في تسجيل الدخول:', e.message);
-    resetBtn();
-    showErrMsg('❌ حدث خطأ: ' + e.message);
+    App.navigate(Auth.getUser().is_admin ? 'admin' : 'dashboard');
+  } else {
+    if (err) err.style.display = 'flex';
+    setTimeout(() => { if(err) err.style.display = 'none'; }, 3000);
   }
 }
 
@@ -8212,10 +6965,8 @@ function addProject() {
   if (!name) { Toast.error('أدخل اسم المشروع'); return; }
   const tid = Auth.getUser().tenant_id;
   const projs = DB.get('projects');
-  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false };
-  projs.push(newProject);
+  projs.push({ id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false });
   DB.set('projects', projs);
-  sbSync('projects', newProject, 'POST').catch(()=>{});
   Toast.success('✅ تم إضافة المشروع');
   App.navigate('projects');
 }
@@ -8235,18 +6986,14 @@ function saveProject() {
   const id=Number(document.getElementById('epId').value);
   const projs=DB.get('projects'); const idx=projs.findIndex(p=>p.id===id); if(idx<0) return;
   projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
-  DB.set('projects',projs);
-  sbSync('projects', projs[idx], 'PATCH').catch(()=>{});
-  Toast.success('✅ تم تحديث المشروع');
+  DB.set('projects',projs); Toast.success('✅ تم تحديث المشروع');
   if (App.currentPage==='project_detail') App.navigate('project_detail',{id});
   else App.navigate('projects');
 }
 
 function deleteProject(id,name) {
   if(!confirm(`حذف المشروع "${name}"؟`)) return;
-  const updProjs = DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p);
-  DB.set('projects', updProjs);
-  sbSync('projects', {id, is_archived:true}, 'PATCH').catch(()=>{});
+  DB.set('projects', DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p));
   Toast.success('تم حذف المشروع'); App.navigate('projects');
 }
 
@@ -8254,11 +7001,8 @@ function addWorker() {
   const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
   if(!name||!role){Toast.error('أدخل الاسم والمهنة');return;}
   const tid=Auth.getUser().tenant_id; const ws=DB.get('workers');
-  const newWorker = { id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' };
-  ws.push(newWorker);
-  DB.set('workers',ws);
-  sbSync('workers', newWorker, 'POST').catch(()=>{});
-  Toast.success('✅ تم إضافة العامل'); App.navigate('workers');
+  ws.push({ id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' });
+  DB.set('workers',ws); Toast.success('✅ تم إضافة العامل'); App.navigate('workers');
 }
 
 function editWorker(id) {
@@ -8274,15 +7018,12 @@ function saveWorker() {
   const id=Number(document.getElementById('ewId').value); const ws=DB.get('workers');
   const idx=ws.findIndex(w=>w.id===id); if(idx<0) return;
   ws[idx]={...ws[idx], full_name:document.getElementById('ewName').value, role:document.getElementById('ewRole').value, phone:document.getElementById('ewPhone').value, daily_salary:Number(document.getElementById('ewSalary').value)||0, contract_type:document.getElementById('ewContract').value, project_id:Number(document.getElementById('ewProject').value)||null };
-  DB.set('workers',ws);
-  sbSync('workers', ws[idx], 'PATCH').catch(()=>{});
-  Toast.success('✅ تم تحديث العامل'); App.navigate('workers');
+  DB.set('workers',ws); Toast.success('✅ تم تحديث العامل'); App.navigate('workers');
 }
 
 function deleteWorker(id,name) {
   if(!confirm(`حذف العامل "${name}"؟`)) return;
   DB.set('workers', DB.get('workers').filter(w=>w.id!==id));
-  sbSyncDelete('workers', id).catch(()=>{});
   Toast.success('تم حذف العامل'); App.navigate('workers');
 }
 
@@ -8300,24 +7041,18 @@ function addEquip() {
   const name=document.getElementById('eName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المعدة');return;}
   const tid=Auth.getUser().tenant_id; const eq=DB.get('equipment');
-  const newEquip = { id:DB.nextId('equipment'), tenant_id:tid, name, model:document.getElementById('eModel')?.value||'', plate_number:document.getElementById('ePlate')?.value||'', icon:document.getElementById('eIcon')?.value||'🚜', status:'active', purchase_price:Number(document.getElementById('ePrice')?.value)||0, project_id:Number(document.getElementById('eProject')?.value)||null, notes:document.getElementById('eNotes')?.value||'' };
-  eq.push(newEquip);
-  DB.set('equipment',eq);
-  sbSync('equipment', newEquip, 'POST').catch(()=>{});
-  Toast.success('✅ تم إضافة المعدة'); App.navigate('equipment');
+  eq.push({ id:DB.nextId('equipment'), tenant_id:tid, name, model:document.getElementById('eModel')?.value||'', plate_number:document.getElementById('ePlate')?.value||'', icon:document.getElementById('eIcon')?.value||'🚜', status:'active', purchase_price:Number(document.getElementById('ePrice')?.value)||0, project_id:Number(document.getElementById('eProject')?.value)||null, notes:document.getElementById('eNotes')?.value||'' });
+  DB.set('equipment',eq); Toast.success('✅ تم إضافة المعدة'); App.navigate('equipment');
 }
 
 function updateEquipStatus(id,status) {
-  const updEquip = DB.get('equipment').map(e=>e.id===id?{...e,status}:e);
-  DB.set('equipment', updEquip);
-  sbSync('equipment', {id, status}, 'PATCH').catch(()=>{});
+  DB.set('equipment', DB.get('equipment').map(e=>e.id===id?{...e,status}:e));
   Toast.success('تم تحديث حالة المعدة');
 }
 
 function deleteEquip(id,name) {
   if(!confirm(`حذف "${name}"؟`)) return;
   DB.set('equipment', DB.get('equipment').filter(e=>e.id!==id));
-  sbSyncDelete('equipment', id).catch(()=>{});
   Toast.success('تم حذف المعدة'); App.navigate('equipment');
 }
 
@@ -8349,13 +7084,11 @@ function addTx() {
   const tid=Auth.getUser().tenant_id; const txs=DB.get('transactions');
   const pid=Number(document.getElementById('txProject')?.value)||null;
   const type=document.getElementById('txType')?.value||'expense';
-  const newTx = { id:DB.nextId('transactions'), tenant_id:tid, type, category:document.getElementById('txCat')?.value||'أخرى', amount, description:desc, project_id:pid, date:document.getElementById('txDate')?.value||todayStr(), payment_method:document.getElementById('txPayment')?.value||'cash', supplier:document.getElementById('txSupplier')?.value||'' };
-  txs.push(newTx);
+  txs.push({ id:DB.nextId('transactions'), tenant_id:tid, type, category:document.getElementById('txCat')?.value||'أخرى', amount, description:desc, project_id:pid, date:document.getElementById('txDate')?.value||todayStr(), payment_method:document.getElementById('txPayment')?.value||'cash', supplier:document.getElementById('txSupplier')?.value||'' });
   DB.set('transactions',txs);
-  sbSync('transactions', newTx, 'POST').catch(()=>{});
   if(type==='expense'&&pid){
     const projs=DB.get('projects'); const pidx=projs.findIndex(p=>p.id===pid);
-    if(pidx>=0){projs[pidx].total_spent=DB.get('transactions').filter(t=>t.project_id===pid&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);DB.set('projects',projs);sbSync('projects',projs[pidx],'PATCH').catch(()=>{});}
+    if(pidx>=0){projs[pidx].total_spent=DB.get('transactions').filter(t=>t.project_id===pid&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);DB.set('projects',projs);}
   }
   Toast.success('✅ تم إضافة المعاملة'); App.navigate('transactions');
 }
@@ -8363,7 +7096,6 @@ function addTx() {
 function deleteTx(id) {
   if(!confirm('حذف هذه المعاملة؟')) return;
   DB.set('transactions', DB.get('transactions').filter(t=>t.id!==id));
-  sbSyncDelete('transactions', id).catch(()=>{});
   Toast.success('تم حذف المعاملة'); App.navigate('transactions');
 }
 
@@ -8376,7 +7108,6 @@ function saveAtt(wid, date, status) {
     att.push({id: DB.nextId('attendance'), worker_id: wid, date: date, status: status, hours: 8, note: ''});
   }
   DB.set('attendance', att);
-  sbSync('attendance', att[att.findIndex(a=>a.worker_id===wid&&a.date===date)], idx>=0?'PATCH':'POST').catch(()=>{});
   // Live update the row
   var row = document.getElementById('attrow_' + wid);
   if (!row) return;
@@ -8397,7 +7128,7 @@ function saveAtt(wid, date, status) {
 function saveAttHours(wid, date, hours) {
   var att = DB.get('attendance');
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
-  if (idx >= 0) { att[idx].hours = Number(hours); DB.set('attendance', att); sbSync('attendance', att[idx], 'PATCH').catch(()=>{}); }
+  if (idx >= 0) { att[idx].hours = Number(hours); DB.set('attendance', att); }
 }
 
 function saveAttNote(wid, date, note) {
@@ -8405,14 +7136,10 @@ function saveAttNote(wid, date, note) {
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
   if (idx >= 0) {
     att[idx].note = note;
-    DB.set('attendance', att);
-    sbSync('attendance', att[idx], 'PATCH').catch(()=>{});
   } else {
-    const newAtt = {id: DB.nextId('attendance'), worker_id: wid, date: date, status: '', hours: 8, note: note};
-    att.push(newAtt);
-    DB.set('attendance', att);
-    sbSync('attendance', newAtt, 'POST').catch(()=>{});
+    att.push({id: DB.nextId('attendance'), worker_id: wid, date: date, status: '', hours: 8, note: note});
   }
+  DB.set('attendance', att);
 }
 
 function markAllStatus(status, date) {
@@ -8438,8 +7165,6 @@ function saveTenantSettings() {
   const tid=Auth.getUser().tenant_id;
   const tenants=DB.get('tenants').map(t=>t.id===tid?{...t,name:document.getElementById('setName')?.value||t.name,wilaya:document.getElementById('setWilaya')?.value||t.wilaya,phone:document.getElementById('setPhone')?.value||t.phone,rc_number:document.getElementById('setRc')?.value||t.rc_number}:t);
   DB.set('tenants',tenants);
-  const updTenant = tenants.find(t=>t.id===tid);
-  if (updTenant) sbSync('tenants', updTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل إعدادات الشركة','Modification paramètres société'), { icon: '⚙️' });
   Toast.success(L('✅ تم حفظ الإعدادات','✅ Paramètres sauvegardés'));
 }
@@ -8453,8 +7178,6 @@ function saveLegalSettings() {
   const address = document.getElementById('setAddress')?.value||'';
   const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, nif, nis, tva_rate: parseFloat(tva), address }:t);
   DB.set('tenants', tenants);
-  const updLegalTenant = tenants.find(t=>t.id===tid);
-  if (updLegalTenant) sbSync('tenants', updLegalTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل البيانات القانونية','Modification données légales'), { icon: '🔖' });
   Toast.success(L('✅ تم حفظ البيانات القانونية','✅ Données légales sauvegardées'));
 }
@@ -8478,76 +7201,8 @@ function changePassword() {
   if(user.password!==current){Toast.error(L('كلمة المرور الحالية غير صحيحة','Mot de passe actuel incorrect'));return;}
   const users=DB.get('users').map(u=>u.id===user.id?{...u,password:newPass}:u);
   DB.set('users',users); user.password=newPass; sessionStorage.setItem('sbtp_user',JSON.stringify(user));
-  sbSync('users', {id:user.id, password:newPass}, 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تغيير كلمة المرور','✅ Mot de passe modifié avec succès'));
   ['pwCurrent','pwNew','pwConfirm'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-}
-
-// ── تفعيل حساب جديد من الإشعار ──
-async function activateAccount(notifId, userId, tenantId) {
-  const btn = event?.target;
-  const origText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled=true; btn.textContent='⏳ جاري التفعيل...'; }
-
-  try {
-    const users   = DB.get('users');
-    const tenants = DB.get('tenants');
-    const user    = users.find(u => u.id === userId);
-    const tenant  = tenants.find(t => t.id === tenantId);
-    if (!user)   { Toast.error('❌ المستخدم غير موجود'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
-    if (!tenant) { Toast.error('❌ المؤسسة غير موجودة'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
-
-    // تفعيل محلي
-    user.is_active       = true;
-    user.account_status  = 'active';
-    tenant.is_active            = true;
-    tenant.subscription_status  = 'trial';
-    DB.set('users', users);
-    DB.set('tenants', tenants);
-
-    // تحديث الإشعار
-    const notifs = DB.get('admin_notifications') || [];
-    const notif  = notifs.find(n => n.id === notifId);
-    if (notif) { notif.status = 'activated'; notif.read = true; }
-    DB.set('admin_notifications', notifs);
-
-    // تفعيل في Supabase
-    let sbUrl2 = '', sbKey2 = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl2 = SUPABASE_HARDCODED.url;
-      sbKey2 = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const _cfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
-      sbUrl2 = _cfg.url || ''; sbKey2 = _cfg.anonKey || '';
-    }
-    if (sbUrl2 && sbKey2) {
-      const sbH = { 'Content-Type':'application/json','apikey':sbKey2,'Authorization':`Bearer ${sbKey2}` };
-      await Promise.all([
-        fetch(`${sbUrl2}/rest/v1/users?id=eq.${userId}`,          { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
-        fetch(`${sbUrl2}/rest/v1/tenants?id=eq.${tenantId}`,      { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
-        fetch(`${sbUrl2}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
-      ]).catch(e => { throw new Error('فشل التفعيل في Supabase: ' + e.message); });
-    } else {
-      throw new Error('Supabase غير مربوط — تحقق من إعدادات SUPABASE_HARDCODED');
-    }
-
-    // إرسال إيميل التفعيل للمستخدم
-    const ok = await EMAILJS.sendActivationEmail({
-      email:     user.email,
-      full_name: user.full_name,
-      password:  user.password,
-      company:   tenant.name || '',
-    });
-
-    Toast.success(ok
-      ? `✅ تم تفعيل حساب "${user.full_name}" وإرسال إيميل الدخول`
-      : `✅ تم التفعيل — تحقق من إعدادات EmailJS لإرسال الإيميل`
-    );
-    App.navigate('admin');
-  } catch(e) {
-    Toast.error('❌ فشل التفعيل: ' + e.message);
-    if (btn) { btn.disabled=false; btn.textContent=origText; }
-  }
 }
 
 function toggleTenant(id) {
@@ -8605,79 +7260,13 @@ function saveTenantPlan(tenantId) {
 
   const planId = Number(document.getElementById('editPlanSelect')?.value);
   const subStatus = document.getElementById('editSubStatus')?.value || 'active';
-  const updatedTenants = DB.get('tenants').map(t=>t.id===tenantId?{...t, plan_id:planId, subscription_status:subStatus}:t);
-  DB.set('tenants', updatedTenants);
-  sbSync('tenants', {id:tenantId, plan_id:planId, subscription_status:subStatus}, 'PATCH').catch(()=>{});
+  DB.set('tenants', DB.get('tenants').map(t=>t.id===tenantId?{...t, plan_id:planId, subscription_status:subStatus}:t));
   document.getElementById('editPlanOverlay')?.remove();
   Toast.success(L('✅ تم تحديث خطة المؤسسة','✅ Plan de l\'entreprise mis à jour'));
   App.navigate('admin');
 }
 
-// ══════════════════════════════════════════════════════
-// مزامنة لوحة الأدمن من Supabase (تُستدعى يدوياً)
-// ══════════════════════════════════════════════════════
-async function syncAdminFromSupabase() {
-  const btn = document.getElementById('syncAdminBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التحديث...'; }
-
-  try {
-    const sbCfg = (() => {
-      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
-        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
-      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
-    })();
-    if (!sbCfg.url || !sbCfg.anonKey) {
-      if (typeof Toast !== 'undefined') Toast.warn('⚠️ لم يتم ضبط Supabase بعد');
-      return;
-    }
-    const h = { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` };
-
-    // جلب المؤسسات
-    const tResp = await fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h });
-    if (tResp.ok) {
-      const sbTenants = await tResp.json();
-      if (sbTenants.length) {
-        const local = DB.get('tenants');
-        const merged = [...sbTenants];
-        local.forEach(lt => { if (!merged.find(st => st.id === lt.id)) merged.push(lt); });
-        DB.set('tenants', merged);
-      }
-    }
-    // جلب المستخدمين
-    const uResp = await fetch(`${sbCfg.url}/rest/v1/users?order=id.asc`, { headers: h });
-    if (uResp.ok) {
-      const sbUsers = await uResp.json();
-      if (sbUsers.length) {
-        const local = DB.get('users');
-        const merged = [...sbUsers];
-        local.forEach(lu => { if (!merged.find(su => su.id === lu.id)) merged.push(lu); });
-        DB.set('users', merged);
-      }
-    }
-    // جلب الإشعارات
-    const nResp = await fetch(`${sbCfg.url}/rest/v1/notifications?order=id.desc&limit=200`, { headers: h });
-    if (nResp.ok) {
-      const sbNotifs = await nResp.json();
-      if (sbNotifs.length) {
-        const local = DB.get('admin_notifications') || [];
-        const merged = [...sbNotifs];
-        local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
-        DB.set('admin_notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
-      }
-    }
-
-    if (typeof Toast !== 'undefined') Toast.success('✅ تم تحديث البيانات من Supabase');
-    // إعادة رسم الصفحة بعد التحديث
-    App.navigate('admin');
-  } catch(e) {
-    if (typeof Toast !== 'undefined') Toast.error('❌ فشل التحديث: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 تحديث من Supabase'; }
-  }
-}
-
-
-async function addTenant() {
+function addTenant() {
 
   const name=document.getElementById('atName')?.value?.trim();
   const email=document.getElementById('atEmail')?.value?.trim().toLowerCase();
@@ -8685,59 +7274,13 @@ async function addTenant() {
   const admin=document.getElementById('atAdmin')?.value?.trim();
   const planId=Number(document.getElementById('atPlan')?.value);
   if(!name||!email||!pass||!admin){Toast.error(L('أكمل جميع الحقول المطلوبة','Remplissez tous les champs requis'));return;}
-
-  // ── التحقق من البريد ──
   const users=DB.get('users');
   if(users.find(u=>u.email===email)){Toast.error(L('هذا البريد مستخدم بالفعل','Cet email est déjà utilisé'));return;}
-
-  // ── إنشاء كائنات المؤسسة والمستخدم ──
-  const sbCfg = (() => {
-      if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url)
-        return { url: SUPABASE_HARDCODED.url, anonKey: SUPABASE_HARDCODED.anonKey };
-      try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; }
-    })();
-  const hasSupabase = !!(sbCfg.url && sbCfg.anonKey);
-
-  let newTenantId, newUserId;
-
-  if (hasSupabase) {
-    try {
-      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}`,'Prefer':'return=representation' };
-      // التحقق من البريد في Supabase
-      const chk = await fetch(`${sbCfg.url}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, {headers:sbH});
-      if (chk.ok && (await chk.json()).length) { Toast.error(L('هذا البريد مستخدم في Supabase بالفعل','Email déjà utilisé dans Supabase')); return; }
-      // أعلى ID
-      const mt = await (await fetch(`${sbCfg.url}/rest/v1/tenants?select=id&order=id.desc&limit=1`,{headers:sbH})).json().catch(()=>[]);
-      const mu = await (await fetch(`${sbCfg.url}/rest/v1/users?select=id&order=id.desc&limit=1`,{headers:sbH})).json().catch(()=>[]);
-      const localTenants=DB.get('tenants'), localUsers=DB.get('users');
-      newTenantId = Math.max(mt[0]?.id||1, localTenants.length?Math.max(...localTenants.map(t=>t.id)):1) + 1;
-      newUserId   = Math.max(mu[0]?.id||2, localUsers.length?Math.max(...localUsers.map(u=>u.id)):2) + 1;
-    } catch(e) { console.warn('Supabase ID fetch failed:', e.message); }
-  }
-
   const tenants=DB.get('tenants');
-  if (!newTenantId) newTenantId = tenants.length?Math.max(...tenants.map(t=>t.id))+1:2;
-  if (!newUserId)   newUserId   = users.length?Math.max(...users.map(u=>u.id))+1:3;
-
-  const newTenant={id:newTenantId,name,plan_id:planId,wilaya:'',is_active:true,subscription_status:'active',created_at:new Date().toISOString().split('T')[0]};
-  const newUser={id:newUserId,tenant_id:newTenantId,full_name:admin,email,password:pass,role:'admin',is_admin:false,is_active:true};
-
-  // ── حفظ في localStorage ──
+  const newTenant={id:DB.nextId('tenants'),name,plan_id:planId,wilaya:'',is_active:true,subscription_status:'active'};
   tenants.push(newTenant); DB.set('tenants',tenants);
-  users.push(newUser);     DB.set('users',users);
-
-  // ── حفظ في Supabase ──
-  if (hasSupabase) {
-    try {
-      const sbH = { 'Content-Type':'application/json','apikey':sbCfg.anonKey,'Authorization':`Bearer ${sbCfg.anonKey}`,'Prefer':'return=representation' };
-      await fetch(`${sbCfg.url}/rest/v1/tenants`,{method:'POST',headers:sbH,body:JSON.stringify(newTenant)}).catch(()=>{});
-      await fetch(`${sbCfg.url}/rest/v1/users`,{method:'POST',headers:sbH,body:JSON.stringify(newUser)}).catch(()=>{});
-      console.log('✅ المؤسسة والمستخدم حُفظا في Supabase');
-    } catch(e) { console.warn('⚠️ فشل الحفظ في Supabase:', e.message); }
-  }
-
-  Toast.success(L(`✅ تم إنشاء مؤسسة "${name}" بنجاح`,`✅ Entreprise "${name}" créée avec succès`));
-  App.navigate('admin');
+  users.push({id:DB.nextId('users'),tenant_id:newTenant.id,full_name:admin,email,password:pass,role:'admin',is_admin:false,is_active:true});
+  DB.set('users',users); Toast.success(L(`✅ تم إنشاء مؤسسة "${name}" بنجاح`,`✅ Entreprise "${name}" créée avec succès`)); App.navigate('admin');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -8906,110 +7449,11 @@ function confirmResetPass() {
   App.navigate('admin');
 }
 
-// ── توليد وتحميل index.html محدَّث مع مفتاح AI مدمج ──
-function downloadUpdatedHTML(apiKey, provider, model) {
-  Toast.info('⏳ جاري توليد الملف...');
-  try {
-    // قراءة الكود الحالي للصفحة من الـ source
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', window.location.href, false); // sync
-    xhr.send();
-    let html = xhr.responseText;
-
-    // استبدال سطر المفتاح الفارغ بالمفتاح الحقيقي
-    const patterns = [
-      // Pattern 1: apiKey: '',
-      { find: /apiKey:\s*'',\s*\/\/[^\n]*المسؤول[^\n]*/g,
-        replace: `apiKey: '${apiKey}', // ← مُحدَّث تلقائياً من لوحة المسؤول` },
-      // Pattern 2: apiKey: '' (without comment)
-      { find: /const DEFAULT_AI_CONFIG = \{[\s\S]*?apiKey:\s*'[^']*'/,
-        replace: (m) => m.replace(/apiKey:\s*'[^']*'/, `apiKey: '${apiKey}'`) }
-    ];
-
-    let updated = false;
-    // Replace provider and model too
-    html = html.replace(
-      /(const DEFAULT_AI_CONFIG\s*=\s*\{[^}]*provider:\s*')[^']*(')/,
-      `$1${provider}$2`
-    );
-    html = html.replace(
-      /(const DEFAULT_AI_CONFIG\s*=\s*\{[^}]*model:\s*')[^']*(')/,
-      `$1${model}$2`
-    );
-    // Replace apiKey
-    const oldEmpty = `apiKey: '',           // ← المسؤول يضع مفتاحه هنا مرة واحدة`;
-    const oldWithKey = /apiKey: '[^']*',\s*\/\/ ← م[^'\n]*/;
-    if (html.includes(oldEmpty)) {
-      html = html.replace(oldEmpty, `apiKey: '${apiKey}', // ← مُحدَّث من لوحة المسؤول`);
-      updated = true;
-    } else if (oldWithKey.test(html)) {
-      html = html.replace(oldWithKey, `apiKey: '${apiKey}', // ← مُحدَّث من لوحة المسؤول`);
-      updated = true;
-    }
-
-    if (!updated) {
-      // fallback: replace any existing key in DEFAULT_AI_CONFIG block
-      html = html.replace(
-        /(const DEFAULT_AI_CONFIG[\s\S]{0,200}apiKey:\s*')[^']*(')/,
-        `$1${apiKey}$2`
-      );
-    }
-
-    // تحميل الملف
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'index.html';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    Toast.success('✅ تم تحميل index.html المحدَّث — ارفعه على GitHub!');
-  } catch(e) {
-    Toast.error('❌ خطأ: ' + e.message);
-    console.error(e);
-  }
-}
-
 function dismissNotif(notifId) {
   const notifs = DB.get('admin_notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
   DB.set('admin_notifications', notifs);
-  App.navigate('admin');
-}
-
-// ── موافقة المسؤول على طلب الترقية ──
-function approveUpgrade(notifId, tenantId) {
-  const plan = prompt('أدخل رقم الخطة الجديدة:\n1 = المبتدئ (2,900 دج)\n2 = الاحترافي (7,900 دج)\n3 = المؤسسي (19,900 دج)');
-  const planId = parseInt(plan);
-  if (!planId || planId < 1 || planId > 3) { Toast.error('خطة غير صالحة'); return; }
-  const tenants = DB.get('tenants');
-  const t = tenants.find(x => x.id === tenantId);
-  if (t) {
-    t.plan_id = planId;
-    t.is_active = true;
-    t.subscription_status = 'active';
-    // تمديد لمدة شهر من اليوم
-    const end = new Date();
-    end.setMonth(end.getMonth() + 1);
-    t.subscription_end = end.toISOString().split('T')[0];
-    DB.set('tenants', tenants);
-  }
-  // تحديث الإشعار
-  const notifs = DB.get('admin_notifications') || [];
-  const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni >= 0) { notifs[ni].status = 'approved'; notifs[ni].read = true; }
-  DB.set('admin_notifications', notifs);
-  Toast.success('✅ تم الموافقة على الترقية وتفعيل الحساب');
-  App.navigate('admin');
-}
-
-// ── رفض طلب الترقية ──
-function rejectUpgrade(notifId) {
-  const notifs = DB.get('admin_notifications') || [];
-  const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni >= 0) { notifs[ni].status = 'rejected'; notifs[ni].read = true; }
-  DB.set('admin_notifications', notifs);
-  Toast.warn('تم رفض طلب الترقية');
   App.navigate('admin');
 }
 
@@ -9453,7 +7897,7 @@ function kanbanDrop(e, colKey) {
   if (!_dragTaskId) return;
   const tasks = DB.get('kanban_tasks');
   const idx = tasks.findIndex(t => t.id === _dragTaskId);
-  if (idx >= 0) { tasks[idx].col = colKey; DB.set('kanban_tasks', tasks); sbSync('kanban_tasks', tasks[idx], 'PATCH').catch(()=>{}); }
+  if (idx >= 0) { tasks[idx].col = colKey; DB.set('kanban_tasks', tasks); }
   _dragTaskId = null;
   App.navigate('kanban');
   Toast.success('✅ تم نقل المهمة');
@@ -9463,17 +7907,14 @@ function addKanbanTask() {
   if (!title) { Toast.error('أدخل عنوان المهمة'); return; }
   const tid = Auth.getUser().tenant_id;
   const tasks = DB.get('kanban_tasks');
-  const newTask = {id:DB.nextId('kanban_tasks'),tenant_id:tid,title,project_id:Number(document.getElementById('taskProject')?.value)||null,priority:document.getElementById('taskPriority')?.value||'medium',assignee_id:Number(document.getElementById('taskAssignee')?.value)||null,due_date:document.getElementById('taskDue')?.value||null,col:document.getElementById('taskCol')?.value||'todo'};
-  tasks.push(newTask);
+  tasks.push({id:DB.nextId('kanban_tasks'),tenant_id:tid,title,project_id:Number(document.getElementById('taskProject')?.value)||null,priority:document.getElementById('taskPriority')?.value||'medium',assignee_id:Number(document.getElementById('taskAssignee')?.value)||null,due_date:document.getElementById('taskDue')?.value||null,col:document.getElementById('taskCol')?.value||'todo'});
   DB.set('kanban_tasks', tasks);
-  sbSync('kanban_tasks', newTask, 'POST').catch(()=>{});
   Toast.success('✅ تم إضافة المهمة');
   App.navigate('kanban');
 }
 function deleteKanbanTask(id) {
   if (!confirm('حذف هذه المهمة؟')) return;
   DB.set('kanban_tasks', DB.get('kanban_tasks').filter(t => t.id !== id));
-  sbSyncDelete('kanban_tasks', id).catch(()=>{});
   Toast.success('تم الحذف'); App.navigate('kanban');
 }
 function quickAddTask(col) {
@@ -9765,15 +8206,11 @@ function paySalary(wid, monthKey, amount) {
   if (records.find(r=>r.worker_id===wid&&r.month_key===monthKey)) { Toast.warn('تم صرف الراتب مسبقاً'); return; }
   const worker = DB.get('workers').find(w=>w.id===wid);
   const tid = Auth.getUser().tenant_id;
-  const newSalary = {id:DB.nextId('salary_records'),tenant_id:tid,worker_id:wid,month_key:monthKey,amount,paid_date:todayStr()};
-  records.push(newSalary);
+  records.push({id:DB.nextId('salary_records'),tenant_id:tid,worker_id:wid,month_key:monthKey,amount,paid_date:todayStr()});
   DB.set('salary_records', records);
-  sbSync('salary_records', newSalary, 'POST').catch(()=>{});
   const txs = DB.get('transactions');
-  const salTx = {id:DB.nextId('transactions'),tenant_id:tid,project_id:worker?.project_id||null,type:'expense',category:'رواتب العمال',amount,description:`راتب ${worker?.full_name||''} — ${monthKey}`,date:todayStr(),payment_method:'bank',worker_id:wid};
-  txs.push(salTx);
+  txs.push({id:DB.nextId('transactions'),tenant_id:tid,project_id:worker?.project_id||null,type:'expense',category:'رواتب العمال',amount,description:`راتب ${worker?.full_name||''} — ${monthKey}`,date:todayStr(),payment_method:'bank',worker_id:wid});
   DB.set('transactions', txs);
-  sbSync('transactions', salTx, 'POST').catch(()=>{});
   Toast.success(`✅ تم صرف راتب ${worker?.full_name||''}`);
   App.navigate('salary', {monthKey});
 }
@@ -9797,8 +8234,6 @@ function payAllSalaries(monthKey) {
     }
   });
   DB.set('salary_records', records);
-  // Sync all new salary records to Supabase
-  records.filter(r=>r.paid_date===todayStr()).forEach(r => sbSync('salary_records', r, 'POST').catch(()=>{}));
   Toast.success(`✅ تم صرف رواتب ${paid} عامل`);
   App.navigate('salary', {monthKey});
 }
@@ -10090,7 +8525,6 @@ function addInvoiceItem() {
     items
   });
   DB.set('invoices',invs);
-  sbSync('invoices', invs[invs.length-1], 'POST').catch(()=>{});
   Toast.success(L('✅ تم إضافة الفاتورة','✅ Facture créée avec succès'));
   App.navigate('invoices');
 }
@@ -10098,7 +8532,6 @@ function addInvoiceItem() {
 function deleteInvoiceItem(id) {
   if(!confirm(L('حذف هذه الفاتورة؟','Supprimer cette facture ?')))return;
   DB.set('invoices',DB.get('invoices').filter(i=>i.id!==id));
-  sbSyncDelete('invoices', id).catch(()=>{});
   Toast.success(L('تم الحذف','Supprimé'));
   App.navigate('invoices');
 }
@@ -10110,7 +8543,6 @@ function markInvoicePaid(id) {
   invs[idx].status='paid';
   invs[idx].paid_date=todayStr();
   DB.set('invoices',invs);
-  sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تأشير الفاتورة كمدفوعة','✅ Facture marquée comme payée'));
   App.navigate('invoices');
 }
@@ -10433,11 +8865,8 @@ function addMaterialItem(){
   const name=document.getElementById('matName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المادة');return;}
   const mats=DB.get('materials');
-  const newMatItem = {id:DB.nextId('materials'),tenant_id:Auth.getUser().tenant_id,name,unit:document.getElementById('matUnit')?.value||'وحدة',quantity:Number(document.getElementById('matQty')?.value)||0,min_quantity:Number(document.getElementById('matMin')?.value)||5,unit_price:Number(document.getElementById('matPrice')?.value)||0,project_id:Number(document.getElementById('matProj')?.value)||null,supplier:document.getElementById('matSupplier')?.value||''};
-  mats.push(newMatItem);
-  DB.set('materials',mats);
-  sbSync('materials', newMatItem, 'POST').catch(()=>{});
-  Toast.success('✅ تم إضافة المادة');App.navigate('inventory');
+  mats.push({id:DB.nextId('materials'),tenant_id:Auth.getUser().tenant_id,name,unit:document.getElementById('matUnit')?.value||'وحدة',quantity:Number(document.getElementById('matQty')?.value)||0,min_quantity:Number(document.getElementById('matMin')?.value)||5,unit_price:Number(document.getElementById('matPrice')?.value)||0,project_id:Number(document.getElementById('matProj')?.value)||null,supplier:document.getElementById('matSupplier')?.value||''});
+  DB.set('materials',mats);Toast.success('✅ تم إضافة المادة');App.navigate('inventory');
 }
 function openStockMove(matId,type){
   document.getElementById('stockMatId').value=matId;
@@ -10459,12 +8888,9 @@ function confirmStockMoveV5(){
   if(type==='out'&&mats[idx].quantity<qty){Toast.error('الكمية المطلوبة أكبر من المخزون');return;}
   mats[idx].quantity=type==='in'?mats[idx].quantity+qty:mats[idx].quantity-qty;
   DB.set('materials',mats);
-  sbSync('materials', mats[idx], 'PATCH').catch(()=>{});
   const mvs=DB.get('stock_movements');
-  const newMv = {id:DB.nextId('stock_movements'),tenant_id:Auth.getUser().tenant_id,material_id:matId,type,quantity:qty,date:todayStr(),note};
-  mvs.push(newMv);
+  mvs.push({id:DB.nextId('stock_movements'),tenant_id:Auth.getUser().tenant_id,material_id:matId,type,quantity:qty,date:todayStr(),note});
   DB.set('stock_movements',mvs);
-  sbSync('stock_movements', newMv, 'POST').catch(()=>{});
   if(mats[idx].quantity<=mats[idx].min_quantity){
     addNotification(Auth.getUser().tenant_id,'تنبيه المخزون',`مخزون "${mats[idx].name}" وصل للحد الأدنى (${mats[idx].quantity} ${mats[idx].unit})`,'warn');
     Toast.warn(`⚠️ تنبيه: مخزون "${mats[idx].name}" منخفض!`);
@@ -10512,13 +8938,12 @@ Pages.documents = function() {
         <div class="doc-grid">
           ${catDocs.map(doc=>{
             const proj = projects.find(p=>p.id===doc.project_id);
-            const hasFile = !!(doc.fileData || doc.url);
-            const sizeLabel = (typeof doc.size === 'number') ? formatFileSize(doc.size) : (doc.size || '');
+            const hasFile = !!doc.fileData;
             return `<div class="doc-card">
               <div style="font-size:2.5rem;margin-bottom:.5rem">${docIconMap[doc.type]||'📁'}</div>
               <div style="font-weight:700;font-size:.8rem;margin-bottom:.2rem;word-break:break-word">${escHtml(doc.name)}</div>
               ${proj?`<div style="font-size:.66rem;color:var(--blue);margin-bottom:.15rem">🏗️ ${escHtml(proj.name)}</div>`:''}
-              <div style="font-size:.68rem;color:var(--dim)">${escHtml(sizeLabel)} • ${fmtDate(doc.date)}</div>
+              <div style="font-size:.68rem;color:var(--dim)">${escHtml(doc.size||'')} • ${fmtDate(doc.date)}</div>
               <div style="display:flex;gap:.3rem;margin-top:.5rem;flex-wrap:wrap">
                 ${hasFile?`<button class="btn btn-blue btn-sm" style="flex:1;justify-content:center" onclick="downloadDocFile(${doc.id})">⬇️ ${L('تنزيل','Télécharger')}</button>`:''}
                 ${canDo('documents')?`<button class="btn btn-red btn-sm" style="flex:1;justify-content:center" onclick="deleteDocItem(${doc.id})">🗑️ ${L('حذف','Suppr.')}</button>`:''}
@@ -10597,53 +9022,36 @@ function handleDocFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
 
-  // نسمح بحجم أكبر لأننا سنرفع إلى Supabase Storage، لكن نخزن Base64 محلياً فقط للملفات الصغيرة
-  const MAX_BASE64_CACHE = 10 * 1024 * 1024; // 10MB
-  const MAX_FILE_UPLOAD  = 50 * 1024 * 1024; // 50MB حد منطقي لرفع المتصفح
-
-  if (file.size > MAX_FILE_UPLOAD) {
-    Toast.error(L('الملف كبير جداً (الحد 50 ميجا)','Fichier trop grand (max 50 MB)'));
+  const maxSize = 10 * 1024 * 1024; // 10MB limit for localStorage
+  if (file.size > maxSize) {
+    Toast.error(L('الملف كبير جداً (الحد 10 ميجا)','Fichier trop grand (max 10 MB)'));
     input.value = '';
     window._docFileTemp = null;
     return;
   }
-
-  // نخزن File دائماً للرفع إلى Supabase Storage
-  window._docFileTemp = { file, name: file.name, sizeBytes: file.size, mimeType: file.type || 'application/octet-stream', data: null };
-
-  const prev = document.getElementById('docFilePreview');
-  if (prev) {
-    prev.innerHTML = `<div style="font-size:1.5rem">✅</div>
-      <div style="font-size:.82rem;color:var(--green);margin-top:.3rem;word-break:break-all">${escHtml(file.name)}</div>
-      <div style="font-size:.7rem;color:var(--dim)">${formatFileSize(file.size)}</div>`;
-  }
-
-  // Auto-fill name if empty
-  const nameInp = document.getElementById('docNameInp');
-  if (nameInp && !nameInp.value.trim()) {
-    nameInp.value = file.name.replace(/\.[^.]+$/, '');
-  }
-
-  // Auto-detect type
-  const typeInp = document.getElementById('docTypeInp');
-  if (typeInp) {
-    if ((file.type || '').includes('pdf')) typeInp.value = 'pdf';
-    else if ((file.type || '').includes('image')) typeInp.value = 'image';
-    else if (file.name.match(/\.(doc|docx)$/i)) typeInp.value = 'contract';
-    else if (file.name.match(/\.(dwg|dxf)$/i)) typeInp.value = 'drawing';
-  }
-
-  // Base64 cache اختياري للملفات الصغيرة (يساعد في وضع Offline)
-  if (file.size <= MAX_BASE64_CACHE) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      if (!window._docFileTemp) return;
-      window._docFileTemp.data = e.target.result; // dataURL
-    };
-    reader.readAsDataURL(file);
-  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    window._docFileTemp = { data: e.target.result, name: file.name, size: formatFileSize(file.size), mimeType: file.type };
+    const prev = document.getElementById('docFilePreview');
+    if (prev) {
+      prev.innerHTML = `<div style="font-size:1.5rem">✅</div><div style="font-size:.82rem;color:var(--green);margin-top:.3rem;word-break:break-all">${escHtml(file.name)}</div><div style="font-size:.7rem;color:var(--dim)">${formatFileSize(file.size)}</div>`;
+    }
+    // Auto-fill name if empty
+    const nameInp = document.getElementById('docNameInp');
+    if (nameInp && !nameInp.value.trim()) {
+      nameInp.value = file.name.replace(/\.[^.]+$/, '');
+    }
+    // Auto-detect type
+    const typeInp = document.getElementById('docTypeInp');
+    if (typeInp) {
+      if (file.type.includes('pdf')) typeInp.value = 'pdf';
+      else if (file.type.includes('image')) typeInp.value = 'image';
+      else if (file.name.match(/\.(doc|docx)$/i)) typeInp.value = 'contract';
+      else if (file.name.match(/\.(dwg|dxf)$/i)) typeInp.value = 'drawing';
+    }
+  };
+  reader.readAsDataURL(file);
 }
-
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -10655,125 +9063,39 @@ function uploadDocItem(){
 
   const name = document.getElementById('docNameInp')?.value?.trim();
   if(!name){Toast.error(L('أدخل اسم الوثيقة','Entrez le nom du document'));return;}
-
-  const user = Auth.getUser();
-  const tid = user.tenant_id;
-
   const fileTemp = window._docFileTemp;
   const docs = DB.get('documents');
-
   const newDoc = {
     id: DB.nextId('documents'),
-    tenant_id: tid,
+    tenant_id: Auth.getUser().tenant_id,
     name,
     project_id: Number(document.getElementById('docProjInp')?.value)||null,
     category: document.getElementById('docCatInp')?.value || L('أخرى','Autres'),
     type: document.getElementById('docTypeInp')?.value||'pdf',
-    size: fileTemp?.sizeBytes ?? 0,              // نخزن Bytes ليتوافق مع Supabase schema
+    size: fileTemp ? fileTemp.size : '—',
     date: todayStr(),
-    uploader_id: user.id,
-
-    // حقول محلية (لن تُرفع إلى Supabase لأن cleanForSupabase سيحذفها)
+    uploader_id: Auth.getUser().id,
     fileName: fileTemp ? fileTemp.name : null,
     mimeType: fileTemp ? fileTemp.mimeType : null,
-    fileData: fileTemp ? (fileTemp.data || null) : null,
-    url: null,            // رابط التخزين في Supabase Storage (سيُملأ بعد الرفع)
-    storage_path: null    // مسار الملف داخل الـ bucket (محلي فقط)
+    fileData: fileTemp ? fileTemp.data : null
   };
-
-  // احفظ محلياً أولاً (يضمن عدم فقدان البيانات)
-  docs.push(newDoc);
-  DB.set('documents', docs);
-
-  // رفع إلى Supabase (Storage + Table) بشكل سلس
-  (async () => {
-    try {
-      // 1) إذا يوجد ملف + Supabase مربوط → ارفع للـ Storage
-      const cfg = getSupabaseConfig();
-      const canUpload = cfg && cfg.url && cfg.key && fileTemp && fileTemp.file;
-
-      if (canUpload) {
-        const sbUrl = cfg.url.replace(/\/$/,'');
-        const sbKey = cfg.key;
-
-        // اسم bucket — غيّره إذا أردت
-        const bucket = 'documents';
-
-        // مسار فريد
-        const safeName = (fileTemp.name || 'file').replace(/[^a-zA-Z0-9._-]+/g,'_');
-        const path = `tenant_${tid}/doc_${newDoc.id}_${Date.now()}_${safeName}`;
-
-        // ارفع (PUT) مع upsert
-        const upUrl = `${sbUrl}/storage/v1/object/${bucket}/${path}`;
-        const upRes = await fetch(upUrl, {
-          method: 'PUT',
-          headers: {
-            'apikey': sbKey,
-            'Authorization': `Bearer ${sbKey}`,
-            'Content-Type': fileTemp.mimeType || 'application/octet-stream',
-            'x-upsert': 'true'
-          },
-          body: fileTemp.file
-        });
-
-        if (!upRes.ok) {
-          const err = await upRes.text();
-          console.warn('⚠️ فشل رفع الملف إلى Storage:', err);
-          Toast.warn(L('⚠️ لم يتم رفع الملف للسحابة، تم حفظ البيانات محلياً','⚠️ Upload cloud échoué, sauvegarde locale فقط'));
-        } else {
-          // 2) أنشئ رابط عام (يتطلب bucket public)
-          const publicUrl = `${sbUrl}/storage/v1/object/public/${bucket}/${path}`;
-
-          // حدّث السجل محلياً
-          const updated = { ...newDoc, url: publicUrl, storage_path: path };
-
-          const curDocs = DB.get('documents');
-          const idx = curDocs.findIndex(d => d.id === newDoc.id);
-          if (idx >= 0) {
-            curDocs[idx] = updated;
-            DB.set('documents', curDocs);
-          }
-
-          // 3) ارفع metadata إلى Supabase Table (cleanForSupabase سيأخذ فقط: id,tenant_id,project_id,name,type,url,size,created_at)
-          await sbSync('documents', updated, 'POST');
-        }
-      } else {
-        // لا يوجد ملف/أو غير مربوط → ارفع metadata فقط
-        await sbSync('documents', newDoc, 'POST');
-      }
-    } catch (e) {
-      console.warn('⚠️ uploadDocItem sync error:', e.message);
-    }
-  })();
-
-  window._docFileTemp = null;
-  Toast.success(L('✅ تم حفظ الوثيقة','✅ Document sauvegardé'));
-  App.navigate('documents');
-}
-
-function downloadDocFile(id) {
-
-  const doc = DB.get('documents').find(d=>d.id===id);
-  if (!doc) { Toast.error(L('الوثيقة غير موجودة','Document introuvable')); return; }
-
-  // 1) لو لدينا Base64 محلياً (Offline cache)
-  if (doc.fileData) {
-    const a = document.createElement('a');
-    a.href = doc.fileData;
-    a.download = doc.fileName || (doc.name + '');
-    a.click();
-    return;
+  try {
+    docs.push(newDoc);
+    DB.set('documents', docs);
+    window._docFileTemp = null;
+    Toast.success(L('✅ تم رفع الوثيقة','✅ Document ajouté'));
+    App.navigate('documents');
+  } catch(e) {
+    // If localStorage quota exceeded, save without file data
+    newDoc.fileData = null;
+    newDoc.fileName = null;
+    docs[docs.length-1] = newDoc;
+    DB.set('documents', docs);
+    window._docFileTemp = null;
+    Toast.error(L('⚠️ الملف كبير جداً للتخزين، تم حفظ البيانات فقط','⚠️ Fichier trop volumineux, métadonnées sauvegardées'));
+    App.navigate('documents');
   }
-
-  // 2) لو لدينا رابط Storage
-  if (doc.url) {
-    window.open(doc.url, '_blank');
-    return;
-  }
-
-  Toast.error(L('لا يوجد ملف مرفق','Aucun fichier joint'));
 }
-
 
 function downloadDocFile(id) {
 
@@ -10791,7 +9113,6 @@ function deleteDocItem(id){
 
   if(!confirm(L('حذف هذه الوثيقة؟','Supprimer ce document ?')))return;
   DB.set('documents',DB.get('documents').filter(d=>d.id!==id));
-  sbSyncDelete('documents', id).catch(()=>{});
   Toast.success(L('تم الحذف','Supprimé'));
   App.navigate('documents');
 }
@@ -10928,15 +9249,12 @@ Pages.team = function() {
 function changeUserRoleV5(uid,role){
   const users = DB.get('users').map(u=>u.id===uid?{...u,role}:u);
   DB.set('users', users);
-  sbSync('users', {id:uid, role}, 'PATCH').catch(()=>{});
   Toast.success(`✅ ${L('تم تغيير الدور إلى','Rôle changé en')} "${ROLE_NAMES[role]}"`);
   App.navigate('team');
 }
 function toggleUserActive(uid){
   const users=DB.get('users').map(u=>u.id===uid?{...u,is_active:!u.is_active}:u);
   DB.set('users',users);
-  const updUser = users.find(u=>u.id===uid);
-  if (updUser) sbSync('users', {id:uid, is_active:updUser.is_active}, 'PATCH').catch(()=>{});
   Toast.success(L('تم تحديث حالة المستخدم','Statut utilisateur mis à jour'));
   App.navigate('team');
 }
@@ -10978,7 +9296,6 @@ function inviteUserV5(){
     avatar_color:colors[users.length%colors.length]
   });
   DB.set('users',users);
-  sbSync('users', users[users.length-1], 'POST').catch(()=>{});
   Toast.success(`✅ ${L('تم إضافة','Ajouté :')} ${name} ${L('بدور','avec rôle')} "${ROLE_NAMES[role]}"`);
   App.navigate('team');
 }
@@ -11468,153 +9785,6 @@ function importAllData() {
 }
 
 DB.init();
-
-/* ══════════════════════════════════════════════════════
-   sbSync — رفع فوري لـ Supabase عند كل تعديل
-══════════════════════════════════════════════════════ */
-
-// ─── تأكد دائماً من وجود بيانات المستخدمين الأساسية ───
-(function ensureUsers() {
-  const users = DB.get('users');
-  const hasAdmin = users.find(u => u.email === 'admin@smartbtp.dz');
-  const hasDemo  = users.find(u => u.email === 'demo@algerie-construction.dz');
-  if (!hasAdmin || !hasDemo) {
-    const current = users.filter(u =>
-      u.email !== 'admin@smartbtp.dz' &&
-      u.email !== 'demo@algerie-construction.dz'
-    );
-    DB.set('users', [
-      { id:1, tenant_id:null, full_name:'مسؤول النظام', email:'admin@smartbtp.dz',
-        password:'Admin@SmartStruct2025', role:'admin', is_admin:true, is_active:true },
-      { id:2, tenant_id:1, full_name:'محمد الأمين بوعلام', email:'demo@algerie-construction.dz',
-        password:'Demo@1234', role:'admin', is_admin:false, is_active:true },
-      ...current.map(u => ({...u, id: u.id > 2 ? u.id : u.id + 100}))
-    ]);
-    console.log('✅ تم تحديث بيانات المستخدمين الأساسية');
-  }
-  // تأكد من وجود المؤسسة
-  const tenants = DB.get('tenants');
-  if (!tenants.length) {
-    DB.set('tenants', [
-      { id:1, name:'مؤسسة الجزائر للبناء', plan_id:2, wilaya:'الجزائر',
-        subscription_status:'active', is_active:true }
-    ]);
-  }
-})();
-
-/* ── CSS: Heartbeat pulse animation ── */
-const _hbStyle = document.createElement('style');
-_hbStyle.textContent = `@keyframes hbPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }`;
-document.head.appendChild(_hbStyle);
-
-// ─── Auto-Sync Toggle ───
-function toggleAutoSync(enabled) {
-  localStorage.setItem('sbtp_auto_sync', enabled ? 'true' : 'false');
-  const slider = document.getElementById('autoSyncSlider');
-  const knob   = document.getElementById('autoSyncKnob');
-  const status = document.getElementById('hbStatus');
-  if (slider) slider.style.background = enabled ? '#34C38F' : 'rgba(255,255,255,0.1)';
-  if (knob)   knob.style.right = enabled ? '3px' : '22px';
-  if (enabled) {
-    // أعد تشغيل الـ heartbeat
-    if (typeof DBHybrid !== 'undefined') {
-      DBHybrid._heartbeatInterval = 30000;
-      DBHybrid._startHeartbeat();
-      DBHybrid._setupNetworkEvents();
-    }
-    if (status) status.textContent = '✅ المزامنة التلقائية مُفعَّلة — Heartbeat نشط';
-    typeof Toast !== 'undefined' && Toast.success('✅ المزامنة التلقائية مُفعَّلة');
-  } else {
-    if (typeof DBHybrid !== 'undefined') DBHybrid._stopHeartbeat();
-    if (status) status.textContent = '⏸️ المزامنة التلقائية موقوفة';
-    typeof Toast !== 'undefined' && Toast.warn('⏸️ المزامنة التلقائية موقوفة');
-  }
-}
-
-// ─── Force Reconnect ───
-async function forceReconnectSupabase() {
-  if (typeof DBHybrid === 'undefined' || typeof SUPABASE_CONFIG === 'undefined') {
-    typeof Toast !== 'undefined' && Toast.warn('⚠️ supabase-db.js غير محمّل');
-    return;
-  }
-  const dot    = document.getElementById('hbDot');
-  const status = document.getElementById('hbStatus');
-  if (dot)    dot.style.background = '#E8B84B';
-  if (status) status.textContent = '⏳ جاري إعادة الاتصال...';
-  const ok = await DBHybrid.initSupabase();
-  if (dot)    dot.style.background = ok ? '#34C38F' : '#F04E6A';
-  if (status) status.textContent = ok
-    ? '✅ متصل — Heartbeat نشط كل 30 ثانية'
-    : '❌ فشل الاتصال — تحقق من الإعدادات';
-  typeof Toast !== 'undefined' && (ok
-    ? Toast.success('✅ تم الاتصال بـ Supabase!')
-    : Toast.error('❌ فشل الاتصال بـ Supabase'));
-}
-
-// ─── Save EmailJS Settings ───
-function saveEmailJSSettings() {
-  const cfg = {
-    SERVICE_ID:     (document.getElementById('ejServiceId')?.value||'').trim(),
-    PUBLIC_KEY:     (document.getElementById('ejPublicKey')?.value||'').trim(),
-    TEMPLATE_ADMIN: (document.getElementById('ejTemplateAdmin')?.value||'').trim(),
-    TEMPLATE_USER:  (document.getElementById('ejTemplateUser')?.value||'').trim(),
-    ADMIN_EMAIL:    (document.getElementById('ejAdminEmail')?.value||'').trim(),
-  };
-  if (!cfg.SERVICE_ID || !cfg.PUBLIC_KEY) {
-    typeof Toast !== 'undefined' && Toast.error('❌ Service ID و Public Key مطلوبان');
-    return;
-  }
-  saveEmailJSConfig(cfg);
-  typeof Toast !== 'undefined' && Toast.success('✅ تم حفظ إعدادات EmailJS بنجاح!');
-  const badge = document.getElementById('emailjsStatusBadge');
-  if (badge) { badge.textContent = '🟢 مُفعَّل'; badge.style.color = '#34C38F'; }
-}
-
-// ─── Test EmailJS ───
-async function testEmailJS() {
-  const resultEl = document.getElementById('ejTestResult');
-  if (resultEl) {
-    resultEl.style.display = 'block';
-    resultEl.style.background = 'rgba(232,184,75,0.1)';
-    resultEl.style.color = 'var(--gold)';
-    resultEl.textContent = '⏳ جاري إرسال بريد اختبار...';
-  }
-  try {
-    const cfg = getEmailJSConfig();
-    await emailjs.send(cfg.SERVICE_ID, cfg.TEMPLATE_ADMIN, {
-      to_email:    cfg.ADMIN_EMAIL,
-      to_name:     'المسؤول',
-      user_name:   'اختبار النظام',
-      user_email:  cfg.ADMIN_EMAIL,
-      company_name:'SmartStruct Test',
-      plan_name:   'اختبار',
-      wilaya:      'الجزائر',
-      date:        new Date().toLocaleDateString('ar-DZ'),
-      message:     '✅ هذا بريد اختبار من لوحة تحكم SmartStruct — الإعدادات تعمل بشكل صحيح.',
-    });
-    if (resultEl) {
-      resultEl.style.background = 'rgba(52,195,143,0.1)';
-      resultEl.style.color = '#34C38F';
-      resultEl.textContent = `✅ تم الإرسال بنجاح إلى ${cfg.ADMIN_EMAIL}`;
-    }
-    typeof Toast !== 'undefined' && Toast.success('✅ البريد الاختباري أُرسل بنجاح!');
-  } catch(e) {
-    if (resultEl) {
-      resultEl.style.background = 'rgba(240,78,106,0.1)';
-      resultEl.style.color = '#F79FA9';
-      resultEl.textContent = `❌ فشل الإرسال: ${e.text || e.message || JSON.stringify(e)}`;
-    }
-    typeof Toast !== 'undefined' && Toast.error('❌ فشل إرسال البريد الاختباري');
-  }
-}
-
-/* ── Supabase fallback functions (if supabase-db.js not loaded) ── */
-if (typeof saveSupabaseConfig === 'undefined') {
-  function saveSupabaseConfig() { Toast.warn('⚠️ ملف supabase-db.js غير محمّل'); }
-  function syncToSupabase() { Toast.warn('⚠️ ملف supabase-db.js غير محمّل'); }
-  function clearSupabaseConfig() { localStorage.removeItem('sbtp_supabase_config'); Toast.success('تم مسح الإعدادات'); }
-  function downloadSchema() { Toast.info('ℹ️ قم بتحميل ملف supabase-schema.sql من مجلد المشروع'); }
-}
 
 /* ══════════════════════════════════════════════
    v11 NEW PAGES
@@ -12109,10 +10279,8 @@ function saveObligation() {
   if (!title || !amount || !due) { Toast.error(L('يرجى ملء جميع الحقول','Veuillez remplir tous les champs')); return; }
   const daysLeft = Math.ceil((new Date(due) - new Date()) / 86400000);
   const obs = DB.get('obligations_'+tid) || [];
-  const newOb = { id: Date.now(), title, amount, daysLeft, due, tenant_id: tid };
-  obs.push(newOb);
+  obs.push({ id: Date.now(), title, amount, daysLeft, due });
   DB.set('obligations_'+tid, obs);
-  sbSync('obligations', newOb, 'POST').catch(()=>{});
   addAuditLog(L('إضافة التزام: ','Ajout obligation: ') + title, { after: fmt(amount) + ' ' + L('دج','DA'), icon: '⏰' });
   Toast.success(L('✅ تم إضافة الالتزام','✅ Obligation ajoutée'));
   App.navigate('obligations');
@@ -12122,7 +10290,6 @@ function deleteObligation(id) {
   const tid = Auth.getUser().tenant_id;
   const obs = (DB.get('obligations_'+tid) || []).filter(o=>o.id != id);
   DB.set('obligations_'+tid, obs);
-  sbSyncDelete('obligations', id).catch(()=>{});
   Toast.success(L('تم الحذف','Supprimé'));
   App.navigate('obligations');
 }
@@ -12146,25 +10313,7 @@ const SmartAI = {
   isOpen: false,
   isLoading: false,
   history: [],
-  _currentTenantId: null,  // لتتبع الحساب الحالي ومنع خلط المحادثات
   apiKey: null,
-
-  // إعادة تهيئة المحادثة عند تغيير الحساب
-  resetForTenant(tenantId) {
-    if (this._currentTenantId !== tenantId) {
-      this.history = [];
-      this._currentTenantId = tenantId;
-      // أغلق نافذة الدردشة عند التبديل
-      if (this.isOpen) {
-        const panel = document.getElementById('aiChatPanel');
-        if (panel) panel.style.display = 'none';
-        this.isOpen = false;
-      }
-      // امسح الرسائل المعروضة
-      const msgEl = document.getElementById('aiMessages');
-      if (msgEl) msgEl.innerHTML = '';
-    }
-  },
 
   /* ── الحصول على بيانات السياق من قاعدة البيانات ── */
   getContext() {
@@ -12258,75 +10407,32 @@ ${JSON.stringify(ctx, null, 2)}
   async callAPI(userMessage) {
     this.history.push({ role: 'user', content: userMessage });
 
-    // ── قراءة إعداد AI المركزي (يُضبط من المسؤول مرة واحدة للجميع) ──
-    const cfg = getAIConfig();
-    const noKey = !cfg.apiKey || cfg.status === 'inactive' || cfg.status === 'error';
+    const body = {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: this.buildSystemPrompt(),
+      messages: this.history.slice(-10) // أحدث 10 رسائل للسياق
+    };
 
-    if (noKey) {
-      // المسؤول لم يُعدّ AI بعد — رسالة للمسؤول فقط
-      const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
-      const isAdmin = user && user.is_admin;
-      const guideMsg = isAdmin
-        ? `⚙️ **فعّل SmartAI من لوحة التحكم**\n\nاذهب لـ تبويب **🤖 إعدادات SmartAI** في صفحة الإدارة، أدخل مفتاح API (Groq مجاني ⚡)، واضغط اختبار واحفظ.\n\nبعدها يشتغل الروبوت لجميع المؤسسات تلقائياً.`
-        : `🤖 **SmartAI** في انتظار التفعيل من المسؤول.\n\nسيكون متاحاً قريباً — تواصل مع إدارة المنصة.`;
-      this.history.push({ role: 'assistant', content: guideMsg });
-      return guideMsg;
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'خطأ في الاتصال بالخادم');
     }
 
-    // ── إرسال الطلب للمزود المضبوط ──
-    const provider = (typeof AI_PROVIDERS !== 'undefined'
-      ? AI_PROVIDERS.find(p => p.id === cfg.provider)
-      : null) || { endpoint: 'https://api.groq.com/openai/v1/chat/completions', apiStyle: 'openai' };
-
-    const model = cfg.model || 'llama-3.3-70b-versatile';
-    const systemPrompt = this.buildSystemPrompt();
-
-    let resp;
-    if (provider.apiStyle === 'anthropic') {
-      resp = await fetch(provider.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': cfg.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({ model, max_tokens: 1024, system: systemPrompt, messages: this.history.slice(-10) })
-      });
-      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
-      const data = await resp.json();
-      const msg = data.content?.[0]?.text || 'لم أتمكن من الإجابة.';
-      this.history.push({ role: 'assistant', content: msg });
-      return msg;
-    } else if (provider.apiStyle === 'gemini') {
-      const url = `${provider.endpoint}?key=${cfg.apiKey}`;
-      const histWithSys = [
-        { role: 'user', content: 'أنت SmartAI. ' + systemPrompt + '\n\nقل "مفهوم".' },
-        { role: 'assistant', content: 'مفهوم.' },
-        ...this.history.slice(-8)
-      ];
-      const contents = histWithSys.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-      resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024 } }) });
-      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
-      const data = await resp.json();
-      const msg = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم أتمكن من الإجابة.';
-      this.history.push({ role: 'assistant', content: msg });
-      return msg;
-    } else {
-      // OpenAI style (Groq, OpenRouter, Together, etc.)
-      const msgs = [{ role: 'system', content: systemPrompt }, ...this.history.slice(-10)];
-      const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` };
-      if (cfg.provider === 'openrouter_free') { headers['HTTP-Referer'] = 'https://smartstruct.dz'; headers['X-Title'] = 'SmartStruct'; }
-      resp = await fetch(provider.endpoint || 'https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST', headers,
-        body: JSON.stringify({ model, messages: msgs, max_tokens: 1024, temperature: 0.7 })
-      });
-      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
-      const data = await resp.json();
-      const msg = data.choices?.[0]?.message?.content || 'لم أتمكن من الإجابة.';
-      this.history.push({ role: 'assistant', content: msg });
-      return msg;
-    }
+    const data = await resp.json();
+    const assistantMsg = data.content?.[0]?.text || 'لم أتمكن من الإجابة.';
+    this.history.push({ role: 'assistant', content: assistantMsg });
+    return assistantMsg;
   },
 
   /* ── عرض رسالة في الدردشة ── */
@@ -12423,29 +10529,14 @@ ${JSON.stringify(ctx, null, 2)}
       panel.style.display = 'flex';
       panel.style.flexDirection = 'column';
       document.getElementById('aiFabBadge').style.display = 'none';
-      // رسالة ترحيب شخصية باسم المؤسسة عند أول فتح لكل جلسة
+      // رسالة ترحيب تلقائية عند أول فتح
       if (this.history.length === 0) {
         setTimeout(() => {
           const user = Auth.getUser();
-          const tenant = Auth.getTenant();
           const ctx = this.getContext();
-          // تحقق هل الـ AI مُفعّل
-          const aiCfg = getAIConfig();
-          const aiReady = aiCfg.apiKey && aiCfg.status === 'active';
-          let greeting;
-          if (user && tenant) {
-            const firstName = escHtml(user.full_name.split(' ')[0]);
-            const companyName = escHtml(tenant.name);
-            if (aiReady) {
-              greeting = `مرحباً ${firstName} 👋 — **${companyName}**\n\nأنا **SmartAI**، مساعدك الذكي المخصص لمؤسستك.\n\n📊 **ملخص سريع:**\n• **${ctx.المشاريع_النشطة || 0}** مشروع نشط\n• **${ctx.العمال?.العدد_الإجمالي || 0}** عامل\n• الربح الصافي: **${ctx.الماليات?.الربح_الصافي || '0 دج'}**\n\nكيف يمكنني مساعدتك اليوم؟`;
-            } else {
-              greeting = `مرحباً ${firstName} 👋 — **${companyName}**\n\nأنا **SmartAI** 🤖، مساعدك الذكي.\n\n⚙️ **لتفعيلي مجاناً:**\n1. اذهب لـ **الإعدادات** ← تبويب **🤖 SmartAI**\n2. اختر **Groq** (مجاني ⚡) وأدخل مفتاح API\n3. سجّل مجاناً في [console.groq.com](https://console.groq.com/keys)\n\nبعد التفعيل سأحلّل مشاريعك بشكل كامل! 🚀`;
-            }
-          } else if (user) {
-            greeting = `مرحباً ${escHtml(user.full_name.split(' ')[0])} 👋\n\nأنا **SmartAI**. فعّلني من **الإعدادات ← SmartAI** للحصول على تحليل مخصص.`;
-          } else {
-            greeting = 'مرحباً! أنا SmartAI. سجّل الدخول للحصول على تحليل مخصص لمشاريعك.';
-          }
+          const greeting = user
+            ? `مرحباً ${escHtml(user.full_name.split(' ')[0])} 👋\n\nأنا **SmartAI**، مساعدك الذكي لإدارة المشاريع.\n\n📊 لديك حالياً:\n• **${ctx.المشاريع_النشطة || 0}** مشروع نشط\n• **${ctx.العمال?.العدد_الإجمالي || 0}** عامل\n• الربح الصافي: **${ctx.الماليات?.الربح_الصافي || '0 دج'}**\n\nكيف يمكنني مساعدتك اليوم؟`
+            : 'مرحباً! أنا SmartAI. سجّل الدخول للحصول على تحليل مخصص لمشاريعك.';
           this.appendMessage('bot', greeting);
         }, 300);
       }
@@ -12715,23 +10806,6 @@ Pages.ai_analysis = function() {
 
 /* ── تهيئة SmartAI بعد تحميل الصفحة ── */
 document.addEventListener('DOMContentLoaded', function() {
-
-  // ─── تشغيل Auto-Sync تلقائياً عند التحميل ───
-  const autoSyncEnabled = localStorage.getItem('sbtp_auto_sync') !== 'false';
-  if (autoSyncEnabled && typeof DBHybrid !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined') {
-    if (SUPABASE_CONFIG.isConfigured) {
-      // الـ heartbeat يبدأ تلقائياً في initSupabase()
-      // لكن نضمن هنا أنه مُشغَّل دائماً
-      setTimeout(() => {
-        if (DBHybrid._useSupabase && !DBHybrid._heartbeatTimer) {
-          DBHybrid._startHeartbeat();
-          DBHybrid._setupNetworkEvents();
-          console.log('🔄 Auto-sync: Heartbeat تم تشغيله تلقائياً');
-        }
-      }, 2000);
-    }
-  }
-
   // إظهار زر AI فقط عند تسجيل الدخول
   function updateAIFabVisibility() {
     const fab = document.getElementById('aiFab');

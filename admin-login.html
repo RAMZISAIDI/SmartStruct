@@ -293,57 +293,6 @@
     color: var(--green); margin-bottom: .4rem;
   }
   .success-sub { font-size: .82rem; color: var(--dim); }
-
-  /* Connection status */
-  .connection-status {
-    padding: 0.7rem 1rem;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    margin-bottom: 1.2rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    animation: statusIn 0.4s ease;
-  }
-  @keyframes statusIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: none; }
-  }
-  .connection-status.online {
-    background: rgba(52,195,143,.12);
-    border: 1px solid rgba(52,195,143,.3);
-    color: #34C38F;
-  }
-  .connection-status.offline {
-    background: rgba(232,184,75,.12);
-    border: 1px solid rgba(232,184,75,.3);
-    color: var(--gold);
-  }
-  .connection-status.error {
-    background: rgba(240,78,106,.12);
-    border: 1px solid rgba(240,78,106,.3);
-    color: #f79fa9;
-  }
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    animation: pulse 2s ease-in-out infinite;
-  }
-  .connection-status.online .status-dot {
-    background: #34C38F;
-  }
-  .connection-status.offline .status-dot {
-    background: var(--gold);
-  }
-  .connection-status.error .status-dot {
-    background: #f79fa9;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
 </style>
 </head>
 <body>
@@ -383,12 +332,6 @@
       <div class="sec-dot"></div>
       منطقة مقيدة — Admin Only
     </div>
-  </div>
-
-  <!-- Connection Status Indicator -->
-  <div class="connection-status online" id="connectionStatus">
-    <div class="status-dot"></div>
-    <span id="statusText">جاري الاتصال بـ Supabase...</span>
   </div>
 
   <!-- Form Content -->
@@ -461,178 +404,87 @@
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════════════════
-//  SmartStruct — Secure Admin Login with Supabase
-//  تسجيل دخول المسؤول مع اتصال تلقائي بـ Supabase
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ── إعدادات Supabase التلقائية ──
-const SUPABASE_CONFIG = {
-  // 🔴 ضع بيانات Supabase هنا (من Dashboard → Settings → API)
-  url:      'https://udinbxcnehcevajhrral.supabase.co',
-  anonKey:  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkaW5ieGNuZWhjZXZhamhycmFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxMDI2MjAsImV4cCI6MTg5MTg2ODYyMH0.X_mVOdA4c-NQXT5VXBGWNx-rXhQvnIJvUCXJVPAQjxQ',
-};
+// ═══════════════════════════════════════════════════════
+//  SmartStruct — Secure Admin Login
+//  هذا الملف يجب أن يبقى سرياً ولا يُشارك رابطه
+// ═══════════════════════════════════════════════════════
 
 // ── إعدادات الأمان ──
 const ADMIN_CONFIG = {
-  maxAttempts: 5,              // عدد محاولات الدخول المسموح بها
-  lockoutMinutes: 5,           // مدة قفل الوصول بالدقائق
-  securityKey: 'SSTR-ADMIN-2025', // مفتاح الأمان الثاني (غيّره!)
+  maxAttempts: 5,
+  lockoutMinutes: 5,
+  // مفتاح الأمان الثاني — يجب تغييره من قِبل المسؤول
+  securityKey: 'SSTR-ADMIN-2025',
 };
 
-// ── عميل Supabase المخصص (بدون مكتبات خارجية) ──
-const SupabaseClient = {
-  /**
-   * البحث في قاعدة البيانات
-   * @param {string} table - اسم الجدول
-   * @param {object} filters - شروط البحث
-   * @returns {array} النتائج
-   */
-  async select(table, filters = {}) {
-    try {
-      let url = `${SUPABASE_CONFIG.url}/rest/v1/${table}`;
-      let params = [];
-      
-      // بناء الشروط
-      Object.entries(filters).forEach(([key, val]) => {
-        if (val !== null && val !== undefined) {
-          params.push(`${key}=eq.${encodeURIComponent(val)}`);
-        }
-      });
-      
-      if (params.length) url += '?' + params.join('&');
-
-      const resp = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'apikey': SUPABASE_CONFIG.anonKey,
-          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!resp.ok) {
-        console.warn(`⚠️ Supabase error: ${resp.status}`);
-        return [];
+// ── DB: قراءة بيانات المستخدمين من localStorage ──
+function getUsers() {
+  try {
+    // المفتاح الصحيح يطابق ما يستخدمه التطبيق الرئيسي: sbtp5_users
+    const raw = localStorage.getItem('sbtp5_users');
+    if (raw) return JSON.parse(raw);
+    // Fallback: بيانات افتراضية إذا لم تُهيَّأ قاعدة البيانات بعد
+    return [
+      {
+        id: 1, tenant_id: null, full_name: 'مسؤول النظام',
+        email: 'admin@smartbtp.dz', password: 'Admin@SmartBTP2025',
+        role: 'admin', is_admin: true, is_active: true
       }
+    ];
+  } catch(e) { return []; }
+}
 
-      return await resp.json();
-    } catch(e) {
-      console.warn('⚠️ Supabase connection error:', e.message);
-      return [];
+// ── تهيئة بيانات افتراضية إذا كانت قاعدة البيانات فارغة ──
+function ensureDefaultAdmin() {
+  try {
+    const initialized = localStorage.getItem('sbtp5_initialized');
+    if (!initialized) {
+      // لم يُشغَّل التطبيق الرئيسي بعد — نحفظ المسؤول الافتراضي
+      const existing = localStorage.getItem('sbtp5_users');
+      if (!existing) {
+        localStorage.setItem('sbtp5_users', JSON.stringify([
+          { id:1, tenant_id:null, full_name:'مسؤول النظام', email:'admin@smartbtp.dz',
+            password:'Admin@SmartBTP2025', role:'admin', is_admin:true, is_active:true }
+        ]));
+      }
     }
-  },
+  } catch(e) {}
+}
 
-  /**
-   * اختبر الاتصال بـ Supabase
-   * @returns {boolean} هل الاتصال نجح
-   */
-  async testConnection() {
-    try {
-      const resp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/users?limit=1`, {
-        method: 'GET',
-        headers: {
-          'apikey': SUPABASE_CONFIG.anonKey,
-          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
-        },
-        signal: AbortSignal.timeout(5000) // timeout 5 ثوانٍ
-      });
-      return resp.ok;
-    } catch(e) {
-      console.warn('❌ Connection test failed:', e.message);
-      return false;
-    }
-  }
-};
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  متغيرات الحالة
-// ══════════════════════════════════════════════════════════════════════════════
-
-let isSupabaseConnected = false;  // هل نحن متصلون بـ Supabase
+// ── حالة المحاولات ──
 let attempts = parseInt(sessionStorage.getItem('adm_att') || '0');
 let lockUntil = parseInt(sessionStorage.getItem('adm_lock') || '0');
 
-// ── تهيئة الصفحة ──
-window.addEventListener('DOMContentLoaded', async () => {
-  console.log('🚀 SmartStruct Admin Login - Initializing...');
-  
-  // فحص القفل أولاً
+// ── تحقق من الحالة عند التحميل ──
+window.addEventListener('DOMContentLoaded', () => {
+  ensureDefaultAdmin();
   checkLockout();
-  
-  // اختبر الاتصال بـ Supabase
-  await initConnection();
-  
-  // ركّز على حقل البريد
   document.getElementById('adminEmail').focus();
-  
-  // اسمح بتسجيل الدخول بـ Enter
-  ['adminEmail', 'adminPass', 'adminSecKey'].forEach(id => {
+  // Enter key
+  ['adminEmail','adminPass','adminSecKey'].forEach(id => {
     document.getElementById(id).addEventListener('keydown', e => {
       if (e.key === 'Enter') doAdminLogin();
     });
   });
-  
-  // رسم نقاط المحاولات
   renderDots();
 });
 
-/**
- * اختبر الاتصال بـ Supabase وحدّث المؤشر
- */
-async function initConnection() {
-  const statusEl = document.getElementById('connectionStatus');
-  const statusText = document.getElementById('statusText');
-
-  try {
-    console.log('🔌 Testing Supabase connection...');
-    isSupabaseConnected = await SupabaseClient.testConnection();
-    
-    if (isSupabaseConnected) {
-      statusEl.className = 'connection-status online';
-      statusText.textContent = '✅ متصل بـ Supabase — جاهز للدخول';
-      console.log('✅ Supabase: Connected successfully');
-    } else {
-      statusEl.className = 'connection-status offline';
-      statusText.textContent = '⚠️ بدون اتصال — استخدام localStorage';
-      console.warn('⚠️ Supabase: Offline mode - using localStorage');
-    }
-  } catch(e) {
-    statusEl.className = 'connection-status error';
-    statusText.textContent = '❌ خطأ في الاتصال — جرب مرة أخرى';
-    console.error('❌ Connection error:', e.message);
-  }
-
-  // إزالة الرسالة "جاري الاتصال" بعد 2 ثانية
-  setTimeout(() => {
-    if (statusText.textContent === 'جاري الاتصال بـ Supabase...') {
-      statusEl.style.opacity = '0.7';
-    }
-  }, 2000);
-}
-
-/**
- * رسم نقاط محاولات الدخول
- */
+// ── رسم نقاط المحاولات ──
 function renderDots() {
   for (let i = 1; i <= 5; i++) {
-    const dot = document.getElementById('dot' + i);
-    if (dot) {
-      dot.className = 'attempt-dot' + (i <= attempts ? ' used' : '');
-    }
+    const d = document.getElementById('dot' + i);
+    if (d) d.className = 'attempt-dot' + (i <= attempts ? ' used' : '');
   }
 }
 
-/**
- * فحص ما إذا كان الوصول مقفولاً
- */
+// ── فحص القفل ──
 function checkLockout() {
   if (lockUntil && Date.now() < lockUntil) {
     showLockout();
     startCountdown();
     return true;
   } else if (lockUntil && Date.now() >= lockUntil) {
-    // أعد تهيئة المحاولات بعد انتهاء وقت القفل
+    // Reset after lockout
     attempts = 0;
     sessionStorage.removeItem('adm_att');
     sessionStorage.removeItem('adm_lock');
@@ -641,11 +493,7 @@ function checkLockout() {
   return false;
 }
 
-/**
- * دالة تسجيل الدخول الرئيسية
- * ✅ تتحقق من Supabase أولاً
- * ✅ تعود إلى localStorage كنسخة احتياطية
- */
+// ── تسجيل الدخول الآمن ──
 async function doAdminLogin() {
   if (checkLockout()) return;
 
@@ -653,94 +501,56 @@ async function doAdminLogin() {
   const pass    = document.getElementById('adminPass')?.value;
   const secKey  = document.getElementById('adminSecKey')?.value?.trim();
 
-  // ── التحقق من الحقول ──
+  // Validate fields
   if (!email || !pass || !secKey) {
-    showError('⚠️ يرجى ملء جميع الحقول (البريد، كلمة المرور، مفتاح الأمان)');
+    showError('يرجى ملء جميع الحقول بما فيها مفتاح الأمان');
     return;
   }
 
-  // ── تأثير التحميل ──
+  // Show loading
   setLoading(true);
-  await delay(800); // ضد الهجمات الآلية
+  await delay(800); // Anti-brute-force delay
 
-  // 1️⃣ تحقق من مفتاح الأمان
+  // 1️⃣ Check security key
   if (secKey !== ADMIN_CONFIG.securityKey) {
     setLoading(false);
-    recordFail('🔐 مفتاح الأمان غير صحيح — يرجى المحاولة مرة أخرى');
+    recordFail('مفتاح الأمان غير صحيح');
     return;
   }
 
-  // 2️⃣ ابحث عن المسؤول في Supabase
-  let user = null;
-  
-  if (isSupabaseConnected) {
-    try {
-      console.log('🔎 Searching in Supabase...');
-      const users = await SupabaseClient.select('users', {
-        email: email,
-        is_admin: true,
-        is_active: true
-      });
-      
-      user = users.find(u => u.password === pass);
-      
-      if (user) {
-        console.log('✅ User found in Supabase:', user.email);
-      }
-    } catch(e) {
-      console.warn('⚠️ Supabase query failed:', e.message);
-    }
-  }
+  // 2️⃣ Check credentials
+  const users = getUsers();
+  const user = users.find(u =>
+    u.email === email &&
+    u.password === pass &&
+    u.is_admin === true &&
+    u.is_active === true
+  );
 
-  // 3️⃣ البحث في localStorage كنسخة احتياطية
-  if (!user) {
-    try {
-      console.log('💾 Searching in localStorage...');
-      const localUsers = JSON.parse(localStorage.getItem('sbtp5_users') || '[]');
-      user = localUsers.find(u =>
-        u.email === email &&
-        u.password === pass &&
-        u.is_admin === true &&
-        u.is_active === true
-      );
-      
-      if (user) {
-        console.log('✅ User found in localStorage:', user.email);
-      }
-    } catch(e) {
-      console.warn('⚠️ localStorage read failed:', e.message);
-    }
-  }
-
-  // ❌ لم نعثر على المستخدم
   if (!user) {
     setLoading(false);
-    recordFail('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
+    recordFail('البريد الإلكتروني أو كلمة المرور غير صحيحة');
     return;
   }
 
-  // ✅ نجاح التحقق!
-  console.log('🎉 Authentication successful!');
+  // ✅ SUCCESS
   attempts = 0;
   sessionStorage.removeItem('adm_att');
   sessionStorage.removeItem('adm_lock');
 
-  // ── احفظ جلسة المستخدم ──
+  // Save session (same key as main app)
   sessionStorage.setItem('sbtp_user', JSON.stringify(user));
-  sessionStorage.setItem('sbtp_admin_auth', '1');
+  sessionStorage.setItem('sbtp_admin_auth', '1'); // extra admin flag
 
   setLoading(false);
   showSuccess();
 
-  // ── انتقل إلى لوحة التحكم ──
+  // Redirect after brief delay
   setTimeout(() => {
     window.location.href = 'index.html#admin';
   }, 1800);
 }
 
-/**
- * سجّل محاولة فاشلة
- */
 function recordFail(msg) {
   attempts++;
   sessionStorage.setItem('adm_att', attempts);
@@ -749,116 +559,69 @@ function recordFail(msg) {
   const remaining = ADMIN_CONFIG.maxAttempts - attempts;
 
   if (attempts >= ADMIN_CONFIG.maxAttempts) {
-    // ✋ قفل الوصول
     lockUntil = Date.now() + ADMIN_CONFIG.lockoutMinutes * 60 * 1000;
     sessionStorage.setItem('adm_lock', lockUntil);
-    console.warn('🔒 Account locked for', ADMIN_CONFIG.lockoutMinutes, 'minutes');
     showLockout();
     startCountdown();
   } else {
-    // اعرض الخطأ مع عدد المحاولات المتبقية
-    showError(msg + (remaining > 0 ? ` (${remaining}/${ADMIN_CONFIG.maxAttempts})` : ''));
+    showError(msg + (remaining > 0 ? ` — تبقى ${remaining} محاولة` : ''));
   }
 }
 
-/**
- * اعرض/أخفِ حالة التحميل
- */
 function setLoading(on) {
   const btn = document.getElementById('loginBtn');
   const txt = document.getElementById('btnText');
   const sp  = document.getElementById('spinner');
-  
   btn.disabled = on;
   txt.style.display = on ? 'none' : 'inline';
   sp.style.display  = on ? 'block' : 'none';
 }
 
-/**
- * اعرض رسالة خطأ
- */
 function showError(msg) {
   const el = document.getElementById('alertError');
   document.getElementById('alertMsg').textContent = msg;
   el.style.display = 'flex';
-  
-  // أخفِ الرسالة بعد 4 ثوانٍ
-  setTimeout(() => {
-    el.style.display = 'none';
-  }, 4000);
+  setTimeout(() => el.style.display = 'none', 4000);
 }
 
-/**
- * اعرض حالة القفل
- */
 function showLockout() {
   document.getElementById('formContent').style.display = 'none';
   document.getElementById('lockoutState').style.display = 'block';
   document.getElementById('successState').style.display = 'none';
 }
 
-/**
- * اعرض حالة النجاح
- */
 function showSuccess() {
   document.getElementById('formContent').style.display = 'none';
   document.getElementById('lockoutState').style.display = 'none';
   document.getElementById('successState').style.display = 'block';
 }
 
-/**
- * ابدأ العد العكسي لفترة القفل
- */
 function startCountdown() {
   const el = document.getElementById('lockTimer');
-  
   function tick() {
     const rem = Math.max(0, lockUntil - Date.now());
-    
     if (rem <= 0) {
-      // أعد تحميل الصفحة عند انتهاء المدة
       window.location.reload();
       return;
     }
-    
-    // حسّب الدقائق والثواني
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
-    
-    el.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    
-    // تحديث كل ثانية
+    el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     setTimeout(tick, 1000);
   }
-  
   tick();
 }
 
-/**
- * أظهر/أخفِ كلمة المرور
- */
 function togglePass() {
   const p = document.getElementById('adminPass');
   p.type = p.type === 'password' ? 'text' : 'password';
 }
 
-/**
- * العودة إلى الصفحة الرئيسية
- */
 function goBack() {
   window.location.href = 'index.html';
 }
 
-/**
- * تأخير بسيط (Utility)
- */
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// ── تسجيل الأخطاء ──
-console.log('%c🔐 SmartStruct Admin Panel', 'font-size:16px;font-weight:bold;color:#E8B84B');
-console.log('%cSecure authentication with Supabase integration', 'color:#34C38F');
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
 </body>
 </html>
