@@ -568,20 +568,30 @@ _sanitizeRecord(key, rec) {
     }
     // دعم صيغة dd/mm/yyyy أو dd-mm-yyyy → yyyy-mm-dd
     if (typeof v === 'string') {
-      const s = v.trim();
-      const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-      if (m1) {
-        const dd = m1[1].padStart(2,'0');
-        const mm = m1[2].padStart(2,'0');
-        const yyyy = m1[3];
-        rec[f] = `${yyyy}-${mm}-${dd}`;
-        continue;
-      }
-      // إذا ليست YYYY-MM-DD حاول تحويلها إلى null بدل ما تكسر الإدخال
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-        rec[f] = null;
-      } else {
-        rec[f] = s;
+// تحويل الأرقام العربية إلى إنجليزية
+const arabicMap = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+const s0 = v.trim();
+const s = s0.replace(/[٠-٩]/g, d => arabicMap[d] || d);
+
+// دعم صيغة dd/mm/yyyy أو dd-mm-yyyy → yyyy-mm-dd
+const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+if (m1) {
+  const dd = m1[1].padStart(2,'0');
+  const mm = m1[2].padStart(2,'0');
+  const yyyy = m1[3];
+  rec[f] = `${yyyy}-${mm}-${dd}`;
+  continue;
+}
+
+// صيغة صحيحة YYYY-MM-DD
+if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+  rec[f] = s;
+  continue;
+}
+
+// أي شيء غير ذلك → null (لتفادي 22007)
+rec[f] = null;
+
       }
     }
   }
