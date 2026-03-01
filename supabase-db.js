@@ -480,6 +480,17 @@ const DBHybrid = {
     this._syncing = true;
     const queue = [...this._syncQueue];
     this._syncQueue = [];
+// رتّب المزامنة حسب الاعتمادية لتفادي أخطاء Foreign Key:
+// workers/projects يجب أن تُرفع قبل transactions
+const ORDER = [
+  'plans','tenants','users',
+  'workers','projects',
+  'materials','equipment','attendance',
+  'transactions',
+  'invoices','salary_records','kanban_tasks','documents',
+  'obligations','notes','notifications','global_settings','admin_notifications'
+];
+queue.sort((a,b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
     try {
       for (const { key, val } of queue) {
         await this._syncTableToSupabase(key, val);
@@ -528,6 +539,80 @@ const DBHybrid = {
     return clean;
   },
 
+
+// ─── تنظيف القيم قبل الإرسال لـ Supabase (يمنع أخطاء type/date مثل 22007) ───
+_sanitizeRecord(key, rec) {
+  if (!rec || typeof rec !== 'object') return rec;
+
+  // حقول تاريخ حسب الجدول
+  const DATE_FIELDS = {
+    projects: ['start_date','end_date'],
+    workers: ['hire_date'],
+    transactions: ['date'],
+    attendance: ['date'],
+    invoices: ['date','due_date','paid_date'],
+    salary_records: ['paid_date'],
+    documents: ['date'],
+    obligations: ['due'],
+    stock_movements: ['date'],
+    kanban_tasks: ['due_date']
+  };
+
+  const fields = DATE_FIELDS[key] || [];
+  for (const f of fields) {
+    if (!(f in rec)) continue;
+    const v = rec[f];
+    if (v === '' || v === ' ' || v === undefined) {
+      rec[f] = null;
+      continue;
+    }
+    // دعم صيغة dd/mm/yyyy أو dd-mm-yyyy → yyyy-mm-dd
+    if (typeof v === 'string') {
+      const s = v.trim();
+      const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (m1) {
+        const dd = m1[1].padStart(2,'0');
+        const mm = m1[2].padStart(2,'0');
+        const yyyy = m1[3];
+        rec[f] = `${yyyy}-${mm}-${dd}`;
+        continue;
+      }
+      // إذا ليست YYYY-MM-DD حاول تحويلها إلى null بدل ما تكسر الإدخال
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        rec[f] = null;
+      } else {
+        rec[f] = s;
+      }
+    }
+  }
+
+  // تنظيف أرقام شائعة (لو جاءت كسلاسل فارغة)
+  const NUM_FIELDS = {
+    projects: ['budget','total_spent','progress'],
+    workers: ['daily_salary','monthly_base'],
+    transactions: ['amount'],
+    materials: ['quantity','min_quantity','unit_price'],
+    invoices: ['amount','amount_ht','tva_rate','tva_amount'],
+    salary_records: ['amount'],
+    stock_movements: ['quantity']
+  };
+  const nf = NUM_FIELDS[key] || [];
+  for (const f of nf) {
+    if (!(f in rec)) continue;
+    const v = rec[f];
+    if (v === '' || v === ' ' || v === undefined) {
+      rec[f] = 0;
+      continue;
+    }
+    if (typeof v === 'string') {
+      const s = v.trim().replace(',', '.');
+      const n = Number(s);
+      rec[f] = Number.isFinite(n) ? n : 0;
+    }
+  }
+  return rec;
+},
+
 async _syncTableToSupabase(key, records) {
     if (!Array.isArray(records) || !records.length) return;
     try {
@@ -547,7 +632,7 @@ async _syncTableToSupabase(key, records) {
   // ─── مزامنة أولية: localStorage → Supabase + Supabase → localStorage ────────────
   async _initialSync() {
     // دفع البيانات المحلية لـ Supabase
-    const tables = ['plans', 'tenants', 'users'];
+    const tables = ['plans', 'tenants', 'users', 'workers', 'projects', 'materials', 'equipment', 'attendance', 'transactions'];
     for (const t of tables) {
       const local = this.get(t);
       if (local.length) await this._syncTableToSupabase(t, local).catch(() => {});
