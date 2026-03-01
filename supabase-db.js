@@ -91,7 +91,31 @@ const SupabaseClient = {
     return JSON.parse(text);
   },
 
-  // ─── SELECT ───
+  
+  // ─── Storage (رفع ملفات) ───
+  async storageUpload(bucket, path, file, opts = { upsert: true }) {
+    const url = `${this._url}/storage/v1/object/${bucket}/${path}`;
+    const headers = {
+      'apikey': this._key,
+      'Authorization': `Bearer ${this._key}`,
+      'Content-Type': (file && file.type) ? file.type : 'application/octet-stream'
+    };
+    if (opts && opts.upsert) headers['x-upsert'] = 'true';
+    const resp = await fetch(url, { method: 'PUT', headers, body: file });
+    const text = await resp.text();
+    if (!resp.ok) {
+      throw new Error(text || `HTTP ${resp.status}`);
+    }
+    return text ? JSON.parse(text) : {};
+  },
+
+  storagePublicUrl(bucket, path) {
+    // يتطلب أن يكون الـ bucket Public
+    const base = this._url.replace(/\/$/, '');
+    return `${base}/storage/v1/object/public/${bucket}/${path}`;
+  },
+
+// ─── SELECT ───
   async select(table, filters = {}, opts = {}) {
     let params = 'order=id.asc';
     for (const [k, v] of Object.entries(filters)) {
@@ -456,6 +480,17 @@ const DBHybrid = {
     this._syncing = true;
     const queue = [...this._syncQueue];
     this._syncQueue = [];
+// رتّب المزامنة حسب الاعتمادية لتفادي أخطاء Foreign Key:
+// workers/projects يجب أن تُرفع قبل transactions
+const ORDER = [
+  'plans','tenants','users',
+  'workers','projects',
+  'materials','equipment','attendance',
+  'transactions',
+  'invoices','salary_records','kanban_tasks','documents',
+  'obligations','notes','notifications','global_settings','admin_notifications'
+];
+queue.sort((a,b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
     try {
       for (const { key, val } of queue) {
         await this._syncTableToSupabase(key, val);
@@ -468,13 +503,136 @@ const DBHybrid = {
     this._syncing = false;
   },
 
-  async _syncTableToSupabase(key, records) {
+  
+  // ─── تنظيف السجلات قبل رفعها لـ Supabase (منع أخطاء الأعمدة غير الموجودة) ───
+  _cleanForSupabase(table, record) {
+    if (!record || typeof record !== 'object') return null;
+
+    const COLS = {
+      plans: ['id','slug','name','price_monthly','price','max_projects','max_workers','max_equipment','max_emails','created_at'],
+      tenants: ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','created_at','updated_at'],
+      users: ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','last_login','created_at','updated_at'],
+      projects: ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','start_date','end_date','is_archived','created_at','updated_at'],
+      workers: ['id','tenant_id','project_id','full_name','role','phone','daily_salary','contract_type','hire_date','color','is_active','created_at'],
+      equipment: ['id','tenant_id','project_id','name','model','plate_number','icon','status','purchase_price','notes','created_at'],
+      transactions: ['id','tenant_id','project_id','type','category','amount','description','date','payment_method','created_at'],
+      attendance: ['id','tenant_id','worker_id','project_id','date','status','hours','note','created_at'],
+      materials: ['id','tenant_id','project_id','name','unit','quantity','min_quantity','unit_price','supplier','created_at'],
+      invoices: ['id','tenant_id','project_id','number','client_name','date','due_date','status','total','tva','notes','items','created_at'],
+      salary_records: ['id','tenant_id','worker_id','project_id','month','days_worked','base_salary','bonuses','deductions','net_salary','paid','created_at'],
+      kanban_tasks: ['id','tenant_id','project_id','title','description','status','priority','assigned_to','due_date','created_at'],
+      documents: ['id','tenant_id','project_id','name','type','url','size','created_at'],
+      obligations: ['id','tenant_id','project_id','title','type','amount','due_date','status','notes','created_at'],
+      notes: ['id','tenant_id','project_id','user_id','text','date','created_at'],
+      notifications: ['id','tenant_id','user_id','type','title','body','date','read','status','created_at'],
+      global_settings: ['key','value','updated_at']
+    };
+
+    const allowed = COLS[table];
+    if (!allowed) return record; // لو جدول غير معروف، أرسله كما هو (لكن قد يفشل)
+
+    const clean = {};
+    for (const k of allowed) {
+      if (record[k] === undefined) continue;
+      clean[k] = record[k];
+    }
+    return clean;
+  },
+
+
+// ─── تنظيف القيم قبل الإرسال لـ Supabase (يمنع أخطاء type/date مثل 22007) ───
+_sanitizeRecord(key, rec) {
+  if (!rec || typeof rec !== 'object') return rec;
+
+  // حقول تاريخ حسب الجدول
+  const DATE_FIELDS = {
+    projects: ['start_date','end_date'],
+    workers: ['hire_date'],
+    transactions: ['date'],
+    attendance: ['date'],
+    invoices: ['date','due_date','paid_date'],
+    salary_records: ['paid_date'],
+    documents: ['date'],
+    obligations: ['due'],
+    stock_movements: ['date'],
+    kanban_tasks: ['due_date']
+  };
+
+  const fields = DATE_FIELDS[key] || [];
+  for (const f of fields) {
+    if (!(f in rec)) continue;
+    const v = rec[f];
+    if (v === '' || v === ' ' || v === undefined) {
+      rec[f] = null;
+      continue;
+    }
+    // دعم صيغة dd/mm/yyyy أو dd-mm-yyyy → yyyy-mm-dd
+    if (typeof v === 'string') {
+// تحويل الأرقام العربية إلى إنجليزية
+const arabicMap = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+const s0 = v.trim();
+const s = s0.replace(/[٠-٩]/g, d => arabicMap[d] || d);
+
+// دعم صيغة dd/mm/yyyy أو dd-mm-yyyy → yyyy-mm-dd
+const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+if (m1) {
+  const dd = m1[1].padStart(2,'0');
+  const mm = m1[2].padStart(2,'0');
+  const yyyy = m1[3];
+  rec[f] = `${yyyy}-${mm}-${dd}`;
+  continue;
+}
+
+// صيغة صحيحة YYYY-MM-DD
+if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+  rec[f] = s;
+  continue;
+}
+
+// أي شيء غير ذلك → null (لتفادي 22007)
+rec[f] = null;
+
+      }
+    }
+  }
+
+  // تنظيف أرقام شائعة (لو جاءت كسلاسل فارغة)
+  const NUM_FIELDS = {
+    projects: ['budget','total_spent','progress'],
+    workers: ['daily_salary','monthly_base'],
+    transactions: ['amount'],
+    materials: ['quantity','min_quantity','unit_price'],
+    invoices: ['amount','amount_ht','tva_rate','tva_amount'],
+    salary_records: ['amount'],
+    stock_movements: ['quantity']
+  };
+  const nf = NUM_FIELDS[key] || [];
+  for (const f of nf) {
+    if (!(f in rec)) continue;
+    const v = rec[f];
+    if (v === '' || v === ' ' || v === undefined) {
+      rec[f] = 0;
+      continue;
+    }
+    if (typeof v === 'string') {
+      const s = v.trim().replace(',', '.');
+      const n = Number(s);
+      rec[f] = Number.isFinite(n) ? n : 0;
+    }
+  }
+  return rec;
+},
+
+async _syncTableToSupabase(key, records) {
     if (!Array.isArray(records) || !records.length) return;
     try {
       // استخدام upsert بدلاً من delete+insert للحفاظ على البيانات
       for (const record of records) {
-        if (!record.id) continue;
-        await this._sb.upsert(key, record).catch(() => {});
+        // بعض الجداول تستخدم primary key مختلف (مثل global_settings.key)
+        const pk = (key === 'global_settings') ? record.key : record.id;
+        if (!pk) continue;
+        const clean = this._cleanForSupabase(key, record) || record;
+        await this._sb.upsert(key, clean).catch(() => {});
       }
     } catch (e) {
       console.warn(`⚠️ فشل مزامنة ${key}:`, e.message);
@@ -484,7 +642,7 @@ const DBHybrid = {
   // ─── مزامنة أولية: localStorage → Supabase + Supabase → localStorage ────────────
   async _initialSync() {
     // دفع البيانات المحلية لـ Supabase
-    const tables = ['plans', 'tenants', 'users'];
+    const tables = ['plans', 'tenants', 'users', 'workers', 'projects', 'materials', 'equipment', 'attendance', 'transactions'];
     for (const t of tables) {
       const local = this.get(t);
       if (local.length) await this._syncTableToSupabase(t, local).catch(() => {});
