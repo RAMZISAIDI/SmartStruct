@@ -9,16 +9,20 @@
 <script>
 /* ══ إعدادات Supabase المباشرة — عدّل URL وKey هنا ══ */
 var SUPABASE_HARDCODED = (function() {
-  // ── جرّب أولاً من supabase-db.js ──
+  // ── 1: من supabase-db.js مباشرةً عبر SUPABASE_CONFIG (الأولوية العليا) ──
+  if (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey) {
+    return { url: SUPABASE_CONFIG.url, anonKey: SUPABASE_CONFIG.anonKey };
+  }
+  // ── 2: من DBHybrid بعد تحميله ──
   if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
     return { url: DBHybrid._supabaseUrl, anonKey: DBHybrid._supabaseKey };
   }
-  // ── جرّب من localStorage ──
+  // ── 3: من localStorage (محفوظ من إعدادات الأدمن) ──
   try {
     var cfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
     if (cfg.url && cfg.anonKey) return { url: cfg.url, anonKey: cfg.anonKey };
   } catch(e) {}
-  // ── إذا لم يُوجد شيء، أعِد null حتى لا يُرسَل شيء ──
+  // ── 4: لا يوجد إعداد ──
   return { url: '', anonKey: '' };
 })();
 
@@ -3206,6 +3210,23 @@ const App = {
       this.animateBars();
       if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
+      // ── تعبئة حقول Supabase عند فتح صفحة الأدمن ──
+      if (this.currentPage === 'admin') {
+        setTimeout(() => {
+          const urlInput = document.getElementById('sbUrlInput');
+          const keyInput = document.getElementById('sbKeyInput');
+          const savedCfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch(e) { return {}; } })();
+          if (urlInput) urlInput.value = savedCfg.url || SUPABASE_HARDCODED.url || '';
+          if (keyInput) keyInput.value = savedCfg.anonKey || SUPABASE_HARDCODED.anonKey || '';
+          // تحديث badge الاتصال
+          const badge = document.getElementById('sbStatusBadge');
+          if (badge && (SUPABASE_HARDCODED.url || savedCfg.url)) {
+            badge.style.background = DBHybrid._useSupabase ? 'rgba(52,195,143,0.1)' : 'rgba(232,184,75,0.1)';
+            badge.style.color = DBHybrid._useSupabase ? '#34C38F' : '#E8B84B';
+            badge.textContent = DBHybrid._useSupabase ? '🟢 متصل بـ Supabase' : '🟡 غير متصل';
+          }
+        }, 100);
+      }
       applyDOMTranslation(); // ← RADICAL FIX: translate every text node after render
 
       // ── إظهار/إخفاء زر الدردشة SmartAI حسب الصفحة الحالية ──
@@ -6686,6 +6707,19 @@ function switchAdminTab(tab) {
       panel.style.display = 'none';
     }
   });
+  // ── تعبئة حقول URL وKey عند فتح تبويب Supabase ──
+  if (tab === 'supabase') {
+    setTimeout(() => {
+      const urlInput = document.getElementById('sbUrlInput');
+      const keyInput = document.getElementById('sbKeyInput');
+      if (urlInput && !urlInput.value) {
+        urlInput.value = SUPABASE_HARDCODED.url || SUPABASE_CONFIG.url || '';
+      }
+      if (keyInput && !keyInput.value) {
+        keyInput.value = SUPABASE_HARDCODED.anonKey || SUPABASE_CONFIG.anonKey || '';
+      }
+    }, 50);
+  }
   // ── مزامنة تلقائية عند فتح تبويب Supabase ──
   if (tab === 'supabase' && typeof DBHybrid !== 'undefined' && !DBHybrid._useSupabase && SUPABASE_CONFIG.isConfigured) {
     setTimeout(async () => {
@@ -7097,13 +7131,13 @@ Pages.admin = function() {
                 <label class="form-label" style="font-size:.75rem">🔗 Project URL</label>
                 <input class="form-input" id="sbUrlInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
                   placeholder="https://xxxxxxxxxxxx.supabase.co"
-                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').url||''}catch(e){return ''}})()\}">
+                  value="">
               </div>
               <div class="form-group" style="margin:0">
                 <label class="form-label" style="font-size:.75rem">🔑 Anon Public Key</label>
                 <input class="form-input" id="sbKeyInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return ''}})()\}">
+                  placeholder="sb_publishable_... أو eyJhbGciOiJIUzI1NiIs..."
+                  value="">
               </div>
             </div>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap">
