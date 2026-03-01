@@ -2210,7 +2210,7 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
   get(key) {
     try { return JSON.parse(localStorage.getItem('sbtp5_' + key)) || []; } catch { return []; }
   },
-  set(key, val) { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); scheduleAutoSync(key); },
+  set(key, val) { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); },
   nextId(key) {
     const items = this.get(key);
     return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
@@ -7744,46 +7744,6 @@ async function sbSyncUpsert(table, record) {
 /* ══════════════════════════════════════════════════════
    syncAllDataToSupabase — رفع كل بيانات المؤسسة دفعة واحدة
 ══════════════════════════════════════════════════════ */
-
-/* ══ Auto-Sync: رفع تلقائي بعد كل تعديل ══ */
-let _autoSyncTimer = null;
-const AUTO_SYNC_TABLES = ['projects','workers','equipment','transactions','attendance','salary_records','materials','stock_movements','invoices','documents','kanban_tasks','notes','obligations','users','tenants'];
-
-function scheduleAutoSync(key) {
-  // فقط إذا كان Auto-Sync مفعلاً وSupabase مربوطاً
-  if (localStorage.getItem('sbtp_auto_sync') === 'false') return;
-  const sbCfg = getSupabaseConfig();
-  if (!sbCfg || !sbCfg.url || !sbCfg.key) return;
-
-  // تأكد أن المفتاح يخص جدول معروف
-  const tableKey = AUTO_SYNC_TABLES.find(t => key === t || key === ('sbtp5_' + t));
-  if (!tableKey && !AUTO_SYNC_TABLES.some(t => key.startsWith(t))) {
-    // مفتاح عام مثل إعدادات — نزامن الكل
-  }
-
-  // Debounce: انتظر 1.5 ثانية بعد آخر تعديل ثم ارفع
-  clearTimeout(_autoSyncTimer);
-  _autoSyncTimer = setTimeout(async () => {
-    const btn = document.getElementById('syncAllBtn');
-    const origText = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = '🔄 مزامنة...'; btn.style.background = 'rgba(74,144,226,.25)'; }
-
-    try {
-      await syncAllDataToSupabase(true); // silent=true
-    } catch(e) { console.warn('Auto-sync error:', e); }
-
-    if (btn) {
-      btn.innerHTML = '✅ تمت المزامنة';
-      btn.style.background = 'rgba(52,195,143,.2)';
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = origText;
-        btn.style.background = 'rgba(74,144,226,.15)';
-      }, 2000);
-    }
-  }, 1500);
-}
-
 /* ══ حفظ إعدادات Supabase مباشرة من الواجهة ══ */
 function saveSupabaseConfigInline() {
   const url = (document.getElementById('sbUrlInput')?.value || '').trim();
@@ -7895,14 +7855,14 @@ function checkSupabaseStatus() {
   }
 }
 
-async function syncAllDataToSupabase(silent = false) {
+async function syncAllDataToSupabase() {
   const btn = document.getElementById('syncAllBtn');
-  if (!silent && btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
 
   const user = Auth.getUser();
   if (!user || !user.tenant_id) {
-    if (!silent) Toast.error('❌ يجب تسجيل الدخول أولاً');
-    if (!silent && btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+    Toast.error('❌ يجب تسجيل الدخول أولاً');
+    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
   const tid = user.tenant_id;
@@ -7910,8 +7870,8 @@ async function syncAllDataToSupabase(silent = false) {
   // ── جلب إعدادات Supabase ──
   const sbCfg = getSupabaseConfig();
   if (!sbCfg || !sbCfg.url || !sbCfg.key) {
-    if (!silent) Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
-    if (!silent && btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
+    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
   const { url: sbUrl, key: sbKey } = sbCfg;
@@ -7994,14 +7954,14 @@ async function syncAllDataToSupabase(silent = false) {
     }
   }
 
-  if (!silent && btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
 
   if (errors.length === 0) {
-    if (!silent) Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
+    Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
   } else if (totalSent > 0) {
-    if (!silent) Toast.warn(`⚠️ رُفع ${totalSent} سجل — فشل ${errors.length} جدول: ${errors[0]}`);
+    Toast.warn(`⚠️ رُفع ${totalSent} سجل — فشل ${errors.length} جدول: ${errors[0]}`);
   } else {
-    if (!silent) Toast.error('❌ فشل الرفع: ' + errors[0]);
+    Toast.error('❌ فشل الرفع: ' + errors[0]);
   }
 }
 
