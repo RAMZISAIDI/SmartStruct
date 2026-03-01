@@ -6,35 +6,9 @@
 <title>SmartStruct v1.0 — منصة إدارة مشاريع المقاولة الجزائرية</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="supabase-db.js"></script>
-<script>
-/* ══ إعدادات Supabase المباشرة — عدّل URL وKey هنا ══ */
-var SUPABASE_HARDCODED = (function() {
-  // ── جرّب أولاً من supabase-db.js ──
-  if (typeof DBHybrid !== 'undefined' && DBHybrid._supabaseUrl) {
-    return { url: DBHybrid._supabaseUrl, anonKey: DBHybrid._supabaseKey };
-  }
-  // ── جرّب من localStorage ──
-  try {
-    var cfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-    if (cfg.url && cfg.anonKey) return { url: cfg.url, anonKey: cfg.anonKey };
-  } catch(e) {}
-  // ── إذا لم يُوجد شيء، أعِد null حتى لا يُرسَل شيء ──
-  return { url: '', anonKey: '' };
-})();
 
-// تحديث SUPABASE_HARDCODED عند تغيير الإعدادات
-window.addEventListener('storage', function(e) {
-  if (e.key === 'sbtp_supabase_config') {
-    try {
-      var cfg = JSON.parse(e.newValue || '{}');
-      if (cfg.url && cfg.anonKey) {
-        SUPABASE_HARDCODED.url = cfg.url;
-        SUPABASE_HARDCODED.anonKey = cfg.anonKey;
-      }
-    } catch(err) {}
-  }
-});
-</script>
+<!-- ✅ تم حذف سكربت إعدادات Supabase المكرر لتفادي تعارض SUPABASE_HARDCODED -->
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script type="text/javascript"
@@ -7097,13 +7071,13 @@ Pages.admin = function() {
                 <label class="form-label" style="font-size:.75rem">🔗 Project URL</label>
                 <input class="form-input" id="sbUrlInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
                   placeholder="https://xxxxxxxxxxxx.supabase.co"
-                  value="${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').url||''}catch(e){return ''}})()}">
+                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').url||''}catch(e){return ''}})()\}">
               </div>
               <div class="form-group" style="margin:0">
                 <label class="form-label" style="font-size:.75rem">🔑 Anon Public Key</label>
                 <input class="form-input" id="sbKeyInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
                   placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value="${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return ''}})()}">
+                  value="\${(()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return ''}})()\}">
               </div>
             </div>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap">
