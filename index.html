@@ -8997,7 +8997,7 @@ function downloadUpdatedHTML(apiKey, provider, model) {
       `$1${model}$2`
     );
     // Replace apiKey
-    const oldEmpty = `apiKey: '',           // ← المسؤول يضع مفتاحه هنا مرة واحدة`;
+    const oldEmpty = `apiKey: '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', // ← مُحدَّث من لوحة المسؤول`;
     const oldWithKey = /apiKey: '[^']*',\s*\/\/ ← م[^'\n]*/;
     if (html.includes(oldEmpty)) {
       html = html.replace(oldEmpty, `apiKey: '${apiKey}', // ← مُحدَّث من لوحة المسؤول`);
