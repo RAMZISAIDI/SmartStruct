@@ -417,7 +417,29 @@ const ADMIN_CONFIG = {
   securityKey: 'SSTR-ADMIN-2025',
 };
 
-// ── DB: قراءة بيانات المستخدمين من localStorage ──
+// ── DB: قراءة بيانات المستخدمين من localStorage (مع Supabase fallback) ──
+async function getUsersAsync() {
+  // محاولة جلب من Supabase أولاً
+  try {
+    const cfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (cfg.url && cfg.anonKey) {
+      const resp = await fetch(`${cfg.url}/rest/v1/users?is_admin=eq.true&is_active=eq.true`, {
+        headers: {
+          'apikey': cfg.anonKey,
+          'Authorization': `Bearer ${cfg.anonKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (resp.ok) {
+        const users = await resp.json();
+        if (users.length) return users;
+      }
+    }
+  } catch(e) {}
+  // Fallback to localStorage
+  return getUsers();
+}
+
 function getUsers() {
   try {
     // المفتاح الصحيح يطابق ما يستخدمه التطبيق الرئيسي: sbtp5_users
@@ -518,8 +540,8 @@ async function doAdminLogin() {
     return;
   }
 
-  // 2️⃣ Check credentials
-  const users = getUsers();
+  // 2️⃣ Check credentials (Supabase first, then localStorage)
+  const users = await getUsersAsync();
   const user = users.find(u =>
     u.email === email &&
     u.password === pass &&

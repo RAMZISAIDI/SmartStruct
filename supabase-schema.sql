@@ -1,10 +1,11 @@
 -- ══════════════════════════════════════════════════════
---  SmartStruct — Supabase Schema v2.0
+--  SmartStruct — Supabase Schema v3.0 (FIXED)
+--  محدَّث ليتطابق 100% مع app.js و SB_SCHEMA
 --  شغّل هذا الملف كاملاً في SQL Editor
 --  supabase.com → SQL Editor → New Query → Paste → Run
 -- ══════════════════════════════════════════════════════
 
--- ─── حذف الجداول القديمة إذا موجودة (لإعادة البناء نظيف) ───
+-- ─── حذف الجداول القديمة إذا موجودة ───
 DROP TABLE IF EXISTS notifications    CASCADE;
 DROP TABLE IF EXISTS global_settings  CASCADE;
 DROP TABLE IF EXISTS audit_log        CASCADE;
@@ -26,10 +27,8 @@ DROP TABLE IF EXISTS tenants          CASCADE;
 DROP TABLE IF EXISTS plans            CASCADE;
 
 -- ══════════════════════════════════════════════════════
---  الجداول الأساسية
+--  خطط الاشتراك
 -- ══════════════════════════════════════════════════════
-
--- خطط الاشتراك
 CREATE TABLE plans (
   id              SERIAL PRIMARY KEY,
   slug            VARCHAR(50) UNIQUE NOT NULL,
@@ -43,7 +42,9 @@ CREATE TABLE plans (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- المؤسسات
+-- ══════════════════════════════════════════════════════
+--  المؤسسات — متطابق مع SB_SCHEMA.tenants
+-- ══════════════════════════════════════════════════════
 CREATE TABLE tenants (
   id                    SERIAL PRIMARY KEY,
   name                  VARCHAR(255) NOT NULL,
@@ -51,7 +52,7 @@ CREATE TABLE tenants (
   wilaya                VARCHAR(100),
   address               TEXT,
   phone                 VARCHAR(50),
-  email                 VARCHAR(255),
+  email                 VARCHAR(255),         -- ✅ مضاف
   nif                   VARCHAR(100),
   nis                   VARCHAR(100),
   rc_number             VARCHAR(100),
@@ -64,7 +65,9 @@ CREATE TABLE tenants (
   updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
--- المستخدمون
+-- ══════════════════════════════════════════════════════
+--  المستخدمون — متطابق مع SB_SCHEMA.users
+-- ══════════════════════════════════════════════════════
 CREATE TABLE users (
   id             SERIAL PRIMARY KEY,
   tenant_id      INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
@@ -75,12 +78,15 @@ CREATE TABLE users (
   is_admin       BOOLEAN DEFAULT false,
   is_active      BOOLEAN DEFAULT false,
   account_status VARCHAR(50) DEFAULT 'pending',
+  avatar_color   VARCHAR(20) DEFAULT '#4A90E2', -- ✅ مضاف
   last_login     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
--- المشاريع
+-- ══════════════════════════════════════════════════════
+--  المشاريع — متطابق مع SB_SCHEMA.projects
+-- ══════════════════════════════════════════════════════
 CREATE TABLE projects (
   id           SERIAL PRIMARY KEY,
   tenant_id    INTEGER REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
@@ -94,6 +100,7 @@ CREATE TABLE projects (
   status       VARCHAR(50) DEFAULT 'active',
   color        VARCHAR(20) DEFAULT '#4A90E2',
   phase        VARCHAR(255),
+  description  TEXT,                          -- ✅ مضاف
   start_date   DATE,
   end_date     DATE,
   is_archived  BOOLEAN DEFAULT false,
@@ -101,7 +108,9 @@ CREATE TABLE projects (
   updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
--- العمال
+-- ══════════════════════════════════════════════════════
+--  العمال — متطابق مع SB_SCHEMA.workers
+-- ══════════════════════════════════════════════════════
 CREATE TABLE workers (
   id             SERIAL PRIMARY KEY,
   tenant_id      INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
@@ -109,15 +118,20 @@ CREATE TABLE workers (
   full_name      VARCHAR(255) NOT NULL,
   role           VARCHAR(100),
   phone          VARCHAR(50),
+  national_id    VARCHAR(50),                 -- ✅ مضاف
   daily_salary   INTEGER DEFAULT 0,
+  monthly_base   INTEGER DEFAULT 0,           -- ✅ مضاف
   contract_type  VARCHAR(50) DEFAULT 'daily',
   hire_date      DATE,
   color          VARCHAR(20),
+  avatar_color   VARCHAR(20) DEFAULT '#4A90E2', -- ✅ مضاف
   is_active      BOOLEAN DEFAULT true,
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
--- المعدات
+-- ══════════════════════════════════════════════════════
+--  المعدات — متطابق مع SB_SCHEMA.equipment
+-- ══════════════════════════════════════════════════════
 CREATE TABLE equipment (
   id             SERIAL PRIMARY KEY,
   tenant_id      INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
@@ -132,24 +146,30 @@ CREATE TABLE equipment (
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
--- المعاملات المالية
+-- ══════════════════════════════════════════════════════
+--  المعاملات — متطابق مع SB_SCHEMA.transactions
+-- ══════════════════════════════════════════════════════
 CREATE TABLE transactions (
   id             SERIAL PRIMARY KEY,
   tenant_id      INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   project_id     INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  worker_id      INTEGER REFERENCES workers(id) ON DELETE SET NULL, -- ✅ مضاف
   type           VARCHAR(20) NOT NULL,
   category       VARCHAR(100),
   amount         BIGINT DEFAULT 0,
   description    TEXT,
   date           DATE,
   payment_method VARCHAR(50) DEFAULT 'cash',
+  supplier       VARCHAR(255),                -- ✅ مضاف
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الحضور
+-- ══════════════════════════════════════════════════════
+--  الحضور — متطابق مع SB_SCHEMA.attendance
+-- ══════════════════════════════════════════════════════
 CREATE TABLE attendance (
   id         SERIAL PRIMARY KEY,
-  tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE, -- ✅ مضاف للـ SB_SCHEMA
   worker_id  INTEGER REFERENCES workers(id) ON DELETE CASCADE,
   project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   date       DATE NOT NULL,
@@ -159,7 +179,9 @@ CREATE TABLE attendance (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- المواد
+-- ══════════════════════════════════════════════════════
+--  المواد — متطابق مع SB_SCHEMA.materials
+-- ══════════════════════════════════════════════════════
 CREATE TABLE materials (
   id           SERIAL PRIMARY KEY,
   tenant_id    INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
@@ -173,80 +195,107 @@ CREATE TABLE materials (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الفواتير
+-- ══════════════════════════════════════════════════════
+--  حركات المخزون — متطابق مع SB_SCHEMA.stock_movements
+-- ══════════════════════════════════════════════════════
+CREATE TABLE stock_movements (
+  id          SERIAL PRIMARY KEY,
+  tenant_id   INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  material_id INTEGER REFERENCES materials(id) ON DELETE CASCADE,
+  type        VARCHAR(10) NOT NULL,  -- 'in' | 'out'
+  quantity    NUMERIC(12,2) DEFAULT 0,
+  date        DATE DEFAULT CURRENT_DATE,
+  note        TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════════════
+--  الفواتير — متطابق مع SB_SCHEMA.invoices
+--  ⚠️ إصلاح كامل — أعمدة مختلفة تماماً
+-- ══════════════════════════════════════════════════════
 CREATE TABLE invoices (
   id           SERIAL PRIMARY KEY,
   tenant_id    INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   project_id   INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   number       VARCHAR(100),
-  client_name  VARCHAR(255),
+  client       VARCHAR(255),            -- ✅ اسم العمود في app.js هو 'client' وليس 'client_name'
+  amount       BIGINT DEFAULT 0,        -- ✅ المبلغ الكلي TTC
+  amount_ht    BIGINT DEFAULT 0,        -- ✅ HT
+  tva_amount   BIGINT DEFAULT 0,        -- ✅ مبلغ TVA
+  tva_rate     INTEGER DEFAULT 19,      -- ✅ نسبة TVA
   date         DATE,
   due_date     DATE,
-  status       VARCHAR(50) DEFAULT 'draft',
-  total        BIGINT DEFAULT 0,
-  tva          INTEGER DEFAULT 19,
-  notes        TEXT,
-  items        JSONB DEFAULT '[]',
+  status       VARCHAR(50) DEFAULT 'pending',
+  paid_date    DATE,                    -- ✅ تاريخ الدفع
+  description  TEXT,
+  payment_method VARCHAR(50) DEFAULT 'cash',
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
--- سجلات الرواتب
+-- ══════════════════════════════════════════════════════
+--  سجلات الرواتب — متطابق مع SB_SCHEMA.salary_records
+--  ⚠️ إصلاح كامل
+-- ══════════════════════════════════════════════════════
 CREATE TABLE salary_records (
   id         SERIAL PRIMARY KEY,
   tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   worker_id  INTEGER REFERENCES workers(id) ON DELETE CASCADE,
-  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
-  month      VARCHAR(7),
-  days_worked INTEGER DEFAULT 0,
-  base_salary BIGINT DEFAULT 0,
-  bonuses     BIGINT DEFAULT 0,
-  deductions  BIGINT DEFAULT 0,
-  net_salary  BIGINT DEFAULT 0,
-  paid        BOOLEAN DEFAULT false,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  month_key  VARCHAR(7),               -- ✅ 'YYYY-MM' — اسم الحقل في app.js
+  amount     BIGINT DEFAULT 0,         -- ✅ صافي الراتب
+  paid_date  DATE,                     -- ✅ تاريخ الدفع
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- مهام Kanban
+-- ══════════════════════════════════════════════════════
+--  مهام Kanban — متطابق مع SB_SCHEMA.kanban_tasks
+--  ⚠️ إصلاح كامل
+-- ══════════════════════════════════════════════════════
 CREATE TABLE kanban_tasks (
   id          SERIAL PRIMARY KEY,
   tenant_id   INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   project_id  INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   title       TEXT NOT NULL,
-  description TEXT,
-  status      VARCHAR(50) DEFAULT 'todo',
   priority    VARCHAR(20) DEFAULT 'medium',
-  assigned_to INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+  assignee_id INTEGER REFERENCES workers(id) ON DELETE SET NULL, -- ✅ اسم الحقل في app.js
   due_date    DATE,
+  col         VARCHAR(50) DEFAULT 'todo',  -- ✅ عمود Kanban (todo/doing/done)
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الوثائق
+-- ══════════════════════════════════════════════════════
+--  الوثائق — متطابق مع SB_SCHEMA.documents
+--  ⚠️ إصلاح كامل
+-- ══════════════════════════════════════════════════════
 CREATE TABLE documents (
   id          SERIAL PRIMARY KEY,
   tenant_id   INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   project_id  INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   name        VARCHAR(255) NOT NULL,
+  category    VARCHAR(100),             -- ✅ مضاف
   type        VARCHAR(50),
   url         TEXT,
   size        BIGINT DEFAULT 0,
+  date        DATE DEFAULT CURRENT_DATE,-- ✅ مضاف
+  uploader_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- ✅ مضاف
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الالتزامات
+-- ══════════════════════════════════════════════════════
+--  الالتزامات — متطابق مع SB_SCHEMA.obligations
+--  ⚠️ إصلاح كامل
+-- ══════════════════════════════════════════════════════
 CREATE TABLE obligations (
   id          SERIAL PRIMARY KEY,
   tenant_id   INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-  project_id  INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   title       TEXT NOT NULL,
-  type        VARCHAR(50),
   amount      BIGINT DEFAULT 0,
-  due_date    DATE,
-  status      VARCHAR(50) DEFAULT 'pending',
-  notes       TEXT,
+  due         DATE,                     -- ✅ اسم الحقل في app.js هو 'due' وليس 'due_date'
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الملاحظات
+-- ══════════════════════════════════════════════════════
+--  الملاحظات — متطابق مع SB_SCHEMA.notes
+-- ══════════════════════════════════════════════════════
 CREATE TABLE notes (
   id         SERIAL PRIMARY KEY,
   tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
@@ -257,9 +306,11 @@ CREATE TABLE notes (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الإشعارات (تسجيلات جديدة + طلبات كلمة مرور)
+-- ══════════════════════════════════════════════════════
+--  الإشعارات — متطابق مع SB_SCHEMA.notifications
+-- ══════════════════════════════════════════════════════
 CREATE TABLE notifications (
-  id         BIGINT PRIMARY KEY,   -- نرسله من الكود كـ Date.now()
+  id         BIGINT PRIMARY KEY,
   tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   user_id    INTEGER,
   type       VARCHAR(50) NOT NULL DEFAULT 'info',
@@ -271,7 +322,9 @@ CREATE TABLE notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- الإعدادات العامة (AI config وغيره)
+-- ══════════════════════════════════════════════════════
+--  الإعدادات العامة
+-- ══════════════════════════════════════════════════════
 CREATE TABLE global_settings (
   key        VARCHAR(100) PRIMARY KEY,
   value      JSONB NOT NULL DEFAULT '{}',
@@ -279,34 +332,36 @@ CREATE TABLE global_settings (
 );
 
 -- ══════════════════════════════════════════════════════
---  Row Level Security — السماح لـ anon بكل العمليات
---  (الحماية الحقيقية تتم في الكود بالتحقق من الـ tenant_id)
+--  Row Level Security — السماح بكل العمليات
 -- ══════════════════════════════════════════════════════
-ALTER TABLE plans          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenants        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projects       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workers        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE equipment      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE materials      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invoices       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE salary_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE kanban_tasks   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE documents      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE obligations    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notes          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plans           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenants         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workers         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE materials       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salary_records  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kanban_tasks    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE obligations     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notes           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
 
 DO $$
 DECLARE tbl TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['plans','tenants','users','projects','workers',
-    'equipment','transactions','attendance','materials','invoices',
-    'salary_records','kanban_tasks','documents','obligations','notes',
-    'notifications','global_settings']
+  FOREACH tbl IN ARRAY ARRAY[
+    'plans','tenants','users','projects','workers','equipment',
+    'transactions','attendance','materials','stock_movements','invoices',
+    'salary_records','kanban_tasks','documents','obligations',
+    'notes','notifications','global_settings'
+  ]
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS "allow_all" ON %I', tbl);
     EXECUTE format('CREATE POLICY "allow_all" ON %I FOR ALL USING (true) WITH CHECK (true)', tbl);
@@ -316,35 +371,32 @@ END $$;
 -- ══════════════════════════════════════════════════════
 --  Indexes للأداء
 -- ══════════════════════════════════════════════════════
-CREATE INDEX IF NOT EXISTS idx_tenants_active     ON tenants(is_active);
-CREATE INDEX IF NOT EXISTS idx_users_email        ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_tenant       ON users(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_users_active       ON users(is_active);
-CREATE INDEX IF NOT EXISTS idx_projects_tenant    ON projects(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_projects_status    ON projects(status);
-CREATE INDEX IF NOT EXISTS idx_workers_tenant     ON workers(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_workers_project    ON workers(project_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_active      ON tenants(is_active);
+CREATE INDEX IF NOT EXISTS idx_users_email         ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_tenant        ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_projects_tenant     ON projects(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status     ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_workers_tenant      ON workers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_workers_project     ON workers(project_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_tenant ON transactions(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_date  ON transactions(date);
-CREATE INDEX IF NOT EXISTS idx_attendance_worker  ON attendance(worker_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_date    ON attendance(date);
-CREATE INDEX IF NOT EXISTS idx_materials_tenant   ON materials(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_tenant    ON invoices(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
-CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_transactions_date   ON transactions(date);
+CREATE INDEX IF NOT EXISTS idx_attendance_worker   ON attendance(worker_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_date     ON attendance(date);
+CREATE INDEX IF NOT EXISTS idx_materials_tenant    ON materials(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant     ON invoices(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_documents_tenant    ON documents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_kanban_tenant       ON kanban_tasks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read  ON notifications(read);
 
 -- ══════════════════════════════════════════════════════
 --  البيانات الابتدائية
 -- ══════════════════════════════════════════════════════
-
--- خطط الاشتراك
 INSERT INTO plans (slug, name, price_monthly, price, max_projects, max_workers, max_equipment, max_emails) VALUES
   ('starter',    'المبتدئ',   2900,  2900,  3,  15,  0,  50),
   ('pro',        'الاحترافي', 7900,  7900,  20, 100, 50, 500),
   ('enterprise', 'المؤسسي',   19900, 19900, -1, -1,  -1, -1)
 ON CONFLICT (slug) DO NOTHING;
 
--- المسؤول العام (is_active=true لأنه مسؤول النظام)
 INSERT INTO tenants (id, name, plan_id, wilaya, subscription_status, is_active) VALUES
   (1, 'SmartStruct Admin', 3, 'الجزائر', 'active', true)
 ON CONFLICT DO NOTHING;
@@ -353,8 +405,7 @@ INSERT INTO users (id, tenant_id, full_name, email, password, role, is_admin, is
   (1, NULL, 'مسؤول النظام', 'admin@smartbtp.dz', 'Admin@SmartStruct2025', 'admin', true, true, 'active')
 ON CONFLICT (email) DO NOTHING;
 
--- ضبط تسلسل الـ IDs بعيداً عن البيانات الابتدائية
+-- ضبط تسلسل الـ IDs
 SELECT setval('plans_id_seq',   10);
 SELECT setval('tenants_id_seq', 10);
 SELECT setval('users_id_seq',   10);
-
