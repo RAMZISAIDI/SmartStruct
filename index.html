@@ -7649,6 +7649,11 @@ function cleanForSupabase(table, record) {
       return;
     }
 
+    // تطبيع التواريخ: Postgres DATE لا يقبل '' (فارغ)
+    // إذا كانت القيمة '' نحولها إلى null حتى لا يظهر الخطأ: PGRST22007 (invalid input syntax for type date)
+    const dateCols = ['start_date','end_date','hire_date','trial_start','trial_end','subscription_end','due_date','paid_date','date','created_at'];
+    if (v === '' && dateCols.includes(col)) { clean[col] = null; return; }
+
     // لا تحوّل النصوص الفارغة إلى null إلا إذا كانت FK (تمت معالجتها أعلاه)
     clean[col] = v;
   });
@@ -8238,7 +8243,7 @@ function addProject() {
   if (!name) { Toast.error('أدخل اسم المشروع'); return; }
   const tid = Auth.getUser().tenant_id;
   const projs = DB.get('projects');
-  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false };
+  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date: (document.getElementById('pStart')?.value || null), end_date: (document.getElementById('pEnd')?.value || null), is_archived:false };
   projs.push(newProject);
   DB.set('projects', projs);
   sbSync('projects', newProject, 'POST').catch(()=>{});
@@ -8260,7 +8265,7 @@ function editProject(id) {
 function saveProject() {
   const id=Number(document.getElementById('epId').value);
   const projs=DB.get('projects'); const idx=projs.findIndex(p=>p.id===id); if(idx<0) return;
-  projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
+  projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:(document.getElementById('epEnd')?.value || null) };
   DB.set('projects',projs);
   sbSync('projects', projs[idx], 'PATCH').catch(()=>{});
   Toast.success('✅ تم تحديث المشروع');
