@@ -38,55 +38,40 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
 // patch init إذا لم يكن موجوداً في DB
 if (!DB.init) DB.init = function() {
     if (this.get('initialized').length) return;
-    this.set('plans', [
+    // ✅ استخدم setSilent للبيانات الافتراضية (موجودة مسبقاً في SQL — لا داعي للمزامنة المكررة)
+    const _set = (typeof this.setSilent === 'function') ? this.setSilent.bind(this) : this.set.bind(this);
+
+    _set('plans', [
       { id:1, slug:'starter',    name:'المبتدئ',   price:2900,  max_projects:3,  max_workers:15,  max_equipment:0,  max_emails:50  },
       { id:2, slug:'pro',        name:'الاحترافي', price:7900,  max_projects:20, max_workers:100, max_equipment:50, max_emails:500 },
       { id:3, slug:'enterprise', name:'المؤسسي',   price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1, max_emails:-1  },
     ]);
-    this.set('tenants', [
-      { id:1, name:'مؤسسة الجزائر للبناء', plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
+    _set('tenants', [
+      { id:1, name:'SmartStruct Admin',                plan_id:3, wilaya:'الجزائر', subscription_status:'active', is_active:true },
+      { id:2, name:'مؤسسة الجزائر للبناء (تجريبي)',     plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
     ]);
-    this.set('users', [
-      { id:1, tenant_id:null, full_name:'مسؤول النظام', email:'admin@smartbtp.dz', password:'Admin@SmartStruct2025', role:'admin', is_admin:true, is_active:true },
-      { id:2, tenant_id:1, full_name:'محمد الأمين بوعلام', email:'demo@algerie-construction.dz', password:'Demo@1234', role:'admin', is_admin:false, is_active:true },
+    _set('users', [
+      { id:1, tenant_id:null, full_name:'مسؤول النظام',       email:'admin@smartbtp.dz',            password:'Admin@SmartStruct2025', role:'admin', is_admin:true,  is_active:true, account_status:'active' },
+      { id:2, tenant_id:2,    full_name:'محمد الأمين بوعلام', email:'demo@algerie-construction.dz', password:'Demo@1234',             role:'admin', is_admin:false, is_active:true, account_status:'active' },
     ]);
-    this.set('projects', [
-      { id:1, tenant_id:1, name:'بناء عمارة R+5 حيدرة', wilaya:'الجزائر', client_name:'عبد القادر بن علي', budget:45000000, total_spent:18500000, progress:42, status:'active', color:'#4A90E2', phase:'الهيكل الخرساني', start_date:'2024-03-01', end_date:'2025-12-31', is_archived:false },
-      { id:2, tenant_id:1, name:'فيلا سكنية دار البيضاء', wilaya:'البليدة', client_name:'سمير حمادة', budget:12500000, total_spent:12800000, progress:98, status:'completed', color:'#34C38F', phase:'الاستلام النهائي', start_date:'2023-06-01', end_date:'2024-11-30', is_archived:false },
-      { id:3, tenant_id:1, name:'مستودع تجاري وهران', wilaya:'وهران', client_name:'شركة لوجيستيك', budget:22000000, total_spent:8900000, progress:35, status:'active', color:'#E8B84B', phase:'البناء والجدران', start_date:'2024-08-15', end_date:'2025-08-14', is_archived:false },
-      { id:4, tenant_id:1, name:'مدرسة ابتدائية بجاية', wilaya:'بجاية', client_name:'بلدية بجاية', budget:31000000, total_spent:5200000, progress:15, status:'delayed', color:'#F04E6A', phase:'أعمال الحفر والأساسات', start_date:'2024-01-10', end_date:'2025-06-30', is_archived:false },
-    ]);
-    this.set('workers', [
-      { id:1, tenant_id:1, project_id:1, full_name:'محمد الأمين زروق', role:'بنّاء رئيسي', phone:'0550 111 222', daily_salary:3500, contract_type:'daily', hire_date:'2024-03-01', color:'#4A90E2' },
-      { id:2, tenant_id:1, project_id:1, full_name:'كريم بن عزيز', role:'حداد', phone:'0661 333 444', daily_salary:4000, contract_type:'daily', hire_date:'2024-03-15', color:'#34C38F' },
-      { id:3, tenant_id:1, project_id:1, full_name:'يوسف شريف', role:'كهربائي', phone:'0770 555 666', daily_salary:4500, contract_type:'monthly', hire_date:'2024-04-01', color:'#E8B84B' },
-      { id:4, tenant_id:1, project_id:3, full_name:'فريد بوزيدي', role:'سباك', phone:'0555 777 888', daily_salary:4200, contract_type:'daily', hire_date:'2024-05-01', color:'#9B6DFF' },
-      { id:5, tenant_id:1, project_id:3, full_name:'عمر حمزة', role:'مساعد بنّاء', phone:'0660 999 111', daily_salary:2500, contract_type:'daily', hire_date:'2024-06-01', color:'#FF7043' },
-    ]);
-    this.set('equipment', [
-      { id:1, tenant_id:1, project_id:1, name:'حفارة كاتربيلر', model:'CAT 320', plate_number:'16-1234-16', icon:'🚜', status:'active', purchase_price:8500000, notes:'' },
-      { id:2, tenant_id:1, project_id:1, name:'شاحنة خلط الخرسانة', model:'Mercedes 3344', plate_number:'16-5678-16', icon:'🚛', status:'active', purchase_price:4200000, notes:'' },
-      { id:3, tenant_id:1, project_id:3, name:'رافعة برجية 50T', model:'Potain MCT 88', plate_number:'', icon:'🏗️', status:'maintenance', purchase_price:12000000, notes:'صيانة دورية' },
-    ]);
-    this.set('transactions', [
-      { id:1, tenant_id:1, project_id:1, type:'revenue', category:'دفعة مقدمة', amount:10000000, description:'دفعة مقدمة مشروع حيدرة', date:'2024-03-05', payment_method:'bank' },
-      { id:2, tenant_id:1, project_id:1, type:'expense', category:'مواد البناء', amount:4500000, description:'حديد تسليح وأسمنت', date:'2024-03-15', payment_method:'cash' },
-      { id:3, tenant_id:1, project_id:1, type:'expense', category:'رواتب العمال', amount:2800000, description:'رواتب شهر مارس', date:'2024-03-31', payment_method:'bank' },
-      { id:4, tenant_id:1, project_id:2, type:'revenue', category:'استلام نهائي', amount:12500000, description:'دفعة الاستلام النهائي فيلا دار البيضاء', date:'2024-11-30', payment_method:'bank' },
-      { id:5, tenant_id:1, project_id:3, type:'expense', category:'اكراءات المعدات', amount:1200000, description:'إيجار شاحنات لنقل مواد البناء', date:'2024-09-10', payment_method:'cash' },
-    ]);
-    this.set('attendance', []);
-    this.set('materials', [
-      { id:1, tenant_id:1, project_id:1, name:'حديد تسليح 12mm', unit:'طن', quantity:25, min_quantity:5, unit_price:95000, supplier:'مصنع الحجار' },
-      { id:2, tenant_id:1, project_id:1, name:'أسمنت CPA 42.5', unit:'كيس', quantity:320, min_quantity:50, unit_price:650, supplier:'مصنع مفتاح' },
-      { id:3, tenant_id:1, project_id:1, name:'رمل مغسول', unit:'م³', quantity:80, min_quantity:20, unit_price:4500, supplier:'المحجرة الشرقية' },
-      { id:4, tenant_id:1, project_id:3, name:'طوب قرميد', unit:'ألف قطعة', quantity:15, min_quantity:3, unit_price:28000, supplier:'مصنع كريم' },
-    ]);
-    this.set('notes', [
-      { id:1, tenant_id:1, project_id:1, user_id:2, text:'تم اكتمال الطابق الثالث، العمل يسير بشكل ممتاز.', date:'2024-10-15' },
-      { id:2, tenant_id:1, project_id:1, user_id:2, text:'تأخر وصول الحديد من المورد، يُتوقع الوصول نهاية الأسبوع.', date:'2024-10-20' },
-    ]);
-    this.set('initialized', [true]);
+
+    // جميع الجداول الأخرى فارغة افتراضياً
+    _set('projects',        []);
+    _set('workers',         []);
+    _set('equipment',       []);
+    _set('transactions',    []);
+    _set('attendance',      []);
+    _set('materials',       []);
+    _set('stock_movements', []);
+    _set('invoices',        []);
+    _set('salary_records',  []);
+    _set('kanban_tasks',    []);
+    _set('documents',       []);
+    _set('obligations',     []);
+    _set('notes',           []);
+    _set('notifications',   []);
+
+    _set('initialized', [true]);
     // ── إعداد AI المركزي — يملؤه المسؤول من لوحة التحكم ──
     if (!this.get('global_ai_config') || !this.get('global_ai_config').apiKey) {
       this.set('global_ai_config', {
@@ -1014,6 +999,23 @@ const App = {
       this.currentPage = 'dashboard';
     }
 
+    // ── TRIAL EXPIRATION GUARD ──
+    // إذا انتهت تجربة المستخدم أثناء استخدامه، يُعرض modal الشكر ويُمنع الوصول
+    if (user && !user.is_admin && typeof TrialManager !== 'undefined') {
+      try {
+        const tenant = (typeof Auth.getTenant === 'function') ? Auth.getTenant() : null;
+        if (tenant && (TrialManager.isExpired(tenant) || tenant.subscription_status === 'expired' || tenant.is_active === false)) {
+          // تجنّب التكرار في نفس الجلسة
+          if (!sessionStorage.getItem('sbtp_trial_modal_shown')) {
+            sessionStorage.setItem('sbtp_trial_modal_shown', '1');
+            // اقفل في Supabase + اعرض modal
+            TrialManager.checkAndEnforce();
+            return; // أوقف الـ render — modal سيتعامل مع كل شيء
+          }
+        }
+      } catch(_) {}
+    }
+
     // ── PERMISSION GUARD: block unauthorized page access ──
     if (user && !user.is_admin && this.currentPage !== 'landing' && this.currentPage !== 'login') {
       const permKey = PAGE_PERM_MAP[this.currentPage];
@@ -1843,14 +1845,21 @@ async function doRegister() {
     if (!tRes.ok) throw new Error('فشل حفظ بيانات المؤسسة: ' + await tRes.text());
     const [sbTenant] = await tRes.json();
 
-    // 3. INSERT user في Supabase
+    // 3. INSERT user في Supabase (مع تشفير كلمة المرور)
+    let hashedPass = pass;
+    try {
+      if (typeof SmartCrypto !== 'undefined') {
+        hashedPass = await SmartCrypto.hash(pass);
+      }
+    } catch(e) { console.warn('Password hashing failed:', e); }
+
     const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
       method: 'POST', headers: sbH,
       body: JSON.stringify({
         tenant_id: sbTenant.id,
         full_name: name.trim(),
         email: email,
-        password: pass,
+        password: hashedPass,
         role: 'admin',
         is_admin: false,
         is_active: false,
@@ -1860,44 +1869,67 @@ async function doRegister() {
     if (!uRes.ok) throw new Error('فشل حفظ بيانات المستخدم: ' + await uRes.text());
     const [sbUser] = await uRes.json();
 
-    // 4. إشعار Supabase بطلب التسجيل (يظهر للأدمن)
-    await fetch(`${sbUrl}/rest/v1/notifications`, {
-      method: 'POST', headers: sbH,
-      body: JSON.stringify({
-        type: 'new_account',
-        title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
-        body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
+    // 4. إشعار Supabase بطلب التسجيل (يظهر للأدمن) — احفظ ID المُرجَع
+    let sbNotif = null;
+    try {
+      const nRes = await fetch(`${sbUrl}/rest/v1/notifications`, {
+        method: 'POST', headers: sbH,
+        body: JSON.stringify({
+          id: Date.now(),  // notifications.id هو BIGINT (نولّده بأنفسنا)
+          type: 'new_account',
+          title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
+          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
+          user_id: sbUser.id, tenant_id: sbTenant.id,
+          date: now.toISOString(), read: false, status: 'pending'
+        })
+      });
+      if (nRes.ok) {
+        const arr = await nRes.json();
+        sbNotif = Array.isArray(arr) ? arr[0] : arr;
+      }
+    } catch(e) { console.warn('Notification creation failed:', e); }
+
+    // 5. حفظ في localStorage بـ setSilent (تجنب مزامنة مكررة لأن السجلات موجودة في Supabase)
+    const localTenants = DB.get('tenants') || [];
+    const localUsers   = DB.get('users')   || [];
+    const localNotifs  = DB.get('notifications') || [];
+
+    // تجنب الإضافة المكررة محلياً (في حال أُعيد التسجيل بنفس البريد)
+    if (!localTenants.find(t => t.id === sbTenant.id)) {
+      localTenants.push({
+        id: sbTenant.id, name: company.trim(), plan_id: 2, wilaya: wilaya,
+        subscription_status: 'trial', trial_start: registrationDate,
+        trial_end: trialEndDate, is_active: false
+      });
+    }
+    if (!localUsers.find(u => u.id === sbUser.id)) {
+      localUsers.push({
+        id: sbUser.id, tenant_id: sbTenant.id, full_name: name.trim(),
+        email: email, password: hashedPass, role: 'admin', is_admin: false,
+        is_active: false, account_status: 'pending'
+      });
+    }
+    if (sbNotif && !localNotifs.find(n => n.id === sbNotif.id)) {
+      localNotifs.unshift({
+        id: sbNotif.id, type: 'new_account',
+        title: '🆕 طلب تسجيل جديد — بانتظار الموافقة',
+        body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
         user_id: sbUser.id, tenant_id: sbTenant.id,
         date: now.toISOString(), read: false, status: 'pending'
-      })
-    }).catch(() => {});
+      });
+    }
 
-    // 5. حفظ في localStorage بـ IDs الحقيقية من Supabase (بدون تسجيل دخول)
-    const localTenants = DB.get('tenants');
-    const localUsers   = DB.get('users');
-    localTenants.push({
-      id: sbTenant.id, name: company.trim(), plan_id: 2, wilaya: wilaya,
-      subscription_status: 'trial', trial_start: registrationDate,
-      trial_end: trialEndDate, is_active: false
-    });
-    localUsers.push({
-      id: sbUser.id, tenant_id: sbTenant.id, full_name: name.trim(),
-      email: email, password: pass, role: 'admin', is_admin: false,
-      is_active: false, account_status: 'pending'
-    });
-    DB.set('tenants', localTenants);
-    DB.set('users', localUsers);
-
-    // إشعار للأدمن في القاعدة المحلية
-    const adminNotifs = DB.get('notifications') || [];
-    adminNotifs.unshift({
-      id: sbUser.id, type: 'new_account',
-      title: '🆕 طلب تسجيل جديد — بانتظار الموافقة',
-      body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
-      user_id: sbUser.id, tenant_id: sbTenant.id,
-      date: now.toISOString(), read: false, status: 'pending'
-    });
-    DB.set('notifications', adminNotifs);
+    // ✅ setSilent بدلاً من set — لا تُشغّل مزامنة (السجلات موجودة بالفعل في Supabase)
+    if (typeof DB.setSilent === 'function') {
+      DB.setSilent('tenants',       localTenants);
+      DB.setSilent('users',         localUsers);
+      DB.setSilent('notifications', localNotifs);
+    } else {
+      // fallback
+      DB.set('tenants', localTenants);
+      DB.set('users', localUsers);
+      DB.set('notifications', localNotifs);
+    }
 
     // 6. إرسال إيميل إشعار للأدمن
     EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
@@ -2228,6 +2260,355 @@ const TrialManager = {
     if (!tenant) return false;
     if (tenant.is_active === false) return false;
     return !this.isExpired(tenant);
+  },
+
+  // ════════════════════════════════════════════════
+  //  عند انتهاء التجربة: قفل الحساب في Supabase
+  //  (يمنع تسجيل الدخول من أي جهاز آخر)
+  // ════════════════════════════════════════════════
+  async lockAccountInSupabase(tenantId) {
+    if (!tenantId) return;
+    const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+    if (!cfg?.url || !cfg?.key) return;
+
+    try {
+      const sbH = {
+        'Content-Type':'application/json',
+        'apikey': cfg.key,
+        'Authorization': `Bearer ${cfg.key}`,
+        'Prefer':'return=minimal'
+      };
+      // تحديث المؤسسة → معطّلة + الاشتراك منتهي
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tenantId}`, {
+        method: 'PATCH', headers: sbH,
+        body: JSON.stringify({
+          is_active: false,
+          subscription_status: 'expired'
+        })
+      });
+      // تعطيل جميع المستخدمين التابعين لها
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${tenantId}`, {
+        method: 'PATCH', headers: sbH,
+        body: JSON.stringify({
+          is_active: false,
+          account_status: 'expired'
+        })
+      });
+      console.log(`🔒 تم قفل المؤسسة #${tenantId} في Supabase (انتهاء التجربة)`);
+    } catch(e) {
+      console.warn('lockAccountInSupabase failed:', e.message);
+    }
+  },
+
+  // ════════════════════════════════════════════════
+  //  Modal انتهاء التجربة
+  //  - يشكر المستخدم على 14 يوم
+  //  - يعرض الخطط المدفوعة
+  //  - يمنع تسجيل الدخول
+  // ════════════════════════════════════════════════
+  showExpiredModal(tenantName, daysUsed = 14) {
+    // إزالة أي modal سابق
+    const old = document.getElementById('trial-expired-modal');
+    if (old) old.remove();
+
+    const isAr = (typeof I18N !== 'undefined' && I18N.lang === 'ar') ||
+                 document.documentElement.dir === 'rtl';
+    const t = (a, f) => isAr ? a : f;
+
+    const modal = document.createElement('div');
+    modal.id = 'trial-expired-modal';
+    modal.style.cssText = `
+      position:fixed;inset:0;z-index:99999;
+      background:rgba(0,0,0,.85);backdrop-filter:blur(8px);
+      display:flex;align-items:center;justify-content:center;
+      padding:1rem;direction:${isAr?'rtl':'ltr'};
+      animation:fadeIn .3s ease;
+    `;
+    modal.innerHTML = `
+      <style>
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
+        .tem-card{
+          background:linear-gradient(135deg,#1a1f2e 0%,#0f1420 100%);
+          border:1px solid rgba(212,175,55,.3);border-radius:20px;
+          max-width:680px;width:100%;max-height:92vh;overflow-y:auto;
+          box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.05) inset;
+          animation:slideUp .4s ease;
+        }
+        .tem-hero{
+          padding:2rem 2rem 1.5rem;text-align:center;
+          background:linear-gradient(135deg,rgba(212,175,55,.1),rgba(212,175,55,.02));
+          border-radius:20px 20px 0 0;
+          border-bottom:1px solid rgba(212,175,55,.15);
+        }
+        .tem-icon{font-size:3.5rem;margin-bottom:.5rem}
+        .tem-title{font-size:1.6rem;font-weight:800;color:#D4AF37;margin:.5rem 0}
+        .tem-thanks{color:#E0E0E0;font-size:1rem;line-height:1.7;margin:.75rem 0}
+        .tem-thanks strong{color:#FFD700}
+        .tem-body{padding:1.5rem 2rem}
+        .tem-msg{
+          background:rgba(74,144,226,.08);border-${isAr?'right':'left'}:3px solid #4A90E2;
+          padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;
+          color:#C8D4E8;font-size:.95rem;line-height:1.6;
+        }
+        .tem-plans-title{
+          color:#FFF;font-weight:700;margin-bottom:1rem;font-size:1.1rem;
+          text-align:center;
+        }
+        .tem-plans{display:grid;gap:.75rem;margin-bottom:1.5rem}
+        @media(min-width:540px){.tem-plans{grid-template-columns:repeat(3,1fr)}}
+        .tem-plan{
+          background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+          border-radius:12px;padding:1rem .75rem;text-align:center;
+          transition:all .2s;cursor:pointer;
+        }
+        .tem-plan:hover{
+          border-color:rgba(212,175,55,.5);
+          background:rgba(212,175,55,.06);transform:translateY(-2px);
+        }
+        .tem-plan.featured{
+          border-color:rgba(212,175,55,.6);
+          background:linear-gradient(135deg,rgba(212,175,55,.1),rgba(212,175,55,.03));
+        }
+        .tem-plan-name{color:#D4AF37;font-weight:700;font-size:.95rem;margin-bottom:.5rem}
+        .tem-plan-price{color:#FFF;font-size:1.4rem;font-weight:800}
+        .tem-plan-period{color:#8A95A8;font-size:.75rem;margin-top:.2rem}
+        .tem-plan-feat{color:#A8B5CC;font-size:.78rem;margin-top:.6rem;line-height:1.4}
+        .tem-actions{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+        .tem-btn{
+          padding:.85rem 1.5rem;border-radius:10px;font-weight:700;
+          font-size:.95rem;border:none;cursor:pointer;
+          transition:all .2s;min-width:160px;
+        }
+        .tem-btn-gold{
+          background:linear-gradient(135deg,#D4AF37,#B8941F);color:#0a0e1a;
+          box-shadow:0 4px 14px rgba(212,175,55,.3);
+        }
+        .tem-btn-gold:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(212,175,55,.5)}
+        .tem-btn-ghost{
+          background:rgba(255,255,255,.05);color:#C8D4E8;
+          border:1px solid rgba(255,255,255,.1);
+        }
+        .tem-btn-ghost:hover{background:rgba(255,255,255,.1)}
+        .tem-foot{
+          padding:1rem 2rem;border-top:1px solid rgba(255,255,255,.05);
+          text-align:center;color:#6F7B8E;font-size:.85rem;
+        }
+      </style>
+      <div class="tem-card">
+        <div class="tem-hero">
+          <div class="tem-icon">🌟</div>
+          <div class="tem-title">${t('شكراً جزيلاً لك!','Merci infiniment !')}</div>
+          <div class="tem-thanks">
+            ${t(
+              `لقد قضيت معنا <strong>${daysUsed} يوماً</strong> رائعة في <strong>${tenantName || 'مؤسستك'}</strong>،<br>ونحن نقدّر ثقتك في <strong>SmartStruct</strong> لإدارة مشاريعك.`,
+              `Vous avez passé <strong>${daysUsed} jours</strong> formidables avec nous chez <strong>${tenantName || 'votre entreprise'}</strong>,<br>et nous apprécions votre confiance en <strong>SmartStruct</strong>.`
+            )}
+          </div>
+        </div>
+
+        <div class="tem-body">
+          <div class="tem-msg">
+            ⏰ <strong>${t('انتهت فترتك التجريبية المجانية', "Votre période d'essai gratuite est terminée")}</strong><br>
+            ${t(
+              'لمواصلة استخدام التطبيق والاستفادة من كل الميزات، يُرجى الاشتراك في إحدى خططنا المدفوعة أدناه. تواصل معنا واختر ما يناسب حجم مؤسستك.',
+              "Pour continuer à utiliser l'application et profiter de toutes les fonctionnalités, veuillez souscrire à l'un de nos plans payants ci-dessous."
+            )}
+          </div>
+
+          <div class="tem-plans-title">💎 ${t('اختر خطتك','Choisissez votre plan')}</div>
+          <div class="tem-plans">
+            <div class="tem-plan" onclick="TrialManager._requestUpgrade(1)">
+              <div class="tem-plan-name">${t('المبتدئ','Starter')}</div>
+              <div class="tem-plan-price">2,900</div>
+              <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
+              <div class="tem-plan-feat">${t('3 مشاريع · 15 عامل','3 projets · 15 ouvriers')}</div>
+            </div>
+            <div class="tem-plan featured" onclick="TrialManager._requestUpgrade(2)">
+              <div class="tem-plan-name">⭐ ${t('الاحترافي','Pro')}</div>
+              <div class="tem-plan-price">7,900</div>
+              <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
+              <div class="tem-plan-feat">${t('20 مشروع · 100 عامل','20 projets · 100 ouvriers')}</div>
+            </div>
+            <div class="tem-plan" onclick="TrialManager._requestUpgrade(3)">
+              <div class="tem-plan-name">${t('المؤسسي','Entreprise')}</div>
+              <div class="tem-plan-price">19,900</div>
+              <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
+              <div class="tem-plan-feat">${t('غير محدود','Illimité')}</div>
+            </div>
+          </div>
+
+          <div class="tem-actions">
+            <button class="tem-btn tem-btn-gold" onclick="TrialManager._requestUpgrade(2)">
+              💎 ${t('اشترك الآن', "S'abonner maintenant")}
+            </button>
+            <button class="tem-btn tem-btn-ghost" onclick="TrialManager._closeAndLogout()">
+              👋 ${t('تسجيل الخروج','Se déconnecter')}
+            </button>
+          </div>
+        </div>
+
+        <div class="tem-foot">
+          📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartbtp.dz</strong>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+  },
+
+  // طلب ترقية من داخل modal الانتهاء
+  _requestUpgrade(planId) {
+    try {
+      const tenant = (typeof Auth !== 'undefined' && Auth.getTenant) ? Auth.getTenant() : null;
+      const user   = (typeof Auth !== 'undefined' && Auth.getUser)   ? Auth.getUser()   : null;
+      const company = tenant?.name || '—';
+      const planNames = {1:'المبتدئ', 2:'الاحترافي', 3:'المؤسسي'};
+
+      // سجّل طلب الترقية في الإشعارات
+      const notifs = DB.get('notifications') || [];
+      notifs.unshift({
+        id: Date.now(),
+        type: 'upgrade_request',
+        title: 'طلب اشتراك بعد انتهاء التجربة',
+        body: `المؤسسة "${company}" تطلب الاشتراك في خطة "${planNames[planId]||'?'}"`,
+        user_id: user?.id || null,
+        tenant_id: tenant?.id || null,
+        tenant_name: company,
+        requested_plan: planId,
+        date: new Date().toISOString(),
+        status: 'pending',
+        read: false
+      });
+      DB.set('notifications', notifs);
+      try { sbSync('notifications', notifs[0], 'POST'); } catch(_) {}
+
+      // بريد إلى المسؤول
+      if (typeof EMAILJS !== 'undefined' && EMAILJS.notifyNewAccount) {
+        EMAILJS.notifyNewAccount({
+          name: user?.full_name || '—',
+          email: user?.email || '—',
+          company,
+          wilaya: tenant?.wilaya || '—',
+          subject: `💎 طلب اشتراك (${planNames[planId]}) — ${company}`
+        }).catch(()=>{});
+      }
+
+      if (typeof Toast !== 'undefined') {
+        Toast.success('✅ تم إرسال طلبك — سيتواصل معك المسؤول قريباً عبر البريد');
+      } else {
+        alert('✅ تم إرسال طلبك بنجاح. سيتواصل معك المسؤول قريباً.');
+      }
+    } catch(e) {
+      console.warn('_requestUpgrade error:', e);
+    }
+    // نسجّل الخروج بعد الطلب
+    setTimeout(() => this._closeAndLogout(), 1500);
+  },
+
+  _closeAndLogout() {
+    const modal = document.getElementById('trial-expired-modal');
+    if (modal) modal.remove();
+    document.body.style.overflow = '';
+    try {
+      sessionStorage.removeItem('sbtp_user');
+      sessionStorage.removeItem('sbtp_admin_auth');
+      if (typeof Auth !== 'undefined') Auth.currentUser = null;
+    } catch(_) {}
+    // العودة لصفحة الدخول
+    if (typeof App !== 'undefined' && App.navigate) {
+      App.navigate('login');
+    } else {
+      location.reload();
+    }
+  },
+
+  // ════════════════════════════════════════════════
+  //  حماية الصفحات: تحقّق وأنفذ
+  //  - يُستدعى بعد تسجيل الدخول وبعد كل تنقل
+  //  - يقفل الحساب في Supabase ويعرض modal
+  // ════════════════════════════════════════════════
+  async checkAndEnforce() {
+    try {
+      const user = (typeof Auth !== 'undefined' && Auth.getUser) ? Auth.getUser() : null;
+      if (!user) return;
+      // المسؤول معفي
+      if (user.is_admin) return;
+
+      const tenant = (typeof Auth !== 'undefined' && Auth.getTenant) ? Auth.getTenant() : null;
+      if (!tenant) return;
+
+      // إذا انتهى الحساب
+      if (this.isExpired(tenant)) {
+        const days = this.getDaysLeft(tenant);
+        const used = days !== null ? Math.max(14, 14 - days) : 14;
+
+        // قفل في Supabase (لمنع الدخول من أجهزة أخرى)
+        await this.lockAccountInSupabase(tenant.id);
+
+        // تحديث محلي
+        try {
+          const tenants = DB.get('tenants') || [];
+          DB.set('tenants', tenants.map(t => t.id === tenant.id
+            ? {...t, is_active: false, subscription_status: 'expired'}
+            : t
+          ));
+          const users = DB.get('users') || [];
+          DB.set('users', users.map(u => u.tenant_id === tenant.id
+            ? {...u, is_active: false, account_status: 'expired'}
+            : u
+          ));
+        } catch(_) {}
+
+        // اعرض modal الشكر + خطط
+        this.showExpiredModal(tenant.name, used);
+        return true;
+      }
+      return false;
+    } catch(e) {
+      console.warn('checkAndEnforce error:', e);
+      return false;
+    }
+  },
+
+  // ════════════════════════════════════════════════
+  //  تحذير قبل الانتهاء (3 أيام أو أقل)
+  // ════════════════════════════════════════════════
+  checkExpiryWarning() {
+    try {
+      const user = (typeof Auth !== 'undefined' && Auth.getUser) ? Auth.getUser() : null;
+      if (!user || user.is_admin) return;
+
+      const tenant = (typeof Auth !== 'undefined' && Auth.getTenant) ? Auth.getTenant() : null;
+      if (!tenant) return;
+
+      const days = this.getDaysLeft(tenant);
+      if (days === null) return;
+
+      if (days <= 0) return; // انتهى — يتعامل معه checkAndEnforce
+      if (days > 3) return;  // أكثر من 3 أيام — لا حاجة للتحذير
+
+      // تجنّب التكرار في نفس اليوم
+      const todayKey = `trial_warned_${tenant.id}_${new Date().toISOString().split('T')[0]}`;
+      if (sessionStorage.getItem(todayKey)) return;
+      sessionStorage.setItem(todayKey, '1');
+
+      const isAr = (typeof I18N !== 'undefined' && I18N.lang === 'ar') ||
+                   document.documentElement.dir === 'rtl';
+      const t = (a, f) => isAr ? a : f;
+
+      if (typeof Toast !== 'undefined') {
+        const msg = days === 1
+          ? t(`⚠️ ينتهي حسابك التجريبي غداً! اشترك الآن لتجنب الانقطاع.`,
+              `⚠️ Votre essai expire demain ! Abonnez-vous maintenant.`)
+          : t(`⚠️ تبقى ${days} أيام فقط على انتهاء التجربة. اشترك الآن!`,
+              `⚠️ Plus que ${days} jours d'essai. Abonnez-vous !`);
+        if (Toast.warn) Toast.warn(msg, 8000);
+        else if (Toast.show) Toast.show(msg, 'warn', 8000);
+      }
+    } catch(e) {
+      console.warn('checkExpiryWarning error:', e);
+    }
   }
 };
 
@@ -4684,6 +5065,7 @@ Pages.admin = function() {
           <div class="page-actions">
             <button class="btn btn-ghost btn-sm" data-nav="landing">🌐 ${L('الموقع','Site')}</button>
             <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Sync Supabase')}</button>
+            <button class="btn btn-ghost btn-sm" onclick="cleanupDuplicateTenants()" title="${L('حذف المؤسسات المكررة والمستخدمين اليتامى','Supprimer les doublons')}">🧹 ${L('تنظيف التكرارات','Nettoyer doublons')}</button>
             <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter entreprise')}</button>
           </div>
         </div>
@@ -5513,22 +5895,30 @@ function showDetailTab(btn, tabId) {
 
 /* ══ cleanForSupabase + SB_SCHEMA ══ */
 const SB_SCHEMA = {
-  projects:        ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
+  projects:        ['id','tenant_id','name','project_type','wilaya','client_name','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at'],
   workers:         ['id','tenant_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','project_id','hire_date','color','avatar_color','is_active'],
   equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
   transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
-  attendance:      ['id','tenant_id','worker_id','date','status','hours','note'],
+  attendance:      ['id','tenant_id','worker_id','project_id','date','status','hours','note'],
   salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
-  invoices:        ['id','tenant_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','project_id'],
+  invoices:        ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method'],
   documents:       ['id','tenant_id','name','project_id','category','type','url','size','date','uploader_id'],
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
-  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color'],
-  tenants:         ['id','name','plan_id','wilaya','subscription_status','trial_start','trial_end','is_active','phone','rc_number','nif','nis','tva_rate','address'],
+  users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login'],
+  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active'],
   notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
+  audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent'],
+  custom_roles:        ['id','tenant_id','name','description','permissions','scope'],
+  equipment_locations: ['id','tenant_id','equipment_id','user_id','latitude','longitude','accuracy','recorded_at','note'],
+  tenders:             ['id','tenant_id','project_id','title','description','deadline','status','awarded_to'],
+  tender_offers:       ['id','tender_id','supplier','supplier_phone','total_price','delivery_days','notes','is_winner','submitted_at'],
+  bank_transactions:   ['id','tenant_id','bank_name','account_number','transaction_date','amount','description','reference','matched_with','is_matched'],
+  signatures:          ['id','tenant_id','document_id','signer_name','signer_email','signature_data','ip_address','signed_at','token'],
+  ai_conversations:    ['id','tenant_id','user_id','messages','title','updated_at']
 };
 
 
@@ -5630,7 +6020,8 @@ function cleanForSupabase(table, record) {
 
     if ([
       'budget','amount','total_spent','daily_salary','monthly_base','purchase_price',
-      'unit_price','quantity','min_quantity','amount_ht','tva_amount','tva_rate','price'
+      'unit_price','quantity','min_quantity','amount_ht','tva_amount','tva_rate','price',
+      'price_monthly','max_projects','max_workers','max_equipment','max_emails'
     ].includes(col)) {
       const n = Number(v);
       clean[col] = Number.isFinite(n) ? n : 0;
@@ -5643,7 +6034,7 @@ function cleanForSupabase(table, record) {
     }
 
 // توحيد التواريخ: Postgres لا يقبل "" كـ DATE
-    if (/(^|_)date$/.test(col) || ['start_date','end_date','paid_date','hire_date'].includes(col)) {
+    if (/(^|_)date$/.test(col) || ['start_date','end_date','paid_date','hire_date','due','trial_start','trial_end'].includes(col)) {
       clean[col] = sbNormalizeDate(v);
       return;
     }
@@ -5655,7 +6046,12 @@ function cleanForSupabase(table, record) {
       return;
     }
 
-    // لا تحوّل النصوص الفارغة إلى null إلا إذا كانت FK (تمت معالجتها أعلاه)
+    // النصوص الفارغة → null (تجنّب أخطاء بعض أنواع الأعمدة)
+    if (typeof v === 'string' && v.trim() === '') {
+      clean[col] = null;
+      return;
+    }
+
     clean[col] = v;
   });
 
@@ -5684,7 +6080,9 @@ async function sbSync(table, record, method='POST') {
   try {
     const cfg = getSupabaseConfig();
     if (!cfg || !cfg.url || !cfg.key) {
-      console.warn('⚠️ sbSync: Supabase غير مربوط — table=' + table);
+      console.warn('⚠️ sbSync: Supabase غير مربوط — سيتم حفظ العملية في الـ Offline Queue — table=' + table);
+      // ✅ حفظ في Offline Queue حتى لو Supabase غير مهيّأ — للمزامنة لاحقاً
+      _saveSbOpToOfflineQueue(table, record, method);
       return;
     }
     const { url: sbUrl, key: sbKey } = cfg;
@@ -5703,6 +6101,7 @@ async function sbSync(table, record, method='POST') {
     if (method === 'POST') {
       // ✅ لا نرسل id أبداً عند الإدراج — Supabase يولده تلقائياً بـ SERIAL
       // هذا يمنع خطأ "duplicate key value violates unique constraint"
+      const oldId = record && record.id;
       const postRecord = { ...cleanRecord };
       delete postRecord.id;
 
@@ -5710,10 +6109,23 @@ async function sbSync(table, record, method='POST') {
       if (!res.ok) {
         const err = await res.text();
         console.warn(`⚠️ sbSync [POST ${table}]:`, err);
+        // عند الفشل: حفظ في Offline Queue للمزامنة لاحقاً
+        _saveSbOpToOfflineQueue(table, record, 'POST');
       } else {
         const data = await res.json();
         const newId = Array.isArray(data) ? data[0]?.id : data?.id;
-        console.log(`✅ sbSync [POST ${table}] → Supabase ID=${newId}`);
+        console.log(`✅ sbSync [POST ${table}] → Supabase ID=${newId} (local was ${oldId})`);
+        // ✅ مزامنة الـ ID المحلي مع الـ ID الذي ولّده Supabase (لتجنب تكرار)
+        if (newId && oldId && newId !== oldId) {
+          try {
+            const local = DB.get(table) || [];
+            const idx = local.findIndex(r => r.id === oldId);
+            if (idx >= 0) {
+              local[idx] = { ...local[idx], id: newId };
+              localStorage.setItem('sbtp5_' + table, JSON.stringify(local));
+            }
+          } catch(e) { console.warn('ID re-sync failed:', e.message); }
+        }
       }
 
     } else if (method === 'PATCH') {
@@ -5722,6 +6134,7 @@ async function sbSync(table, record, method='POST') {
       if (!res.ok) {
         const err = await res.text();
         console.warn(`⚠️ sbSync [PATCH ${table}] id=${record.id}:`, err);
+        _saveSbOpToOfflineQueue(table, record, 'PATCH');
       } else {
         console.log(`✅ sbSync [PATCH ${table}] id=${record.id}`);
       }
@@ -5732,6 +6145,7 @@ async function sbSync(table, record, method='POST') {
       if (!res.ok) {
         const err = await res.text();
         console.warn(`⚠️ sbSync [DELETE ${table}] id=${record.id}:`, err);
+        _saveSbOpToOfflineQueue(table, record, 'DELETE');
       } else {
         console.log(`✅ sbSync [DELETE ${table}] id=${record.id}`);
       }
@@ -5739,6 +6153,25 @@ async function sbSync(table, record, method='POST') {
 
   } catch(e) {
     console.warn('⚠️ sbSync error:', e.message);
+    // عند خطأ شبكة: احفظ في Offline Queue للمحاولة لاحقاً
+    try { _saveSbOpToOfflineQueue(table, record, method); } catch(_) {}
+  }
+}
+
+// ─── حفظ عملية فاشلة في Offline Queue ───
+function _saveSbOpToOfflineQueue(table, record, method) {
+  try {
+    const KEY = 'sbtp5_offline_queue';
+    const q = JSON.parse(localStorage.getItem(KEY) || '[]');
+    q.push({ table, record, method, time: Date.now() });
+    if (q.length > 500) q.splice(0, q.length - 500);
+    localStorage.setItem(KEY, JSON.stringify(q));
+    // إعلام DBHybrid بوجود تغييرات لرفعها يدوياً
+    if (typeof DBHybrid !== 'undefined' && DBHybrid._markUploadRequired) {
+      DBHybrid._markUploadRequired();
+    }
+  } catch(e) {
+    console.warn('⚠️ _saveSbOpToOfflineQueue:', e.message);
   }
 }
 
@@ -6153,11 +6586,46 @@ async function doLogin() {
 
     const sbUser = sbUsers[0];
 
-    // ── 2. تحقق من كلمة المرور ──
-    if (sbUser.password !== pass) {
+    // ── 2. تحقق من كلمة المرور (مع دعم التشفير الجديد + التوافق مع القديم) ──
+    let passwordValid = false;
+    try {
+      if (typeof SmartCrypto !== 'undefined' && SmartCrypto.verify) {
+        passwordValid = await SmartCrypto.verify(pass, sbUser.password);
+      } else {
+        passwordValid = (sbUser.password === pass);
+      }
+    } catch(e) {
+      console.warn('Password verify error, falling back:', e);
+      passwordValid = (sbUser.password === pass);
+    }
+
+    if (!passwordValid) {
       resetBtn();
       showErrMsg('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
       return;
+    }
+
+    // ── 2.1. ترقية كلمة المرور إذا كانت غير مشفّرة (auto-migrate) ──
+    if (typeof SmartCrypto !== 'undefined' && !SmartCrypto.isHashed(sbUser.password)) {
+      try {
+        const hashed = await SmartCrypto.hash(pass);
+        // حدّث في Supabase وعلى المحلي
+        const cfg = getSupabaseConfig?.() || {};
+        if (cfg.url && cfg.key) {
+          fetch(`${cfg.url}/rest/v1/users?id=eq.${sbUser.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type':'application/json',
+              'apikey': cfg.key,
+              'Authorization': `Bearer ${cfg.key}`,
+              'Prefer':'return=minimal'
+            },
+            body: JSON.stringify({ password: hashed })
+          }).catch(()=>{});
+        }
+        sbUser.password = hashed;
+        console.log('🔒 تم ترقية كلمة المرور للتشفير الآمن');
+      } catch(e) { console.warn('Password upgrade failed:', e); }
     }
 
     // ── 3. تحقق من التفعيل ──
@@ -6177,11 +6645,48 @@ async function doLogin() {
       }
     }
 
-    // ── 5. تحقق من تفعيل المؤسسة ──
+    // ── 5. تحقق من حالة المؤسسة ──
     if (!sbUser.is_admin && sbTenant) {
-      if (!sbTenant.is_active || sbTenant.subscription_status === 'pending') {
+      // 5.1 — إذا الاشتراك منتهي → اعرض modal الشكر + خطط
+      if (sbTenant.subscription_status === 'expired' ||
+          (TrialManager && TrialManager.isExpired(sbTenant))) {
+
+        // احسب أيام الاستخدام الفعلية
+        let daysUsed = 14;
+        try {
+          const start = sbTenant.trial_start || sbTenant.trial_starts_at || sbTenant.created_at;
+          if (start) {
+            const sd = new Date(start); sd.setHours(0,0,0,0);
+            const today = new Date(); today.setHours(0,0,0,0);
+            daysUsed = Math.max(1, Math.floor((today - sd) / 86400000));
+          }
+        } catch(_) {}
+
+        // اقفل الحساب في Supabase إن لم يكن مقفلاً بعد
+        if (sbTenant.is_active !== false) {
+          try { await TrialManager.lockAccountInSupabase(sbTenant.id); } catch(_) {}
+        }
+
+        resetBtn();
+        // اعرض modal دون تسجيل دخول
+        setTimeout(() => TrialManager.showExpiredModal(sbTenant.name, daysUsed), 200);
+        return;
+      }
+
+      // 5.2 — إذا الحساب بانتظار الموافقة
+      if (sbTenant.subscription_status === 'pending') {
         resetBtn();
         showPendingMsg();
+        return;
+      }
+
+      // 5.3 — إذا الحساب معطل يدوياً
+      if (sbTenant.is_active === false) {
+        resetBtn();
+        showErrMsg('🛑 ' + L(
+          'حسابك معطّل من المسؤول. يُرجى التواصل معه.',
+          'Compte désactivé. Veuillez contacter l\'administrateur.'
+        ));
         return;
       }
     }
@@ -6207,14 +6712,6 @@ async function doLogin() {
     if (sbUser.is_admin) sessionStorage.setItem('sbtp_admin_auth', '1');
 
     resetBtn();
-
-    // ── 8. تحقق من انتهاء التجربة ──
-    if (sbTenant && TrialManager.isExpired(sbTenant)) {
-      Auth.currentUser = null;
-      sessionStorage.removeItem('sbtp_user');
-      setTimeout(() => TrialManager.showExpiredModal(sbTenant.name), 300);
-      return;
-    }
 
     Toast.success('✅ تم تسجيل الدخول بنجاح');
 
@@ -6246,11 +6743,81 @@ async function doLogin() {
     }, 1500);
     setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
 
+    // ✅ مزامنة شاملة بعد تسجيل الدخول:
+    //    1. سحب كل بيانات المستخدم من Supabase (لكل الأجهزة)
+    //    2. رفع أي عمليات معلقة في الـ Offline Queue
+    setTimeout(() => {
+      try { pullAllTenantDataFromSupabase(sbUser.tenant_id).catch(()=>{}); } catch(_) {}
+      try {
+        if (typeof DBHybrid !== 'undefined' && DBHybrid._flushOfflineQueue) {
+          DBHybrid._flushOfflineQueue().catch(()=>{});
+        }
+      } catch(_) {}
+    }, 2000);
+
   } catch(e) {
     console.error('❌ خطأ في تسجيل الدخول:', e.message);
     resetBtn();
     showErrMsg('❌ حدث خطأ: ' + e.message);
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   pullAllTenantDataFromSupabase
+   ──────────────────────────────────────────────────────
+   يسحب كل بيانات المؤسسة من Supabase ويدمجها مع البيانات المحلية
+   يُستدعى تلقائياً عند تسجيل الدخول لضمان أحدث البيانات
+══════════════════════════════════════════════════════ */
+async function pullAllTenantDataFromSupabase(tenantId) {
+  if (!tenantId) return;
+  const cfg = getSupabaseConfig();
+  if (!cfg || !cfg.url || !cfg.key) return;
+
+  const sbH = {
+    'Content-Type':'application/json',
+    'apikey': cfg.key,
+    'Authorization': `Bearer ${cfg.key}`
+  };
+
+  const TABLES = [
+    'projects','workers','equipment','transactions','attendance',
+    'materials','stock_movements','invoices','salary_records',
+    'kanban_tasks','documents','obligations','notes'
+  ];
+
+  for (const table of TABLES) {
+    try {
+      const r = await fetch(
+        `${cfg.url}/rest/v1/${table}?tenant_id=eq.${tenantId}&select=*&order=id.asc`,
+        { headers: sbH }
+      );
+      if (!r.ok) continue;
+      const remote = await r.json();
+      if (!Array.isArray(remote)) continue;
+
+      // دمج: نفضّل بيانات Supabase (أحدث) لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
+      const local = DB.get(table) || [];
+      const remoteIds = new Set(remote.map(r => r.id));
+      const localOnly = local.filter(l => !remoteIds.has(l.id));
+      const merged = [...remote, ...localOnly];
+
+      // حفظ مباشر في localStorage بدون استدعاء _smartSync (لأننا نسحب من السحابة)
+      localStorage.setItem('sbtp5_' + table, JSON.stringify(merged));
+      console.log(`📥 Pulled ${table}: ${remote.length} remote + ${localOnly.length} local-only`);
+    } catch(e) {
+      console.warn(`⚠️ pull ${table}:`, e.message);
+    }
+  }
+
+  // إعادة رسم الصفحة الحالية بعد الجلب
+  try {
+    if (typeof App !== 'undefined' && App.render && App.currentPage &&
+        !['landing','login','admin'].includes(App.currentPage)) {
+      App.render();
+    }
+  } catch(_) {}
+
+  if (typeof Toast !== 'undefined') Toast.info('📥 تم سحب أحدث البيانات من السحابة');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -6622,192 +7189,565 @@ function changePassword() {
 
 // ── تفعيل حساب جديد من الإشعار ──
 async function activateAccount(notifId, userId, tenantId) {
-  const btn = event?.target;
+  const btn = (typeof event !== 'undefined' && event?.target) ? event.target : null;
   const origText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled=true; btn.textContent='⏳ جاري التفعيل...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التفعيل...'; }
+
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = origText; } };
 
   try {
-    const users   = DB.get('users');
-    const tenants = DB.get('tenants');
-    const user    = users.find(u => u.id === userId);
-    const tenant  = tenants.find(t => t.id === tenantId);
-    if (!user)   { Toast.error('❌ المستخدم غير موجود'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
-    if (!tenant) { Toast.error('❌ المؤسسة غير موجودة'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+    // ── 1. تحقق من البيانات المحلية ──
+    const users   = DB.get('users')   || [];
+    const tenants = DB.get('tenants') || [];
+    let user      = users.find(u => u.id === userId);
+    let tenant    = tenants.find(t => t.id === tenantId);
 
-    // تفعيل محلي
-    user.is_active       = true;
-    user.account_status  = 'active';
-    tenant.is_active            = true;
-    tenant.subscription_status  = 'trial';
-    DB.set('users', users);
-    DB.set('tenants', tenants);
+    // ── 2. جلب إعدادات Supabase (الطريقة الموحدة) ──
+    const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+    const sbUrl = cfg?.url || '';
+    const sbKey = cfg?.key || '';
 
-    // سجل بداية التجربة كفاتورة (0 دج) للمتابعة
-    recordSubscriptionInvoice(tenantId, tenant.plan_id || 1, { amount: 0, status:'trial', method:'activation', note:'Trial started' });
+    if (!sbUrl || !sbKey) {
+      Toast.error('⚠️ Supabase غير مربوط — لا يمكن تفعيل الحساب');
+      resetBtn();
+      return;
+    }
 
-    // تحديث الإشعار
+    const sbH = {
+      'Content-Type':'application/json',
+      'apikey': sbKey,
+      'Authorization': `Bearer ${sbKey}`,
+      'Prefer':'return=representation'
+    };
+
+    // ── 3. إذا لم يجد البيانات محلياً، اجلبها من Supabase ──
+    if (!user) {
+      try {
+        const r = await fetch(`${sbUrl}/rest/v1/users?id=eq.${userId}&select=*`, { headers: sbH });
+        if (r.ok) {
+          const arr = await r.json();
+          if (arr.length) user = arr[0];
+        }
+      } catch(_) {}
+    }
+    if (!tenant) {
+      try {
+        const r = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tenantId}&select=*`, { headers: sbH });
+        if (r.ok) {
+          const arr = await r.json();
+          if (arr.length) tenant = arr[0];
+        }
+      } catch(_) {}
+    }
+
+    if (!user)   { Toast.error('❌ المستخدم غير موجود (' + userId + ')'); resetBtn(); return; }
+    if (!tenant) { Toast.error('❌ المؤسسة غير موجودة (' + tenantId + ')'); resetBtn(); return; }
+
+    // ── 4. التفعيل في Supabase أولاً (مصدر الحقيقة) مع التحقق من res.ok لكل طلب ──
+    if (typeof Toast !== 'undefined') Toast.info('⏳ جاري التفعيل في Supabase...');
+
+    const failures = [];
+
+    // 4.1 تفعيل المستخدم
+    try {
+      const r = await fetch(`${sbUrl}/rest/v1/users?id=eq.${userId}`, {
+        method: 'PATCH', headers: sbH,
+        body: JSON.stringify({ is_active: true, account_status: 'active' })
+      });
+      if (!r.ok) {
+        const errText = await r.text().catch(() => '');
+        throw new Error(`HTTP ${r.status} — ${errText}`);
+      }
+      console.log('✅ Supabase: user activated');
+    } catch(e) {
+      console.error('❌ فشل تفعيل المستخدم في Supabase:', e);
+      failures.push('user: ' + e.message);
+    }
+
+    // 4.2 تفعيل المؤسسة
+    try {
+      const r = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tenantId}`, {
+        method: 'PATCH', headers: sbH,
+        body: JSON.stringify({ is_active: true, subscription_status: 'trial' })
+      });
+      if (!r.ok) {
+        const errText = await r.text().catch(() => '');
+        throw new Error(`HTTP ${r.status} — ${errText}`);
+      }
+      console.log('✅ Supabase: tenant activated');
+    } catch(e) {
+      console.error('❌ فشل تفعيل المؤسسة في Supabase:', e);
+      failures.push('tenant: ' + e.message);
+    }
+
+    // 4.3 تحديث الإشعار (اختياري — لا يوقف العملية)
+    try {
+      await fetch(`${sbUrl}/rest/v1/notifications?id=eq.${notifId}`, {
+        method: 'PATCH', headers: sbH,
+        body: JSON.stringify({ status: 'activated', read: true })
+      });
+    } catch(_) {}
+
+    // ── إذا فشل التفعيل في Supabase → أوقف ولا تُعدّل محلياً ──
+    if (failures.length > 0) {
+      Toast.error('❌ فشل التفعيل في Supabase:\n' + failures.join('\n'));
+      resetBtn();
+      return;
+    }
+
+    // ── 5. التفعيل المحلي (setSilent — لأن السجلات قد حُدّثت في Supabase) ──
+    user.is_active      = true;
+    user.account_status = 'active';
+    tenant.is_active           = true;
+    tenant.subscription_status = 'trial';
+
+    const usersIdx   = users.findIndex(u => u.id === userId);
+    const tenantsIdx = tenants.findIndex(t => t.id === tenantId);
+    if (usersIdx >= 0)   users[usersIdx]     = user;
+    else                 users.push(user);
+    if (tenantsIdx >= 0) tenants[tenantsIdx] = tenant;
+    else                 tenants.push(tenant);
+
+    // setSilent للحفاظ على عدم تكرار المزامنة
+    if (typeof DB.setSilent === 'function') {
+      DB.setSilent('users',   users);
+      DB.setSilent('tenants', tenants);
+    } else {
+      DB.set('users', users);
+      DB.set('tenants', tenants);
+    }
+
+    // تحديث الإشعار محلياً
     const notifs = DB.get('notifications') || [];
-    const notif  = notifs.find(n => n.id === notifId);
-    if (notif) { notif.status = 'activated'; notif.read = true; }
-    DB.set('notifications', notifs);
-
-    // تفعيل في Supabase
-    let sbUrl2 = '', sbKey2 = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl2 = SUPABASE_HARDCODED.url;
-      sbKey2 = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const _cfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
-      sbUrl2 = _cfg.url || ''; sbKey2 = _cfg.anonKey || '';
-    }
-    // تفعيل في Supabase (اختياري — لا يوقف العملية إذا لم يكن مربوطاً)
-    if (sbUrl2 && sbKey2) {
-      const sbH = { 'Content-Type':'application/json','apikey':sbKey2,'Authorization':`Bearer ${sbKey2}` };
-      await Promise.all([
-        fetch(`${sbUrl2}/rest/v1/users?id=eq.${userId}`,          { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
-        fetch(`${sbUrl2}/rest/v1/tenants?id=eq.${tenantId}`,      { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
-        fetch(`${sbUrl2}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
-      ]).catch(e => { console.warn('⚠️ تعذّر التفعيل في Supabase:', e.message); });
-    } else {
-      console.warn('⚠️ Supabase غير مربوط — سيكتمل التفعيل محلياً فقط');
+    const notifIdx = notifs.findIndex(n => n.id === notifId);
+    if (notifIdx >= 0) {
+      notifs[notifIdx].status = 'activated';
+      notifs[notifIdx].read   = true;
+      if (typeof DB.setSilent === 'function') DB.setSilent('notifications', notifs);
+      else DB.set('notifications', notifs);
     }
 
-    // ── إرسال إيميل التفعيل للمستخدم (يُرسَل دائماً بغض النظر عن حالة Supabase) ──
-    const ok = await EMAILJS.sendActivationEmail({
-      email:     user.email,
-      full_name: user.full_name,
-      password:  user.password,
-      company:   tenant.name || '',
-    });
+    // ── 6. سجل بداية التجربة كفاتورة (0 دج) للمتابعة ──
+    try {
+      recordSubscriptionInvoice(tenantId, tenant.plan_id || 1, {
+        amount: 0, status: 'trial', method: 'activation',
+        note: 'Trial started'
+      });
+    } catch(e) { console.warn('recordSubscriptionInvoice failed:', e); }
 
-    if (ok) {
+    // ── 7. إرسال إيميل التفعيل ──
+    let emailOk = false;
+    try {
+      emailOk = await EMAILJS.sendActivationEmail({
+        email:     user.email,
+        full_name: user.full_name,
+        password:  user.password,  // ⚠️ ملاحظة: مشفّرة الآن، الإيميل قد يحتاج كلمة المرور الأصلية
+        company:   tenant.name || ''
+      });
+    } catch(e) { console.warn('Email send failed:', e); }
+
+    // ── 8. Audit Log ──
+    try {
+      if (typeof AuditLog !== 'undefined') {
+        AuditLog.log('activate', 'tenants', tenantId, null, { activated_by_admin: true });
+      }
+    } catch(_) {}
+
+    if (emailOk) {
       Toast.success(`✅ تم تفعيل حساب "${user.full_name}" وإرسال إيميل التفعيل إلى ${user.email}`);
     } else {
-      Toast.warning(`⚠️ تم التفعيل محلياً — لكن فشل إرسال الإيميل، تحقق من إعدادات EmailJS`);
+      Toast.warn(`⚠️ تم التفعيل بنجاح، لكن فشل إرسال الإيميل — تحقق من إعدادات EmailJS`);
     }
-    App.navigate('admin');
+
+    setTimeout(() => App.navigate('admin'), 1000);
+
   } catch(e) {
-    Toast.error('❌ فشل التفعيل: ' + e.message);
-    if (btn) { btn.disabled=false; btn.textContent=origText; }
+    console.error('❌ activateAccount fatal error:', e);
+    Toast.error('❌ خطأ في التفعيل: ' + e.message);
+    resetBtn();
   }
 }
 
 async function toggleTenant(id) {
+  const tid = Number(id);
   const tenants = DB.get('tenants') || [];
-  const t = tenants.find(x=>x.id===id);
+  const t = tenants.find(x=>x.id===tid);
   if (!t) { Toast.error(L('المؤسسة غير موجودة','Entreprise introuvable')); return; }
+
+  // ── حماية مؤسسة المسؤول ──
+  if (tid === 1) {
+    Toast.error(L('🛑 لا يمكن تعطيل مؤسسة المسؤول','🛑 Impossible de désactiver l\'organisation administrateur'));
+    return;
+  }
 
   const nextActive = !t.is_active;
 
-  // تحديث محلي فوري للمؤسسة
-  DB.set('tenants', tenants.map(x=>x.id===id?{...x, is_active: nextActive}:x));
+  // ── جلب إعدادات Supabase ──
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbUrl = cfg?.url || '';
+  const sbKey = cfg?.key || '';
 
-  // تحديث المستخدمين المرتبطين محلياً
-  const users = DB.get('users') || [];
-  DB.set('users', users.map(u => u.tenant_id===id
-    ? {...u, is_active: nextActive, account_status: nextActive?'active':'suspended'}
-    : u
-  ));
+  if (!sbUrl || !sbKey) {
+    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن تحديث الحالة في قاعدة البيانات السحابية',
+                   '⚠️ Supabase non connecté — impossible de mettre à jour'));
+    return;
+  }
+
+  // ── تحديث Supabase أولاً (مصدر الحقيقة) ──
+  const sbH = {
+    'Content-Type':'application/json',
+    'apikey': sbKey,
+    'Authorization': `Bearer ${sbKey}`,
+    'Prefer': 'return=minimal'
+  };
 
   try {
-    let sbUrl = '', sbKey = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+    // تحديث المؤسسة
+    const tRes = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tid}`, {
+      method: 'PATCH', headers: sbH,
+      body: JSON.stringify({ is_active: nextActive })
+    });
+    if (!tRes.ok) {
+      const errText = await tRes.text().catch(()=> '');
+      throw new Error(`tenant: HTTP ${tRes.status} — ${errText}`);
     }
 
-    if (sbUrl && sbKey) {
-      const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
-      // تحديث المؤسسة
-      await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${id}`, {
-        method: 'PATCH', headers: sbH,
-        body: JSON.stringify({ is_active: nextActive })
-      });
-      // تحديث جميع مستخدمي المؤسسة
-      await fetch(`${sbUrl}/rest/v1/users?tenant_id=eq.${id}`, {
-        method: 'PATCH', headers: sbH,
-        body: JSON.stringify({
-          is_active: nextActive,
-          account_status: nextActive ? 'active' : 'suspended'
-        })
-      });
+    // تحديث جميع مستخدمي المؤسسة
+    const uRes = await fetch(`${sbUrl}/rest/v1/users?tenant_id=eq.${tid}`, {
+      method: 'PATCH', headers: sbH,
+      body: JSON.stringify({
+        is_active: nextActive,
+        account_status: nextActive ? 'active' : 'suspended'
+      })
+    });
+    if (!uRes.ok) {
+      const errText = await uRes.text().catch(()=> '');
+      console.warn(`⚠️ تحديث المستخدمين فشل: ${uRes.status} — ${errText}`);
+      // لا نوقف العملية، الجدول الأهم (tenants) نجح
     }
+
+    // ── نجح التحديث في Supabase → حدّث محلياً ──
+    DB.set('tenants', tenants.map(x => x.id===tid ? {...x, is_active: nextActive} : x));
+    const users = DB.get('users') || [];
+    DB.set('users', users.map(u => u.tenant_id===tid
+      ? {...u, is_active: nextActive, account_status: nextActive ? 'active' : 'suspended'}
+      : u
+    ));
 
     Toast.success(nextActive
-      ? L('✅ تم تفعيل المؤسسة ومستخدميها في Supabase','✅ Entreprise activée (Supabase)')
-      : L('⏸️ تم إيقاف المؤسسة ومستخدميها في Supabase','⏸️ Entreprise désactivée (Supabase)')
+      ? L('✅ تم تفعيل المؤسسة ومستخدميها','✅ Entreprise et utilisateurs activés')
+      : L('⏸️ تم إيقاف المؤسسة ومستخدميها','⏸️ Entreprise et utilisateurs désactivés')
     );
   } catch(e) {
-    console.warn('toggleTenant sync failed', e);
-    Toast.warn(L('تم التحديث محلياً — تعذر المزامنة مع Supabase','Mis à jour local — synchronisation Supabase échouée'));
+    console.error('❌ toggleTenant failed:', e);
+    Toast.error(L(`❌ تعذر تحديث الحالة في Supabase: ${e.message}`,
+                   `❌ Impossible de mettre à jour: ${e.message}`));
+    return;
   }
 
   App.navigate('admin');
 }
 
-async function deleteTenantAccount(tenantId){
-  const tenants = DB.get('tenants') || [];
-  const t = tenants.find(x=>x.id===tenantId);
-  const name = t?.name || ('#'+tenantId);
+/* ══════════════════════════════════════════════════════
+   cleanupDuplicateTenants — تنظيف المؤسسات المكررة
+   ──────────────────────────────────────────────────────
+   يبحث عن المؤسسات التي لها نفس الاسم أو نفس الـ NIF/RC،
+   ويُبقي على الأقدم (الأصلي) ويحذف النسخ المكررة من Supabase.
+══════════════════════════════════════════════════════ */
+async function cleanupDuplicateTenants() {
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  if (!cfg?.url || !cfg?.key) {
+    Toast.error('⚠️ Supabase غير مربوط');
+    return;
+  }
 
-  if (!confirm(L(
-    `⚠️ حذف مؤسسة يعني حذف كل بياناتها (المستخدمين/المشاريع/الوثائق/...) نهائياً.\n\nهل تريد المتابعة؟\n${name}`,
-    `⚠️ Supprimer l'entreprise effacera toutes ses données (utilisateurs/projets/documents/...) définitivement.\n\nContinuer ?\n${name}`
-  ))) return;
+  const sbH = {
+    'Content-Type':'application/json',
+    'apikey': cfg.key,
+    'Authorization': `Bearer ${cfg.key}`,
+    'Prefer':'return=representation'
+  };
 
-  // حذف محلي
-  const beforeTenants = tenants;
-  DB.set('tenants', beforeTenants.filter(x=>x.id!==tenantId));
-  // إزالة بيانات تابعة محلياً لتفادي ظهورها بعد الحذف
-  const depTables = ['users','projects','workers','equipment','transactions','attendance','materials','stock_movements','invoices','salary_records','kanban_tasks','documents','obligations','notes','notifications'];
-  depTables.forEach(tbl=>{
-    try{
-      const arr = DB.get(tbl);
-      if (Array.isArray(arr)) DB.set(tbl, arr.filter(r=>r.tenant_id!==tenantId));
-    }catch{}
-  });
+  Toast.info('🔍 جاري البحث عن التكرارات...');
 
-  try{
-    // جلب إعدادات Supabase
-    let sbUrl = '', sbKey = '';
-    if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) {
-      sbUrl = SUPABASE_HARDCODED.url; sbKey = SUPABASE_HARDCODED.anonKey;
-    } else {
-      const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
-      sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
+  try {
+    // 1) جلب كل المؤسسات والمستخدمين من Supabase
+    const tRes = await fetch(`${cfg.url}/rest/v1/tenants?select=*&order=id.asc`, { headers: sbH });
+    const uRes = await fetch(`${cfg.url}/rest/v1/users?select=*&order=id.asc`, { headers: sbH });
+    if (!tRes.ok || !uRes.ok) throw new Error('فشل جلب البيانات');
+
+    const allTenants = await tRes.json();
+    const allUsers   = await uRes.json();
+
+    // 2) تجميع المؤسسات حسب الاسم (مع تجاهل id=1 و 2 الافتراضيين)
+    const groups = new Map();
+    allTenants.forEach(t => {
+      if (t.id <= 2) return;  // المؤسسات الأساسية
+      const key = (t.name || '').trim().toLowerCase();
+      if (!key) return;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    });
+
+    // 3) ابحث عن التكرارات
+    const duplicates = [];
+    groups.forEach((arr, name) => {
+      if (arr.length > 1) {
+        // رتّب بـ id تصاعدياً، أبقِ الأول، احذف الباقي
+        arr.sort((a,b) => a.id - b.id);
+        const keeper = arr[0];
+        const toDelete = arr.slice(1);
+        duplicates.push({ name, keeper, toDelete });
+      }
+    });
+
+    // أيضاً ابحث عن users يتيمين (tenant_id غير موجود في tenants)
+    const tenantIds = new Set(allTenants.map(t => t.id));
+    const orphanUsers = allUsers.filter(u =>
+      u.id > 2 &&  // ليس admin أو demo
+      u.tenant_id !== null &&
+      !tenantIds.has(u.tenant_id)
+    );
+
+    // أيضاً ابحث عن users بدون email أو full_name (نسخ مشوّهة)
+    const corruptUsers = allUsers.filter(u =>
+      u.id > 2 &&
+      (!u.email || u.email.trim() === '' || !u.full_name || u.full_name.trim() === '')
+    );
+
+    if (duplicates.length === 0 && orphanUsers.length === 0 && corruptUsers.length === 0) {
+      Toast.success('✅ لا توجد مؤسسات مكررة أو يتيمة');
+      return;
     }
 
-    if (sbUrl && sbKey) {
-      const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
-      // حذف البيانات التابعة من Supabase بالترتيب الصحيح (الجداول الفرعية أولاً)
-      const sbDepTables = ['notifications','notes','obligations','kanban_tasks','documents',
-        'salary_records','attendance','stock_movements','materials','invoices',
-        'transactions','equipment','workers','projects','users'];
-      for (const tbl of sbDepTables) {
+    // 4) عرض ملخص للموافقة
+    const totalToDelete =
+      duplicates.reduce((s,d) => s + d.toDelete.length, 0) +
+      orphanUsers.length + corruptUsers.length;
+
+    let msg = `سيتم حذف ${totalToDelete} عنصر مكرر/يتيم:\n\n`;
+    if (duplicates.length) {
+      msg += '🔁 مؤسسات مكررة:\n';
+      duplicates.forEach(d => {
+        msg += `  • "${d.name}" — يبقي #${d.keeper.id}، يحذف: ${d.toDelete.map(t => '#'+t.id).join(', ')}\n`;
+      });
+    }
+    if (orphanUsers.length) {
+      msg += `\n👤 مستخدمين يتامى (مؤسستهم محذوفة): ${orphanUsers.length}\n`;
+      orphanUsers.slice(0,5).forEach(u => msg += `  • ${u.email || '#'+u.id}\n`);
+      if (orphanUsers.length > 5) msg += `  ... و ${orphanUsers.length - 5} آخرين\n`;
+    }
+    if (corruptUsers.length) {
+      msg += `\n⚠️ مستخدمين بدون بيانات صالحة: ${corruptUsers.length}\n`;
+    }
+    msg += '\n⚠️ هذه العملية لا يمكن التراجع عنها. متابعة؟';
+
+    if (!confirm(msg)) return;
+
+    // 5) تنفيذ الحذف
+    Toast.info('⏳ جاري الحذف...');
+    let deleted = 0, failed = 0;
+
+    // 5.1 حذف المؤسسات المكررة (cascade سيحذف المستخدمين المرتبطين)
+    for (const dup of duplicates) {
+      for (const t of dup.toDelete) {
         try {
-          await fetch(`${sbUrl}/rest/v1/${tbl}?tenant_id=eq.${tenantId}`, {
+          const r = await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`, {
             method: 'DELETE', headers: sbH
           });
-        } catch(e2) { console.warn(`حذف ${tbl} من Supabase فشل:`, e2); }
+          if (r.ok) deleted++; else failed++;
+        } catch(e) { failed++; }
       }
-      // حذف المؤسسة نفسها
-      await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tenantId}`, {
-        method: 'DELETE', headers: sbH
-      });
-    } else {
-      // fallback: حذف محلي فقط
-      await sbSyncDelete('tenants', tenantId);
     }
 
-    Toast.success(L('🗑️ تم حذف المؤسسة وبياناتها من Supabase نهائياً','🗑️ Entreprise supprimée définitivement de Supabase'));
-  }catch(e){
-    console.warn('deleteTenantAccount sync failed', e);
-    // rollback
-    DB.set('tenants', beforeTenants);
-    Toast.error(L('تعذر حذف المؤسسة من Supabase','Impossible de supprimer sur Supabase'));
+    // 5.2 حذف المستخدمين اليتامى
+    for (const u of orphanUsers) {
+      try {
+        const r = await fetch(`${cfg.url}/rest/v1/users?id=eq.${u.id}`, {
+          method: 'DELETE', headers: sbH
+        });
+        if (r.ok) deleted++; else failed++;
+      } catch(e) { failed++; }
+    }
+
+    // 5.3 حذف المستخدمين المشوّهين
+    for (const u of corruptUsers) {
+      try {
+        const r = await fetch(`${cfg.url}/rest/v1/users?id=eq.${u.id}`, {
+          method: 'DELETE', headers: sbH
+        });
+        if (r.ok) deleted++; else failed++;
+      } catch(e) { failed++; }
+    }
+
+    // 6) إعادة سحب البيانات النظيفة لـ localStorage
+    const tRes2 = await fetch(`${cfg.url}/rest/v1/tenants?select=*&order=id.asc`, { headers: sbH });
+    const uRes2 = await fetch(`${cfg.url}/rest/v1/users?select=*&order=id.asc`, { headers: sbH });
+    if (tRes2.ok && uRes2.ok) {
+      const cleanTenants = await tRes2.json();
+      const cleanUsers   = await uRes2.json();
+      if (typeof DB.setSilent === 'function') {
+        DB.setSilent('tenants', cleanTenants);
+        DB.setSilent('users', cleanUsers);
+      } else {
+        localStorage.setItem('sbtp5_tenants', JSON.stringify(cleanTenants));
+        localStorage.setItem('sbtp5_users', JSON.stringify(cleanUsers));
+      }
+    }
+
+    if (failed === 0) {
+      Toast.success(`✅ تم حذف ${deleted} عنصر مكرر/يتيم بنجاح`);
+    } else {
+      Toast.warn(`⚠️ تم حذف ${deleted}، فشل ${failed}`);
+    }
+
+    setTimeout(() => App.navigate('admin'), 1500);
+
+  } catch(e) {
+    console.error('cleanupDuplicateTenants error:', e);
+    Toast.error('❌ ' + e.message);
   }
+}
+
+
+async function deleteTenantAccount(tenantId){
+  const tid = Number(tenantId);
+  const tenants = DB.get('tenants') || [];
+  const t = tenants.find(x=>x.id===tid);
+  const name = t?.name || ('#'+tid);
+
+  // ── حماية الحسابات الأساسية ──
+  if (tid === 1) {
+    Toast.error(L('🛑 لا يمكن حذف مؤسسة المسؤول الأساسية','🛑 Impossible de supprimer l\'organisation administrateur'));
+    return;
+  }
+  if (tid === 2) {
+    if (!confirm(L(
+      '⚠️ هذه المؤسسة هي الحساب التجريبي الافتراضي. هل أنت متأكد من حذفها نهائياً؟',
+      '⚠️ Ceci est le compte de démonstration par défaut. Êtes-vous sûr de vouloir le supprimer ?'
+    ))) return;
+  } else {
+    if (!confirm(L(
+      `⚠️ حذف مؤسسة يعني حذف كل بياناتها (المستخدمين/المشاريع/الوثائق/...) نهائياً.\n\nهل تريد المتابعة؟\n${name}`,
+      `⚠️ Supprimer l'entreprise effacera toutes ses données (utilisateurs/projets/documents/...) définitivement.\n\nContinuer ?\n${name}`
+    ))) return;
+  }
+
+  // ── جلب إعدادات Supabase ──
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbUrl = cfg?.url || '';
+  const sbKey = cfg?.key || '';
+
+  if (!sbUrl || !sbKey) {
+    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن حذف الحساب من قاعدة البيانات السحابية',
+                   '⚠️ Supabase non connecté — impossible de supprimer dans la base distante'));
+    return;
+  }
+
+  // ── حفظ نسخة احتياطية محلية لإمكانية الاسترجاع عند الفشل ──
+  const depTables = ['users','projects','workers','equipment','transactions','attendance',
+                     'materials','stock_movements','invoices','salary_records','kanban_tasks',
+                     'documents','obligations','notes','notifications'];
+  const backup = { tenants: [...tenants] };
+  depTables.forEach(tbl => { try { backup[tbl] = [...(DB.get(tbl) || [])]; } catch{} });
+
+  // ── حذف من Supabase أولاً (مصدر الحقيقة) ──
+  const sbH = {
+    'Content-Type':'application/json',
+    'apikey': sbKey,
+    'Authorization': `Bearer ${sbKey}`,
+    'Prefer': 'return=minimal'
+  };
+
+  // الترتيب مهم: الجداول الفرعية أولاً ثم الأم
+  // (مع أن FOREIGN KEY ... ON DELETE CASCADE ستفعل ذلك تلقائياً، لكن نتأكد يدوياً)
+  const sbDepTables = ['notifications','notes','obligations','kanban_tasks','documents',
+    'salary_records','attendance','stock_movements','materials','invoices',
+    'transactions','equipment','workers','projects','users'];
+
+  const failures = [];
+  let progress = 0;
+  const totalSteps = sbDepTables.length + 1;
+
+  // عرض رسالة تقدم
+  if (typeof Toast !== 'undefined') Toast.info(L('⏳ جاري حذف المؤسسة وبياناتها...','⏳ Suppression en cours...'));
+
+  for (const tbl of sbDepTables) {
+    try {
+      const res = await fetch(
+        `${sbUrl}/rest/v1/${tbl}?tenant_id=eq.${tid}`,
+        { method: 'DELETE', headers: sbH }
+      );
+      if (!res.ok) {
+        const errText = await res.text().catch(()=> '');
+        // 404 / 406 مقبولة (الجدول قد يكون فارغاً)
+        if (res.status !== 404 && res.status !== 406) {
+          console.warn(`⚠️ حذف ${tbl} من Supabase فشل (${res.status}):`, errText);
+          failures.push(`${tbl}: HTTP ${res.status}`);
+        }
+      } else {
+        console.log(`✅ حُذف من ${tbl} (tenant_id=${tid})`);
+      }
+      progress++;
+    } catch(e) {
+      console.warn(`⚠️ حذف ${tbl} من Supabase فشل:`, e.message);
+      failures.push(`${tbl}: ${e.message}`);
+    }
+  }
+
+  // ── حذف المؤسسة نفسها ──
+  try {
+    const res = await fetch(
+      `${sbUrl}/rest/v1/tenants?id=eq.${tid}`,
+      { method: 'DELETE', headers: sbH }
+    );
+    if (!res.ok) {
+      const errText = await res.text().catch(()=> '');
+      throw new Error(`HTTP ${res.status} — ${errText}`);
+    }
+    console.log(`✅ حُذفت المؤسسة #${tid} من Supabase`);
+  } catch(e) {
+    // فشل حذف المؤسسة الأم — أعد الاسترجاع
+    console.error('❌ فشل حذف المؤسسة من Supabase:', e.message);
+    Toast.error(L(`❌ تعذر حذف المؤسسة من Supabase: ${e.message}`,
+                   `❌ Impossible de supprimer l'entreprise: ${e.message}`));
+    return;
+  }
+
+  // ── نجح الحذف من Supabase → احذف محلياً أيضاً ──
+  DB.set('tenants', tenants.filter(x => x.id !== tid));
+  depTables.forEach(tbl => {
+    try {
+      const arr = DB.get(tbl);
+      if (Array.isArray(arr)) DB.set(tbl, arr.filter(r => r.tenant_id !== tid));
+    } catch{}
+  });
+
+  // ── إزالة عمليات معلّقة في Offline Queue تخص هذه المؤسسة ──
+  try {
+    const Q_KEY = 'sbtp5_offline_queue';
+    const q = JSON.parse(localStorage.getItem(Q_KEY) || '[]');
+    const filtered = q.filter(op => {
+      const recTid = op?.record?.tenant_id;
+      return recTid !== tid;
+    });
+    localStorage.setItem(Q_KEY, JSON.stringify(filtered));
+    if (typeof DBHybrid !== 'undefined' && DBHybrid._updateAdminSyncUI) {
+      DBHybrid._updateAdminSyncUI();
+    }
+  } catch{}
+
+  if (failures.length === 0) {
+    Toast.success(L(`🗑️ تم حذف "${name}" وجميع بياناتها نهائياً`,
+                     `🗑️ "${name}" supprimée avec toutes ses données`));
+  } else {
+    Toast.warn(L(
+      `⚠️ تم حذف "${name}" لكن فشل حذف ${failures.length} جدول — قد تحتاج لإعادة المزامنة`,
+      `⚠️ "${name}" supprimée mais ${failures.length} table(s) ont échoué`
+    ));
+    console.warn('Failed deletes:', failures);
+  }
+
   App.navigate('admin');
 }
 
@@ -7199,24 +8139,39 @@ async function addTenant() {
   }
 
   // ── حفظ محلي بـ ID الحقيقي من Supabase (أو ID محلي إذا لا يوجد Supabase) ──
-  const tenants = DB.get('tenants');
-  const localTenantId = finalTenantId || (tenants.length ? Math.max(...tenants.map(t => t.id)) + 1 : 2);
-  const localUserId   = finalUserId   || (users.length   ? Math.max(...users.map(u => u.id))   + 1 : 3);
+  const tenants = DB.get('tenants') || [];
+  const localTenantId = finalTenantId || (tenants.length ? Math.max(...tenants.map(t => t.id)) + 1 : 100);
+  const localUserId   = finalUserId   || (users.length   ? Math.max(...users.map(u => u.id))   + 1 : 100);
 
-  const newTenant = {
-    id: localTenantId, name, plan_id: planId, wilaya,
-    is_active: true, subscription_status: 'active',
-    trial_start: new Date().toISOString().split('T')[0],
-    trial_end: new Date(Date.now() + 14*86400000).toISOString().split('T')[0]
-  };
-  const newUser = {
-    id: localUserId, tenant_id: localTenantId,
-    full_name: admin, email, password: pass,
-    role: 'admin', is_admin: false, is_active: true, account_status: 'active'
-  };
+  // تجنب الإضافة المكررة محلياً
+  const tenantExists = tenants.find(t => t.id === localTenantId);
+  const userExists   = users.find(u => u.id === localUserId);
 
-  tenants.push(newTenant); DB.set('tenants', tenants);
-  users.push(newUser);     DB.set('users', users);
+  if (!tenantExists) {
+    tenants.push({
+      id: localTenantId, name, plan_id: planId, wilaya,
+      is_active: true, subscription_status: 'active',
+      trial_start: new Date().toISOString().split('T')[0],
+      trial_end: new Date(Date.now() + 14*86400000).toISOString().split('T')[0]
+    });
+  }
+  if (!userExists) {
+    users.push({
+      id: localUserId, tenant_id: localTenantId,
+      full_name: admin, email, password: pass,
+      role: 'admin', is_admin: false, is_active: true, account_status: 'active'
+    });
+  }
+
+  // ✅ setSilent إذا كانت السجلات قد رُفعت لـ Supabase (لتجنب التكرار)
+  // أما إذا لم يكن هناك Supabase، نستخدم set العادية لرفعها لاحقاً عند الاتصال
+  if (hasSupabase && typeof DB.setSilent === 'function') {
+    DB.setSilent('tenants', tenants);
+    DB.setSilent('users', users);
+  } else {
+    DB.set('tenants', tenants);
+    DB.set('users', users);
+  }
 
   if (!hasSupabase) {
     Toast.success(L(`✅ تم إنشاء مؤسسة "${name}" (محلياً فقط)`, `✅ Entreprise "${name}" créée localement`));
@@ -7464,41 +8419,103 @@ function dismissNotif(notifId) {
 }
 
 // ── موافقة المسؤول على طلب الترقية ──
-function approveUpgrade(notifId, tenantId) {
+async function approveUpgrade(notifId, tenantId) {
+  const tid = Number(tenantId);
   const plan = prompt('أدخل رقم الخطة الجديدة:\n1 = المبتدئ (2,900 دج)\n2 = الاحترافي (7,900 دج)\n3 = المؤسسي (19,900 دج)');
   const planId = parseInt(plan);
   if (!planId || planId < 1 || planId > 3) { Toast.error('خطة غير صالحة'); return; }
-  const tenants = DB.get('tenants');
-  const t = tenants.find(x => x.id === tenantId);
-  if (t) {
-    t.plan_id = planId;
-    t.is_active = true;
-    t.subscription_status = 'active';
-    // تمديد لمدة شهر من اليوم
-    const end = new Date();
-    end.setMonth(end.getMonth() + 1);
-    t.subscription_end = end.toISOString().split('T')[0];
-    DB.set('tenants', tenants);
 
-    // سجل فاتورة اشتراك (مدفوعة) لهذه الترقية
-    recordSubscriptionInvoice(tenantId, planId, { amount: _getPlanPrice(planId), status: 'paid', method: 'upgrade', period_start: new Date().toISOString().split('T')[0], period_end: t.subscription_end, note: 'Upgrade approved' });
+  const tenants = DB.get('tenants');
+  const t = tenants.find(x => x.id === tid);
+  if (!t) { Toast.error('المؤسسة غير موجودة'); return; }
+
+  // تحضير القيم الجديدة
+  const end = new Date();
+  end.setMonth(end.getMonth() + 1);
+  const subEnd = end.toISOString().split('T')[0];
+
+  // ── جلب إعدادات Supabase ──
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbUrl = cfg?.url || '';
+  const sbKey = cfg?.key || '';
+
+  // ── تحديث Supabase أولاً (إذا متاح) ──
+  if (sbUrl && sbKey) {
+    const sbH = {
+      'Content-Type':'application/json',
+      'apikey': sbKey,
+      'Authorization': `Bearer ${sbKey}`,
+      'Prefer': 'return=minimal'
+    };
+    try {
+      const tRes = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tid}`, {
+        method: 'PATCH', headers: sbH,
+        body: JSON.stringify({
+          plan_id: planId,
+          is_active: true,
+          subscription_status: 'active'
+        })
+      });
+      if (!tRes.ok) {
+        const errText = await tRes.text().catch(()=> '');
+        throw new Error(`HTTP ${tRes.status} — ${errText}`);
+      }
+      console.log(`✅ تم تحديث المؤسسة #${tid} في Supabase (الخطة ${planId})`);
+    } catch(e) {
+      console.error('❌ approveUpgrade Supabase failed:', e);
+      Toast.error(L(`❌ تعذر تحديث الخطة في Supabase: ${e.message}`,
+                     `❌ Impossible de mettre à jour: ${e.message}`));
+      return;
+    }
   }
+
+  // ── تحديث محلي ──
+  t.plan_id = planId;
+  t.is_active = true;
+  t.subscription_status = 'active';
+  t.subscription_end = subEnd;
+  DB.set('tenants', tenants);
+
+  // سجل فاتورة اشتراك
+  try {
+    recordSubscriptionInvoice(tid, planId, {
+      amount: _getPlanPrice(planId),
+      status: 'paid',
+      method: 'upgrade',
+      period_start: new Date().toISOString().split('T')[0],
+      period_end: subEnd,
+      note: 'Upgrade approved'
+    });
+  } catch(e) { console.warn('recordSubscriptionInvoice failed:', e); }
+
   // تحديث الإشعار
   const notifs = DB.get('notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni >= 0) { notifs[ni].status = 'approved'; notifs[ni].read = true; }
-  DB.set('notifications', notifs);
-  Toast.success('✅ تم الموافقة على الترقية وتفعيل الحساب');
+  if (ni >= 0) {
+    notifs[ni].status = 'approved';
+    notifs[ni].read = true;
+    DB.set('notifications', notifs);
+    // sync to Supabase
+    try { await sbSync('notifications', notifs[ni], 'PATCH'); } catch(_) {}
+  }
+
+  Toast.success(L('✅ تم الموافقة على الترقية وتفعيل الحساب',
+                   '✅ Mise à niveau approuvée et compte activé'));
   App.navigate('admin');
 }
 
 // ── رفض طلب الترقية ──
-function rejectUpgrade(notifId) {
+async function rejectUpgrade(notifId) {
   const notifs = DB.get('notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni >= 0) { notifs[ni].status = 'rejected'; notifs[ni].read = true; }
-  DB.set('notifications', notifs);
-  Toast.warn('تم رفض طلب الترقية');
+  if (ni >= 0) {
+    notifs[ni].status = 'rejected';
+    notifs[ni].read = true;
+    DB.set('notifications', notifs);
+    // sync to Supabase
+    try { await sbSync('notifications', notifs[ni], 'PATCH'); } catch(_) {}
+  }
+  Toast.warn(L('تم رفض طلب الترقية','Demande de mise à niveau rejetée'));
   App.navigate('admin');
 }
 
@@ -7584,69 +8601,37 @@ function avatarHtml(name, color, size=32) {
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color||'#4A90E2'};display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:${Math.round(size*0.35)}px;flex-shrink:0">${initials}</div>`;
 }
 
-/* Extend DB.init with new data */
+/* Extend DB.init — لا تُضيف بيانات وهمية، فقط ضمان البنية الصحيحة */
 const _origInit = DB.init.bind(DB);
 DB.init = function() {
   _origInit();
-  if (!this.get('kanban_tasks').length) {
-    this.set('kanban_tasks', [
-      {id:1,tenant_id:1,project_id:1,title:'إعداد مخططات الطابق الأول',col:'inprogress',priority:'high',assignee_id:2,due_date:'2025-03-15'},
-      {id:2,tenant_id:1,project_id:1,title:'توريد حديد التسليح',col:'todo',priority:'medium',assignee_id:2,due_date:'2025-03-20'},
-      {id:3,tenant_id:1,project_id:1,title:'صب الأساسات',col:'done',priority:'high',assignee_id:2,due_date:'2025-01-30'},
-      {id:4,tenant_id:1,project_id:1,title:'تركيب القوالب الخشبية',col:'review',priority:'low',assignee_id:2,due_date:'2025-04-01'},
-    ]);
-  }
-  if (!this.get('documents').length) {
-    this.set('documents', [
-      {id:1,tenant_id:1,project_id:1,name:'مخطط الطابق الأرضي.pdf',type:'pdf',size:'2.4 MB',date:'2024-03-10',category:'مخططات',uploader_id:2},
-      {id:2,tenant_id:1,project_id:1,name:'عقد المقاولة.pdf',type:'pdf',size:'1.1 MB',date:'2024-03-05',category:'عقود',uploader_id:2},
-      {id:3,tenant_id:1,project_id:1,name:'صورة الموقع 001.jpg',type:'image',size:'3.2 MB',date:'2024-04-01',category:'صور',uploader_id:2},
-    ]);
-  }
-  if (!this.get('invoices').length) {
-    this.set('invoices', [
-      {id:1,tenant_id:1,project_id:1,number:'FAC-2024-001',client:'عبد القادر بن علي',amount:10000000,date:'2024-03-05',status:'paid',description:'دفعة أولى'},
-      {id:2,tenant_id:1,project_id:1,number:'FAC-2024-002',client:'عبد القادر بن علي',amount:8000000,date:'2024-07-15',status:'paid',description:'دفعة مرحلية'},
-    ]);
-  }
-  if (!this.get('stock_movements').length) {
-    this.set('stock_movements', [
-      {id:1,tenant_id:1,material_id:1,type:'in',quantity:10,date:'2024-03-10',note:'توريد'},
-      {id:2,tenant_id:1,material_id:1,type:'out',quantity:5,date:'2024-03-15',note:'استخدام'},
-    ]);
-  }
-  if (!this.get('salary_records').length) this.set('salary_records', []);
-  if (!this.get('notifications').length) {
-    this.set('notifications', [
-      {id:1,tenant_id:1,title:'تنبيه المخزون',message:'طوب قرميد وصل للحد الأدنى',read:false,date:'2025-01-15',type:'warn'},
-      {id:2,tenant_id:1,title:'ميزانية المشروع',message:'فيلا دار البيضاء تجاوزت الميزانية',read:false,date:'2025-01-14',type:'danger'},
-    ]);
-  }
-  // Ensure users have roles
+
+  // ضمان وجود الجداول الفارغة (إذا لم تكن مهيّأة بعد)
+  if (!this.get('kanban_tasks').length    && !localStorage.getItem('sbtp5_kanban_tasks'))    this.set('kanban_tasks',    []);
+  if (!this.get('documents').length       && !localStorage.getItem('sbtp5_documents'))       this.set('documents',       []);
+  if (!this.get('invoices').length        && !localStorage.getItem('sbtp5_invoices'))        this.set('invoices',        []);
+  if (!this.get('stock_movements').length && !localStorage.getItem('sbtp5_stock_movements')) this.set('stock_movements', []);
+  if (!this.get('salary_records').length  && !localStorage.getItem('sbtp5_salary_records'))  this.set('salary_records',  []);
+  if (!this.get('notifications').length   && !localStorage.getItem('sbtp5_notifications'))   this.set('notifications',   []);
+  if (!this.get('obligations').length     && !localStorage.getItem('sbtp5_obligations'))     this.set('obligations',     []);
+
+  // ضمان وجود avatar_color وrole لجميع المستخدمين
   const users = this.get('users');
   let changed = false;
   users.forEach(u => {
     if (!u.role) { u.role = u.is_admin ? 'admin' : 'admin'; changed = true; }
-    if (!u.avatar_color) { u.avatar_color = ['#4A90E2','#34C38F','#E8B84B','#9B6DFF','#FF7043'][u.id % 5]; changed = true; }
+    if (!u.avatar_color) {
+      u.avatar_color = ['#4A90E2','#34C38F','#E8B84B','#9B6DFF','#FF7043'][u.id % 5];
+      changed = true;
+    }
   });
   if (changed) this.set('users', users);
-  // Add extra demo users
-  const existingEmails = users.map(u => u.email);
-  if (!existingEmails.includes('comptable@algerie-construction.dz')) {
-    users.push({id:DB.nextId('users'),tenant_id:1,full_name:'فريدة حمداوي',email:'comptable@algerie-construction.dz',password:'Demo@1234',role:'accountant',is_admin:false,is_active:true,avatar_color:'#34C38F'});
-    users.push({id:DB.nextId('users'),tenant_id:1,full_name:'عمار بوزيد',email:'rh@algerie-construction.dz',password:'Demo@1234',role:'hr',is_admin:false,is_active:true,avatar_color:'#9B6DFF'});
-    users.push({id:DB.nextId('users'),tenant_id:1,full_name:'سليم مراد',email:'viewer@algerie-construction.dz',password:'Demo@1234',role:'viewer',is_admin:false,is_active:true,avatar_color:'#FF7043'});
-    this.set('users', users);
-  }
-  // Add extra transaction fields (monthly_base for workers)
+
+  // ضمان monthly_base للعمال (إن وُجدوا — فقط للحساب التجريبي)
   const workers = this.get('workers');
   let wChanged = false;
-  workers.forEach(w => { if (!w.monthly_base) { w.monthly_base = w.daily_salary * 26; wChanged = true; } });
+  workers.forEach(w => { if (!w.monthly_base) { w.monthly_base = (w.daily_salary || 0) * 26; wChanged = true; } });
   if (wChanged) this.set('workers', workers);
-  // Add GPS & subscription data to projects & tenants
-  const tenants = this.get('tenants');
-  tenants.forEach(t => { if (!t.subscription_end) { t.subscription_end = '2025-12-31'; } });
-  this.set('tenants', tenants);
 };
 
 /* ── EXTEND TOPBAR with notifications ── */
@@ -9470,42 +10455,161 @@ function changeUserRoleV5(uid,role){
   App.navigate('team');
 }
 async function toggleUserActive(uid){
-  const users = DB.get('users').map(u => u.id===uid ? ({...u, is_active: !u.is_active, account_status: (!u.is_active ? 'active' : 'disabled')}) : u);
-  DB.set('users', users);
-  const updUser = users.find(u=>u.id===uid);
+  const userId = Number(uid);
 
-  try{
-    if (updUser){
-      await sbSync('users', { id: uid, is_active: updUser.is_active, account_status: updUser.account_status }, 'PATCH');
-    }
-    Toast.success(L('تم تحديث حالة المستخدم في Supabase','Statut utilisateur mis à jour (Supabase)'));
-  }catch(e){
-    console.warn('toggleUserActive sync failed', e);
-    Toast.warn(L('تم تحديث الحالة محلياً — تعذر المزامنة مع Supabase','Mis à jour local — synchronisation Supabase échouée'));
+  // ── حماية حساب المسؤول الأساسي ──
+  if (userId === 1) {
+    Toast.error(L('🛑 لا يمكن تعطيل حساب المسؤول الأساسي','🛑 Impossible de désactiver le compte admin principal'));
+    return;
   }
+
+  // ── منع المستخدم من تعطيل نفسه ──
+  const currentUser = Auth.getUser();
+  if (currentUser && currentUser.id === userId) {
+    Toast.error(L('🛑 لا يمكنك تعطيل حسابك أنت!','🛑 Vous ne pouvez pas désactiver votre propre compte!'));
+    return;
+  }
+
+  const before = DB.get('users') || [];
+  const target = before.find(u => u.id === userId);
+  if (!target) { Toast.error(L('المستخدم غير موجود','Utilisateur introuvable')); return; }
+
+  const nextActive = !target.is_active;
+  const nextStatus = nextActive ? 'active' : 'disabled';
+
+  // ── جلب إعدادات Supabase ──
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbUrl = cfg?.url || '';
+  const sbKey = cfg?.key || '';
+
+  if (!sbUrl || !sbKey) {
+    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن تحديث الحالة','⚠️ Supabase non connecté'));
+    return;
+  }
+
+  // ── تحديث Supabase أولاً ──
+  try {
+    const res = await fetch(`${sbUrl}/rest/v1/users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type':'application/json',
+        'apikey': sbKey,
+        'Authorization': `Bearer ${sbKey}`,
+        'Prefer':'return=minimal'
+      },
+      body: JSON.stringify({ is_active: nextActive, account_status: nextStatus })
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(()=> '');
+      throw new Error(`HTTP ${res.status} — ${errText}`);
+    }
+
+    // ── نجح في Supabase → حدّث محلياً ──
+    DB.set('users', before.map(u => u.id === userId
+      ? {...u, is_active: nextActive, account_status: nextStatus}
+      : u
+    ));
+
+    Toast.success(nextActive
+      ? L('▶️ تم تفعيل المستخدم','▶️ Utilisateur activé')
+      : L('⏸️ تم إيقاف المستخدم','⏸️ Utilisateur désactivé'));
+  } catch(e) {
+    console.error('❌ toggleUserActive failed:', e);
+    Toast.error(L(`❌ تعذر تحديث الحالة: ${e.message}`,`❌ Impossible: ${e.message}`));
+    return;
+  }
+
   App.navigate('team');
 }
 
 async function deleteUserAccount(uid){
-  const u = (DB.get('users')||[]).find(x=>x.id===uid);
-  const name = u?.full_name || u?.name || u?.email || ('#'+uid);
+  const userId = Number(uid);
+  const u = (DB.get('users')||[]).find(x=>x.id===userId);
+  const name = u?.full_name || u?.name || u?.email || ('#'+userId);
 
-  if (!confirm(L(`هل تريد حذف حساب المستخدم نهائياً؟\n${name}`,
-                 `Supprimer définitivement ce compte ?\n${name}`))) return;
-
-  // احذف محلياً أولاً
-  const before = DB.get('users')||[];
-  DB.set('users', before.filter(x=>x.id!==uid));
-
-  try{
-    await sbSync('users', {id: uid}, 'DELETE');
-    Toast.success(L('تم حذف المستخدم من Supabase','Utilisateur supprimé de Supabase'));
-  }catch(e){
-    console.warn('deleteUserAccount sync failed', e);
-    // rollback محلياً
-    DB.set('users', before);
-    Toast.error(L('تعذر حذف المستخدم من Supabase','Impossible de supprimer sur Supabase'));
+  // ── حماية الحسابات الأساسية ──
+  if (userId === 1) {
+    Toast.error(L('🛑 لا يمكن حذف حساب المسؤول الأساسي','🛑 Impossible de supprimer le compte admin principal'));
+    return;
   }
+  if (userId === 2) {
+    if (!confirm(L(
+      '⚠️ هذا هو الحساب التجريبي الافتراضي. هل أنت متأكد من حذفه؟',
+      '⚠️ Ceci est le compte de démonstration. Êtes-vous sûr ?'
+    ))) return;
+  } else {
+    if (!confirm(L(
+      `هل تريد حذف حساب المستخدم نهائياً؟\n${name}`,
+      `Supprimer définitivement ce compte ?\n${name}`
+    ))) return;
+  }
+
+  // ── منع المستخدم من حذف نفسه ──
+  const currentUser = Auth.getUser();
+  if (currentUser && currentUser.id === userId) {
+    Toast.error(L('🛑 لا يمكنك حذف حسابك أنت!','🛑 Vous ne pouvez pas supprimer votre propre compte!'));
+    return;
+  }
+
+  // ── جلب إعدادات Supabase ──
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbUrl = cfg?.url || '';
+  const sbKey = cfg?.key || '';
+
+  if (!sbUrl || !sbKey) {
+    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن حذف الحساب من قاعدة البيانات السحابية',
+                   '⚠️ Supabase non connecté — impossible de supprimer'));
+    return;
+  }
+
+  if (typeof Toast !== 'undefined') Toast.info(L('⏳ جاري حذف المستخدم...','⏳ Suppression en cours...'));
+
+  // ── حذف من Supabase أولاً (مصدر الحقيقة) ──
+  const sbH = {
+    'Content-Type':'application/json',
+    'apikey': sbKey,
+    'Authorization': `Bearer ${sbKey}`,
+    'Prefer': 'return=minimal'
+  };
+
+  try {
+    const res = await fetch(
+      `${sbUrl}/rest/v1/users?id=eq.${userId}`,
+      { method: 'DELETE', headers: sbH }
+    );
+    if (!res.ok) {
+      const errText = await res.text().catch(()=> '');
+      throw new Error(`HTTP ${res.status} — ${errText}`);
+    }
+    console.log(`✅ حُذف المستخدم #${userId} من Supabase`);
+
+    // ── نجح الحذف من Supabase → احذف محلياً ──
+    const before = DB.get('users') || [];
+    DB.set('users', before.filter(x => x.id !== userId));
+
+    // ── إزالة عمليات معلّقة في Offline Queue تخص هذا المستخدم ──
+    try {
+      const Q_KEY = 'sbtp5_offline_queue';
+      const q = JSON.parse(localStorage.getItem(Q_KEY) || '[]');
+      const filtered = q.filter(op => {
+        if (op?.table !== 'users') return true;
+        const recId = op?.record?.id;
+        return recId !== userId;
+      });
+      localStorage.setItem(Q_KEY, JSON.stringify(filtered));
+      if (typeof DBHybrid !== 'undefined' && DBHybrid._updateAdminSyncUI) {
+        DBHybrid._updateAdminSyncUI();
+      }
+    } catch{}
+
+    Toast.success(L(`🗑️ تم حذف "${name}" نهائياً`,`🗑️ "${name}" supprimé`));
+  } catch(e) {
+    console.error('❌ deleteUserAccount failed:', e);
+    Toast.error(L(`❌ تعذر حذف المستخدم من Supabase: ${e.message}`,
+                   `❌ Impossible de supprimer: ${e.message}`));
+    return;
+  }
+
   App.navigate('team');
 }
 

@@ -91,55 +91,76 @@ const SUPABASE_CONFIG = {
 /* ══════════════════════════════════════════════════════
    SB_SCHEMA — أعمدة كل جدول (المصدر الموحّد)
    يُستخدم لتنظيف السجلات قبل الإرسال لـ Supabase
+   ⚠️ يجب أن يطابق تماماً supabase-schema.sql + SB_SCHEMA في app.js
 ══════════════════════════════════════════════════════ */
 const _SB_SCHEMA_INTERNAL = {
   plans:          ['id','slug','name','price_monthly','price','max_projects','max_workers','max_equipment','max_emails','created_at'],
   tenants:        ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','created_at','updated_at'],
-  users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','last_login','created_at','updated_at'],
-  projects:       ['id','tenant_id','name','project_type','wilaya','client_name','budget','total_spent','progress','status','color','phase','start_date','end_date','is_archived','created_at','updated_at'],
-  workers:        ['id','tenant_id','project_id','full_name','role','phone','daily_salary','contract_type','hire_date','color','is_active','created_at'],
+  users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login','created_at','updated_at'],
+  projects:       ['id','tenant_id','name','project_type','wilaya','client_name','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at','updated_at'],
+  workers:        ['id','tenant_id','project_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','hire_date','color','avatar_color','is_active','created_at'],
   equipment:      ['id','tenant_id','project_id','name','model','plate_number','icon','status','purchase_price','notes','created_at'],
-  transactions:   ['id','tenant_id','project_id','type','category','amount','description','date','payment_method','created_at'],
+  transactions:   ['id','tenant_id','project_id','worker_id','type','category','amount','description','date','payment_method','supplier','created_at'],
   attendance:     ['id','tenant_id','worker_id','project_id','date','status','hours','note','created_at'],
   materials:      ['id','tenant_id','project_id','name','unit','quantity','min_quantity','unit_price','supplier','created_at'],
-  invoices:       ['id','tenant_id','project_id','number','client_name','date','due_date','status','total','tva','notes','items','created_at'],
-  salary_records: ['id','tenant_id','worker_id','project_id','month','days_worked','base_salary','bonuses','deductions','net_salary','paid','created_at'],
-  kanban_tasks:   ['id','tenant_id','project_id','title','description','status','priority','assigned_to','due_date','created_at'],
-  documents:      ['id','tenant_id','project_id','name','type','url','size','created_at'],
-  obligations:    ['id','tenant_id','project_id','title','type','amount','due_date','status','notes','created_at'],
+  invoices:       ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method','created_at'],
+  salary_records: ['id','tenant_id','worker_id','month_key','amount','paid_date','created_at'],
+  kanban_tasks:   ['id','tenant_id','project_id','title','priority','assignee_id','due_date','col','created_at'],
+  documents:      ['id','tenant_id','project_id','name','category','type','url','size','date','uploader_id','created_at'],
+  obligations:    ['id','tenant_id','title','amount','due','created_at'],
   notes:          ['id','tenant_id','project_id','user_id','text','date','created_at'],
   notifications:  ['id','tenant_id','user_id','type','title','body','date','read','status','created_at'],
   global_settings:['key','value','updated_at'],
-  stock_movements:['id','tenant_id','material_id','project_id','type','quantity','date','note','created_at']
+  stock_movements:['id','tenant_id','material_id','type','quantity','date','note','created_at'],
+  audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent','created_at'],
+  custom_roles:        ['id','tenant_id','name','description','permissions','scope','created_at'],
+  equipment_locations: ['id','tenant_id','equipment_id','user_id','latitude','longitude','accuracy','recorded_at','note'],
+  tenders:             ['id','tenant_id','project_id','title','description','deadline','status','awarded_to','created_at'],
+  tender_offers:       ['id','tender_id','supplier','supplier_phone','total_price','delivery_days','notes','is_winner','submitted_at'],
+  bank_transactions:   ['id','tenant_id','bank_name','account_number','transaction_date','amount','description','reference','matched_with','is_matched','created_at'],
+  signatures:          ['id','tenant_id','document_id','signer_name','signer_email','signature_data','ip_address','signed_at','token'],
+  ai_conversations:    ['id','tenant_id','user_id','messages','title','created_at','updated_at']
 };
 
 // حقول التواريخ لكل جدول
 const _SB_DATE_FIELDS_INTERNAL = {
   projects:       ['start_date','end_date'],
+  tenants:        ['trial_start','trial_end'],
   workers:        ['hire_date'],
   transactions:   ['date'],
   attendance:     ['date'],
   invoices:       ['date','due_date','paid_date'],
   salary_records: ['paid_date'],
   documents:      ['date'],
-  obligations:    ['due_date'],
+  obligations:    ['due'],
   kanban_tasks:   ['due_date'],
   stock_movements:['date'],
-  notes:          ['date']
+  notes:          ['date'],
+  tenders:        ['deadline'],
+  bank_transactions:['transaction_date']
 };
 
 // حقول الأرقام لكل جدول
 const _SB_NUM_FIELDS_INTERNAL = {
+  plans:          ['price_monthly','price','max_projects','max_workers','max_equipment','max_emails'],
+  tenants:        ['tva_rate'],
   projects:       ['budget','total_spent','progress'],
   workers:        ['daily_salary','monthly_base'],
+  equipment:      ['purchase_price'],
   transactions:   ['amount'],
   materials:      ['quantity','min_quantity','unit_price'],
-  invoices:       ['total','tva'],
-  salary_records: ['base_salary','bonuses','deductions','net_salary','days_worked'],
-  stock_movements:['quantity']
+  invoices:       ['amount','amount_ht','tva_amount','tva_rate'],
+  salary_records: ['amount'],
+  obligations:    ['amount'],
+  documents:      ['size'],
+  stock_movements:['quantity'],
+  attendance:     ['hours','overtime'],
+  equipment_locations:['latitude','longitude','accuracy'],
+  tender_offers:  ['total_price','delivery_days'],
+  bank_transactions:['amount']
 };
 
-// IDs الاختيارية (تقبل null)
+// IDs الاختيارية (تقبل null) — لا تشمل id (المفتاح الأساسي)
 const _NULLABLE_IDS_INTERNAL = new Set([
   'project_id','worker_id','material_id','user_id',
   'plan_id','uploader_id','assignee_id','tenant_id'
@@ -205,8 +226,15 @@ function _cleanForSupabase_INTERNAL(table, record) {
     }
 
     // بوليان
-    if (['is_active','is_admin','is_archived','read','paid'].includes(col)) {
+    if (['is_active','is_admin','is_archived','read'].includes(col)) {
       clean[col] = Boolean(v);
+      continue;
+    }
+
+    // النصوص الفارغة في حقول التواريخ تُعتبر null (تم التعامل أعلاه)
+    // أي نص آخر فارغ → null (Postgres يقبل null لكن "" يسبب أخطاء في بعض الأنواع)
+    if (typeof v === 'string' && v.trim() === '') {
+      clean[col] = null;
       continue;
     }
 
@@ -668,6 +696,16 @@ const DBHybrid = {
 },
 
   /**
+   * setSilent: حفظ محلي فقط بدون مزامنة Supabase
+   * يُستخدم عندما تكون السجلات قد رُفعت بالفعل لـ Supabase (مثل التسجيل اليدوي)
+   * لتجنب إنشاء نُسخ مكررة
+   */
+  setSilent(key, val) {
+    try { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); }
+    catch (_) {}
+  },
+
+  /**
    * _smartSync: يقارن الحالة الجديدة بالقديمة ويرفع فقط التغييرات
    * INSERT: سجل جديد (id غير موجود في السابق)
    * UPDATE: سجل معدَّل (id موجود لكن محتواه تغيّر)
@@ -741,7 +779,7 @@ if (!navigator.onLine || !this._useSupabase) {
       'Content-Type':  'application/json',
       'apikey':         cfg.anonKey,
       'Authorization': `Bearer ${cfg.anonKey}`,
-      'Prefer':         'return=minimal'
+      'Prefer':         'return=representation'
     };
 
     const clean = _cleanForSupabase_INTERNAL(table, record);
@@ -753,6 +791,7 @@ if (!navigator.onLine || !this._useSupabase) {
     try {
       if (method === 'POST') {
         const body = { ...clean };
+        const oldId = record && record.id;
         // افتراضياً نحذف id لأن Supabase يولده، لكن لبعض الجداول (مثل notifications) نُبقيه لتوحيد السجلات بين الأجهزة
         if (!_KEEP_ID_TABLES.has(table)) delete body.id;
 
@@ -760,11 +799,11 @@ if (!navigator.onLine || !this._useSupabase) {
         let postHeaders = headers;
         if (_KEEP_ID_TABLES.has(table) && record && record.id) {
           postUrl += '?on_conflict=id';
-          postHeaders = { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' };
+          postHeaders = { ...headers, 'Prefer': 'resolution=merge-duplicates,return=representation' };
         }
 
         const res = await fetch(postUrl, { method: 'POST', headers: postHeaders, body: JSON.stringify(body) });
-if (!res.ok) {
+        if (!res.ok) {
           // إذا فشل POST بسبب تكرار → حاول PATCH، وإن فشل خزّن بالـ queue (فقط إذا ليست من queue)
           if (record && record.id) {
             await this._pushToSupabase(table, record, 'PATCH', opts);
@@ -777,6 +816,26 @@ if (!res.ok) {
         }
 
         console.log(`✅ AutoSync [POST ${table}]`);
+        // ✅ مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase (لتجنب التكرار)
+        if (!_KEEP_ID_TABLES.has(table) && oldId) {
+          try {
+            const respText = await res.text();
+            if (respText) {
+              const respData = JSON.parse(respText);
+              const newId = Array.isArray(respData) ? respData[0]?.id : respData?.id;
+              if (newId && newId !== oldId) {
+                const lsKey = 'sbtp5_' + table;
+                const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
+                const idx = local.findIndex(r => r.id === oldId);
+                if (idx >= 0) {
+                  local[idx] = { ...local[idx], id: newId };
+                  localStorage.setItem(lsKey, JSON.stringify(local));
+                  console.log(`🔄 ID re-sync ${table}: ${oldId} → ${newId}`);
+                }
+              }
+            }
+          } catch(_) {}
+        }
         this._updateAdminSyncUI();
         return;
       }
@@ -1102,60 +1161,49 @@ const aiRows = await this._sb.select('global_settings', { key: 'global_ai_config
   clean: _cleanForSupabase_INTERNAL,
 
   /* ─────────────────────────────────────────────────────
-     DB.init — بيانات التطبيق الافتراضية
+     DB.init — التهيئة الأولى للـ localStorage
+     ──────────────────────────────────────────────────────
+     فقط الخطط والحسابين الأساسيين (admin + demo)
+     جميع الجداول الأخرى تبدأ فارغة
+     بيانات الديمو تُسحب من Supabase عند تسجيل دخول الحساب التجريبي
   ───────────────────────────────────────────────────── */
   init() {
     if (this.get('initialized').length) return;
 
-    this.set('plans', [
+    // ✅ استخدم setSilent للبيانات الافتراضية (موجودة مسبقاً في SQL — لا داعي للمزامنة)
+    const _set = (typeof this.setSilent === 'function') ? this.setSilent.bind(this) : this.set.bind(this);
+
+    _set('plans', [
       { id:1, slug:'starter',    name:'المبتدئ',   price_monthly:2900,  price:2900,  max_projects:3,  max_workers:15,  max_equipment:0,  max_emails:50  },
       { id:2, slug:'pro',        name:'الاحترافي', price_monthly:7900,  price:7900,  max_projects:20, max_workers:100, max_equipment:50, max_emails:500 },
       { id:3, slug:'enterprise', name:'المؤسسي',   price_monthly:19900, price:19900, max_projects:-1, max_workers:-1,  max_equipment:-1, max_emails:-1  }
     ]);
-    this.set('tenants', [
-      { id:1, name:'مؤسسة الجزائر للبناء', plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
+    _set('tenants', [
+      { id:1, name:'SmartStruct Admin',                plan_id:3, wilaya:'الجزائر', subscription_status:'active', is_active:true },
+      { id:2, name:'مؤسسة الجزائر للبناء (تجريبي)',     plan_id:2, wilaya:'الجزائر', subscription_status:'active', is_active:true }
     ]);
-    this.set('users', [
-      { id:1, tenant_id:null, full_name:'مسؤول النظام',        email:'admin@smartbtp.dz',              password:'Admin@SmartStruct2025', role:'admin', is_admin:true,  is_active:true },
-      { id:2, tenant_id:1,    full_name:'محمد الأمين بوعلام', email:'demo@algerie-construction.dz',   password:'Demo@1234',             role:'admin', is_admin:false, is_active:true }
+    _set('users', [
+      { id:1, tenant_id:null, full_name:'مسؤول النظام',       email:'admin@smartbtp.dz',            password:'Admin@SmartStruct2025', role:'admin', is_admin:true,  is_active:true, account_status:'active' },
+      { id:2, tenant_id:2,    full_name:'محمد الأمين بوعلام', email:'demo@algerie-construction.dz', password:'Demo@1234',             role:'admin', is_admin:false, is_active:true, account_status:'active' }
     ]);
-    this.set('projects', [
-      { id:1, tenant_id:1, name:'بناء عمارة R+5 حيدرة',      wilaya:'الجزائر', client_name:'عبد القادر بن علي', budget:45000000, total_spent:18500000, progress:42, status:'active',    color:'#4A90E2', phase:'الهيكل الخرساني',       start_date:'2024-03-01', end_date:'2025-12-31', is_archived:false },
-      { id:2, tenant_id:1, name:'فيلا سكنية دار البيضاء',    wilaya:'البليدة', client_name:'سمير حمادة',        budget:12500000, total_spent:12800000, progress:98, status:'completed', color:'#34C38F', phase:'الاستلام النهائي',        start_date:'2023-06-01', end_date:'2024-11-30', is_archived:false },
-      { id:3, tenant_id:1, name:'مستودع تجاري وهران',         wilaya:'وهران',   client_name:'شركة لوجيستيك',     budget:22000000, total_spent:8900000,  progress:35, status:'active',    color:'#E8B84B', phase:'البناء والجدران',          start_date:'2024-08-15', end_date:'2025-08-14', is_archived:false },
-      { id:4, tenant_id:1, name:'مدرسة ابتدائية بجاية',      wilaya:'بجاية',   client_name:'بلدية بجاية',       budget:31000000, total_spent:5200000,  progress:15, status:'delayed',   color:'#F04E6A', phase:'أعمال الحفر والأساسات', start_date:'2024-01-10', end_date:'2025-06-30', is_archived:false }
-    ]);
-    this.set('workers', [
-      { id:1, tenant_id:1, project_id:1, full_name:'محمد الأمين زروق', role:'بنّاء رئيسي', phone:'0550 111 222', daily_salary:3500, contract_type:'daily',   hire_date:'2024-03-01', color:'#4A90E2' },
-      { id:2, tenant_id:1, project_id:1, full_name:'كريم بن عزيز',    role:'حداد',         phone:'0661 333 444', daily_salary:4000, contract_type:'daily',   hire_date:'2024-03-15', color:'#34C38F' },
-      { id:3, tenant_id:1, project_id:1, full_name:'يوسف شريف',       role:'كهربائي',      phone:'0770 555 666', daily_salary:4500, contract_type:'monthly', hire_date:'2024-04-01', color:'#E8B84B' },
-      { id:4, tenant_id:1, project_id:3, full_name:'فريد بوزيدي',     role:'سباك',          phone:'0555 777 888', daily_salary:4200, contract_type:'daily',   hire_date:'2024-05-01', color:'#9B6DFF' },
-      { id:5, tenant_id:1, project_id:3, full_name:'عمر حمزة',        role:'مساعد بنّاء',  phone:'0660 999 111', daily_salary:2500, contract_type:'daily',   hire_date:'2024-06-01', color:'#FF7043' }
-    ]);
-    this.set('equipment', [
-      { id:1, tenant_id:1, project_id:1, name:'حفارة كاتربيلر',     model:'CAT 320',        plate_number:'16-1234-16', icon:'🚜', status:'active',      purchase_price:8500000,  notes:'' },
-      { id:2, tenant_id:1, project_id:1, name:'شاحنة خلط الخرسانة', model:'Mercedes 3344',  plate_number:'16-5678-16', icon:'🚛', status:'active',      purchase_price:4200000,  notes:'' },
-      { id:3, tenant_id:1, project_id:3, name:'رافعة برجية 50T',    model:'Potain MCT 88',  plate_number:'',           icon:'🏗️', status:'maintenance', purchase_price:12000000, notes:'صيانة دورية' }
-    ]);
-    this.set('transactions', [
-      { id:1, tenant_id:1, project_id:1, type:'revenue', category:'دفعة مقدمة',      amount:10000000, description:'دفعة مقدمة مشروع حيدرة',           date:'2024-03-05', payment_method:'bank' },
-      { id:2, tenant_id:1, project_id:1, type:'expense', category:'مواد البناء',      amount:4500000,  description:'حديد تسليح وأسمنت',                date:'2024-03-15', payment_method:'cash' },
-      { id:3, tenant_id:1, project_id:1, type:'expense', category:'رواتب العمال',     amount:2800000,  description:'رواتب شهر مارس',                   date:'2024-03-31', payment_method:'bank' },
-      { id:4, tenant_id:1, project_id:2, type:'revenue', category:'استلام نهائي',     amount:12500000, description:'دفعة الاستلام النهائي فيلا البيضاء', date:'2024-11-30', payment_method:'bank' },
-      { id:5, tenant_id:1, project_id:3, type:'expense', category:'اكراءات المعدات', amount:1200000,  description:'إيجار شاحنات لنقل مواد البناء',    date:'2024-09-10', payment_method:'cash' }
-    ]);
-    this.set('attendance', []);
-    this.set('materials', [
-      { id:1, tenant_id:1, project_id:1, name:'حديد تسليح 12mm', unit:'طن',       quantity:25,  min_quantity:5,  unit_price:95000, supplier:'مصنع الحجار' },
-      { id:2, tenant_id:1, project_id:1, name:'أسمنت CPA 42.5',  unit:'كيس',     quantity:320, min_quantity:50, unit_price:650,   supplier:'مصنع مفتاح'  },
-      { id:3, tenant_id:1, project_id:1, name:'رمل مغسول',       unit:'م³',      quantity:80,  min_quantity:20, unit_price:4500,  supplier:'المحجرة الشرقية' },
-      { id:4, tenant_id:1, project_id:3, name:'طوب قرميد',       unit:'ألف قطعة', quantity:15,  min_quantity:3,  unit_price:28000, supplier:'مصنع كريم' }
-    ]);
-    this.set('notes', [
-      { id:1, tenant_id:1, project_id:1, user_id:2, text:'تم اكتمال الطابق الثالث، العمل يسير بشكل ممتاز.',         date:'2024-10-15' },
-      { id:2, tenant_id:1, project_id:1, user_id:2, text:'تأخر وصول الحديد من المورد، يُتوقع الوصول نهاية الأسبوع.', date:'2024-10-20' }
-    ]);
-    this.set('initialized', [true]);
+
+    // جميع الجداول الأخرى فارغة افتراضياً
+    _set('projects',        []);
+    _set('workers',         []);
+    _set('equipment',       []);
+    _set('transactions',    []);
+    _set('attendance',      []);
+    _set('materials',       []);
+    _set('stock_movements', []);
+    _set('invoices',        []);
+    _set('salary_records',  []);
+    _set('kanban_tasks',    []);
+    _set('documents',       []);
+    _set('obligations',     []);
+    _set('notes',           []);
+    _set('notifications',   []);
+
+    _set('initialized', [true]);
   }
 };
 
