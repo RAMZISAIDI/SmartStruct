@@ -1889,7 +1889,7 @@ async function doRegister() {
     DB.set('users', localUsers);
 
     // إشعار للأدمن في القاعدة المحلية
-    const adminNotifs = DB.get('notifications') || [];
+    const adminNotifs = DB.get('admin_notifications') || [];
     adminNotifs.unshift({
       id: sbUser.id, type: 'new_account',
       title: '🆕 طلب تسجيل جديد — بانتظار الموافقة',
@@ -1897,7 +1897,7 @@ async function doRegister() {
       user_id: sbUser.id, tenant_id: sbTenant.id,
       date: now.toISOString(), read: false, status: 'pending'
     });
-    DB.set('notifications', adminNotifs);
+    DB.set('admin_notifications', adminNotifs);
 
     // 6. إرسال إيميل إشعار للأدمن
     EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
@@ -2153,41 +2153,18 @@ const TrialManager = {
     this._syncInFlight = true;
     try {
       if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
-
-      // (1) أفضلية: View/RPC لو كانت موجودة في قاعدة البيانات
-      try {
-        const rows = await SupabaseClient.select('server_time', {}, { limit: 1 });
-        if (rows && rows[0] && rows[0].now) {
-          this._serverBase = new Date(rows[0].now);
-          this._clientBaseMs = Date.now();
-          return;
-        }
-      } catch (_) {}
-
-      // (2) بديل قوي: قراءة ترويسة Date من نفس سيرفر Supabase (GMT)
-      // هذا لا يحتاج أي جدول/‏View
-      try {
-        const url = String(SupabaseClient._url).replace(/\/+$/, '') + '/rest/v1/';
-        const key = SupabaseClient._key || (window.SUPABASE_CONFIG && SUPABASE_CONFIG.anonKey) || '';
-        const res = await fetch(url, {
-          method: 'HEAD',
-          headers: key ? { 'apikey': key, 'Authorization': 'Bearer ' + key } : {}
-        });
-        const dateHdr = res.headers.get('date') || res.headers.get('Date');
-        if (dateHdr) {
-          this._serverBase = new Date(dateHdr); // GMT/UTC
-          this._clientBaseMs = Date.now();
-          return;
-        }
-      } catch (_) {}
+      const rows = await SupabaseClient.select('server_time', {}, { limit: 1 });
+      if (rows && rows[0] && rows[0].now) {
+        this._serverBase = new Date(rows[0].now);
+        this._clientBaseMs = Date.now();
+      }
     } catch (e) {
       // fallback silently (يستخدم وقت الجهاز)
       // console.warn('Server time sync failed:', e);
     } finally {
       this._syncInFlight = false;
     }
-  }
-  },,
+  },
 
   // وقت "حقيقي" تقديري: serverBase + (الفرق من وقت الجهاز)
   getNow() {
@@ -2207,8 +2184,8 @@ const TrialManager = {
     if (String(status) !== 'trial') return null;
 
     const now = this.getNow();
-    const today = new Date(now); today.setUTCHours(0,0,0,0);
-    const end   = new Date(trialEnd); end.setUTCHours(0,0,0,0);
+    const today = new Date(now); today.setHours(0,0,0,0);
+    const end   = new Date(trialEnd); end.setHours(0,0,0,0);
 
     return Math.max(-1, Math.ceil((end - today) / 86400000));
   },
@@ -2226,8 +2203,8 @@ const TrialManager = {
     const subEnd = tenant.subscription_end || tenant.subscription_ends_at || null;
     if (String(status) === 'active' && subEnd) {
       const now = this.getNow();
-      const today = new Date(now); today.setUTCHours(0,0,0,0);
-      const end   = new Date(subEnd); end.setUTCHours(0,0,0,0);
+      const today = new Date(now); today.setHours(0,0,0,0);
+      const end = new Date(subEnd); end.setHours(0,0,0,0);
       return end < today;
     }
     return false;
@@ -2241,8 +2218,8 @@ const TrialManager = {
     if (!subEnd || String(status) !== 'active') return null;
 
     const now = this.getNow();
-    const today = new Date(now); today.setUTCHours(0,0,0,0);
-    const end   = new Date(subEnd); end.setUTCHours(0,0,0,0);
+    const today = new Date(now); today.setHours(0,0,0,0);
+    const end = new Date(subEnd); end.setHours(0,0,0,0);
     return Math.ceil((end - today) / 86400000);
   },
 
@@ -2262,7 +2239,7 @@ function requestPlanUpgrade(companyNameOpt) {
   const plan = Auth.getPlan() || {};
 
   // سجّل الطلب في قاعدة البيانات
-  const adminNotifs = DB.get('notifications') || [];
+  const adminNotifs = DB.get('admin_notifications') || [];
   const alreadyPending = adminNotifs.find(n => n.type === 'upgrade_request' && n.tenant_id === tenant.id && n.status === 'pending');
   if (alreadyPending) {
     if (typeof Toast !== 'undefined') Toast.warn('⏳ طلبك مرسل بالفعل — ينتظر موافقة المسؤول');
@@ -2281,7 +2258,7 @@ function requestPlanUpgrade(companyNameOpt) {
     status: 'pending',
     read: false
   });
-  DB.set('notifications', adminNotifs);
+  DB.set('admin_notifications', adminNotifs);
 
   // إرسال بريد للمسؤول
   if (typeof EMAILJS !== 'undefined') {
@@ -4657,7 +4634,7 @@ Pages.admin = function() {
     const createdAtStr = t.created_at ? new Date(t.created_at).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'}) : '—';
     const planData2 = plans.find(p=>p.id===t.plan_id)||{};
     const maxEmails = planData2.max_emails ?? -1;
-    const usedEmails = (DB.get('notifications')||[]).filter(n=>n.tenant_id===t.id && n.type==='new_account').length;
+    const usedEmails = (DB.get('admin_notifications')||[]).filter(n=>n.tenant_id===t.id && n.type==='new_account').length;
     const emailsLabel = maxEmails === -1 ? '∞ إيميل' : usedEmails + '/' + maxEmails + ' إيميل';
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1rem">🏢</div><div><div style="font-weight:700">${escHtml(t.name)}</div><div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(t.wilaya||L('غير محدد','Non défini'))} • 📅 ${createdAtStr}</div></div></div></td>
@@ -4823,7 +4800,7 @@ Pages.admin = function() {
 
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
-          const notifs = (DB.get('notifications')||[]).filter(n=>!n.read||n.status==='pending');
+          const notifs = (DB.get('admin_notifications')||[]).filter(n=>!n.read||n.status==='pending');
           if(!notifs.length) return '';
           const nrows = notifs.map(n=>{
             const isReset   = n.type==='reset_password';
@@ -4866,7 +4843,7 @@ Pages.admin = function() {
         <!-- ══ EmailJS Notifications System ══ -->
         ${(()=>{
           const cfg = getEmailJSConfig();
-          const allNotifs = DB.get('notifications') || [];
+          const allNotifs = DB.get('admin_notifications') || [];
           const sentNew   = allNotifs.filter(n=>n.type==='new_account').length;
           const sentReset = allNotifs.filter(n=>n.type==='reset_password').length;
           const last5     = allNotifs.slice(0,5);
@@ -6669,10 +6646,10 @@ async function activateAccount(notifId, userId, tenantId) {
     recordSubscriptionInvoice(tenantId, tenant.plan_id || 1, { amount: 0, status:'trial', method:'activation', note:'Trial started' });
 
     // تحديث الإشعار
-    const notifs = DB.get('notifications') || [];
+    const notifs = DB.get('admin_notifications') || [];
     const notif  = notifs.find(n => n.id === notifId);
     if (notif) { notif.status = 'activated'; notif.read = true; }
-    DB.set('notifications', notifs);
+    DB.set('admin_notifications', notifs);
 
     // تفعيل في Supabase
     let sbUrl2 = '', sbKey2 = '';
@@ -7079,10 +7056,10 @@ async function syncAdminFromSupabase() {
     if (nResp.ok) {
       const sbNotifs = await nResp.json();
       if (sbNotifs.length) {
-        const local = DB.get('notifications') || [];
+        const local = DB.get('admin_notifications') || [];
         const merged = [...sbNotifs];
         local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
-        DB.set('notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
+        DB.set('admin_notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
       }
     }
 
@@ -7291,7 +7268,7 @@ function submitForgotRequest() {
     msgEl.style.display='block'; msgEl.style.background='rgba(240,78,106,.1)'; msgEl.style.border='1px solid rgba(240,78,106,.3)'; msgEl.style.color='#f79fa9';
     msgEl.textContent=L('❌ لا يوجد حساب بهذا البريد الإلكتروني','❌ Aucun compte associé à cet email'); return;
   }
-  const notifs = DB.get('notifications') || [];
+  const notifs = DB.get('admin_notifications') || [];
   const already = notifs.find(n => n.type === 'reset_password' && n.user_id === user.id && n.status === 'pending');
   if (already) {
     msgEl.style.display='block'; msgEl.style.background='rgba(232,184,75,.08)'; msgEl.style.border='1px solid rgba(232,184,75,.25)'; msgEl.style.color='var(--gold)';
@@ -7308,7 +7285,7 @@ function submitForgotRequest() {
     read: false,
     status: 'pending'
   });
-  DB.set('notifications', notifs);
+  DB.set('admin_notifications', notifs);
 
   // ─── إرسال إيميل للمسؤول عبر EmailJS ───
   const tenant = DB.get('tenants').find(t => t.id === user.tenant_id);
@@ -7386,10 +7363,10 @@ function confirmResetPass() {
   if (idx < 0) { Toast.error(L('المستخدم غير موجود','Utilisateur introuvable')); return; }
   users[idx].password = newPass;
   DB.set('users', users);
-  const notifs = DB.get('notifications') || [];
+  const notifs = DB.get('admin_notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].status = 'done'; notifs[ni].read = true; }
-  DB.set('notifications', notifs);
+  DB.set('admin_notifications', notifs);
   document.getElementById('resetPassModal')?.remove();
 
   // ─── إرسال كلمة المرور الجديدة للمستخدم عبر EmailJS ───
@@ -7477,10 +7454,10 @@ function downloadUpdatedHTML(apiKey, provider, model) {
 }
 
 function dismissNotif(notifId) {
-  const notifs = DB.get('notifications') || [];
+  const notifs = DB.get('admin_notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
-  DB.set('notifications', notifs);
+  DB.set('admin_notifications', notifs);
   App.navigate('admin');
 }
 
@@ -7505,20 +7482,20 @@ function approveUpgrade(notifId, tenantId) {
     recordSubscriptionInvoice(tenantId, planId, { amount: _getPlanPrice(planId), status: 'paid', method: 'upgrade', period_start: new Date().toISOString().split('T')[0], period_end: t.subscription_end, note: 'Upgrade approved' });
   }
   // تحديث الإشعار
-  const notifs = DB.get('notifications') || [];
+  const notifs = DB.get('admin_notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].status = 'approved'; notifs[ni].read = true; }
-  DB.set('notifications', notifs);
+  DB.set('admin_notifications', notifs);
   Toast.success('✅ تم الموافقة على الترقية وتفعيل الحساب');
   App.navigate('admin');
 }
 
 // ── رفض طلب الترقية ──
 function rejectUpgrade(notifId) {
-  const notifs = DB.get('notifications') || [];
+  const notifs = DB.get('admin_notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].status = 'rejected'; notifs[ni].read = true; }
-  DB.set('notifications', notifs);
+  DB.set('admin_notifications', notifs);
   Toast.warn('تم رفض طلب الترقية');
   App.navigate('admin');
 }
@@ -7674,12 +7651,7 @@ DB.init = function() {
 const _origTopbar = typeof topbarHTML === 'function' ? topbarHTML : null;
 function topbarHTMLv5(title) {
   const user = Auth.getUser();
-  const allNotifs = DB.get('notifications') || [];
-  const unread = allNotifs.filter(n => n.tenant_id === user?.tenant_id && !n.read).length;
-  // Admin: show a dedicated bell for pending reset-password requests (system-level)
-  const adminResetPending = user?.is_admin
-    ? allNotifs.filter(n => n.type === 'reset_password' && (n.status || 'pending') === 'pending').length
-    : 0;
+  const unread = DB.get('notifications').filter(n => n.tenant_id === user?.tenant_id && !n.read).length;
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:.8rem">
       <button class="hamburger">☰</button>
@@ -7687,11 +7659,6 @@ function topbarHTMLv5(title) {
     </div>
     <div class="topbar-user" style="position:relative">
       <div id="notifPanelWrap" style="position:relative">
-        ${user?.is_admin ? `
-          <div class="notif-bell" onclick="openAdminNotifTab()" title="طلبات إعادة تعيين كلمة المرور" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
-            🛎️${adminResetPending>0?`<span class="notif-count">${adminResetPending>99?'99+':adminResetPending}</span>`:''}
-          </div>
-        ` : ''}
         <div class="notif-bell" onclick="toggleNotifPanel(this)" id="notifBell" style="cursor:pointer;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1rem;transition:var(--transition);position:relative">
           🔔${unread>0?`<span class="notif-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--red);border-radius:50%;border:2px solid var(--bg)"></span>`:''}
         </div>
@@ -7700,16 +7667,6 @@ function topbarHTMLv5(title) {
       ${avatarHtml(user?.full_name, user?.avatar_color || '#E8B84B', 32)}
     </div>
   </header>`;
-}
-
-function openAdminNotifTab(){
-  const u = Auth.getUser();
-  if(!u?.is_admin) return;
-  try{
-    App.navigate('admin', {tab:'notif'});
-    // ensure tab switch after render
-    setTimeout(()=>{ try{ if(typeof switchAdminTab==='function') switchAdminTab('notif'); }catch(e){} }, 60);
-  }catch(e){}
 }
 
 function buildNotifPanel() {
@@ -7782,7 +7739,7 @@ function sidebarHTML(active='') {
 
   let navHTML = '';
   if (isAdmin) {
-    const un = (DB.get('notifications')||[]).filter(n=>!n.read).length;
+    const un = (DB.get('admin_notifications')||[]).filter(n=>!n.read).length;
     const unBadge = un>0?`<span style="background:var(--red);color:#fff;border-radius:20px;padding:0 6px;font-size:.6rem;margin-right:auto">${un}</span>`:'';
     navHTML = `
       <div class="nav-section-label">الإدارة</div>
@@ -8067,17 +8024,9 @@ Pages.gantt = function() {
   minDate.setDate(minDate.getDate() - 15);
   maxDate.setDate(maxDate.getDate() + 30);
 
-  // ✅ حساب الأيام بدقة اعتماداً على توقيت السيرفر (إن توفر) + توحيد اليوم على UTC
-  const _normUTC = (d) => { const x = new Date(d); x.setUTCHours(0,0,0,0); return x; };
-  const startUTC = _normUTC(minDate);
-  const endUTC   = _normUTC(maxDate);
-
-  // +1 لأننا نحسب اليوم الأول ضمن المدة
-  const totalDays = Math.floor((endUTC - startUTC) / 86400000) + 1;
-
-  const today = (typeof TrialManager !== 'undefined' ? TrialManager.getNow() : new Date());
-  const todayUTC = _normUTC(today);
-  const todayOffset = Math.floor((todayUTC - startUTC) / 86400000);
+  const totalDays = Math.ceil((maxDate - minDate) / (1000*60*60*24));
+  const today = new Date();
+  const todayOffset = Math.ceil((today - minDate) / (1000*60*60*24));
 
   // Responsive: smaller day width on mobile
   const DAY_W = window.innerWidth < 768 ? 4 : 6;
@@ -8369,7 +8318,7 @@ Pages.invoices = function() {
   const tenant = Auth.getTenant();
   const total_paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+Number(i.amount),0);
   const total_pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+Number(i.amount),0);
-  const today = new Date(); today.setUTCHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
   const total_overdue = invoices.filter(i=>{
     if(i.status==='paid') return false;
     if(!i.due_date) return false;
@@ -10066,19 +10015,6 @@ function importAllData() {
 }
 
 DB.init();
-
-  // ── MIGRATION: move legacy admin_notifications → notifications (once) ──
-  try {
-    const legacy = (DB.get('admin_notifications')||[]);
-    const curr   = (DB.get('notifications')||[]);
-    if (legacy.length) {
-      const byId = new Set(curr.map(n=>n.id));
-      const merged = [...legacy.filter(n=>!byId.has(n.id)), ...curr];
-      DB.set('notifications', merged.sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)));
-      DB.set('admin_notifications', []);
-    }
-  } catch(e) {}
-
 
 /* ══════════════════════════════════════════════════════
    sbSync — رفع فوري لـ Supabase عند كل تعديل
