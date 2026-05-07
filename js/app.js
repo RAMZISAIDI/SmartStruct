@@ -2153,41 +2153,18 @@ const TrialManager = {
     this._syncInFlight = true;
     try {
       if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
-
-      // (1) أفضلية: View/RPC لو كانت موجودة في قاعدة البيانات
-      try {
-        const rows = await SupabaseClient.select('server_time', {}, { limit: 1 });
-        if (rows && rows[0] && rows[0].now) {
-          this._serverBase = new Date(rows[0].now);
-          this._clientBaseMs = Date.now();
-          return;
-        }
-      } catch (_) {}
-
-      // (2) بديل قوي: قراءة ترويسة Date من نفس سيرفر Supabase (GMT)
-      // هذا لا يحتاج أي جدول/‏View
-      try {
-        const url = String(SupabaseClient._url).replace(/\/+$/, '') + '/rest/v1/';
-        const key = SupabaseClient._key || (window.SUPABASE_CONFIG && SUPABASE_CONFIG.anonKey) || '';
-        const res = await fetch(url, {
-          method: 'HEAD',
-          headers: key ? { 'apikey': key, 'Authorization': 'Bearer ' + key } : {}
-        });
-        const dateHdr = res.headers.get('date') || res.headers.get('Date');
-        if (dateHdr) {
-          this._serverBase = new Date(dateHdr); // GMT/UTC
-          this._clientBaseMs = Date.now();
-          return;
-        }
-      } catch (_) {}
+      const rows = await SupabaseClient.select('server_time', {}, { limit: 1 });
+      if (rows && rows[0] && rows[0].now) {
+        this._serverBase = new Date(rows[0].now);
+        this._clientBaseMs = Date.now();
+      }
     } catch (e) {
       // fallback silently (يستخدم وقت الجهاز)
       // console.warn('Server time sync failed:', e);
     } finally {
       this._syncInFlight = false;
     }
-  }
-  },,
+  },
 
   // وقت "حقيقي" تقديري: serverBase + (الفرق من وقت الجهاز)
   getNow() {
@@ -2207,8 +2184,8 @@ const TrialManager = {
     if (String(status) !== 'trial') return null;
 
     const now = this.getNow();
-    const today = new Date(now); today.setUTCHours(0,0,0,0);
-    const end   = new Date(trialEnd); end.setUTCHours(0,0,0,0);
+    const today = new Date(now); today.setHours(0,0,0,0);
+    const end   = new Date(trialEnd); end.setHours(0,0,0,0);
 
     return Math.max(-1, Math.ceil((end - today) / 86400000));
   },
@@ -2226,8 +2203,8 @@ const TrialManager = {
     const subEnd = tenant.subscription_end || tenant.subscription_ends_at || null;
     if (String(status) === 'active' && subEnd) {
       const now = this.getNow();
-      const today = new Date(now); today.setUTCHours(0,0,0,0);
-      const end   = new Date(subEnd); end.setUTCHours(0,0,0,0);
+      const today = new Date(now); today.setHours(0,0,0,0);
+      const end = new Date(subEnd); end.setHours(0,0,0,0);
       return end < today;
     }
     return false;
@@ -2241,8 +2218,8 @@ const TrialManager = {
     if (!subEnd || String(status) !== 'active') return null;
 
     const now = this.getNow();
-    const today = new Date(now); today.setUTCHours(0,0,0,0);
-    const end   = new Date(subEnd); end.setUTCHours(0,0,0,0);
+    const today = new Date(now); today.setHours(0,0,0,0);
+    const end = new Date(subEnd); end.setHours(0,0,0,0);
     return Math.ceil((end - today) / 86400000);
   },
 
@@ -6683,18 +6660,19 @@ async function activateAccount(notifId, userId, tenantId) {
       const _cfg = (() => { try { return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}'); } catch { return {}; } })();
       sbUrl2 = _cfg.url || ''; sbKey2 = _cfg.anonKey || '';
     }
+    // تفعيل في Supabase (اختياري — لا يوقف العملية إذا لم يكن مربوطاً)
     if (sbUrl2 && sbKey2) {
       const sbH = { 'Content-Type':'application/json','apikey':sbKey2,'Authorization':`Bearer ${sbKey2}` };
       await Promise.all([
         fetch(`${sbUrl2}/rest/v1/users?id=eq.${userId}`,          { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,account_status:'active'}) }),
         fetch(`${sbUrl2}/rest/v1/tenants?id=eq.${tenantId}`,      { method:'PATCH', headers:sbH, body:JSON.stringify({is_active:true,subscription_status:'trial'}) }),
         fetch(`${sbUrl2}/rest/v1/notifications?id=eq.${notifId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({status:'activated',read:true}) }),
-      ]).catch(e => { throw new Error('فشل التفعيل في Supabase: ' + e.message); });
+      ]).catch(e => { console.warn('⚠️ تعذّر التفعيل في Supabase:', e.message); });
     } else {
-      throw new Error('Supabase غير مربوط — تحقق من إعدادات SUPABASE_HARDCODED');
+      console.warn('⚠️ Supabase غير مربوط — سيكتمل التفعيل محلياً فقط');
     }
 
-    // إرسال إيميل التفعيل للمستخدم
+    // ── إرسال إيميل التفعيل للمستخدم (يُرسَل دائماً بغض النظر عن حالة Supabase) ──
     const ok = await EMAILJS.sendActivationEmail({
       email:     user.email,
       full_name: user.full_name,
@@ -6702,10 +6680,11 @@ async function activateAccount(notifId, userId, tenantId) {
       company:   tenant.name || '',
     });
 
-    Toast.success(ok
-      ? `✅ تم تفعيل حساب "${user.full_name}" وإرسال إيميل الدخول`
-      : `✅ تم التفعيل — تحقق من إعدادات EmailJS لإرسال الإيميل`
-    );
+    if (ok) {
+      Toast.success(`✅ تم تفعيل حساب "${user.full_name}" وإرسال إيميل التفعيل إلى ${user.email}`);
+    } else {
+      Toast.warning(`⚠️ تم التفعيل محلياً — لكن فشل إرسال الإيميل، تحقق من إعدادات EmailJS`);
+    }
     App.navigate('admin');
   } catch(e) {
     Toast.error('❌ فشل التفعيل: ' + e.message);
@@ -8067,17 +8046,9 @@ Pages.gantt = function() {
   minDate.setDate(minDate.getDate() - 15);
   maxDate.setDate(maxDate.getDate() + 30);
 
-  // ✅ حساب الأيام بدقة اعتماداً على توقيت السيرفر (إن توفر) + توحيد اليوم على UTC
-  const _normUTC = (d) => { const x = new Date(d); x.setUTCHours(0,0,0,0); return x; };
-  const startUTC = _normUTC(minDate);
-  const endUTC   = _normUTC(maxDate);
-
-  // +1 لأننا نحسب اليوم الأول ضمن المدة
-  const totalDays = Math.floor((endUTC - startUTC) / 86400000) + 1;
-
-  const today = (typeof TrialManager !== 'undefined' ? TrialManager.getNow() : new Date());
-  const todayUTC = _normUTC(today);
-  const todayOffset = Math.floor((todayUTC - startUTC) / 86400000);
+  const totalDays = Math.ceil((maxDate - minDate) / (1000*60*60*24));
+  const today = new Date();
+  const todayOffset = Math.ceil((today - minDate) / (1000*60*60*24));
 
   // Responsive: smaller day width on mobile
   const DAY_W = window.innerWidth < 768 ? 4 : 6;
@@ -8369,7 +8340,7 @@ Pages.invoices = function() {
   const tenant = Auth.getTenant();
   const total_paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+Number(i.amount),0);
   const total_pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+Number(i.amount),0);
-  const today = new Date(); today.setUTCHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
   const total_overdue = invoices.filter(i=>{
     if(i.status==='paid') return false;
     if(!i.due_date) return false;

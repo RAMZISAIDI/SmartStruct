@@ -96,19 +96,39 @@ const EMAILJS = {
   // ── إرسال إيميل تفعيل الحساب للمستخدم الجديد ──
   async sendActivationEmail(userData) {
     try {
+      const userName   = userData.full_name || userData.name || '';
+      const userEmail  = userData.email || '';
+      const userPass   = userData.password || '';
+      const company    = userData.company || userData.name || '';
+
       const params = {
-        to_email:    userData.email,
-        to_name:     userData.full_name || userData.name,
-        user_email:  userData.email,
-        user_name:   userData.full_name || userData.name,
-        new_password:userData.password,
-        company_name:userData.company || userData.name,
+        // ── المُستلِم: إيميل الحساب الجديد فقط ──
+        to_email:    userEmail,
+        to_name:     userName,
+
+        // ── بيانات الحساب للعرض في جسم الإيميل ──
+        user_email:  userEmail,
+        user_name:   userName,
+        new_password:userPass,
+        company_name:company,
         plan_name:   'تجريبي 14 يوم',
         date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
-        message:     `مرحباً ${userData.full_name || userData.name}، تم تفعيل حسابك في SmartStruct بنجاح! يمكنك الآن تسجيل الدخول باستخدام بريدك الإلكتروني وكلمة المرور أدناه.`
+
+        // ── نص الرسالة الرئيسية ──
+        message: `مرحباً ${userName}،
+
+تم تفعيل حسابك في SmartStruct بنجاح! 🎉
+
+يمكنك الآن تسجيل الدخول باستخدام:
+• البريد الإلكتروني: ${userEmail}
+• كلمة المرور: ${userPass}
+
+مع تحيات فريق SmartStruct.`
       };
+
+      // إرسال إلى إيميل الحساب الجديد مباشرةً
       await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
-      console.log('✅ EmailJS: إيميل التفعيل أُرسل للمستخدم');
+      console.log(`✅ EmailJS: إيميل التفعيل أُرسل إلى ${userEmail}`);
       return true;
     } catch(e) {
       console.warn('⚠️ EmailJS sendActivationEmail:', e);
