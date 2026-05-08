@@ -1055,7 +1055,6 @@ const App = {
       this.animateBars();
       if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
-      if (this.currentPage === 'landing' && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
       applyDOMTranslation(); // ← RADICAL FIX: translate every text node after render
 
       // ── إظهار/إخفاء زر الدردشة SmartAI حسب الصفحة الحالية ──
@@ -1215,754 +1214,345 @@ function attTodayWidget(workers) {
 
 const Pages = {};
 
-/* ─── LANDING PAGE — v7.2 PRO 3D ─── */
+/* ─── LANDING PAGE ─── */
 Pages.landing = function() {
   const user = Auth.getUser();
-  const isAr = I18N.currentLang === 'ar';
 
-  return `<div class="landing-page" id="landingRoot">
-    <!-- ═══ ATMOSPHERE LAYERS ═══ -->
-    <div class="ll-atmosphere"></div>
-    <div class="ll-particles" id="llParticles"></div>
-
-    <!-- ═══ NAVBAR ═══ -->
-    <nav class="ll-nav" id="llNav">
-      <a class="ll-nav-logo" data-nav="landing" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'})">
-        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
-        <div class="ll-nav-logo-text">
-          <div class="ll-nav-logo-name">SmartStruct</div>
-          <div class="ll-nav-logo-sub">v7.2 PRO</div>
-        </div>
-      </a>
-
-      <div class="ll-nav-links">
-        <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
-        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
-        <a class="ll-nav-link" href="#ll-benefits">${L('الفوائد','Avantages')}</a>
-        <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
+  return `<div class="landing-page">
+    <!-- NAVBAR -->
+    <nav class="land-nav" id="landNav">
+      <div class="land-nav-logo">
+        <div class="land-nav-logo-icon">${ssLogo(20)}</div>
+        <div class="land-nav-logo-text">SmartStruct</div>
       </div>
-
-      <div class="ll-nav-cta">
-        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
-          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+      <div class="land-nav-links">
+        <a class="land-nav-link" href="#features">${L('الميزات','Fonctionnalités')}</a>
+        <a class="land-nav-link" href="#trial">${L('التجربة المجانية','Essai gratuit')}</a>
+        <a class="land-nav-link" href="#pricing">${L('الأسعار','Tarifs')}</a>
+        <a class="land-nav-link" href="#testimonials">${L('آراء العملاء','Témoignages')}</a>
+      </div>
+      <div class="land-nav-actions">
+        <span class="trial-badge-nav">✓ ${L('14 يوم مجاناً','14 jours gratuits')}</span>
+        <!-- Language Toggle -->
+        <button class="lang-toggle-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
+          ${I18N.currentLang === 'ar' ? '🇫🇷 FR' : '🇩🇿 AR'}
         </button>
         ${user
-          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
-          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
-             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
+          ? `<button class="btn btn-gold btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="showLoginPanel()">${L('تسجيل الدخول','Connexion')}</button>
+             <button class="btn-trial btn-sm" style="padding:.4rem 1rem;font-size:.82rem" onclick="showRegisterPanel()">🚀 ${L('ابدأ مجاناً','Commencer')}</button>`
         }
       </div>
     </nav>
 
-    <!-- ═══ HERO ═══ -->
-    <section class="ll-hero">
-      <div class="ll-hero-badge">
-        <span class="ll-hero-badge-dot"></span>
-        ${L('تجربة مجانية 14 يوماً — بدون بطاقة بنكية','Essai gratuit 14 jours — sans carte bancaire')}
+    <!-- HERO -->
+    <section class="hero" id="hero">
+      <div class="hero-bg">
+        <div class="hero-bg-img"></div>
+        <div class="hero-bg-grid"></div>
+        <div class="hero-bg-glow"></div>
+        <div class="hero-bg-glow2"></div>
       </div>
-
-      <h1 class="ll-hero-title">
-        ${L('إدارة مشاريع البناء','Gestion de chantiers')}<br>
-        <span class="ll-word-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
-      </h1>
-
-      <p class="ll-hero-sub">
-        ${L(
-          'منصة متكاملة لشركات المقاولة الجزائرية — من إدارة المشاريع والعمال إلى الفوترة والتوقعات المالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري (NIF/NIS/RC + TVA 19٪).',
-          'Plateforme complète pour les entreprises de BTP en Algérie — projets, ouvriers, facturation, prévisions financières, le tout propulsé par l\'IA et conforme à la loi algérienne (NIF/NIS/RC + TVA 19%).'
-        )}
-      </p>
-
-      <div class="ll-hero-actions">
-        ${user
-          ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
-               ${L('الذهاب للوحة التحكم','Tableau de bord')}
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-             </button>`
-          : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
-               ${L('ابدأ التجربة الآن','Commencer l\'essai')}
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-             </button>`
-        }
-        <a class="ll-btn ll-btn-ghost ll-btn-lg" href="#ll-showcase">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          ${L('شاهد العرض','Voir la démo')}
-        </a>
-      </div>
-
-      <div class="ll-hero-trust">
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('27 جدول قاعدة بيانات','27 tables de BDD')}
+      <div class="hero-content">
+        <div class="hero-top-badge">
+          🇩🇿 ${L('منصة جزائرية متخصصة','Plateforme algérienne spécialisée')}
+          <span>${L('BTP','BTP')}</span>
         </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('تشفير PBKDF2','Chiffrement PBKDF2')}
+        <h1 class="hero-title">
+          ${L('أدِر مشاريعك المقاولاتية','Gérez vos projets de sous-traitance')}<br>
+          <span class="grad">${L('بذكاء مالي','avec intelligence')}</span>
+          ${L('حقيقي','financière réelle')}
+        </h1>
+        <p class="hero-sub">
+          ${L(
+            'SmartStruct — النظام الأول في الجزائر للتحليل المالي الذكي لمشاريع المقاولة. بناء، كهرباء، سباكة، طرق، تهيئة وأكثر — تتبع الأرباح، تنبأ بالمخاطر، وأدر عمالك في مكان واحد.',
+            'SmartStruct — le premier système en Algérie d\'analyse financière pour tous types de sous-traitance BTP. Suivi des profits, anticipation des risques, gestion des équipes.'
+          )}
+        </p>
+        <div class="trial-hero-box">
+          <div>
+            <div class="trial-hero-days">14</div>
+          </div>
+          <div class="trial-hero-text">
+            <div class="trial-hero-label">${L('يوم تجربة مجانية كاملة','Jours d\'essai gratuit complet')}</div>
+            <div class="trial-hero-sub">${L('بدون بطاقة بنكية • إلغاء في أي وقت','Sans carte bancaire • Résiliable à tout moment')}</div>
+          </div>
         </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Row-Level Security
+        <div class="hero-actions">
+          <button class="btn-trial" onclick="showRegisterPanel()">
+            🚀 ${L('ابدأ تجربتك المجانية الآن','Démarrer l\'essai gratuit')}
+          </button>
+          <button class="btn btn-ghost btn-lg" onclick="showLoginPanel()">
+            ${L('لديّ حساب بالفعل ←','J\'ai déjà un compte →')}
+          </button>
         </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('دعم عربي كامل','Support arabe complet')}
+        <div class="hero-no-cc">
+          ✅ ${L('لا يلزم بطاقة ائتمان','Sans carte bancaire')} &nbsp;•&nbsp;
+          ✅ ${L('إعداد فوري في 3 دقائق','Configuration en 3 minutes')} &nbsp;•&nbsp;
+          ✅ ${L('دعم باللغة العربية والفرنسية','Support en arabe et français')}
         </div>
-      </div>
-
-      <!-- ═══ 3D HERO SCENE ═══ -->
-      <div class="ll-scene">
-        <div class="ll-scene-glow"></div>
-        <div class="ll-scene-stage" id="llSceneStage">
-
-          <!-- Floating: Projects (top-right in LTR / top-left in RTL via auto reposition) -->
-          <div class="ll-float-card ll-fc-stat ll-fc-projects">
-            <div class="ll-fc-mini-icon ll-icon-projects">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('المشاريع النشطة','Projets actifs')}</div>
-            <div class="ll-fc-mini-val">12</div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              ${L('+3 هذا الشهر','+3 ce mois')}
-            </div>
-          </div>
-
-          <!-- Floating: Workers -->
-          <div class="ll-float-card ll-fc-stat ll-fc-workers">
-            <div class="ll-fc-mini-icon ll-icon-workers">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('العمال الحاضرون','Ouvriers présents')}</div>
-            <div class="ll-fc-mini-val">87 / 92</div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              ${L('نسبة 94٪','Taux 94%')}
-            </div>
-          </div>
-
-          <!-- Floating: Revenue -->
-          <div class="ll-float-card ll-fc-stat ll-fc-revenue">
-            <div class="ll-fc-mini-icon ll-icon-revenue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('إيرادات الشهر','Revenus du mois')}</div>
-            <div class="ll-fc-mini-val">4.2M <span style="font-size:.7rem;color:var(--muted)">${L('دج','DA')}</span></div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              +18.4٪
-            </div>
-          </div>
-
-          <!-- Floating: AI -->
-          <div class="ll-float-card ll-fc-stat ll-fc-ai">
-            <div class="ll-fc-mini-icon ll-icon-ai">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">SmartAI</div>
-            <div class="ll-ai-typing">
-              <span class="ll-typing-dot"></span><span class="ll-typing-dot"></span><span class="ll-typing-dot"></span>
-              <span class="ll-ai-text">${L('يحلل بياناتك...','analyse en cours...')}</span>
-            </div>
-          </div>
-
-          <!-- Main dashboard card -->
-          <div class="ll-float-card ll-fc-main">
-            <div class="ll-fc-header">
-              <div class="ll-fc-title">
-                <div class="ll-fc-title-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
-                </div>
-                ${L('لوحة التحكم','Tableau de bord')}
-              </div>
-              <div class="ll-fc-dots">
-                <span class="ll-fc-dot ll-active"></span><span class="ll-fc-dot"></span><span class="ll-fc-dot"></span>
-              </div>
-            </div>
-            <div class="ll-fc-stats">
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('إجمالي المشاريع','Total projets')}</div>
-                <div class="ll-fc-stat-val ll-gold">24</div>
-              </div>
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('معدل الإنجاز','Avancement')}</div>
-                <div class="ll-fc-stat-val ll-green">76%</div>
-              </div>
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('صافي الربح','Bénéfice net')}</div>
-                <div class="ll-fc-stat-val">1.8M</div>
-              </div>
-            </div>
-            <div class="ll-fc-chart">
-              <svg viewBox="0 0 500 120" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="llGoldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#E8B84B" stop-opacity="0.4"/>
-                    <stop offset="100%" stop-color="#E8B84B" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <line class="ll-chart-grid" x1="0" y1="30" x2="500" y2="30"/>
-                <line class="ll-chart-grid" x1="0" y1="60" x2="500" y2="60"/>
-                <line class="ll-chart-grid" x1="0" y1="90" x2="500" y2="90"/>
-                <path class="ll-chart-area" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15 L500,120 L0,120 Z"/>
-                <path class="ll-chart-line" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15"/>
-              </svg>
-            </div>
-          </div>
-
-          <div class="ll-scene-platform"></div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="hero-stat-val">+500</div><div class="hero-stat-label">${L('مؤسسة مشتركة','Entreprises inscrites')}</div></div>
+          <div class="hero-divider"></div>
+          <div class="hero-stat"><div class="hero-stat-val">+2000</div><div class="hero-stat-label">${L('مشروع مُدار','Projets gérés')}</div></div>
+          <div class="hero-divider"></div>
+          <div class="hero-stat"><div class="hero-stat-val">58</div><div class="hero-stat-label">${L('ولاية جزائرية','Wilayas')}</div></div>
+          <div class="hero-divider"></div>
+          <div class="hero-stat"><div class="hero-stat-val">14 ${L('يوم','j')}</div><div class="hero-stat-label">${L('تجربة مجانية','Essai gratuit')}</div></div>
         </div>
       </div>
 
-      <!-- ═══ STATS BAR ═══ -->
-      <div class="ll-stats-bar ll-reveal">
-        <div class="ll-stat-item">
-          <div class="ll-stat-number" data-target="27">0</div>
-          <div class="ll-stat-label">${L('جدول قاعدة بيانات','Tables de BDD')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number" data-target="19">0</div>
-          <div class="ll-stat-label">${L('ميزة احترافية','Fonctionnalités pro')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number"><span data-target="14">0</span> ${L('يوم','jours')}</div>
-          <div class="ll-stat-label">${L('تجربة مجانية','Essai gratuit')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number">100<span style="font-size:1.5rem">٪</span></div>
-          <div class="ll-stat-label">${L('متوافق مع القانون الجزائري','Conforme loi algérienne')}</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ FEATURES ═══ -->
-    <section class="ll-section" id="ll-features">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('19 ميزة احترافية','19 fonctionnalités pro')}</span>
-        <h2 class="ll-section-title">${L('كل ما تحتاجه شركتك','Tout ce dont votre entreprise a besoin')}<br><span class="ll-gold">${L('في منصة واحدة','dans une seule plateforme')}</span></h2>
-        <p class="ll-section-desc">${L(
-          'من تشفير البيانات إلى توقعات السيولة، من توليد PDF إلى تتبع GPS — أدوات حقيقية لمشاكل حقيقية في قطاع البناء.',
-          'Du chiffrement aux prévisions de trésorerie, du PDF au GPS — des outils réels pour des problèmes réels du BTP.'
-        )}</p>
-      </div>
-
-      <div class="ll-features-grid">
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('أمان','Sécurité')}</span>
-          <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <!-- Feature Pills -->
+      <div class="hero-features-grid">
+        <div class="hero-feat-pill">
+          <span class="hero-feat-icon" style="color:var(--blue)">${ssLogo(28)}</span>
+          <div>
+            <div class="hero-feat-title">${L('بناء • كهرباء • سباكة','Bâtiment · Électricité · Plomberie')}</div>
+            <div class="hero-feat-sub">${L('جميع أنواع المقاولة مدعومة','Tous types de sous-traitance')}</div>
           </div>
-          <h3 class="ll-feature-title">${L('تشفير عسكري','Chiffrement militaire')}</h3>
-          <p class="ll-feature-desc">${L('PBKDF2 + SHA-256 + 100,000 تكرار · Row-Level Security · سجل تدقيق كامل لكل تعديل.','PBKDF2 + SHA-256 + 100k itérations · RLS · audit log complet.')}</p>
         </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('جديد','Nouveau')}</span>
-          <div class="ll-feature-icon ll-purple">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+        <div class="hero-feat-pill">
+          <span class="hero-feat-icon" style="color:var(--gold)">📊</span>
+          <div>
+            <div class="hero-feat-title">${L('تحليل مالي ذكي','Analyse financière IA')}</div>
+            <div class="hero-feat-sub">${L('تقارير لحظية دقيقة','Rapports temps réel')}</div>
           </div>
-          <h3 class="ll-feature-title">${L('SmartAI — مساعد ذكي','SmartAI — assistant IA')}</h3>
-          <p class="ll-feature-desc">${L('يحلّل مشاريعك ويكتب تقارير شهرية بالعربية مع توصيات قابلة للتنفيذ. مدعوم بـ Groq.','Analyse vos projets et rédige des rapports mensuels avec recommandations. Propulsé par Groq.')}</p>
         </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">PDF</span>
-          <div class="ll-feature-icon ll-red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <div class="hero-feat-pill">
+          <span class="hero-feat-icon" style="color:var(--green)">👥</span>
+          <div>
+            <div class="hero-feat-title">${L('إدارة العمالة والمعدات','Personnel & équipements')}</div>
+            <div class="hero-feat-sub">${L('حضور وأجور وصيانة','Présence, salaires & maintenance')}</div>
           </div>
-          <h3 class="ll-feature-title">${L('فواتير وعقود رسمية','Factures & contrats officiels')}</h3>
-          <p class="ll-feature-desc">${L('PDF احترافي مع NIF/NIS/RC، TVA 19٪، عقود عمل حسب القانون الجزائري، وتوقيع إلكتروني.','PDF pro avec NIF/NIS/RC, TVA 19%, contrats conformes & signature électronique.')}</p>
         </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('مالي','Finance')}</span>
-          <div class="ll-feature-icon ll-green">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</h3>
-          <p class="ll-feature-desc">${L('منحنى رصيد متوقع للأشهر الثلاثة القادمة + تنبيهات استباقية + استيراد كشوف CCP/BNA/BEA.','Courbe de solde projetée + alertes proactives + import des relevés CCP/BNA/BEA.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('ميدان','Terrain')}</span>
-          <div class="ll-feature-icon ll-blue">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('تتبع GPS للمعدات','Suivi GPS du matériel')}</h3>
-          <p class="ll-feature-desc">${L('QR لكل معدة → مسح بالهاتف → تسجيل الموقع تلقائياً. وضع ميدان مبسط بـ 5 أزرار كبيرة.','QR par engin → scan → géolocalisation auto. Mode chantier à 5 gros boutons.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('إنتاجية','Productivité')}</span>
-          <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('بحث فوري شامل','Recherche globale instantanée')}</h3>
-          <p class="ll-feature-desc">${L('Ctrl+K → ابحث في كل البيانات: مشاريع، عمال، فواتير، ملاحظات. تصدير Excel بنقرة واحدة.','Ctrl+K → cherchez partout : projets, ouvriers, factures. Export Excel en un clic.')}</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ SHOWCASE ═══ -->
-    <section class="ll-section" id="ll-showcase">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('واجهة عربية احترافية','Interface arabe professionnelle')}</span>
-        <h2 class="ll-section-title">${L('صُممت','Conçue')}<span class="ll-gold"> ${L('للسرعة والوضوح','pour vitesse & clarté')}</span></h2>
-        <p class="ll-section-desc">${L('واجهة RTL كاملة، 3 ثيمات (داكن، فاتح، ذهبي)، أيقونات واضحة، وتجربة سلسة على الهاتف والحاسوب.','RTL complet, 3 thèmes, icônes claires, expérience fluide sur mobile et desktop.')}</p>
-      </div>
-
-      <div class="ll-showcase ll-reveal">
-        <div class="ll-showcase-stage" id="llShowcaseStage">
-          <div class="ll-showcase-screen">
-            <div class="ll-showcase-toolbar">
-              <span class="ll-tb-dot ll-r"></span><span class="ll-tb-dot ll-y"></span><span class="ll-tb-dot ll-g"></span>
-              <span class="ll-tb-url">smartstruct.dz/dashboard</span>
-            </div>
-            <div class="ll-showcase-body">
-              <div class="ll-sc-sidebar">
-                <div class="ll-sc-nav ll-active">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-                  <span>${L('لوحة التحكم','Tableau')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  <span>${L('المشاريع','Projets')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                  <span>${L('العمال','Ouvriers')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <span>${L('الفواتير','Factures')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-                  <span>${L('التقارير','Rapports')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
-                  <span>SmartAI</span>
-                </div>
-              </div>
-              <div class="ll-sc-content">
-                <div class="ll-sc-stats">
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('المشاريع','Projets')}</div><div class="ll-sc-stat-val">24</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('العمال','Ouvriers')}</div><div class="ll-sc-stat-val">92</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الإيرادات','Revenus')}</div><div class="ll-sc-stat-val">4.2M</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الربح','Bénéfice')}</div><div class="ll-sc-stat-val">1.8M</div></div>
-                </div>
-                <div class="ll-sc-graph">
-                  <svg viewBox="0 0 400 140" preserveAspectRatio="none">
-                    <rect x="20" y="80" width="20" height="50" rx="3" fill="rgba(232,184,75,0.3)"/>
-                    <rect x="55" y="60" width="20" height="70" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="90" y="70" width="20" height="60" rx="3" fill="rgba(232,184,75,0.4)"/>
-                    <rect x="125" y="40" width="20" height="90" rx="3" fill="rgba(232,184,75,0.6)"/>
-                    <rect x="160" y="55" width="20" height="75" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="195" y="30" width="20" height="100" rx="3" fill="rgba(232,184,75,0.7)"/>
-                    <rect x="230" y="20" width="20" height="110" rx="3" fill="#E8B84B"/>
-                    <rect x="265" y="50" width="20" height="80" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="300" y="35" width="20" height="95" rx="3" fill="rgba(232,184,75,0.6)"/>
-                    <rect x="335" y="15" width="20" height="115" rx="3" fill="#F5D07A"/>
-                    <path d="M30,90 Q70,70 100,80 T180,55 T260,40 T340,25" stroke="#E8B84B" stroke-width="2" fill="none" stroke-linecap="round" filter="drop-shadow(0 0 4px #E8B84B)"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
+        <div class="hero-feat-pill">
+          <span class="hero-feat-icon" style="color:var(--purple)">⚠️</span>
+          <div>
+            <div class="hero-feat-title">${L('تتبع المخاطر والميزانية','Risques & budget')}</div>
+            <div class="hero-feat-sub">${L('تنبيه فوري بالانحرافات','Alertes instantanées')}</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ═══ BENEFITS ═══ -->
-    <section class="ll-section" id="ll-benefits">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('حلول مصممة لقطاعك','Solutions sur mesure')}</span>
-        <h2 class="ll-section-title">${L('من الميدان إلى','Du chantier à la')}<span class="ll-gold"> ${L('غرفة الاجتماعات','salle de réunion')}</span></h2>
-        <p class="ll-section-desc">${L('SmartStruct يغطي كل أبعاد عمل شركة المقاولة الجزائرية — قانونياً، مالياً، وميدانياً.','SmartStruct couvre toutes les dimensions du BTP algérien — légal, financier, terrain.')}</p>
-      </div>
-
-      <div class="ll-benefits">
-
-        <!-- Row 1: PDF -->
-        <div class="ll-benefit-row ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('فواتير و','Factures &')}<span class="ll-gold">${L('عقود قانونية','contrats légaux')}</span> ${L('بنقرة واحدة','en un clic')}</h3>
-            <p>${L('توقَّف عن إعادة تنسيق نفس الفاتورة كل مرة. SmartStruct يولّد فواتير PDF احترافية متوافقة مع القانون الجزائري في ثوانٍ.','Cessez de reformater à chaque fois. SmartStruct génère des factures PDF pro conformes en quelques secondes.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('NIF / NIS / RC تلقائياً في الترويسة','NIF / NIS / RC auto en en-tête')}</li>
-              <li><span class="ll-check">✓</span> ${L('TVA 19٪ محسوبة بدقة + مكان الختم','TVA 19% calculée + emplacement cachet')}</li>
-              <li><span class="ll-check">✓</span> ${L('عقود عمل حسب قانون العمل الجزائري','Contrats conformes au droit du travail')}</li>
-              <li><span class="ll-check">✓</span> ${L('توقيع إلكتروني عبر رابط فريد للعميل','Signature électronique via lien unique')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-pdf-mockup">
-                <div class="ll-pdf-header">
-                  <div>
-                    <div class="ll-pdf-logo">${ssLogo(26, true)}</div>
-                  </div>
-                  <div style="text-align:${isAr?'right':'left'}">
-                    <div class="ll-pdf-co">${L('شركة الإنشاءات الجزائرية','Sté Constructions DZ')}</div>
-                    <div class="ll-pdf-co-sub">NIF: 0987 6543 21 · RC: 16/00-A123</div>
-                  </div>
-                  <div class="ll-pdf-num">
-                    ${L('فاتورة رقم','Facture N°')}
-                    <strong>INV-2026-0142</strong>
-                  </div>
-                </div>
-                <div class="ll-pdf-title">${L('تفاصيل الخدمات','Détails des prestations')}</div>
-                <div class="ll-pdf-line"><span>${L('أعمال خرسانة مسلحة','Béton armé')}</span><span>1,250,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>${L('تركيب هيكل معدني','Structure métallique')}</span><span>875,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>${L('أعمال البناء — المرحلة 2','Maçonnerie — Phase 2')}</span><span>620,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>TVA 19٪</span><span>521,550 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-total"><span>${L('الإجمالي المستحق','Total dû')}</span><span>3,266,550 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-stamp">SmartStruct<br>VERIFIED</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 2: AI -->
-        <div class="ll-benefit-row ll-reverse ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('مساعدك الذكي يعمل','Votre IA travaille')} <span class="ll-gold">${L('معك 24/7','avec vous 24/7')}</span></h3>
-            <p>${L('SmartAI ليس chatbot عام — هو يعرف بياناتك، يحلل مشاريعك، ويعطيك توصيات قابلة للتنفيذ بالعربية.','SmartAI n\'est pas un chatbot générique — il connaît vos données et donne des recommandations concrètes.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('تحليل ربحية كل مشروع على حدة','Analyse de rentabilité par projet')}</li>
-              <li><span class="ll-check">✓</span> ${L('تقارير شهرية احترافية تلقائية','Rapports mensuels pro automatiques')}</li>
-              <li><span class="ll-check">✓</span> ${L('تنبيهات للمخاطر المالية مبكراً','Alertes financières précoces')}</li>
-              <li><span class="ll-check">✓</span> ${L('14,400 سؤال يومياً مجاناً','14 400 questions/jour gratuites')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-ai-mockup">
-                <div class="ll-ai-mock-header">
-                  <div class="ll-ai-avatar-mock">🤖</div>
-                  <div>
-                    <div class="ll-ai-mock-name">SmartAI</div>
-                    <div class="ll-ai-mock-status">${L('متصل — يحلّل بياناتك','En ligne — analyse en cours')}</div>
-                  </div>
-                </div>
-                <div class="ll-ai-mock-body">
-                  <div class="ll-ai-msg ll-user">${L('ما هو أفضل مشروع من حيث الربحية هذا الشهر؟','Quel projet est le plus rentable ce mois ?')}</div>
-                  <div class="ll-ai-msg ll-bot">${L('مشروع "فيلا حيدرة" حقق هامش ربح 28٪ — الأعلى بين مشاريعك. لكن انتبه: مشروع "مبنى وهران" متأخر 12 يوماً.','Le projet "Villa Hydra" a une marge de 28% — la plus élevée. Attention : "Immeuble Oran" a 12 jours de retard.')}</div>
-                  <div class="ll-ai-msg ll-user">${L('كم سأكسب نهاية الشهر؟','Combien à la fin du mois ?')}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 3: Mobile / GPS -->
-        <div class="ll-benefit-row ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('ميدان رقمي','Chantier numérique')}<span class="ll-gold"> ${L('في جيب كل عامل','dans la poche')}</span></h3>
-            <p>${L('وضع الميدان (Mobile Mode) صُمم للعمال على ورشة البناء — ليس للمحاسبين خلف المكاتب.','Le mode Chantier est conçu pour les ouvriers sur le terrain — pas pour les comptables.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('5 أزرار كبيرة فقط — حضور، مواد، صور، صرف، GPS','5 gros boutons : présence, matériaux, photos, dépense, GPS')}</li>
-              <li><span class="ll-check">✓</span> ${L('تتبع GPS لكل معدة عبر QR code','Suivi GPS de chaque engin via QR')}</li>
-              <li><span class="ll-check">✓</span> ${L('تسجيل الحضور بالموقع الجغرافي','Pointage avec géolocalisation')}</li>
-              <li><span class="ll-check">✓</span> ${L('يعمل بدون إنترنت ويتزامن لاحقاً','Fonctionne offline + sync différée')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-gps-pulse"></div>
-              <div class="ll-mobile-mockup">
-                <div class="ll-mobile-screen">
-                  <div class="ll-mobile-notch"></div>
-                  <div class="ll-mobile-time">9:42 ${isAr?'ص':'AM'}</div>
-                  <div class="ll-mobile-greeting">${L('صباح الخير','Bonjour')}</div>
-                  <div class="ll-mobile-name">${L('أحمد بن علي','Ahmed Benali')}</div>
-                  <div class="ll-mobile-grid">
-                    <div class="ll-mobile-btn ll-gold">
-                      <div class="ll-mobile-btn-icon">✓</div>
-                      <div class="ll-mobile-btn-label">${L('حضور','Pointage')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">📦</div>
-                      <div class="ll-mobile-btn-label">${L('مواد','Matériaux')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">📷</div>
-                      <div class="ll-mobile-btn-label">${L('صور','Photos')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">💰</div>
-                      <div class="ll-mobile-btn-label">${L('طلب صرف','Dépense')}</div>
-                    </div>
-                    <div class="ll-mobile-btn" style="grid-column:1/-1">
-                      <div class="ll-mobile-btn-icon">📍</div>
-                      <div class="ll-mobile-btn-label">${L('GPS — موقع المعدة','GPS — Position engin')}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ═══ PRICING ═══ -->
-    <section class="ll-section" id="ll-pricing">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('أسعار شفافة','Tarifs transparents')}</span>
-        <h2 class="ll-section-title">${L('اختر الخطة','Choisissez le plan')} <span class="ll-gold">${L('المناسبة لك','qui vous convient')}</span></h2>
-        <p class="ll-section-desc">${L('جميع الخطط تشمل التجربة المجانية 14 يوماً — بدون بطاقة بنكية. ألغِ متى شئت.','Tous les plans incluent l\'essai 14 jours — sans CB. Annulez à tout moment.')}</p>
-      </div>
-
-      <div class="ll-pricing-grid">
-        <div class="ll-price-card ll-reveal">
-          <div class="ll-price-name">${L('المبتدئ','Starter')}</div>
-          <div class="ll-price-tagline">${L('للشركات الناشئة','Pour les start-ups')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num">9,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('حتى 5 مشاريع نشطة','Jusqu\'à 5 projets actifs')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 20 عامل','Jusqu\'à 20 ouvriers')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('فواتير PDF احترافية','Factures PDF pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('3 مستخدمين','3 utilisateurs')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم بالبريد الإلكتروني','Support par email')}</li>
-          </ul>
-          ${user
-            ? `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
-            : `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ مجاناً','Commencer')}</button>`
-          }
-        </div>
-
-        <div class="ll-price-card ll-featured ll-reveal">
-          <div class="ll-price-badge">⭐ ${L('الأكثر شيوعاً','Plus populaire')}</div>
-          <div class="ll-price-name">${L('الاحترافي','Professionnel')}</div>
-          <div class="ll-price-tagline">${L('للشركات النامية','Pour entreprises en croissance')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num ll-gold">24,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 100 عامل','Jusqu\'à 100 ouvriers')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('SmartAI كامل + تقارير شهرية','SmartAI complet + rapports')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('10 مستخدمين + أدوار مخصصة','10 utilisateurs + rôles')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي أولوية','Support prioritaire')}</li>
-          </ul>
-          ${user
-            ? `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
-            : `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ التجربة','Commencer l\'essai')}</button>`
-          }
-        </div>
-
-        <div class="ll-price-card ll-reveal">
-          <div class="ll-price-name">${L('المؤسسات','Enterprise')}</div>
-          <div class="ll-price-tagline">${L('للشركات الكبرى','Pour les grandes entreprises')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num">${L('حسب الطلب','Sur devis')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('كل ميزات الاحترافي','Tout le plan Pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('عمال ومستخدمون غير محدودين','Ouvriers & utilisateurs illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('خادم Supabase خاص','Serveur Supabase dédié')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('تكامل مع أنظمتك الحالية','Intégration vos systèmes')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('SLA + تدريب فريقك','SLA + formation équipe')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('مدير حساب مخصص','Account manager dédié')}</li>
-          </ul>
-          <a class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Nous contacter')}</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ CTA ═══ -->
-    <div class="ll-cta ll-reveal">
-      <div class="ll-cta-content">
-        <h2 class="ll-cta-title">${L('جاهز لتحويل طريقة','Prêt à transformer la gestion')} <span class="ll-gold">${L('إدارة شركتك؟','de votre entreprise ?')}</span></h2>
-        <p class="ll-cta-desc">${L('14 يوم تجربة مجانية كاملة. لا بطاقة بنكية. لا التزام. فقط جرّب وقرّر.','14 jours d\'essai complet. Sans CB. Sans engagement. Testez et décidez.')}</p>
-        <div class="ll-hero-actions" style="justify-content:center">
-          ${user
-            ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
-                 ${L('الذهاب للوحة التحكم','Tableau de bord')}
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-               </button>`
-            : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
-                 ${L('ابدأ التجربة الآن','Commencer l\'essai')}
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-               </button>
-               <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showLoginPanel()">${L('لدي حساب — دخول','J\'ai un compte')}</button>`
-          }
-        </div>
-      </div>
+    <!-- TRUST STRIP -->
+    <div class="trust-strip">
+      <div class="trust-item"><span>🔒</span> ${L('بيانات آمنة ومشفرة','Données sécurisées')}</div>
+      <div class="trust-item"><span>🇩🇿</span> ${L('صُنع في الجزائر','Made in Algeria')}</div>
+      <div class="trust-item"><span>📞</span> ${L('دعم 7/7','Support 7/7')}</div>
+      <div class="trust-item"><span>⚡</span> ${L('إعداد في 3 دقائق','Config en 3 min')}</div>
+      <div class="trust-item"><span>✅</span> ${L('لا عقود إلزامية','Sans engagement')}</div>
     </div>
 
-    <!-- ═══ FOOTER ═══ -->
-    <footer class="ll-footer">
-      <div class="ll-footer-grid">
+    <!-- HOW IT WORKS -->
+    <section class="steps-section">
+      <div class="section-center">
+        <div class="section-tag">${L('كيف يعمل','Comment ça marche')}</div>
+        <h2 class="section-title">${L('ابدأ خلال 3 دقائق فقط','Démarrez en 3 minutes seulement')}</h2>
+        <p class="section-sub">${L('إعداد بسيط وسريع دون الحاجة إلى خبرة تقنية','Configuration simple et rapide sans expertise technique')}</p>
+      </div>
+      <div class="steps-grid">
+        ${[
+          {n:'01', icon:'📝', t: L('أنشئ حسابك مجاناً','Créez votre compte'), d: L('سجّل مؤسستك ببيانات بسيطة — التجربة المجانية تبدأ فوراً لـ 14 يوم','Inscrivez votre entreprise — l\'essai de 14 jours démarre immédiatement')},
+          {n:'02', icon:'🏗️', t: L('أضف مشاريعك','Ajoutez vos projets'), d: L('أدخل تفاصيل مشاريعك مع الميزانية والعمال والمراحل في دقائق','Saisissez vos projets avec budgets, ouvriers et phases en quelques minutes')},
+          {n:'03', icon:'📊', t: L('تابع وتحكم','Suivez et contrôlez'), d: L('راقب التقدم وأدر المالية وصدّر التقارير الرسمية في أي وقت','Surveillez l\'avancement, gérez vos finances, exportez des rapports officiels')},
+        ].map(s=>`<div class="step-card">
+          <div class="step-num">${s.n}</div>
+          <div class="step-icon">${s.icon}</div>
+          <div class="step-title">${s.t}</div>
+          <div class="step-desc">${s.d}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="section" id="features">
+      <div class="section-center">
+        <div class="section-tag">${L('الميزات الرئيسية','Fonctionnalités clés')}</div>
+        <h2 class="section-title">${L('كل ما تحتاجه لإدارة مشاريعك','Tout ce dont vous avez besoin')}</h2>
+        <p class="section-sub">${L('نظام شامل يغطي جميع أنواع مشاريع المقاولة — بناء، كهرباء، سباكة، طرق، تكييف، حدادة، نجارة وأكثر','Système complet pour tous types de chantiers : bâtiment, électricité, plomberie, routes, CVC, serrurerie et plus')}</p>
+      </div>
+      <div class="features-grid">
+        ${[
+          {icon:'🧠', cl:'blue', t: L('ذكاء مالي — Health Score','Intelligence financière — Health Score'), d: L('أول مؤشر صحة شامل للمؤسسات الجزائرية — يحسب ربحيتك، مخاطرك، واستقرارك المالي تلقائياً','Premier indicateur de santé global pour les entreprises algériennes — calcule automatiquement rentabilité, risques et stabilité financière')},
+          {icon:'🚨', cl:'red', t: L('كشف المخاطر بالذكاء الاصطناعي','Détection des risques par IA'), d: L('تنبيهات تلقائية عند تجاوز الميزانية أو التأخير — مع توقع التجاوزات قبل حدوثها','Alertes automatiques en cas de dépassement ou de retard — avec prévision des risques avant qu\'ils surviennent')},
+          {icon:'💰', cl:'green', t: L('توقع الأرباح والتدفق النقدي','Prévision profits et trésorerie'), d: L('توقع ربحك نهاية الشهر بناءً على معدل الصرف اليومي ورسم بياني للتدفق النقدي','Prévoyez votre bénéfice fin de mois selon le taux de dépense journalier avec graphique de flux de trésorerie')},
+          {icon:'👷', cl:'gold', t: L('إدارة العمال والحضور','Gestion ouvriers et présence'), d: L('تتبع الحضور اليومي، حساب الرواتب التلقائي، وتقييم كفاءة كل عامل','Suivi quotidien des présences, calcul automatique des salaires, évaluation de l\'efficacité de chaque ouvrier')},
+          {icon:'🏗️', cl:'purple', t: L('إدارة المشاريع المتقدمة','Gestion avancée des projets'), d: L('Kanban، Gantt، مقارنة المشاريع، وتصنيف الربحية التلقائي لكل مشروع','Kanban, Gantt, comparaison de projets, classification automatique de rentabilité par projet')},
+          {icon:'📋', cl:'orange', t: L('تقارير رسمية قابلة للطباعة','Rapports officiels imprimables'), d: L('تقارير PDF برقم السجل التجاري وشعار الشركة — مقبولة لدى البنوك والمستثمرين','Rapports PDF avec RC et logo société — acceptés par les banques et investisseurs')},
+        ].map(f=>`<div class="feature-card fc-${f.cl}">
+          <div class="feature-icon ${f.cl}">${f.icon}</div>
+          <div class="feature-title">${f.t}</div>
+          <div class="feature-desc">${f.d}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- TRIAL CTA SECTION -->
+    <section class="trial-section" id="trial">
+      <div class="trial-big-card">
         <div>
-          <div class="ll-footer-brand">
-            <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
-            <div class="ll-nav-logo-text">
-              <div class="ll-nav-logo-name">SmartStruct</div>
-              <div class="ll-nav-logo-sub">v7.2 PRO</div>
-            </div>
+          <div style="display:inline-flex;align-items:center;gap:.5rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:20px;padding:.3rem .9rem;font-size:.72rem;font-weight:800;color:var(--green);margin-bottom:1rem;letter-spacing:.5px;text-transform:uppercase">
+            ✅ ${L('تجربة مجانية كاملة','Essai gratuit complet')}
           </div>
-          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع البناء والمقاولات في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
+          <div class="trial-title">
+            ${L('جرّب SmartStruct مجاناً','Essayez SmartStruct gratuitement')}<br>
+            <span style="color:var(--green)">${L('لمدة 14 يوماً كاملاً','pendant 14 jours complets')}</span>
+          </div>
+          <div class="trial-sub">
+            ${L(
+              'لا تحتاج بطاقة ائتمان، لا عقود، لا التزامات. جرّب كل الميزات الاحترافية بدون أي قيود.',
+              'Pas de carte bancaire, pas de contrat, pas d\'engagement. Testez toutes les fonctionnalités pro sans aucune restriction.'
+            )}
+          </div>
+          <div class="trial-features-list">
+            ${[
+              L('وصول كامل لجميع الميزات الاحترافية','Accès complet à toutes les fonctionnalités pro'),
+              L('إضافة مشاريع وعمال ومعاملات بلا حدود','Ajout illimité de projets, ouvriers et transactions'),
+              L('تقارير PDF رسمية قابلة للطباعة','Rapports PDF officiels imprimables'),
+              L('دعم فني مجاني طوال فترة التجربة','Support technique gratuit pendant la période d\'essai'),
+              L('بيانات محفوظة تلقائياً ويمكن ترقيتها لاحقاً','Données sauvegardées et convertibles en abonnement'),
+            ].map(f=>`<div class="trial-feat-item">${f}</div>`).join('')}
+          </div>
+          <button class="btn-trial" onclick="showRegisterPanel()" style="animation:pulse 2s infinite">
+            🚀 ${L('ابدأ التجربة المجانية الآن','Démarrer l\'essai gratuit maintenant')}
+          </button>
+          <div style="font-size:.72rem;color:var(--dim);margin-top:.7rem">
+            ${L('✅ إعداد فوري • ✅ بدون بطاقة ائتمان • ✅ إلغاء في أي وقت','✅ Démarrage immédiat • ✅ Sans CB • ✅ Annulation à tout moment')}
+          </div>
         </div>
-        <div class="ll-footer-col">
-          <h4>${L('المنتج','Produit')}</h4>
-          <ul>
-            <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
-            <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
-            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
-          </ul>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('الشركة','Entreprise')}</h4>
-          <ul>
-            <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
-            <li><a href="#">${L('من نحن','À propos')}</a></li>
-            <li><a href="#">${L('الوظائف','Carrières')}</a></li>
-          </ul>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('الدعم','Support')}</h4>
-          <ul>
-            <li><a href="#">${L('مركز المساعدة','Aide')}</a></li>
-            <li><a href="#">${L('التوثيق','Documentation')}</a></li>
-            <li><a href="#">${L('حالة الخدمة','Statut')}</a></li>
-          </ul>
+        <div class="trial-countdown">
+          <span class="trial-countdown-num">14</span>
+          <span class="trial-countdown-lbl">${L('يوم','Jours')}</span>
+          <div style="margin-top:1rem;font-size:.7rem;color:var(--dim)">${L('تجربة مجانية شاملة','Essai gratuit complet')}</div>
+          <div style="margin:.8rem 0;height:1px;background:rgba(52,195,143,.15)"></div>
+          <div style="font-size:.72rem;color:var(--green);margin-bottom:.3rem">✓ ${L('كل الميزات مفتوحة','Toutes fonctionnalités')}</div>
+          <div style="font-size:.72rem;color:var(--green);margin-bottom:.3rem">✓ ${L('بدون إعلانات','Sans publicité')}</div>
+          <div style="font-size:.72rem;color:var(--green)">✓ ${L('دعم عربي وفرنسي','Support AR/FR')}</div>
         </div>
       </div>
-      <div class="ll-footer-bottom">
-        <div>© 2026 SmartStruct — ${L('صُمم للشركات الجزائرية في قطاع البناء','Conçu pour les entreprises BTP algériennes')}</div>
-        <div>${L('صُنع بـ ♥ في الجزائر','Fait avec ♥ en Algérie')}</div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="pricing-section" id="pricing">
+      <div class="section-center">
+        <div class="section-tag">${L('خطط الاشتراك','Plans d\'abonnement')}</div>
+        <h2 class="section-title">${L('أسعار تناسب جميع المؤسسات','Tarifs adaptés à chaque entreprise')}</h2>
+        <p class="section-sub">${L('ابدأ بالتجربة المجانية 14 يوماً — ثم اختر الخطة التي تناسبك','Commencez avec 14 jours gratuits — puis choisissez votre plan')}</p>
+      </div>
+      <div class="pricing-grid">
+        <div class="pricing-card trial-plan">
+          <div class="pricing-plan-badge trial-bdg">🆓 ${L('تجربة مجانية','Essai gratuit')}</div>
+          <div class="pricing-name" style="margin-top:1.2rem">${L('التجربة','Découverte')}</div>
+          <div class="pricing-price">0<span> ${L('دج','DA')}</span></div>
+          <div class="pricing-period">${L('14 يوم مجاناً — لا بطاقة ائتمان','14 jours gratuits — sans carte bancaire')}</div>
+          <ul class="pricing-features">
+            <li><span class="check">✓</span> ${L('كل الميزات الاحترافية مفتوحة','Toutes les fonctionnalités pro')}</li>
+            <li><span class="check">✓</span> ${L('مشاريع وعمال ومعدات غير محدودة','Projets, ouvriers, équipements illimités')}</li>
+            <li><span class="check">✓</span> ${L('تقارير PDF رسمية','Rapports PDF officiels')}</li>
+            <li><span class="check">✓</span> ${L('تحليل مخاطر ذكي','Analyse de risques IA')}</li>
+            <li><span class="check">✓</span> ${L('دعم فني مجاني','Support technique gratuit')}</li>
+          </ul>
+          <button class="btn-trial" style="width:100%;justify-content:center" onclick="showRegisterPanel()">
+            🚀 ${L('ابدأ مجاناً','Commencer gratuitement')}
+          </button>
+        </div>
+        <div class="pricing-card popular">
+          <div class="pricing-plan-badge popular-bdg">⭐ ${L('الأكثر مبيعاً','Best-seller')}</div>
+          <div class="pricing-name" style="margin-top:1rem">${L('الاحترافي','Professionnel')}</div>
+          <div class="pricing-price">7,900<span> ${L('دج','DA')}</span></div>
+          <div class="pricing-period">${L('/ شهرياً — مثالي للشركات الصغيرة والمتوسطة','/ mois — Idéal pour PME')}</div>
+          <ul class="pricing-features">
+            <li><span class="check">✓</span> ${L('20 مشروع نشط','20 projets actifs')}</li>
+            <li><span class="check">✓</span> ${L('100 عامل','100 ouvriers')}</li>
+            <li><span class="check">✓</span> ${L('50 معدة','50 équipements')}</li>
+            <li><span class="check">✓</span> ${L('تقارير متقدمة + PDF','Rapports avancés + PDF')}</li>
+            <li><span class="check">✓</span> ${L('تحليل مخاطر AI','Analyse risques IA')}</li>
+            <li><span class="check">✓</span> ${L('دعم ذو أولوية','Support prioritaire')}</li>
+          </ul>
+          <button class="btn btn-gold" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ التجربة المجانية','Démarrer l\'essai')}</button>
+        </div>
+        <div class="pricing-card">
+          <div class="pricing-name">${L('المؤسسي','Entreprise')}</div>
+          <div class="pricing-price">19,900<span> ${L('دج','DA')}</span></div>
+          <div class="pricing-period">${L('/ شهرياً — للشركات الكبيرة بلا حدود','/ mois — Pour grandes entreprises sans limites')}</div>
+          <ul class="pricing-features">
+            <li><span class="check">✓</span> ${L('مشاريع وعمال غير محدودون','Projets et ouvriers illimités')}</li>
+            <li><span class="check">✓</span> ${L('لوحة تحكم متعددة المستخدمين','Tableau multi-utilisateurs')}</li>
+            <li><span class="check">✓</span> ${L('API كامل','API complet')}</li>
+            <li><span class="check">✓</span> ${L('تقارير مخصصة','Rapports personnalisés')}</li>
+            <li><span class="check">✓</span> ${L('دعم مخصص 24/7','Support dédié 24/7')}</li>
+          </ul>
+          <button class="btn btn-outline-gold" style="width:100%;justify-content:center;border:2px solid var(--gold);color:var(--gold);background:transparent;padding:.7rem;border-radius:var(--radius);font-family:'Tajawal',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer" onclick="showRegisterPanel()">${L('تواصل معنا','Contactez-nous')}</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TESTIMONIALS -->
+    <section class="testi-section" id="testimonials">
+      <div class="section-center">
+        <div class="section-tag" style="background:rgba(155,109,255,.1);border-color:rgba(155,109,255,.25);color:#9B6DFF">${L('آراء العملاء','Témoignages')}</div>
+        <h2 class="section-title">${L('ماذا يقول عملاؤنا','Ce que disent nos clients')}</h2>
+        <p class="section-sub">${L('أكثر من 500 مؤسسة جزائرية تثق في SmartStruct','Plus de 500 entreprises algériennes font confiance à SmartStruct')}</p>
+      </div>
+      <div class="testi-grid">
+        ${[
+          {stars:'★★★★★', text: L('"SmartStruct غيّر طريقة إدارتي للمشاريع تماماً. الآن أعرف ربحيتي الحقيقية في أي لحظة وأتوقع المشاكل قبل حدوثها."','"SmartStruct a complètement changé ma façon de gérer mes chantiers. Je connais ma rentabilité réelle à tout moment."'), name:'أحمد بوعزة', role:L('مقاول — الجزائر العاصمة','Entrepreneur — Alger'), color:'#4A90E2'},
+          {stars:'★★★★★', text: L('"كنت أدير كل شيء في Excel، الآن وفّرت 6 ساعات في الأسبوع وعندي تقارير احترافية جاهزة للبنك."','"Je gérais tout sur Excel, maintenant j\'économise 6h par semaine et j\'ai des rapports professionnels prêts pour la banque."'), name:'كريم حمداني', role:L('مؤسسة بناء — وهران','Entreprise BTP — Oran'), color:'#34C38F'},
+          {stars:'★★★★★', text: L('"أفضل استثمار في مؤسستي. التجربة المجانية 14 يوم أقنعتني مباشرة — النتائج كانت مذهلة."','"Le meilleur investissement pour mon entreprise. L\'essai gratuit de 14 jours m\'a convaincu immédiatement."'), name:'يوسف مزياني', role:L('شركة بجاية للإنشاء','Société Béjaïa Construction'), color:'#E8B84B'},
+        ].map(t=>`<div class="testi-card">
+          <div class="testi-stars">${t.stars}</div>
+          <div class="testi-text">${t.text}</div>
+          <div class="testi-author">
+            <div class="testi-avatar" style="background:${t.color}22;color:${t.color}">${t.name[0]}</div>
+            <div>
+              <div class="testi-name">${t.name}</div>
+              <div class="testi-role">${t.role}</div>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="cta-section" id="contact">
+      <div class="cta-box">
+        <div style="margin-bottom:1rem;display:inline-block;animation:floatUp 3s ease infinite">${ssLogo(52)}</div>
+        <h2 class="cta-title">${L('ابدأ إدارة مشاريعك المقاولاتية اليوم','Gérez tous vos chantiers dès aujourd\'hui')}</h2>
+        <p class="cta-sub">${L('انضم إلى أكثر من 500 مؤسسة جزائرية — التجربة المجانية 14 يوم بدون أي التزام','Rejoignez plus de 500 entreprises algériennes — Essai gratuit 14 jours sans engagement')}</p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap">
+          <button class="btn-trial btn-lg" onclick="showRegisterPanel()" style="animation:pulse 2s infinite">
+            🚀 ${L('ابدأ التجربة المجانية — 14 يوم','Démarrer l\'essai gratuit — 14 jours')}
+          </button>
+          <button class="btn btn-ghost btn-lg" onclick="showLoginPanel()">
+            ${L('تسجيل الدخول','Se connecter')}
+          </button>
+        </div>
+        <div style="margin-top:1.5rem;font-size:.78rem;color:var(--dim)">
+          ✅ ${L('لا يلزم بطاقة ائتمان','Sans carte bancaire')} &nbsp;•&nbsp;
+          ✅ ${L('إلغاء في أي وقت','Annulation à tout moment')} &nbsp;•&nbsp;
+          ✅ ${L('دعم باللغة العربية والفرنسية','Support arabe & français')}
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="land-footer">
+      <div class="land-footer-logo">
+        <div class="land-nav-logo-icon" style="width:30px;height:30px;font-size:.9rem">${ssLogo(16)}</div>
+        <div style="font-weight:900;color:var(--gold);font-size:.9rem">SmartStruct</div>
+      </div>
+      <div class="land-footer-text">© 2025 SmartStruct — ${L('منصة إدارة مشاريع المقاولة الجزائرية','Plateforme de gestion BTP Algérie')}</div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <button class="lang-toggle-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+          ${I18N.currentLang === 'ar' ? '🇫🇷 FR' : '🇩🇿 AR'}
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="showLoginPanel()">${L('تسجيل الدخول','Connexion')}</button>
+        <button class="btn-trial btn-sm" style="padding:.35rem .9rem;font-size:.78rem" onclick="showRegisterPanel()">🚀 ${L('ابدأ مجاناً','Essai gratuit')}</button>
       </div>
     </footer>
   </div>`;
 };
-
-/* ─── Init dynamic effects after landing renders ─── */
-function initLandingEffects() {
-  const root = document.getElementById('landingRoot');
-  if (!root) return;
-
-  // Particles
-  const pc = document.getElementById('llParticles');
-  if (pc && !pc.children.length) {
-    const count = window.innerWidth < 768 ? 16 : 36;
-    for (let i = 0; i < count; i++) {
-      const p = document.createElement('div');
-      p.className = 'll-particle';
-      const size = 1 + Math.random() * 3;
-      p.style.width = size + 'px';
-      p.style.height = size + 'px';
-      p.style.left = Math.random() * 100 + '%';
-      p.style.bottom = (-20 - Math.random() * 30) + '%';
-      p.style.animationDuration = (12 + Math.random() * 16) + 's';
-      p.style.animationDelay = (Math.random() * 15) + 's';
-      p.style.opacity = 0.3 + Math.random() * 0.5;
-      pc.appendChild(p);
-    }
-  }
-
-  // Navbar scroll state
-  const nav = document.getElementById('llNav');
-  if (nav) {
-    const onScroll = () => nav.classList.toggle('ll-scrolled', window.scrollY > 30);
-    window._llScrollHandler && window.removeEventListener('scroll', window._llScrollHandler);
-    window._llScrollHandler = onScroll;
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  }
-
-  // Reveal on scroll
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('ll-in');
-          io.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    root.querySelectorAll('.ll-reveal').forEach(el => io.observe(el));
-
-    // Animated counters
-    const counterIO = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const target = parseInt(e.target.dataset.target);
-          if (isNaN(target)) { counterIO.unobserve(e.target); return; }
-          const duration = 1600;
-          const start = performance.now();
-          const animate = (t) => {
-            const p = Math.min((t - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - p, 3);
-            e.target.textContent = Math.floor(target * eased);
-            if (p < 1) requestAnimationFrame(animate);
-            else e.target.textContent = target;
-          };
-          requestAnimationFrame(animate);
-          counterIO.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.5 });
-    root.querySelectorAll('[data-target]').forEach(el => counterIO.observe(el));
-  }
-
-  // 3D tilt on feature cards
-  root.querySelectorAll('[data-tilt]').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const r = card.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      const y = e.clientY - r.top;
-      const rotX = ((y / r.height) - 0.5) * -8;
-      const rotY = ((x / r.width) - 0.5) * 8;
-      card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`;
-      card.style.setProperty('--mx', (x / r.width * 100) + '%');
-      card.style.setProperty('--my', (y / r.height * 100) + '%');
-    });
-    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-  });
-
-  // Showcase 3D follow
-  const stage = document.getElementById('llShowcaseStage');
-  if (stage) {
-    const wrap = stage.parentElement;
-    wrap.addEventListener('mousemove', (e) => {
-      const r = wrap.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5;
-      const y = (e.clientY - r.top) / r.height - 0.5;
-      stage.style.transform = `rotateX(${15 - y * 10}deg) rotateY(${-8 - x * 10}deg)`;
-    });
-    wrap.addEventListener('mouseleave', () => { stage.style.transform = ''; });
-  }
-
-  // Hero scene parallax
-  const sceneStage = document.getElementById('llSceneStage');
-  if (sceneStage && window.innerWidth > 768) {
-    const sceneWrap = sceneStage.closest('.ll-scene');
-    if (sceneWrap) {
-      sceneWrap.addEventListener('mousemove', (e) => {
-        const r = sceneStage.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width - 0.5;
-        const y = (e.clientY - r.top) / r.height - 0.5;
-        sceneStage.style.animation = 'none';
-        sceneStage.style.transform = `rotateX(${8 - y * 8}deg) rotateY(${-x * 10}deg)`;
-      });
-      sceneWrap.addEventListener('mouseleave', () => {
-        sceneStage.style.animation = '';
-        sceneStage.style.transform = '';
-      });
-    }
-  }
-}
-window.initLandingEffects = initLandingEffects;
 
 
 /* ─── LOGIN PAGE ─── */
