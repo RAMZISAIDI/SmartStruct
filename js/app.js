@@ -1056,6 +1056,7 @@ const App = {
       if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
       if (this.currentPage === 'landing' && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
+      if (this.currentPage === 'login' && typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
       applyDOMTranslation(); // ← RADICAL FIX: translate every text node after render
 
       // ── إظهار/إخفاء زر الدردشة SmartAI حسب الصفحة الحالية ──
@@ -1215,6 +1216,7 @@ function attTodayWidget(workers) {
 
 const Pages = {};
 
+/* ─── LANDING PAGE — v7.4 (v7.2 base + SaaS sections) ─── */
 /* ─── LANDING PAGE — v7.2 PRO 3D ─── */
 Pages.landing = function() {
   const user = Auth.getUser();
@@ -1236,10 +1238,12 @@ Pages.landing = function() {
       </a>
 
       <div class="ll-nav-links">
+        <a class="ll-nav-link" href="#ll-services">${L('الخدمات','Services')}</a>
         <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
-        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
         <a class="ll-nav-link" href="#ll-benefits">${L('الفوائد','Avantages')}</a>
+        <a class="ll-nav-link" href="#ll-testimonials">${L('آراء العملاء','Témoignages')}</a>
         <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
+        <a class="ll-nav-link" href="#ll-faq">FAQ</a>
       </div>
 
       <div class="ll-nav-cta">
@@ -1779,6 +1783,184 @@ Pages.landing = function() {
       </div>
     </section>
 
+    <!-- ═══ SERVICES (10 خدمات SaaS) ═══ -->
+    <section class="ll-section" id="ll-services">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('خدماتنا','Nos services')}</span>
+        <h2 class="ll-section-title">${L('10 حلول متكاملة','10 solutions intégrées')} <span class="ll-gold">${L('في منصة واحدة','dans une plateforme')}</span></h2>
+        <p class="ll-section-desc">${L('من إدارة المشاريع إلى الصيانة — كل ما تحتاجه شركتك في مكان واحد.','De la gestion de projets à la maintenance — tout au même endroit.')}</p>
+      </div>
+
+      <div class="ll-services-grid">
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#4A90E2,#2E6BB8)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('إدارة المشاريع','Gestion projets')}</h3>
+          <p class="ll-service-desc">${L('Kanban، Gantt، تتبع التقدم، المراحل والمهام.','Kanban, Gantt, suivi, jalons et tâches.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('إدارة الموظفين','Gestion RH')}</h3>
+          <p class="ll-service-desc">${L('حضور، رواتب، إجازات، تقييم الأداء.','Présence, salaires, congés, évaluations.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#34C38F,#1F8B65)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('تتبع المعدات','Suivi matériel')}</h3>
+          <p class="ll-service-desc">${L('GPS، QR Code، صيانة دورية، حالة المعدة.','GPS, QR, maintenance, état du matériel.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#09120A">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('التقارير الذكية','Rapports IA')}</h3>
+          <p class="ll-service-desc">${L('تحليلات تلقائية، توصيات SmartAI، PDF.','Analyses auto, recommandations IA, PDF.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#F04E6A,#C13954)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('إدارة العملاء','CRM Clients')}</h3>
+          <p class="ll-service-desc">${L('قاعدة بيانات، تواصل، عقود، متابعة.','Base de données, contacts, contrats, suivi.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#4A90E2,#2E6BB8)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('الفواتير والمدفوعات','Factures')}</h3>
+          <p class="ll-service-desc">${L('فواتير PDF رسمية، TVA 19٪، توقيع إلكتروني.','PDF officielles, TVA 19%, e-signature.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('الأرشفة السحابية','Archivage cloud')}</h3>
+          <p class="ll-service-desc">${L('وثائق، صور، عقود، نسخ احتياطية تلقائية.','Documents, photos, backup auto.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#34C38F,#1F8B65)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('التنبيهات','Notifications')}</h3>
+          <p class="ll-service-desc">${L('Push، بريد، WhatsApp، SMS فوري.','Push, email, WhatsApp, SMS.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#09120A">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('المتابعة المالية','Suivi financier')}</h3>
+          <p class="ll-service-desc">${L('Cash flow، توقعات 90 يوم، استيراد BNA/CCP.','Cash flow, prévisions 90j, import BNA/CCP.')}</p>
+        </div>
+        <div class="ll-service-card ll-reveal">
+          <div class="ll-service-icon" style="background:linear-gradient(135deg,#F04E6A,#C13954)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </div>
+          <h3 class="ll-service-title">${L('الصيانة والدعم','Maintenance')}</h3>
+          <p class="ll-service-desc">${L('تذاكر، SLA، فريق دعم 24/7.','Tickets, SLA, support 24/7.')}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ TESTIMONIALS ═══ -->
+    <section class="ll-section" id="ll-testimonials">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('آراء عملائنا','Avis clients')}</span>
+        <h2 class="ll-section-title">${L('شركات تثق بـ','Des entreprises font confiance à')} <span class="ll-gold">SmartStruct</span></h2>
+      </div>
+
+      <div class="ll-testimonials-grid">
+        <div class="ll-testimonial-card ll-reveal">
+          <div class="ll-testimonial-stars">★★★★★</div>
+          <p class="ll-testimonial-text">"${L('وفّرنا 40٪ من وقت الإدارة بعد 3 أشهر فقط من استخدام SmartStruct. التقارير الذكية ممتازة.','Nous avons économisé 40% du temps en 3 mois. Les rapports IA sont excellents.')}"</p>
+          <div class="ll-testimonial-author">
+            <div class="ll-testimonial-avatar" style="background:linear-gradient(135deg,#4A90E2,#2E6BB8)">${isAr?'ك':'K'}</div>
+            <div>
+              <div class="ll-testimonial-name">${L('كريم بن صالح','Karim Bensalah')}</div>
+              <div class="ll-testimonial-role">${L('مدير، شركة BTP الجزائر','PDG, BTP Algérie')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="ll-testimonial-card ll-reveal">
+          <div class="ll-testimonial-stars">★★★★★</div>
+          <p class="ll-testimonial-text">"${L('أفضل منصة جرّبتها لإدارة شركتنا. الواجهة عربية احترافية والدعم ممتاز.','Meilleure plateforme. Interface arabe pro et support excellent.')}"</p>
+          <div class="ll-testimonial-author">
+            <div class="ll-testimonial-avatar" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9)">${isAr?'ن':'N'}</div>
+            <div>
+              <div class="ll-testimonial-name">${L('نادية عمراني','Nadia Amrani')}</div>
+              <div class="ll-testimonial-role">${L('مديرة موارد بشرية','DRH')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="ll-testimonial-card ll-reveal">
+          <div class="ll-testimonial-stars">★★★★★</div>
+          <p class="ll-testimonial-text">"${L('تتبع GPS للمعدات أنقذنا من سرقة بقيمة ملايين. استثمار ممتاز.','Le suivi GPS nous a sauvé de vols de millions. Excellent investissement.')}"</p>
+          <div class="ll-testimonial-author">
+            <div class="ll-testimonial-avatar" style="background:linear-gradient(135deg,#34C38F,#1F8B65)">${isAr?'س':'S'}</div>
+            <div>
+              <div class="ll-testimonial-name">${L('سمير زروقي','Samir Zerrouki')}</div>
+              <div class="ll-testimonial-role">${L('مدير عمليات','Dir. opérations')}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ PARTNERS ═══ -->
+    <section class="ll-section ll-section-partners">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('شركاؤنا التقنيون','Partenaires tech')}</span>
+        <h2 class="ll-section-title">${L('نتعاون مع','En partenariat avec')} <span class="ll-gold">${L('الأفضل','les meilleurs')}</span></h2>
+      </div>
+      <div class="ll-partners-grid ll-reveal">
+        <div class="ll-partner-logo">Supabase</div>
+        <div class="ll-partner-logo">PostgreSQL</div>
+        <div class="ll-partner-logo">Groq AI</div>
+        <div class="ll-partner-logo">EmailJS</div>
+        <div class="ll-partner-logo">Vercel</div>
+        <div class="ll-partner-logo">Cloudflare</div>
+      </div>
+    </section>
+
+    <!-- ═══ FAQ ═══ -->
+    <section class="ll-section" id="ll-faq">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">FAQ</span>
+        <h2 class="ll-section-title">${L('الأسئلة','Questions')} <span class="ll-gold">${L('الشائعة','fréquentes')}</span></h2>
+      </div>
+
+      <div class="ll-faq-list ll-reveal">
+        <details class="ll-faq-item">
+          <summary>${L('هل التجربة المجانية تتطلب بطاقة بنكية؟','L\'essai nécessite-t-il une CB ?')}</summary>
+          <p>${L('لا، 14 يوم تجربة كاملة بدون أي بطاقة. ألغِ في أي وقت.','Non, 14 jours sans CB. Annulez à tout moment.')}</p>
+        </details>
+        <details class="ll-faq-item">
+          <summary>${L('هل يمكنني استيراد بياناتي من Excel؟','Puis-je importer mes données Excel ?')}</summary>
+          <p>${L('نعم، استيراد كامل من Excel، CSV، Google Sheets، وحتى من برامج أخرى.','Oui, import complet depuis Excel, CSV, Google Sheets et autres.')}</p>
+        </details>
+        <details class="ll-faq-item">
+          <summary>${L('هل البيانات آمنة؟','Mes données sont-elles sécurisées ?')}</summary>
+          <p>${L('نعم. تشفير PBKDF2، Row-Level Security، نسخ احتياطية يومية، خوادم Supabase أوروبية.','Oui. PBKDF2, RLS, backups quotidiens, serveurs Supabase Europe.')}</p>
+        </details>
+        <details class="ll-faq-item">
+          <summary>${L('هل يمكنني الإلغاء في أي وقت؟','Puis-je annuler à tout moment ?')}</summary>
+          <p>${L('نعم، بدون أي شروط. تستطيع تصدير كل بياناتك قبل الإلغاء.','Oui, sans condition. Exportez toutes vos données avant.')}</p>
+        </details>
+        <details class="ll-faq-item">
+          <summary>${L('هل تدعمون اللغة الفرنسية؟','Supportez-vous le français ?')}</summary>
+          <p>${L('نعم، واجهة كاملة بـ AR + FR، وكل التقارير بكلتا اللغتين.','Oui, interface complète AR + FR, rapports bilingues.')}</p>
+        </details>
+        <details class="ll-faq-item">
+          <summary>${L('هل يوجد تطبيق هاتف؟','Y a-t-il une app mobile ?')}</summary>
+          <p>${L('نعم، PWA يعمل على iOS و Android، مع وضع ميدان مبسط للعمال.','Oui, PWA iOS/Android, mode chantier simplifié.')}</p>
+        </details>
+      </div>
+    </section>
+
+
     <!-- ═══ CTA ═══ -->
     <div class="ll-cta ll-reveal">
       <div class="ll-cta-content">
@@ -1816,9 +1998,10 @@ Pages.landing = function() {
         <div class="ll-footer-col">
           <h4>${L('المنتج','Produit')}</h4>
           <ul>
+            <li><a href="#ll-services">${L('الخدمات','Services')}</a></li>
             <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
             <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
-            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
+            <li><a href="#ll-faq">FAQ</a></li>
           </ul>
         </div>
         <div class="ll-footer-col">
@@ -1964,51 +2147,246 @@ function initLandingEffects() {
 }
 window.initLandingEffects = initLandingEffects;
 
+/* ─── Init dynamic effects after landing renders ─── */
+function initLandingEffects() {
+  const root = document.getElementById('landingRoot');
+  if (!root) return;
+
+  const pc = document.getElementById('llParticles');
+  if (pc && !pc.children.length) {
+    const count = window.innerWidth < 768 ? 16 : 36;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'll-particle';
+      const size = 1 + Math.random() * 3;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.bottom = (-20 - Math.random() * 30) + '%';
+      p.style.animationDuration = (12 + Math.random() * 16) + 's';
+      p.style.animationDelay = (Math.random() * 15) + 's';
+      p.style.opacity = 0.3 + Math.random() * 0.5;
+      pc.appendChild(p);
+    }
+  }
+
+  const nav = document.getElementById('llNav');
+  if (nav) {
+    const onScroll = () => nav.classList.toggle('ll-scrolled', window.scrollY > 30);
+    if (window._llScrollHandler) window.removeEventListener('scroll', window._llScrollHandler);
+    window._llScrollHandler = onScroll;
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('ll-in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    root.querySelectorAll('.ll-reveal').forEach(el => io.observe(el));
+
+    const counterIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const target = parseInt(e.target.dataset.target);
+          if (isNaN(target)) { counterIO.unobserve(e.target); return; }
+          const duration = 1600;
+          const start = performance.now();
+          const animate = (t) => {
+            const p = Math.min((t - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - p, 3);
+            e.target.textContent = Math.floor(target * eased);
+            if (p < 1) requestAnimationFrame(animate);
+            else e.target.textContent = target;
+          };
+          requestAnimationFrame(animate);
+          counterIO.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.5 });
+    root.querySelectorAll('[data-target]').forEach(el => counterIO.observe(el));
+  }
+
+  root.querySelectorAll('[data-tilt]').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const r = card.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      const rotX = ((y / r.height) - 0.5) * -8;
+      const rotY = ((x / r.width) - 0.5) * 8;
+      card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`;
+      card.style.setProperty('--mx', (x / r.width * 100) + '%');
+      card.style.setProperty('--my', (y / r.height * 100) + '%');
+    });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+  });
+
+  const stage = document.getElementById('llShowcaseStage');
+  if (stage) {
+    const wrap = stage.parentElement;
+    wrap.addEventListener('mousemove', (e) => {
+      const r = wrap.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      stage.style.transform = `rotateX(${15 - y * 10}deg) rotateY(${-8 - x * 10}deg)`;
+    });
+    wrap.addEventListener('mouseleave', () => { stage.style.transform = ''; });
+  }
+
+  const sceneStage = document.getElementById('llSceneStage');
+  if (sceneStage && window.innerWidth > 768) {
+    const sceneWrap = sceneStage.closest('.ll-scene');
+    if (sceneWrap) {
+      sceneWrap.addEventListener('mousemove', (e) => {
+        const r = sceneStage.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        sceneStage.style.animation = 'none';
+        sceneStage.style.transform = `rotateX(${8 - y * 8}deg) rotateY(${-x * 10}deg)`;
+      });
+      sceneWrap.addEventListener('mouseleave', () => {
+        sceneStage.style.animation = '';
+        sceneStage.style.transform = '';
+      });
+    }
+  }
+}
+window.initLandingEffects = initLandingEffects;
+
+/* ─── Init effects for auth (login/register) page ─── */
+function initAuthEffects() {
+  const root = document.getElementById('authRoot');
+  if (!root) return;
+  const pc = document.getElementById('authParticles');
+  if (pc && !pc.children.length) {
+    const count = window.innerWidth < 768 ? 12 : 24;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'auth-particle';
+      const size = 1 + Math.random() * 2.5;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.bottom = (-15 - Math.random() * 25) + '%';
+      p.style.animationDuration = (14 + Math.random() * 14) + 's';
+      p.style.animationDelay = (Math.random() * 14) + 's';
+      p.style.opacity = 0.3 + Math.random() * 0.4;
+      pc.appendChild(p);
+    }
+  }
+}
+window.initAuthEffects = initAuthEffects;
+
 
 /* ─── LOGIN PAGE ─── */
 
 Pages.login = function(mode) {
-
   const initMode = mode || sessionStorage.getItem('auth_mode') || 'login';
-  return `<div class="login-page">
-    <button class="login-back-btn" data-nav="landing">← ${L('العودة للموقع','Retour au site')}</button>
-    <button class="lang-toggle-btn" style="position:fixed;top:1.2rem;left:1.5rem;z-index:600" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-      ${I18N.currentLang === 'ar' ? '🇫🇷 FR' : '🇩🇿 AR'}
+  const isAr = I18N.currentLang === 'ar';
+
+  return `<div class="auth-page" id="authRoot">
+    <!-- Atmospheric background layers -->
+    <div class="auth-atmosphere"></div>
+    <div class="auth-particles" id="authParticles"></div>
+
+    <!-- Top controls -->
+    <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour')}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'none':'rotate(180deg)'}">
+        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+      </svg>
+      <span>${L('العودة للموقع','Retour au site')}</span>
     </button>
-    <div class="login-wrap">
-      <!-- Left Panel -->
-      <div class="login-left">
-        <div class="login-left-bg"></div>
-        <div class="login-left-overlay"></div>
-        <div class="login-left-content">
-          <div class="login-left-logo">
-            <div class="login-left-logo-icon">${ssLogo(24)}</div>
-            <div class="login-left-logo-text">SmartStruct</div>
+
+    <button class="auth-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+      ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+    </button>
+
+    <!-- Main grid: Left brand panel + Right form -->
+    <div class="auth-shell">
+
+      <!-- ═══ LEFT BRAND PANEL — 3D Scene ═══ -->
+      <div class="auth-brand">
+        <div class="auth-brand-glow"></div>
+        <div class="auth-brand-grid"></div>
+
+        <div class="auth-brand-content">
+          <a class="auth-brand-logo" data-nav="landing">
+            <div class="auth-brand-logo-mark">${ssLogo(26)}</div>
+            <div class="auth-brand-logo-text">
+              <div class="auth-brand-logo-name">SmartStruct</div>
+              <div class="auth-brand-logo-sub">v7.2 PRO</div>
+            </div>
+          </a>
+
+          <div class="auth-trial-pill">
+            <span class="auth-trial-dot"></span>
+            ${L('تجربة مجانية 14 يوم — بدون بطاقة بنكية','Essai gratuit 14j — sans CB')}
           </div>
-          <div class="login-trial-badge">
-            <div class="login-trial-days">14</div>
-            <div class="login-trial-text">
-              <div>${L('يوم تجربة مجانية كاملة','Jours d\'essai gratuit complet')}</div>
-              <div style="font-size:.68rem;opacity:.7">${L('بدون بطاقة بنكية','Sans carte bancaire')}</div>
+
+          <h1 class="auth-brand-title">
+            ${L('أدِر شركتك','Gérez votre BTP')}<br>
+            <span class="auth-brand-title-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
+          </h1>
+
+          <p class="auth-brand-desc">${L(
+            'منصة متكاملة لإدارة مشاريع البناء والعمال والفوترة والمالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري.',
+            'Plateforme complète pour la gestion de chantiers, ouvriers, factures et finances — propulsée par l\'IA et conforme à la loi algérienne.'
+          )}</p>
+
+          <!-- Mini 3D card preview -->
+          <div class="auth-mini-scene">
+            <div class="auth-mini-card auth-mc-1">
+              <div class="auth-mc-icon" style="background:linear-gradient(135deg,#34C38F,#1F8B65);color:#fff">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="auth-mc-text">
+                <div class="auth-mc-label">${L('المشاريع','Projets')}</div>
+                <div class="auth-mc-val">+18.4%</div>
+              </div>
+            </div>
+            <div class="auth-mini-card auth-mc-2">
+              <div class="auth-mc-icon" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#09120A">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <div class="auth-mc-text">
+                <div class="auth-mc-label">${L('الإيرادات','Revenus')}</div>
+                <div class="auth-mc-val">4.2M</div>
+              </div>
+            </div>
+            <div class="auth-mini-card auth-mc-3">
+              <div class="auth-mc-icon" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9);color:#fff">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
+              </div>
+              <div class="auth-mc-text">
+                <div class="auth-mc-label">SmartAI</div>
+                <div class="auth-mc-val">${L('نشط','Actif')}</div>
+              </div>
             </div>
           </div>
-          <div class="login-left-title">${L('أدِر مشاريعك المقاولاتية بذكاء','Gérez vos projets intelligemment')}</div>
-          <div class="login-left-sub">${L('منصة التحليل المالي الذكي لجميع مقاولي الجزائر — بناء، كهرباء، سباكة، طرق وأكثر','Plateforme d\'analyse financière pour tous les entrepreneurs algériens BTP')}</div>
-          <div class="login-left-features">
-            ${[
-              L('🧠 مؤشر صحة المؤسسة الذكي','🧠 Score de santé intelligent'),
-              L('🚨 كشف المخاطر تلقائياً','🚨 Détection automatique des risques'),
-              L('📈 توقع الأرباح والتدفق النقدي','📈 Prévision profits et trésorerie'),
-              L('📋 تقارير رسمية للبنوك','📋 Rapports officiels pour banques'),
-              L('🔒 بيانات آمنة ومحفوظة','🔒 Données sécurisées et sauvegardées'),
-            ].map(f=>`<div class="login-left-feat"><div class="login-left-feat-icon">${f.split(' ')[0]}</div>${f.substring(2)}</div>`).join('')}
+
+          <ul class="auth-brand-features">
+            <li><span class="auth-feat-check">✓</span> ${L('27 جدول قاعدة بيانات + RLS','27 tables BDD + RLS')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('فواتير PDF + توقيع إلكتروني','Factures PDF + signature')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('SmartAI + توقعات السيولة','SmartAI + prévisions cash')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('GPS للمعدات + وضع ميدان','GPS engins + mode chantier')}</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ═══ RIGHT FORM PANEL ═══ -->
+      <div class="auth-form-panel">
+        <div class="auth-form-card" id="authFormCard">
+          <div class="auth-form-inner" id="authRightPanel">
+            ${initMode === 'register' ? renderRegisterForm(L) : renderLoginForm(L)}
           </div>
         </div>
       </div>
-      <!-- Right Panel -->
-      <div class="login-right" id="authRightPanel">
-        ${initMode === 'register' ? renderRegisterForm(L) : renderLoginForm(L)}
-      </div>
+
     </div>
   </div>`;
 };
@@ -2016,58 +2394,82 @@ Pages.login = function(mode) {
 function renderLoginForm(L) {
   if (!L) L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
   return `
-    <div class="login-right-logo">
-      <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${L('مرحباً بك 👋','Bienvenue 👋')}</div>
-    </div>
-    <div class="auth-mode-tabs">
-      <button class="auth-mode-tab active" onclick="switchAuthMode('login')">${L('🔑 تسجيل الدخول','🔑 Connexion')}</button>
-      <button class="auth-mode-tab" onclick="switchAuthMode('register')">🚀 ${L('حساب مجاني 14 يوم','Essai gratuit 14j')}</button>
-    </div>
-    <div class="login-right-title">${L('تسجيل الدخول','Connexion')}</div>
-    <div class="login-right-sub">${L('أدخل بياناتك للوصول إلى لوحة التحكم','Saisissez vos informations pour accéder au tableau de bord')}</div>
-    <div class="login-tabs">
-      <button class="login-tab active" id="tabTenant" onclick="switchTab('tenant')">🏢 ${L('مؤسسة','Entreprise')}</button>
-    </div>
-    <div id="loginError" style="display:none" class="alert alert-error">
-      ❌ ${L('البريد الإلكتروني أو كلمة المرور غير صحيحة','Email ou mot de passe incorrect')}
-      <div style="font-size:0.75rem;margin-top:0.4rem;opacity:0.85">
-        ${L('💡 للتجربة: demo@algerie-construction.dz / Demo@1234','💡 Démo: demo@algerie-construction.dz / Demo@1234')}
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">${L('البريد الإلكتروني','Email')}</label>
-      <input class="form-input" id="loginEmail" type="email" placeholder="example@company.dz" dir="ltr">
-    </div>
-    <div class="form-group">
-      <label class="form-label">${L('كلمة المرور','Mot de passe')}</label>
-      <div style="position:relative">
-        <input class="form-input" id="loginPass" type="password" placeholder="••••••••" dir="ltr" style="padding-left:2.5rem">
-        <button onclick="togglePass()" style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--dim);font-size:1rem">👁️</button>
-      </div>
-    </div>
-    <button class="btn btn-gold" style="width:100%;justify-content:center;padding:.85rem;font-size:1rem;margin-top:.5rem" onclick="doLogin()">
-      ${L('تسجيل الدخول →','Connexion →')}
-    </button>
-    <div style="text-align:center;margin-top:.7rem;font-size:.8rem">
-      <span style="color:var(--gold);cursor:pointer;font-weight:700" onclick="showForgotModal()">
-        🔑 ${L('نسيت كلمة المرور؟','Mot de passe oublié ?')}
-      </span>
-    </div>
-    <div style="text-align:center;margin-top:0.5rem">
-      <button onclick="document.getElementById('loginEmail').value='demo@algerie-construction.dz';document.getElementById('loginPass').value='Demo@1234'" 
-        style="background:rgba(52,195,143,0.08);border:1px dashed rgba(52,195,143,0.3);color:#34C38F;padding:0.4rem 1rem;border-radius:8px;cursor:pointer;font-size:0.75rem;font-family:inherit">
-        🚀 ${L('ملء بيانات الحساب التجريبي','Remplir compte démo')}
+    <!-- Mode tabs -->
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthMode('login')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        ${L('تسجيل الدخول','Connexion')}
+      </button>
+      <button class="auth-tab" onclick="switchAuthMode('register')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        ${L('إنشاء حساب','Inscription')}
       </button>
     </div>
-    <div style="text-align:center;margin-top:.6rem;font-size:.8rem;color:var(--dim)">
-      ${L('ليس لديك حساب؟','Pas encore de compte ?')}
-      <span style="color:var(--green);cursor:pointer;font-weight:700" onclick="switchAuthMode('register')">
-        ${L('ابدأ تجربتك المجانية 14 يوم','Démarrer l\'essai gratuit 14 jours')}
-      </span>
+
+    <div class="auth-heading">
+      <h2 class="auth-h-title">${L('مرحباً بعودتك 👋','Bon retour 👋')}</h2>
+      <p class="auth-h-sub">${L('سجّل دخولك للوصول إلى لوحة التحكم','Connectez-vous pour accéder à votre tableau de bord')}</p>
     </div>
-    <div class="login-demo-box">
-      <div class="login-demo-title">${L('بيانات تجريبية','Données de démonstration')}</div>
-      <div class="login-demo-row">🏢 ${L('مؤسسة:','Entreprise:')} <span dir="ltr" style="color:var(--blue);font-family:monospace;font-size:.72rem">demo@algerie-construction.dz / Demo@1234</span></div>
+
+    <div id="loginError" style="display:none" class="auth-alert auth-alert-error">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <strong>${L('بيانات الدخول غير صحيحة','Identifiants incorrects')}</strong>
+        <div style="font-size:.74rem;margin-top:3px;opacity:.85">
+          ${L('💡 جرّب الحساب التجريبي بالأسفل','💡 Essayez le compte démo ci-dessous')}
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-field">
+      <label class="auth-label">${L('البريد الإلكتروني','Adresse email')}</label>
+      <div class="auth-input-wrap">
+        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <input class="auth-input" id="loginEmail" type="email" placeholder="example@company.dz" dir="ltr" autocomplete="email">
+      </div>
+    </div>
+
+    <div class="auth-field">
+      <label class="auth-label">${L('كلمة المرور','Mot de passe')}</label>
+      <div class="auth-input-wrap">
+        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input class="auth-input" id="loginPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <button type="button" class="auth-input-eye" onclick="togglePass()" title="${L('إظهار/إخفاء','Afficher/Masquer')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="auth-row-between">
+      <label class="auth-checkbox-wrap">
+        <input type="checkbox" id="loginRemember" class="auth-checkbox">
+        <span class="auth-checkbox-mark"></span>
+        <span class="auth-checkbox-label">${L('تذكّرني','Se souvenir')}</span>
+      </label>
+      <button type="button" class="auth-link" onclick="showForgotModal()">
+        ${L('نسيت كلمة المرور؟','Mot de passe oublié ?')}
+      </button>
+    </div>
+
+    <button class="auth-submit auth-submit-gold" onclick="doLogin()">
+      <span>${L('تسجيل الدخول','Se connecter')}</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${I18N.currentLang==='ar'?'rotate(180deg)':'none'}">
+        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </button>
+
+    <div class="auth-divider"><span>${L('أو','ou')}</span></div>
+
+    <button class="auth-demo-btn" onclick="document.getElementById('loginEmail').value='demo@algerie-construction.dz';document.getElementById('loginPass').value='Demo@1234';">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      ${L('ملء بيانات الحساب التجريبي','Remplir compte démo')}
+    </button>
+
+    <div class="auth-bottom-text">
+      ${L('ليس لديك حساب؟','Pas encore de compte ?')}
+      <button type="button" class="auth-link auth-link-strong" onclick="switchAuthMode('register')">
+        ${L('ابدأ تجربتك المجانية 14 يوم ←','Démarrer l\'essai gratuit →')}
+      </button>
     </div>
   `;
 }
@@ -2075,67 +2477,112 @@ function renderLoginForm(L) {
 function renderRegisterForm(L) {
   if (!L) L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
   return `
-    <div class="login-right-logo">
-      <div style="font-size:1.3rem;font-weight:900;color:var(--green)">🚀 ${L('ابدأ مجاناً','Commencer gratuitement')}</div>
+    <!-- Mode tabs -->
+    <div class="auth-tabs">
+      <button class="auth-tab" onclick="switchAuthMode('login')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        ${L('تسجيل الدخول','Connexion')}
+      </button>
+      <button class="auth-tab active" onclick="switchAuthMode('register')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        ${L('إنشاء حساب','Inscription')}
+      </button>
     </div>
-    <div class="auth-mode-tabs">
-      <button class="auth-mode-tab" onclick="switchAuthMode('login')">${L('🔑 تسجيل الدخول','🔑 Connexion')}</button>
-      <button class="auth-mode-tab active" onclick="switchAuthMode('register')">🚀 ${L('حساب مجاني 14 يوم','Essai gratuit 14j')}</button>
+
+    <div class="auth-heading">
+      <h2 class="auth-h-title">${L('ابدأ مجاناً 🚀','Commencez gratuitement 🚀')}</h2>
+      <p class="auth-h-sub">${L('14 يوماً تجربة كاملة. بدون بطاقة بنكية. ألغِ متى شئت.','14 jours d\'essai complet. Sans CB. Annulez quand vous voulez.')}</p>
     </div>
-    <div class="register-trial-info">
-      ✅ <strong>${L('تجربة مجانية 14 يوماً كاملة','Essai gratuit complet 14 jours')}</strong> — ${L('بدون بطاقة ائتمان، بدون التزامات. بعد 14 يوم، اختر الخطة المناسبة أو أوقف الاشتراك مجاناً.','Sans carte bancaire, sans engagement. Après 14 jours, choisissez votre plan ou annulez gratuitement.')}
-    </div>
-    <div id="registerError" style="display:none" class="alert alert-error"></div>
-    <div id="registerSuccess" style="display:none" class="alert" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);border-radius:var(--radius);padding:.8rem 1rem;color:var(--green)"></div>
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label">${L('الاسم الكامل','Nom complet')} *</label>
-        <input class="form-input" id="regName" type="text" placeholder="${L('محمد بن علي','Mohamed Ben Ali')}">
+
+    <div class="auth-trial-banner">
+      <div class="auth-trial-banner-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       </div>
-      <div class="form-group">
-        <label class="form-label">${L('اسم المؤسسة','Nom de l\'entreprise')} *</label>
-        <input class="form-input" id="regCompany" type="text" placeholder="${L('مؤسسة المقاولة الجزائرية','Entreprise BTP Algérie')}">
+      <div class="auth-trial-banner-text">
+        <strong>${L('14 يوم مجاناً','14 jours gratuits')}</strong>
+        <span>${L('وصول كامل لكل الميزات الاحترافية','Accès complet à toutes les fonctionnalités')}</span>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">${L('البريد الإلكتروني','Email')} *</label>
-      <input class="form-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr">
-    </div>
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label">${L('كلمة المرور','Mot de passe')} *</label>
-        <div style="position:relative">
-          <input class="form-input" id="regPass" type="password" placeholder="••••••••" dir="ltr" style="padding-left:2.5rem" oninput="checkPassStrength(this.value)">
-          <button onclick="togglePassReg()" style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--dim)">👁️</button>
+
+    <div id="registerError" style="display:none" class="auth-alert auth-alert-error"></div>
+    <div id="registerSuccess" style="display:none" class="auth-alert auth-alert-success"></div>
+
+    <div class="auth-grid-2">
+      <div class="auth-field">
+        <label class="auth-label">${L('الاسم الكامل','Nom complet')} <span class="auth-required">*</span></label>
+        <div class="auth-input-wrap">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input class="auth-input" id="regName" type="text" placeholder="${L('محمد بن علي','Mohamed Ben Ali')}" autocomplete="name">
         </div>
-        <div class="pass-strength" id="passStrengthBars">
-          <div class="pass-strength-bar" id="psb1"></div>
-          <div class="pass-strength-bar" id="psb2"></div>
-          <div class="pass-strength-bar" id="psb3"></div>
-          <div class="pass-strength-bar" id="psb4"></div>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">${L('اسم المؤسسة','Entreprise')} <span class="auth-required">*</span></label>
+        <div class="auth-input-wrap">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
+          <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة المقاولة','Entreprise BTP')}" autocomplete="organization">
         </div>
-        <div class="pass-strength-label" id="passStrengthLabel"></div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">${L('الولاية','Wilaya')}</label>
-        <select class="form-select" id="regWilaya">
-          <option value="">${L('اختر الولاية','Choisir wilaya')}</option>
-          ${WILAYAS.map(w=>`<option value="${w}">${w}</option>`).join('')}
-        </select>
       </div>
     </div>
-    <div class="form-group" style="display:flex;align-items:flex-start;gap:.5rem;margin-top:.3rem">
-      <input type="checkbox" id="regTerms" style="margin-top:3px;flex-shrink:0;accent-color:var(--green)">
-      <label for="regTerms" style="font-size:.76rem;color:var(--dim);cursor:pointer;line-height:1.5">
-        ${L('أوافق على شروط الاستخدام وسياسة الخصوصية','J\'accepte les conditions d\'utilisation et la politique de confidentialité')}
-        <span style="color:var(--green)">${L('(إلزامي)','(Obligatoire)')}</span>
-      </label>
+
+    <div class="auth-field">
+      <label class="auth-label">${L('البريد الإلكتروني','Email')} <span class="auth-required">*</span></label>
+      <div class="auth-input-wrap">
+        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email">
+      </div>
     </div>
-    <button class="btn-trial" style="width:100%;justify-content:center;padding:.9rem;font-size:1rem;margin-top:.8rem;border-radius:var(--radius)" onclick="doRegister()">
-      🚀 ${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer')}</button>
-    <div style="text-align:center;margin-top:.8rem;font-size:.75rem;color:var(--dim)">
+
+    <div class="auth-grid-2">
+      <div class="auth-field">
+        <label class="auth-label">${L('كلمة المرور','Mot de passe')} <span class="auth-required">*</span></label>
+        <div class="auth-input-wrap">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input class="auth-input" id="regPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="new-password" oninput="checkPassStrength(this.value)">
+          <button type="button" class="auth-input-eye" onclick="togglePassReg()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="auth-pass-strength" id="passStrengthBars">
+          <div class="auth-pass-bar" id="psb1"></div>
+          <div class="auth-pass-bar" id="psb2"></div>
+          <div class="auth-pass-bar" id="psb3"></div>
+          <div class="auth-pass-bar" id="psb4"></div>
+        </div>
+        <div class="auth-pass-label" id="passStrengthLabel"></div>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">${L('الولاية','Wilaya')}</label>
+        <div class="auth-input-wrap">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <select class="auth-input auth-select" id="regWilaya">
+            <option value="">${L('اختر الولاية','Choisir wilaya')}</option>
+            ${WILAYAS.map(w=>`<option value="${w}">${w}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <label class="auth-terms-wrap">
+      <input type="checkbox" id="regTerms" class="auth-checkbox">
+      <span class="auth-checkbox-mark"></span>
+      <span class="auth-terms-text">
+        ${L('أوافق على','J\'accepte les')}
+        <a href="#" class="auth-link auth-link-strong" onclick="event.preventDefault()">${L('شروط الاستخدام','conditions')}</a>
+        ${L('و','et la')}
+        <a href="#" class="auth-link auth-link-strong" onclick="event.preventDefault()">${L('سياسة الخصوصية','politique de confidentialité')}</a>
+      </span>
+    </label>
+
+    <button class="auth-submit auth-submit-gold btn-trial" onclick="doRegister()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <span>${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer')}</span>
+    </button>
+
+    <div class="auth-bottom-text">
       ${L('لديك حساب بالفعل؟','Vous avez déjà un compte ?')}
-      <span style="color:var(--gold);cursor:pointer;font-weight:700" onclick="switchAuthMode('login')">${L('تسجيل الدخول','Connexion')}</span>
+      <button type="button" class="auth-link auth-link-strong" onclick="switchAuthMode('login')">
+        ${L('تسجيل الدخول','Se connecter')}
+      </button>
     </div>
   `;
 }
