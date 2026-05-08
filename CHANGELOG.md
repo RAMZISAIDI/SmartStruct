@@ -1,5 +1,31 @@
 # 📝 CHANGELOG
 
+## [v7.2 Pro+] — 2026-05-08 — Auth Pages 3D Redesign
+
+### 🔐 إعادة تصميم صفحة تسجيل الدخول والإنشاء
+
+#### المضاف
+- ✅ **تصميم Split-screen 3D**: لوحة يسار للعلامة التجارية + لوحة يمين للنموذج
+- ✅ **مشهد 3D مصغّر** على لوحة العلامة (3 بطاقات إحصائيات عائمة)
+- ✅ **شبكة perspective متحركة** + ذرات ذهبية في الخلفية
+- ✅ **Tabs احترافية** للتبديل بين تسجيل الدخول والإنشاء (مع أيقونات SVG)
+- ✅ **حقول input بأيقونات داخلية** + focus state ذهبي
+- ✅ **Password strength meter** بـ 4 أعمدة ملوّنة
+- ✅ **Custom checkbox** ذهبية مع animation
+- ✅ **Demo button** بتصميم dashed border أخضر
+- ✅ **Trial banner** أخضر داخل نموذج الإنشاء
+- ✅ **Submit button** ذهبي مع shimmer effect
+- ✅ **زر العودة** و **زر اللغة** عائمان في الأعلى
+- ✅ **Particles خلفية** مفعّلة عبر `initAuthEffects()` تلقائياً
+
+#### الحفاظ على التوافقية
+- جميع الـ field IDs محفوظة: `loginEmail`, `loginPass`, `regName`, `regCompany`, `regEmail`, `regPass`, `regWilaya`, `regTerms`
+- عناصر `passStrengthBars` (`psb1`–`psb4`) و `passStrengthLabel` للـ password strength
+- `registerError`, `registerSuccess`, `loginError` للتنبيهات
+- جميع الـ event handlers الأصلية تعمل: `doLogin()`, `doRegister()`, `switchAuthMode()`, `togglePass()`, `togglePassReg()`, `checkPassStrength()`, `showForgotModal()`
+
+---
+
 ## [v7.2 Pro+] — 2026-05-08 — Landing 3D Redesign
 
 ### 🎨 إعادة تصميم صفحة الهبوط بالكامل
