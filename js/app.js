@@ -10072,6 +10072,12 @@ function topbarHTMLv5(title) {
       <span class="topbar-breadcrumb">SmartStruct / <strong>${escHtml(title)}</strong></span>
     </div>
     <div class="topbar-user" style="position:relative">
+      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}"
+        style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s;margin-${I18N.currentLang==='ar'?'left':'right'}:.5rem"
+        onclick="App.navigate('settings')">
+        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
+        <span id="syncLabel">${L('متزامن','Synchronisé')}</span>
+      </div>
       <div id="notifPanelWrap" style="position:relative">
         ${user?.is_admin ? `
           <div class="notif-bell" onclick="openAdminNotifTab()" title="طلبات إعادة تعيين كلمة المرور" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
