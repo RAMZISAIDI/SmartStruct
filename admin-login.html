@@ -8,16 +8,13 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
-<style>
-  :root {
-    --gold: #E8B84B; --gold2: #C49030; --gold3: #F5D07A;
-    --bg: #060A10; --bg2: #0C1220; --bg3: #0F1828;
-    --border: rgba(255,255,255,0.06); --border2: rgba(255,255,255,0.1);
-    --text: #EDF2F7; --muted: #8892A4; --dim: #4A5B7A;
-    --green: #34C38F; --red: #F04E6A;
-    --radius: 12px;
-  }
 
+<!-- نظام التصميم الموحد — يحل محل :root المحلي -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/design-system.css">
+
+<style>
+  /* المتغيرات الآن من design-system.css — تم حذف :root المحلي */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
 

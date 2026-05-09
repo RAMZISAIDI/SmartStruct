@@ -1216,7 +1216,6 @@ function attTodayWidget(workers) {
 
 const Pages = {};
 
-/* ─── LANDING PAGE — v7.4 (v7.2 base + SaaS sections) ─── */
 /* ─── LANDING PAGE — v7.2 PRO 3D ─── */
 Pages.landing = function() {
   const user = Auth.getUser();
@@ -1238,12 +1237,10 @@ Pages.landing = function() {
       </a>
 
       <div class="ll-nav-links">
-        <a class="ll-nav-link" href="#ll-services">${L('الخدمات','Services')}</a>
         <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
+        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
         <a class="ll-nav-link" href="#ll-benefits">${L('الفوائد','Avantages')}</a>
-        <a class="ll-nav-link" href="#ll-testimonials">${L('آراء العملاء','Témoignages')}</a>
         <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
-        <a class="ll-nav-link" href="#ll-faq">FAQ</a>
       </div>
 
       <div class="ll-nav-cta">
@@ -1260,13 +1257,121 @@ Pages.landing = function() {
 
     <!-- ═══ HERO ═══ -->
     <section class="ll-hero">
+      <!-- خلفية مقاولاتية هندسية -->
+      <svg class="ll-hero-bg" viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.03"/>
+            <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0.01"/>
+          </linearGradient>
+          <!-- شبكة هندسية خفيفة -->
+          <pattern id="gridPat" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.07)" stroke-width="0.8"/>
+          </pattern>
+          <!-- خطوط قُطرية -->
+          <pattern id="diagPat" width="120" height="120" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="120" x2="120" y2="0" stroke="rgba(232,184,75,0.04)" stroke-width="1"/>
+          </pattern>
+        </defs>
+
+        <!-- طبقة شبكة -->
+        <rect width="1440" height="900" fill="url(#gridPat)"/>
+        <rect width="1440" height="900" fill="url(#diagPat)"/>
+
+        <!-- رافعة بناء — يمين (إحداثيات مصحّحة داخل viewBox 1440x900) -->
+        <g opacity="0.13" stroke="#e8b84b" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <!-- عمود الرافعة الرأسي: x=1280, من y=30 إلى y=820 -->
+          <line x1="1280" y1="30" x2="1280" y2="820"/>
+          <!-- ذراع أفقي رئيسي: يمتد يساراً من العمود -->
+          <line x1="1280" y1="80" x2="1060" y2="80"/>
+          <!-- ذراع ثقل الموازنة: يمتد يميناً -->
+          <line x1="1280" y1="80" x2="1380" y2="80"/>
+          <!-- حبل التعليق من طرف الذراع -->
+          <line x1="1065" y1="80" x2="1065" y2="260"/>
+          <!-- خطوط دعم مائلة -->
+          <line x1="1280" y1="120" x2="1090" y2="80"/>
+          <line x1="1280" y1="160" x2="1090" y2="80"/>
+          <!-- شبكة العمود (مزيكا) -->
+          <line x1="1270" y1="100" x2="1290" y2="100"/>
+          <line x1="1270" y1="140" x2="1290" y2="140"/>
+          <line x1="1270" y1="180" x2="1290" y2="180"/>
+          <line x1="1270" y1="220" x2="1290" y2="220"/>
+          <line x1="1270" y1="260" x2="1290" y2="260"/>
+          <line x1="1270" y1="300" x2="1290" y2="300"/>
+          <line x1="1270" y1="340" x2="1290" y2="340"/>
+          <line x1="1270" y1="380" x2="1290" y2="380"/>
+          <line x1="1270" y1="420" x2="1290" y2="420"/>
+          <line x1="1270" y1="460" x2="1290" y2="460"/>
+          <line x1="1270" y1="500" x2="1290" y2="500"/>
+          <line x1="1270" y1="540" x2="1290" y2="540"/>
+          <line x1="1270" y1="580" x2="1290" y2="580"/>
+          <line x1="1270" y1="620" x2="1290" y2="620"/>
+          <line x1="1270" y1="660" x2="1290" y2="660"/>
+          <line x1="1270" y1="700" x2="1290" y2="700"/>
+          <line x1="1270" y1="740" x2="1290" y2="740"/>
+          <line x1="1270" y1="780" x2="1290" y2="780"/>
+          <!-- قاعدة الرافعة -->
+          <line x1="1240" y1="820" x2="1320" y2="820"/>
+          <line x1="1250" y1="800" x2="1310" y2="800"/>
+          <!-- علبة الرفع (hook box) -->
+          <rect x="1048" y="255" width="34" height="26" rx="3" fill="rgba(232,184,75,0.08)"/>
+          <!-- خطاف الرافعة -->
+          <path d="M1065 281 Q1075 295 1065 305 Q1055 315 1060 325" stroke-width="2"/>
+          <!-- ثقل الموازنة يمين -->
+          <rect x="1330" y="70" width="50" height="20" rx="3" fill="rgba(232,184,75,0.08)"/>
+        </g>
+
+        <!-- مخطط هندسي — يسار أسفل -->
+        <g opacity="0.07" stroke="#e8b84b" stroke-width="1.5" fill="none" stroke-linecap="round" transform="translate(40, 480)">
+          <!-- مستطيل مبنى -->
+          <rect x="20" y="20" width="200" height="160" rx="2"/>
+          <!-- طوابق -->
+          <line x1="20" y1="73" x2="220" y2="73"/>
+          <line x1="20" y1="126" x2="220" y2="126"/>
+          <!-- نوافذ طابق 1 -->
+          <rect x="45" y="35" width="30" height="25" rx="1"/>
+          <rect x="95" y="35" width="30" height="25" rx="1"/>
+          <rect x="145" y="35" width="30" height="25" rx="1"/>
+          <!-- نوافذ طابق 2 -->
+          <rect x="45" y="88" width="30" height="25" rx="1"/>
+          <rect x="95" y="88" width="30" height="25" rx="1"/>
+          <rect x="145" y="88" width="30" height="25" rx="1"/>
+          <!-- باب -->
+          <rect x="90" y="135" width="40" height="45" rx="2"/>
+          <!-- خطوط قياس -->
+          <line x1="-15" y1="20" x2="-15" y2="180"/>
+          <line x1="-20" y1="20" x2="-10" y2="20"/>
+          <line x1="-20" y1="180" x2="-10" y2="180"/>
+          <line x1="20" y1="195" x2="220" y2="195"/>
+          <line x1="20" y1="190" x2="20" y2="200"/>
+          <line x1="220" y1="190" x2="220" y2="200"/>
+        </g>
+
+        <!-- نقاط زاوية هندسية — يسار أعلى -->
+        <g opacity="0.1" stroke="#e8b84b" stroke-width="1.5" fill="rgba(232,184,75,0.15)" transform="translate(60, 60)">
+          <circle cx="0" cy="0" r="4"/>
+          <circle cx="80" cy="0" r="4"/>
+          <circle cx="0" cy="80" r="4"/>
+          <line x1="0" y1="0" x2="80" y2="0"/>
+          <line x1="0" y1="0" x2="0" y2="80"/>
+          <line x1="4" y1="4" x2="30" y2="30"/>
+        </g>
+
+        <!-- خطوط ضوء في المنتصف -->
+        <ellipse cx="720" cy="420" rx="520" ry="300" fill="radial" opacity="0"/>
+        <radialGradient id="glowCenter" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.04"/>
+          <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0"/>
+        </radialGradient>
+        <ellipse cx="720" cy="430" rx="600" ry="350" fill="url(#glowCenter)"/>
+      </svg>
       <div class="ll-hero-badge">
         <span class="ll-hero-badge-dot"></span>
         ${L('تجربة مجانية 14 يوماً — بدون بطاقة بنكية','Essai gratuit 14 jours — sans carte bancaire')}
       </div>
 
       <h1 class="ll-hero-title">
-        ${L('إدارة مشاريع البناء','Gestion de chantiers')}<br>
+        ${L('إدارة مشاريع المقاولة','Gestion de projets')}<br>
         <span class="ll-word-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
       </h1>
 
@@ -1502,6 +1607,24 @@ Pages.landing = function() {
           </div>
           <h3 class="ll-feature-title">${L('بحث فوري شامل','Recherche globale instantanée')}</h3>
           <p class="ll-feature-desc">${L('Ctrl+K → ابحث في كل البيانات: مشاريع، عمال، فواتير، ملاحظات. تصدير Excel بنقرة واحدة.','Ctrl+K → cherchez partout : projets, ouvriers, factures. Export Excel en un clic.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('عمال','RH')}</span>
+          <div class="ll-feature-icon ll-green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('إدارة العمال والرواتب','Gestion RH & paie')}</h3>
+          <p class="ll-feature-desc">${L('تسجيل الحضور والغياب، كشوف الرواتب التلقائية، تتبع الإضافي والسلف — كل شيء في مكان واحد.','Pointage, fiches de paie automatiques, heures sup & avances — tout centralisé.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('مخزون','Stock')}</span>
+          <div class="ll-feature-icon ll-red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('مراقبة المواد والمخزون','Suivi matériaux & stock')}</h3>
+          <p class="ll-feature-desc">${L('تتبع دخول وخروج المواد لكل مشروع، تنبيهات نقص المخزون، وربط مباشر مع المصاريف.','Entrées/sorties par chantier, alertes rupture de stock, liaison directe aux dépenses.')}</p>
         </div>
       </div>
     </section>
@@ -1783,184 +1906,6 @@ Pages.landing = function() {
       </div>
     </section>
 
-    <!-- ═══ SERVICES (10 خدمات SaaS) ═══ -->
-    <section class="ll-section" id="ll-services">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('خدماتنا','Nos services')}</span>
-        <h2 class="ll-section-title">${L('10 حلول متكاملة','10 solutions intégrées')} <span class="ll-gold">${L('في منصة واحدة','dans une plateforme')}</span></h2>
-        <p class="ll-section-desc">${L('من إدارة المشاريع إلى الصيانة — كل ما تحتاجه شركتك في مكان واحد.','De la gestion de projets à la maintenance — tout au même endroit.')}</p>
-      </div>
-
-      <div class="ll-services-grid">
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#4A90E2,#2E6BB8)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('إدارة المشاريع','Gestion projets')}</h3>
-          <p class="ll-service-desc">${L('Kanban، Gantt، تتبع التقدم، المراحل والمهام.','Kanban, Gantt, suivi, jalons et tâches.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('إدارة الموظفين','Gestion RH')}</h3>
-          <p class="ll-service-desc">${L('حضور، رواتب، إجازات، تقييم الأداء.','Présence, salaires, congés, évaluations.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#34C38F,#1F8B65)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('تتبع المعدات','Suivi matériel')}</h3>
-          <p class="ll-service-desc">${L('GPS، QR Code، صيانة دورية، حالة المعدة.','GPS, QR, maintenance, état du matériel.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#09120A">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('التقارير الذكية','Rapports IA')}</h3>
-          <p class="ll-service-desc">${L('تحليلات تلقائية، توصيات SmartAI، PDF.','Analyses auto, recommandations IA, PDF.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#F04E6A,#C13954)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('إدارة العملاء','CRM Clients')}</h3>
-          <p class="ll-service-desc">${L('قاعدة بيانات، تواصل، عقود، متابعة.','Base de données, contacts, contrats, suivi.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#4A90E2,#2E6BB8)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('الفواتير والمدفوعات','Factures')}</h3>
-          <p class="ll-service-desc">${L('فواتير PDF رسمية، TVA 19٪، توقيع إلكتروني.','PDF officielles, TVA 19%, e-signature.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('الأرشفة السحابية','Archivage cloud')}</h3>
-          <p class="ll-service-desc">${L('وثائق، صور، عقود، نسخ احتياطية تلقائية.','Documents, photos, backup auto.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#34C38F,#1F8B65)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('التنبيهات','Notifications')}</h3>
-          <p class="ll-service-desc">${L('Push، بريد، WhatsApp، SMS فوري.','Push, email, WhatsApp, SMS.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#E8B84B,#C49030);color:#09120A">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('المتابعة المالية','Suivi financier')}</h3>
-          <p class="ll-service-desc">${L('Cash flow، توقعات 90 يوم، استيراد BNA/CCP.','Cash flow, prévisions 90j, import BNA/CCP.')}</p>
-        </div>
-        <div class="ll-service-card ll-reveal">
-          <div class="ll-service-icon" style="background:linear-gradient(135deg,#F04E6A,#C13954)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </div>
-          <h3 class="ll-service-title">${L('الصيانة والدعم','Maintenance')}</h3>
-          <p class="ll-service-desc">${L('تذاكر، SLA، فريق دعم 24/7.','Tickets, SLA, support 24/7.')}</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ TESTIMONIALS ═══ -->
-    <section class="ll-section" id="ll-testimonials">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('آراء عملائنا','Avis clients')}</span>
-        <h2 class="ll-section-title">${L('شركات تثق بـ','Des entreprises font confiance à')} <span class="ll-gold">SmartStruct</span></h2>
-      </div>
-
-      <div class="ll-testimonials-grid">
-        <div class="ll-testimonial-card ll-reveal">
-          <div class="ll-testimonial-stars">★★★★★</div>
-          <p class="ll-testimonial-text">"${L('وفّرنا 40٪ من وقت الإدارة بعد 3 أشهر فقط من استخدام SmartStruct. التقارير الذكية ممتازة.','Nous avons économisé 40% du temps en 3 mois. Les rapports IA sont excellents.')}"</p>
-          <div class="ll-testimonial-author">
-            <div class="ll-testimonial-avatar" style="background:linear-gradient(135deg,#4A90E2,#2E6BB8)">${isAr?'ك':'K'}</div>
-            <div>
-              <div class="ll-testimonial-name">${L('كريم بن صالح','Karim Bensalah')}</div>
-              <div class="ll-testimonial-role">${L('مدير، شركة BTP الجزائر','PDG, BTP Algérie')}</div>
-            </div>
-          </div>
-        </div>
-        <div class="ll-testimonial-card ll-reveal">
-          <div class="ll-testimonial-stars">★★★★★</div>
-          <p class="ll-testimonial-text">"${L('أفضل منصة جرّبتها لإدارة شركتنا. الواجهة عربية احترافية والدعم ممتاز.','Meilleure plateforme. Interface arabe pro et support excellent.')}"</p>
-          <div class="ll-testimonial-author">
-            <div class="ll-testimonial-avatar" style="background:linear-gradient(135deg,#9B6DFF,#6D45D9)">${isAr?'ن':'N'}</div>
-            <div>
-              <div class="ll-testimonial-name">${L('نادية عمراني','Nadia Amrani')}</div>
-              <div class="ll-testimonial-role">${L('مديرة موارد بشرية','DRH')}</div>
-            </div>
-          </div>
-        </div>
-        <div class="ll-testimonial-card ll-reveal">
-          <div class="ll-testimonial-stars">★★★★★</div>
-          <p class="ll-testimonial-text">"${L('تتبع GPS للمعدات أنقذنا من سرقة بقيمة ملايين. استثمار ممتاز.','Le suivi GPS nous a sauvé de vols de millions. Excellent investissement.')}"</p>
-          <div class="ll-testimonial-author">
-            <div class="ll-testimonial-avatar" style="background:linear-gradient(135deg,#34C38F,#1F8B65)">${isAr?'س':'S'}</div>
-            <div>
-              <div class="ll-testimonial-name">${L('سمير زروقي','Samir Zerrouki')}</div>
-              <div class="ll-testimonial-role">${L('مدير عمليات','Dir. opérations')}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ PARTNERS ═══ -->
-    <section class="ll-section ll-section-partners">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('شركاؤنا التقنيون','Partenaires tech')}</span>
-        <h2 class="ll-section-title">${L('نتعاون مع','En partenariat avec')} <span class="ll-gold">${L('الأفضل','les meilleurs')}</span></h2>
-      </div>
-      <div class="ll-partners-grid ll-reveal">
-        <div class="ll-partner-logo">Supabase</div>
-        <div class="ll-partner-logo">PostgreSQL</div>
-        <div class="ll-partner-logo">Groq AI</div>
-        <div class="ll-partner-logo">EmailJS</div>
-        <div class="ll-partner-logo">Vercel</div>
-        <div class="ll-partner-logo">Cloudflare</div>
-      </div>
-    </section>
-
-    <!-- ═══ FAQ ═══ -->
-    <section class="ll-section" id="ll-faq">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">FAQ</span>
-        <h2 class="ll-section-title">${L('الأسئلة','Questions')} <span class="ll-gold">${L('الشائعة','fréquentes')}</span></h2>
-      </div>
-
-      <div class="ll-faq-list ll-reveal">
-        <details class="ll-faq-item">
-          <summary>${L('هل التجربة المجانية تتطلب بطاقة بنكية؟','L\'essai nécessite-t-il une CB ?')}</summary>
-          <p>${L('لا، 14 يوم تجربة كاملة بدون أي بطاقة. ألغِ في أي وقت.','Non, 14 jours sans CB. Annulez à tout moment.')}</p>
-        </details>
-        <details class="ll-faq-item">
-          <summary>${L('هل يمكنني استيراد بياناتي من Excel؟','Puis-je importer mes données Excel ?')}</summary>
-          <p>${L('نعم، استيراد كامل من Excel، CSV، Google Sheets، وحتى من برامج أخرى.','Oui, import complet depuis Excel, CSV, Google Sheets et autres.')}</p>
-        </details>
-        <details class="ll-faq-item">
-          <summary>${L('هل البيانات آمنة؟','Mes données sont-elles sécurisées ?')}</summary>
-          <p>${L('نعم. تشفير PBKDF2، Row-Level Security، نسخ احتياطية يومية، خوادم Supabase أوروبية.','Oui. PBKDF2, RLS, backups quotidiens, serveurs Supabase Europe.')}</p>
-        </details>
-        <details class="ll-faq-item">
-          <summary>${L('هل يمكنني الإلغاء في أي وقت؟','Puis-je annuler à tout moment ?')}</summary>
-          <p>${L('نعم، بدون أي شروط. تستطيع تصدير كل بياناتك قبل الإلغاء.','Oui, sans condition. Exportez toutes vos données avant.')}</p>
-        </details>
-        <details class="ll-faq-item">
-          <summary>${L('هل تدعمون اللغة الفرنسية؟','Supportez-vous le français ?')}</summary>
-          <p>${L('نعم، واجهة كاملة بـ AR + FR، وكل التقارير بكلتا اللغتين.','Oui, interface complète AR + FR, rapports bilingues.')}</p>
-        </details>
-        <details class="ll-faq-item">
-          <summary>${L('هل يوجد تطبيق هاتف؟','Y a-t-il une app mobile ?')}</summary>
-          <p>${L('نعم، PWA يعمل على iOS و Android، مع وضع ميدان مبسط للعمال.','Oui, PWA iOS/Android, mode chantier simplifié.')}</p>
-        </details>
-      </div>
-    </section>
-
-
     <!-- ═══ CTA ═══ -->
     <div class="ll-cta ll-reveal">
       <div class="ll-cta-content">
@@ -1993,15 +1938,14 @@ Pages.landing = function() {
               <div class="ll-nav-logo-sub">v7.2 PRO</div>
             </div>
           </div>
-          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع البناء والمقاولات في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
+          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
         </div>
         <div class="ll-footer-col">
           <h4>${L('المنتج','Produit')}</h4>
           <ul>
-            <li><a href="#ll-services">${L('الخدمات','Services')}</a></li>
             <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
             <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
-            <li><a href="#ll-faq">FAQ</a></li>
+            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
           </ul>
         </div>
         <div class="ll-footer-col">
@@ -2147,117 +2091,6 @@ function initLandingEffects() {
 }
 window.initLandingEffects = initLandingEffects;
 
-/* ─── Init dynamic effects after landing renders ─── */
-function initLandingEffects() {
-  const root = document.getElementById('landingRoot');
-  if (!root) return;
-
-  const pc = document.getElementById('llParticles');
-  if (pc && !pc.children.length) {
-    const count = window.innerWidth < 768 ? 16 : 36;
-    for (let i = 0; i < count; i++) {
-      const p = document.createElement('div');
-      p.className = 'll-particle';
-      const size = 1 + Math.random() * 3;
-      p.style.width = size + 'px';
-      p.style.height = size + 'px';
-      p.style.left = Math.random() * 100 + '%';
-      p.style.bottom = (-20 - Math.random() * 30) + '%';
-      p.style.animationDuration = (12 + Math.random() * 16) + 's';
-      p.style.animationDelay = (Math.random() * 15) + 's';
-      p.style.opacity = 0.3 + Math.random() * 0.5;
-      pc.appendChild(p);
-    }
-  }
-
-  const nav = document.getElementById('llNav');
-  if (nav) {
-    const onScroll = () => nav.classList.toggle('ll-scrolled', window.scrollY > 30);
-    if (window._llScrollHandler) window.removeEventListener('scroll', window._llScrollHandler);
-    window._llScrollHandler = onScroll;
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  }
-
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('ll-in');
-          io.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    root.querySelectorAll('.ll-reveal').forEach(el => io.observe(el));
-
-    const counterIO = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const target = parseInt(e.target.dataset.target);
-          if (isNaN(target)) { counterIO.unobserve(e.target); return; }
-          const duration = 1600;
-          const start = performance.now();
-          const animate = (t) => {
-            const p = Math.min((t - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - p, 3);
-            e.target.textContent = Math.floor(target * eased);
-            if (p < 1) requestAnimationFrame(animate);
-            else e.target.textContent = target;
-          };
-          requestAnimationFrame(animate);
-          counterIO.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.5 });
-    root.querySelectorAll('[data-target]').forEach(el => counterIO.observe(el));
-  }
-
-  root.querySelectorAll('[data-tilt]').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const r = card.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      const y = e.clientY - r.top;
-      const rotX = ((y / r.height) - 0.5) * -8;
-      const rotY = ((x / r.width) - 0.5) * 8;
-      card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`;
-      card.style.setProperty('--mx', (x / r.width * 100) + '%');
-      card.style.setProperty('--my', (y / r.height * 100) + '%');
-    });
-    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-  });
-
-  const stage = document.getElementById('llShowcaseStage');
-  if (stage) {
-    const wrap = stage.parentElement;
-    wrap.addEventListener('mousemove', (e) => {
-      const r = wrap.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5;
-      const y = (e.clientY - r.top) / r.height - 0.5;
-      stage.style.transform = `rotateX(${15 - y * 10}deg) rotateY(${-8 - x * 10}deg)`;
-    });
-    wrap.addEventListener('mouseleave', () => { stage.style.transform = ''; });
-  }
-
-  const sceneStage = document.getElementById('llSceneStage');
-  if (sceneStage && window.innerWidth > 768) {
-    const sceneWrap = sceneStage.closest('.ll-scene');
-    if (sceneWrap) {
-      sceneWrap.addEventListener('mousemove', (e) => {
-        const r = sceneStage.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width - 0.5;
-        const y = (e.clientY - r.top) / r.height - 0.5;
-        sceneStage.style.animation = 'none';
-        sceneStage.style.transform = `rotateX(${8 - y * 8}deg) rotateY(${-x * 10}deg)`;
-      });
-      sceneWrap.addEventListener('mouseleave', () => {
-        sceneStage.style.animation = '';
-        sceneStage.style.transform = '';
-      });
-    }
-  }
-}
-window.initLandingEffects = initLandingEffects;
-
 /* ─── Init effects for auth (login/register) page ─── */
 function initAuthEffects() {
   const root = document.getElementById('authRoot');
@@ -2334,7 +2167,7 @@ Pages.login = function(mode) {
           </h1>
 
           <p class="auth-brand-desc">${L(
-            'منصة متكاملة لإدارة مشاريع البناء والعمال والفوترة والمالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري.',
+            'منصة متكاملة لإدارة مشاريع المقاولة والعمال والفوترة والمالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري.',
             'Plateforme complète pour la gestion de chantiers, ouvriers, factures et finances — propulsée par l\'IA et conforme à la loi algérienne.'
           )}</p>
 
@@ -13358,50 +13191,120 @@ function checkOnboarding() {
 }
 
 function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
-  const step = hasProjects ? (hasWorkers ? (hasTxs ? 4 : 3) : 2) : 1;
-  const steps = [
-    { icon: '🏢', title: 'مرحباً في SmartStruct!', desc: 'دعنا نساعدك على إعداد نظامك في 4 خطوات بسيطة.', action: null },
-    { icon: '🏗️', title: 'أضف مشروعك الأول', desc: 'ابدأ بإضافة أول مشروع لمتابعة ميزانيته وتقدمه.', action: () => App.navigate('projects'), actionLabel: 'إضافة مشروع →' },
-    { icon: '👷', title: 'أضف عمالك', desc: 'سجّل عمالك لمتابعة الحضور والرواتب.', action: () => App.navigate('workers'), actionLabel: 'إضافة عمال →' },
-    { icon: '💰', title: 'أضف معاملة مالية', desc: 'سجّل أول إيراد أو مصروف لتفعيل التحليل المالي.', action: () => App.navigate('transactions'), actionLabel: 'إضافة معاملة →' },
-    { icon: '✅', title: 'كل شيء جاهز!', desc: 'نظامك مكتمل. اكتشف لوحة التحكم الذكية.', action: null }
+  // ── الخطوات الكاملة دائماً بغض النظر عن البيانات الموجودة ──
+  const STEPS = [
+    {
+      icon: '🏢',
+      title: 'مرحباً بك في SmartStruct!',
+      desc: 'منصة إدارة شاملة لشركات المقاولة الجزائرية. سنريك أهم الميزات في 30 ثانية.',
+      action: null,
+      actionLabel: null
+    },
+    {
+      icon: '🏗️',
+      title: 'تتبع مشاريعك بدقة',
+      desc: 'أضف مشاريعك وتابع ميزانيتها وتقدمها ومواعيدها من مكان واحد. مدعوم بمخططات Gantt وKanban.',
+      action: () => App.navigate('projects'),
+      actionLabel: 'إضافة مشروع ←'
+    },
+    {
+      icon: '👷',
+      title: 'إدارة العمال والرواتب',
+      desc: 'سجّل حضور عمالك يومياً، تتبع الوقت الإضافي، وأصدر كشوف الرواتب تلقائياً بنقرة واحدة.',
+      action: () => App.navigate('workers'),
+      actionLabel: 'إضافة عمال ←'
+    },
+    {
+      icon: '💰',
+      title: 'التحليل المالي الذكي',
+      desc: 'راقب إيراداتك ومصاريفك، واحصل على توقعات السيولة لـ 90 يوماً قادمة مع تنبيهات استباقية.',
+      action: () => App.navigate('transactions'),
+      actionLabel: 'إضافة معاملة ←'
+    },
+    {
+      icon: '🤖',
+      title: 'مساعد ذكاء اصطناعي',
+      desc: 'اسأل SmartAI عن أي شيء في مشاريعك — يحلل بياناتك ويكتب تقارير شهرية بالعربية مع توصيات.',
+      action: null,
+      actionLabel: null
+    },
+    {
+      icon: '✅',
+      title: 'كل شيء جاهز!',
+      desc: 'منصتك مكتملة ومتوافقة مع القانون الجزائري (NIF/NIS/RC + TVA 19%). انطلق الآن!',
+      action: null,
+      actionLabel: null
+    }
   ];
 
-  const s = steps[Math.min(step-1, steps.length-1)];
-  const pct = Math.round(((step-1) / 4) * 100);
+  const TOTAL = STEPS.length;
+  let currentStep = 0; // نبدأ من الخطوة الأولى دائماً
 
+  function _dismissOnboarding() {
+    const u = Auth.getUser();
+    const tid = u?.tenant_id;
+    if (tid) {
+      localStorage.setItem('sbtp_onboarded_' + tid, '1');
+      localStorage.setItem('sbtp_onboarding_shown_' + tid, '1');
+    }
+    const el = document.getElementById('onboardOverlay');
+    if (el) el.remove();
+  }
+
+  function _renderStep(idx) {
+    const s = STEPS[idx];
+    const pct = Math.round((idx / (TOTAL - 1)) * 100);
+    const isLast = idx === TOTAL - 1;
+    const isFirst = idx === 0;
+
+    const dotsHTML = STEPS.map((_, i) =>
+      `<div class="onboard-dot ${i < idx ? 'done' : i === idx ? 'active' : ''}"></div>`
+    ).join('');
+
+    const card = document.getElementById('onboardCard');
+    if (!card) return;
+
+    card.innerHTML = `
+      <button class="onboard-close" onclick="window._onboardDismiss()" title="إغلاق">✕</button>
+      <div class="onboard-step-dots">${dotsHTML}</div>
+      <div class="onboard-progress">
+        <div class="onboard-progress-fill" style="width:${pct}%;transition:width .4s ease"></div>
+      </div>
+      <div style="text-align:center;padding:.5rem 0">
+        <div style="font-size:3rem;margin-bottom:.8rem;line-height:1">${s.icon}</div>
+        <div style="font-size:1.25rem;font-weight:900;margin-bottom:.6rem;color:var(--text)">${s.title}</div>
+        <div style="font-size:.9rem;color:var(--muted);margin-bottom:1.8rem;line-height:1.75;min-height:60px">${s.desc}</div>
+        <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+          ${!isFirst ? `<button class="btn btn-ghost btn-lg" onclick="window._onboardPrev()">← السابق</button>` : ''}
+          ${s.action ? `<button class="btn btn-ghost btn-sm" style="align-self:center" onclick="window._onboardDismiss();(${s.action.toString()})()">${s.actionLabel}</button>` : ''}
+          ${isLast
+            ? `<button class="btn btn-gold btn-lg" onclick="window._onboardDismiss()">انطلق الآن 🚀</button>`
+            : `<button class="btn btn-gold btn-lg" onclick="window._onboardNext()">التالي ←</button>`
+          }
+        </div>
+        <div style="font-size:.72rem;color:var(--dim);margin-top:1.2rem">${idx + 1} من ${TOTAL}</div>
+      </div>
+    `;
+  }
+
+  // ربط الدوال بـ window حتى تعمل من داخل innerHTML
+  window._onboardNext = function() {
+    if (currentStep < TOTAL - 1) { currentStep++; _renderStep(currentStep); }
+  };
+  window._onboardPrev = function() {
+    if (currentStep > 0) { currentStep--; _renderStep(currentStep); }
+  };
+  window._onboardDismiss = _dismissOnboarding;
+
+  // بناء الـ overlay
   const overlay = document.createElement('div');
   overlay.className = 'onboard-overlay';
   overlay.id = 'onboardOverlay';
-  overlay.innerHTML = `
-    <div class="onboard-card">
-      <div class="onboard-step-dots">
-        ${[1,2,3,4].map(i=>`<div class="onboard-dot ${i<step?'done':i===step?'active':''}"></div>`).join('')}
-      </div>
-      <div class="onboard-progress"><div class="onboard-progress-fill" style="width:${pct}%"></div></div>
-      <div style="text-align:center">
-        <div style="font-size:3rem;margin-bottom:.8rem">${s.icon}</div>
-        <div style="font-size:1.3rem;font-weight:900;margin-bottom:.6rem">${s.title}</div>
-        <div style="font-size:.9rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.7">${s.desc}</div>
-        <div style="display:flex;gap:.7rem;justify-content:center">
-          ${s.action ? `<button class="btn btn-gold btn-lg" onclick="document.getElementById('onboardOverlay').remove();(${s.action.toString()})()">${s.actionLabel}</button>` : ''}
-          <button class="btn btn-ghost btn-lg" onclick="(function(){
-              const u = Auth.getUser();
-              const tid = u?.tenant_id;
-              if (tid) {
-                // عند التخطي: اعتبر الـ onboarding مكتمل حتى لا يظهر مرة ثانية.
-                localStorage.setItem('sbtp_onboarded_'+tid, '1');
-                localStorage.setItem('sbtp_onboarding_shown_'+tid, '1');
-              }
-              const el = document.getElementById('onboardOverlay');
-              if (el) el.remove();
-            })();">${step >= 4 ? 'ابدأ الآن 🚀' : 'تخطي'}</button>
-        </div>
-        <div style="font-size:.72rem;color:var(--dim);margin-top:1rem">الخطوة ${step} من 4</div>
-      </div>
-    </div>
-  `;
+  overlay.innerHTML = `<div class="onboard-card" id="onboardCard" style="position:relative"></div>`;
   document.body.appendChild(overlay);
+
+  // رسم الخطوة الأولى
+  _renderStep(0);
 }
 
 // ── قراءة الصفحة المطلوبة من URL hash (مثل #admin) — قبل Auth.load ──

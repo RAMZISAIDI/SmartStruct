@@ -1,13 +1,12 @@
+/* ════════════════════════════════════════════════════════════
+   ⚠️  المتغيرات الأساسية تأتي الآن من css/design-system.css
+   تم حذف :root المحلي لتفادي التعارض.
+   التوكنز المتاحة: --gold, --bg, --text, --green, --red,
+                    --radius, --shadow, --transition، الخ.
+═══════════════════════════════════════════════════════════════ */
 :root {
-  --gold:#E8B84B; --gold2:#C49030; --gold3:#F5D07A;
-  --gold-dim:rgba(232,184,75,0.1); --gold-glow:rgba(232,184,75,0.35);
-  --bg:#060A10; --bg2:#0C1220; --bg3:#0F1828; --bg4:#141E2E;
-  --border:rgba(255,255,255,0.06); --border2:rgba(255,255,255,0.1);
-  --text:#EDF2F7; --muted:#8892A4; --dim:#4A5B7A;
-  --green:#34C38F; --blue:#4A90E2; --red:#F04E6A; --purple:#9B6DFF; --orange:#FF7043;
-  --sidebar-w:240px; --radius:12px; --radius-lg:18px;
-  --shadow:0 8px 32px rgba(0,0,0,0.3);
-  --transition:all 0.25s cubic-bezier(0.4,0,0.2,1);
+  /* متغيرات خاصة بالتطبيق فقط (غير موجودة في design-system) */
+  --sidebar-w: 240px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -171,7 +170,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 .lang-toggle-btn{display:inline-flex;align-items:center;gap:5px;background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.25);border-radius:20px;padding:.3rem .9rem;font-size:.78rem;font-weight:800;color:var(--gold);cursor:pointer;font-family:'Tajawal',sans-serif;transition:all .2s;letter-spacing:.3px}
 .lang-toggle-btn:hover{background:rgba(232,184,75,.15);border-color:rgba(232,184,75,.5);transform:translateY(-1px)}
 
-/* ===== LANDING PAGE — v7.4 (v7.2 base + SaaS sections) ===== */
+/* ===== LANDING PAGE — v7.2 PRO 3D ===== */
 
 .landing-page{min-height:100vh;background:linear-gradient(180deg,#060A10 0%,#080E18 50%,#060A10 100%);overflow-x:hidden;font-family:'Tajawal',sans-serif;position:relative}
 
@@ -214,7 +213,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 .ll-btn-sm{padding:0.45rem 0.95rem;font-size:0.8rem}
 
 /* Hero */
-.ll-hero{position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8rem 2rem 4rem;text-align:center;z-index:5}
+.ll-hero{position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8rem 2rem 4rem;text-align:center;z-index:5;overflow:hidden}.ll-hero-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:1}.ll-hero>*:not(.ll-hero-bg){position:relative;z-index:2}
 .ll-hero-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.45rem 1rem;border-radius:30px;background:rgba(232,184,75,0.06);border:1px solid rgba(232,184,75,0.25);font-size:0.78rem;font-weight:700;color:var(--gold);margin-bottom:1.8rem;backdrop-filter:blur(8px);animation:llFadeInUp 0.8s 0.1s both}
 .ll-hero-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:llPulseDot 2s ease-in-out infinite}
 @keyframes llPulseDot{0%,100%{box-shadow:0 0 6px var(--green)}50%{box-shadow:0 0 14px var(--green),0 0 22px var(--green)}}
@@ -480,45 +479,6 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
   .ll-nav-cta .ll-btn-ghost{display:none}
 }
 
-/* ───── EXTRA SAAS SECTIONS (Services, Testimonials, Partners, FAQ) ───── */
-
-/* Services Grid (10 cards) */
-.ll-services-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1.3rem}
-.ll-service-card{padding:1.8rem 1.5rem;background:linear-gradient(145deg,rgba(20,30,46,0.6),rgba(12,18,32,0.6));border:1px solid var(--border);border-radius:18px;backdrop-filter:blur(20px);transition:all 0.35s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
-.ll-service-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:0;transition:opacity 0.3s}
-.ll-service-card:hover{border-color:rgba(232,184,75,0.35);transform:translateY(-6px);box-shadow:0 20px 40px rgba(0,0,0,0.4),0 0 30px rgba(232,184,75,0.08)}
-.ll-service-card:hover::before{opacity:1}
-.ll-service-icon{width:50px;height:50px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin-bottom:1.1rem;box-shadow:0 6px 18px rgba(0,0,0,0.3)}
-.ll-service-title{font-size:1.05rem;font-weight:800;margin-bottom:0.5rem;color:var(--text)}
-.ll-service-desc{font-size:0.85rem;color:var(--muted);line-height:1.6}
-
-/* Testimonials */
-.ll-testimonials-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem}
-.ll-testimonial-card{padding:1.8rem 1.6rem;background:linear-gradient(145deg,rgba(20,30,46,0.6),rgba(12,18,32,0.6));border:1px solid var(--border);border-radius:18px;backdrop-filter:blur(20px);transition:all 0.3s}
-.ll-testimonial-card:hover{border-color:rgba(232,184,75,0.3);transform:translateY(-4px);box-shadow:0 15px 35px rgba(0,0,0,0.4)}
-.ll-testimonial-stars{color:var(--gold);font-size:1.1rem;margin-bottom:1rem;letter-spacing:2px;filter:drop-shadow(0 2px 6px rgba(232,184,75,0.4))}
-.ll-testimonial-text{font-size:0.95rem;color:var(--text);line-height:1.7;margin-bottom:1.5rem;font-style:italic;font-weight:500}
-.ll-testimonial-author{display:flex;align-items:center;gap:0.8rem;padding-top:1rem;border-top:1px solid var(--border)}
-.ll-testimonial-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:1.05rem;flex-shrink:0}
-.ll-testimonial-name{font-size:0.92rem;font-weight:800;color:var(--text)}
-.ll-testimonial-role{font-size:0.78rem;color:var(--dim);margin-top:2px}
-
-/* Partners */
-.ll-section-partners{padding-top:4rem;padding-bottom:4rem}
-.ll-partners-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1.5rem}
-.ll-partner-logo{padding:1.3rem 1rem;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:14px;text-align:center;font-weight:900;font-size:1.05rem;color:var(--muted);transition:all 0.3s;letter-spacing:0.5px;font-family:'JetBrains Mono',monospace}
-.ll-partner-logo:hover{color:var(--gold);border-color:rgba(232,184,75,0.3);background:rgba(232,184,75,0.04);transform:translateY(-3px)}
-
-/* FAQ */
-.ll-faq-list{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:0.8rem}
-.ll-faq-item{background:linear-gradient(145deg,rgba(20,30,46,0.5),rgba(12,18,32,0.5));border:1px solid var(--border);border-radius:14px;backdrop-filter:blur(15px);overflow:hidden;transition:all 0.3s}
-.ll-faq-item[open]{border-color:rgba(232,184,75,0.3);background:linear-gradient(145deg,rgba(232,184,75,0.03),rgba(12,18,32,0.6))}
-.ll-faq-item summary{padding:1.1rem 1.4rem;font-weight:700;font-size:0.96rem;color:var(--text);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;transition:color 0.2s;gap:1rem}
-.ll-faq-item summary::-webkit-details-marker{display:none}
-.ll-faq-item summary::after{content:'+';font-size:1.4rem;font-weight:700;color:var(--gold);transition:transform 0.3s;line-height:1;flex-shrink:0}
-.ll-faq-item[open] summary::after{transform:rotate(45deg)}
-.ll-faq-item summary:hover{color:var(--gold)}
-.ll-faq-item p{padding:0 1.4rem 1.2rem;color:var(--muted);font-size:0.9rem;line-height:1.7;margin:0}
 
 /* ═══════════════════════════════════════════════
    AUTH PAGE — v7.2 PRO 3D (Login + Register)
@@ -2057,6 +2017,27 @@ svg circle:hover { opacity: 1 !important; transform-box: fill-box; transform-ori
   background: linear-gradient(90deg, var(--green), var(--gold));
   border-radius: 3px;
   transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+.onboard-close {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background .2s, color .2s;
+}
+.onboard-close:hover {
+  background: var(--border2);
+  color: var(--text);
 }
 
 /* --- Upsell Modal --- */

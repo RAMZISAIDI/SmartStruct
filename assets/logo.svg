@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 56" width="220" height="56" fill="none">
+  <title>SmartStruct</title>
+  <defs>
+    <linearGradient id="ssGoldFull" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5D07A"></stop>
+      <stop offset="50%" stop-color="#E8B84B"></stop>
+      <stop offset="100%" stop-color="#C49030"></stop>
+    </linearGradient>
+    <linearGradient id="ssGoldText" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5D07A"></stop>
+      <stop offset="40%" stop-color="#E8B84B"></stop>
+      <stop offset="80%" stop-color="#C49030"></stop>
+      <stop offset="100%" stop-color="#8C6618"></stop>
+    </linearGradient>
+  </defs>
+
+  
+  <g>
+    <rect x="2" y="7" width="42" height="42" rx="11" ry="11" fill="url(#ssGoldFull)"></rect>
+    
+    <rect x="2" y="7" width="42" height="1" rx="0.5" fill="rgba(255,255,255,0.5)"></rect>
+    
+    <rect x="2" y="46" width="42" height="3" rx="1.5" fill="rgba(0,0,0,0.18)"></rect>
+
+    
+    <g transform="translate(7,12)">
+      
+      <rect x="0" y="0" width="5" height="32" rx="2.5" fill="#09120A" opacity="0.35"></rect>
+      
+      <rect x="0" y="0" width="34" height="6" rx="3" fill="#09120A" opacity="1"></rect>
+      <rect x="0" y="13" width="24" height="6" rx="3" fill="#09120A" opacity="0.82"></rect>
+      <rect x="0" y="26" width="16" height="6" rx="3" fill="#09120A" opacity="0.6"></rect>
+    </g>
+  </g>
+
+  
+  <g transform="translate(56,0)">
+    <text x="0" y="32" font-family="Tajawal, system-ui, sans-serif" font-size="22" font-weight="900" fill="url(#ssGoldText)" letter-spacing="0.5">SmartStruct</text>
+    <text x="0" y="46" font-family="Tajawal, system-ui, sans-serif" font-size="9" font-weight="700" fill="#4A5B7A" letter-spacing="2" text-transform="uppercase">v7.2 PRO</text>
+  </g>
+</svg>
