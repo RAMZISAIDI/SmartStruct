@@ -1,185 +1,646 @@
-# 🏗️ SmartStruct v7.2 Pro — دليل النشر والإعداد
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartStruct — Admin Access</title>
+<!-- No indexing by search engines -->
+<meta name="robots" content="noindex, nofollow, noarchive">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
 
-> ## 🎨 الجديد في هذا الإصدار — واجهة هبوط ثلاثية الأبعاد
->
-> تم إعادة تصميم صفحة الهبوط (`Pages.landing`) بالكامل بأسلوب **Premium 3D** متناسق مع هوية الموقع الذهبية:
-> - **مشهد 3D عائم** في الـ Hero مع 5 بطاقات (لوحة التحكم + 4 إحصائيات حية)
-> - **شبكة perspective متحركة** في الأرضية + ذرات ذهبية متصاعدة
-> - **3 معاينات mockup حقيقية**: فاتورة PDF، محادثة SmartAI، هاتف بوضع الميدان مع نبضات GPS
-> - **تفاعلات تتبع الفأرة** على بطاقات المزايا (3D tilt) والـ Showcase
-> - **عدّاد أرقام تلقائي** + reveal-on-scroll + navbar شفافة تتبدّل عند التمرير
-> - **CSS namespace `.ll-*`** لمنع أي تعارض مع باقي التطبيق
-> - **دعم RTL/LTR كامل** مع AR + FR عبر `L()` و `I18N`
-> - **استجابة كاملة** على الموبايل (البطاقات العائمة تختفي تلقائياً)
->
-> **التكامل**: يعمل مع نفس `App.navigate()`, `showLoginPanel()`, `showRegisterPanel()`, `applyDOMTranslation()` — لا حاجة لتعديل أي شيء آخر. الـ effects تُهيّأ تلقائياً عبر `initLandingEffects()` التي تستدعى من `App.render()`.
+<!-- نظام التصميم الموحد — يحل محل :root المحلي -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/design-system.css">
 
-## 📁 هيكل الملفات
+<style>
+  /* المتغيرات الآن من design-system.css — تم حذف :root المحلي */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
 
-```
-SmartStruct/
-├── index.html              ← التطبيق الرئيسي
-├── admin-login.html        ← لوحة تحكم المسؤول
-├── supabase-db.js          ← محرك قاعدة البيانات (27 جدول متطابق)
-├── supabase-schema.sql     ← هيكل قاعدة البيانات PostgreSQL
-├── README.md               ← هذا الدليل
-├── css/
-│   └── main.css
-└── js/
-    ├── app.js              ← منطق التطبيق الأساسي
-    ├── features.js         ← 🆕 الميزات المتقدمة (v7.2)
-    └── emailjs-config.js
-```
+  body {
+    font-family: 'Tajawal', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
 
----
+  /* Animated background */
+  .bg-layer {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  }
+  .bg-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(232,184,75,.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,184,75,.018) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+  .bg-glow-1 {
+    position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
+    width: 700px; height: 600px;
+    background: radial-gradient(ellipse, rgba(232,184,75,.07) 0%, transparent 65%);
+    animation: pulseGlow 6s ease-in-out infinite;
+  }
+  .bg-glow-2 {
+    position: absolute; bottom: -20%; right: -10%;
+    width: 500px; height: 500px;
+    background: radial-gradient(ellipse, rgba(240,78,106,.04) 0%, transparent 65%);
+    animation: pulseGlow 8s ease-in-out infinite reverse;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.08); }
+  }
 
-## 🆕 الجديد في v7.2 — 19 ميزة احترافية
+  /* Noise texture */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; opacity: .5;
+  }
 
-### 🔐 الأمان (4)
-| # | الميزة | كيف تستخدمها |
-|---|--------|---------------|
-| 1 | **تشفير كلمات المرور** (PBKDF2 + SHA-256 + 100k iterations) | تلقائي — يطبَّق عند التسجيل، ويُرقّى الحسابات القديمة عند أول دخول |
-| 2 | **Row Level Security (RLS)** | مفعّل افتراضياً في `supabase-schema.sql` على كل الجداول |
-| 3 | **Audit Log** — سجل كل التعديلات | جدول `audit_log` يلتقط: من، متى، ماذا غيّر (قبل/بعد) + IP + User Agent |
-| 4 | **النسخ الاحتياطي** | `SmartBackup.exportAll()` لتصدير JSON كامل · تذكير أسبوعي تلقائي |
+  /* Card */
+  .card {
+    position: relative; z-index: 10;
+    background: rgba(12, 18, 32, 0.9);
+    border: 1px solid rgba(232,184,75,.15);
+    border-radius: 24px;
+    padding: 2.5rem 2.2rem;
+    width: 100%; max-width: 420px;
+    margin: 1rem;
+    box-shadow:
+      0 0 0 1px rgba(232,184,75,.06),
+      0 40px 100px rgba(0,0,0,.7),
+      inset 0 1px 0 rgba(255,255,255,.05);
+    animation: cardIn .5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    backdrop-filter: blur(20px);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(28px) scale(0.95); }
+    to   { opacity: 1; transform: none; }
+  }
 
-### 🤖 الذكاء الاصطناعي (2)
-| # | الميزة | الاستخدام |
-|---|--------|-----------|
-| 5 | **مساعد محادثاتي ذكي** 🤖 | زر عائم أسفل اليسار → يجيب على أسئلة بناءً على بيانات المستخدم |
-| 6 | **تقارير شهرية ذكية** | `AIReports.showReportModal()` — يحلل البيانات ويكتب تقريراً عربياً مع توصيات |
+  /* Header */
+  .card-header {
+    text-align: center; margin-bottom: 2rem;
+  }
+  .logo-icon {
+    width: 60px; height: 60px;
+    background: linear-gradient(135deg, #E8B84B, #C49030);
+    border-radius: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 8px 28px rgba(232,184,75,.35);
+  }
+  .card-title {
+    font-size: 1.35rem; font-weight: 900;
+    color: var(--text);
+    margin-bottom: .3rem;
+  }
+  .card-sub {
+    font-size: .8rem; color: var(--dim);
+    line-height: 1.5;
+  }
 
-> **API**: يستخدم Groq (مجاني — 14,400 طلب/يوم)
+  /* Security badge */
+  .sec-badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: rgba(240,78,106,.08);
+    border: 1px solid rgba(240,78,106,.2);
+    border-radius: 20px;
+    padding: .25rem .85rem;
+    font-size: .7rem; font-weight: 800;
+    color: #F04E6A;
+    margin-bottom: 1.5rem;
+    letter-spacing: .3px;
+  }
+  .sec-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #F04E6A;
+    animation: blink 1.5s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-### 📄 توليد PDF (3)
-| # | الميزة | الاستخدام |
-|---|--------|-----------|
-| 7 | **فواتير PDF احترافية** | `PDFGenerator.invoice(invoiceId)` — مع شعار، NIF/NIS/RC، TVA 19%، مكان الختم |
-| 8 | **عقود عمل قانونية** | `PDFGenerator.contractWorker(workerId)` — حسب القانون الجزائري |
-| 9 | **توقيع إلكتروني** | جدول `signatures` — رابط فريد للعميل لتوقيع الفاتورة |
+  /* Form */
+  .form-group { margin-bottom: 1.1rem; }
+  .form-label {
+    display: block;
+    font-size: .75rem; font-weight: 800;
+    color: var(--muted);
+    margin-bottom: .4rem;
+    letter-spacing: .3px;
+  }
+  .form-input {
+    width: 100%;
+    padding: .75rem 1rem;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'Tajawal', sans-serif;
+    font-size: .9rem;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .form-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(232,184,75,.12);
+  }
+  .form-input::placeholder { color: var(--dim); }
 
-### 💰 التحليلات المالية (2)
-| # | الميزة | الاستخدام |
-|---|--------|-----------|
-| 10 | **توقعات السيولة (Cash Flow)** | `CashFlow.showPanel()` — يرسم منحنى الرصيد لـ 90 يوم قادمة + تنبيهات |
-| 11 | **استيراد كشوف البنوك** | جدول `bank_transactions` — استيراد CSV من CCP/BNA/BEA + مطابقة آلية |
+  .pass-wrap { position: relative; }
+  .pass-toggle {
+    position: absolute; left: .75rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: var(--dim); font-size: 1rem;
+    transition: color .2s;
+  }
+  .pass-toggle:hover { color: var(--muted); }
+  .pass-wrap .form-input { padding-left: 2.5rem; }
 
-### 📱 الموبايل والميدان (2)
-| # | الميزة | الاستخدام |
-|---|--------|-----------|
-| 12 | **وضع الميدان (Mobile Mode)** | `MobileMode.show()` — 5 أزرار كبيرة: حضور، استلام مواد، صور، طلب صرف، GPS معدات |
-| 13 | **تتبع GPS للمعدات** | `EquipmentGPS.generateQR(id)` — QR code للمعدة → مسح → تسجيل موقع تلقائي |
+  /* Security key field */
+  .sec-field-wrap {
+    background: rgba(232,184,75,.04);
+    border: 1px solid rgba(232,184,75,.12);
+    border-radius: 14px;
+    padding: 1rem;
+    margin-bottom: 1.1rem;
+  }
+  .sec-field-label {
+    font-size: .7rem; font-weight: 800;
+    color: var(--gold); margin-bottom: .5rem;
+    display: flex; align-items: center; gap: .4rem;
+  }
 
-### 🎨 تجربة المستخدم (5)
-| # | الميزة | الاستخدام |
-|---|--------|-----------|
-| 14 | **3 ثيمات** (داكن / فاتح / ذهبي) | `SmartThemes.cycleNext()` — تبديل سريع بزر واحد |
-| 15 | **بحث فوري شامل (Ctrl+K)** | اضغط Ctrl+K → ابحث في كل البيانات |
-| 16 | **تصدير Excel** | `QuickWins.exportExcel('projects')` بدلاً من CSV |
-| 17 | **Onboarding tour** | يظهر تلقائياً للمستخدم الجديد عند أول دخول |
-| 18 | **Time Tracking** | حقول `check_in/check_out/overtime/gps` في جدول `attendance` |
+  /* Button */
+  .btn-login {
+    width: 100%;
+    padding: .9rem;
+    background: linear-gradient(135deg, #E8B84B, #C49030);
+    color: #09120A;
+    border: none; border-radius: 14px;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 1rem; font-weight: 900;
+    cursor: pointer;
+    transition: all .25s;
+    box-shadow: 0 4px 20px rgba(232,184,75,.35);
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    margin-top: .5rem;
+  }
+  .btn-login:hover {
+    box-shadow: 0 8px 32px rgba(232,184,75,.5);
+    transform: translateY(-1px);
+  }
+  .btn-login:active { transform: scale(.97); }
+  .btn-login:disabled {
+    opacity: .6; cursor: not-allowed;
+    transform: none; box-shadow: none;
+  }
 
-### 🛠️ إدارة متقدمة (1)
-| # | الميزة | الاستخدام |
-|---|--------|-----------|
-| 19 | **Custom Role Builder** | جدول `custom_roles` — صلاحيات مخصصة مع scope (مثلاً: محاسب-مشروع-X) |
+  /* Alert */
+  .alert {
+    padding: .75rem 1rem; border-radius: var(--radius);
+    font-size: .85rem; display: flex; align-items: center; gap: .5rem;
+    margin-bottom: 1rem; display: none;
+  }
+  .alert-error {
+    background: rgba(240,78,106,.1);
+    border: 1px solid rgba(240,78,106,.3);
+    color: #f79fa9;
+  }
+  .alert-warn {
+    background: rgba(232,184,75,.08);
+    border: 1px solid rgba(232,184,75,.25);
+    color: var(--gold);
+  }
 
----
+  /* Footer */
+  .card-footer {
+    margin-top: 1.8rem; padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+  .back-link {
+    font-size: .78rem; color: var(--dim);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color .2s;
+    display: inline-flex; align-items: center; gap: .3rem;
+  }
+  .back-link:hover { color: var(--muted); }
 
-## ✅ الأخطاء التي تم تصحيحها (v7.1.2 → v7.2)
+  /* Attempts counter */
+  .attempts-bar {
+    display: flex; gap: .3rem; justify-content: center;
+    margin-top: .8rem;
+  }
+  .attempt-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,.1);
+    transition: background .3s;
+  }
+  .attempt-dot.used { background: var(--red); }
 
-### 1️⃣ تطابق تام لقاعدة البيانات (27 جدول)
-كانت هناك اختلافات حرجة في أسماء الأعمدة بين `SB_SCHEMA` (app.js) و `_SB_SCHEMA_INTERNAL` (supabase-db.js) و SQL — كانت تسبب فشل الرفع لـ Supabase بصمت. تم توحيد كل الجداول الـ 18 الأصلية + إضافة 9 جداول جديدة.
+  /* Lockout overlay */
+  .lockout {
+    text-align: center; padding: .5rem 0;
+    display: none;
+  }
+  .lockout-icon { font-size: 2.5rem; margin-bottom: .8rem; }
+  .lockout-title {
+    font-size: 1.1rem; font-weight: 900;
+    color: #f79fa9; margin-bottom: .4rem;
+  }
+  .lockout-text { font-size: .82rem; color: var(--dim); line-height: 1.6; }
+  .lockout-timer {
+    font-size: 1.8rem; font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--red); margin: .8rem 0;
+  }
 
-### 2️⃣ مزامنة الـ ID المحلي بعد INSERT الناجح
-أكبر مشكلة: عند إضافة سجل، يولّد Supabase ID جديداً مختلفاً عن المحلي. النسخة السابقة لم تكن تحدّث الـ ID المحلي. الآن: بعد كل INSERT ناجح، يُحدَّث الـ ID المحلي تلقائياً.
+  /* Loading spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(9,18,10,.3);
+    border-top-color: #09120A;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
 
-### 3️⃣ نظام Trial/Expiration كامل
-كانت `TrialManager.showExpiredModal/checkAndEnforce/checkExpiryWarning` غير معرَّفة! تمت إضافتها مع modal احترافي يشكر المستخدم على 14 يوم + يعرض الخطط.
+  /* Success state */
+  .success-state {
+    text-align: center; padding: 1rem 0;
+    display: none;
+    animation: fadeIn .4s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+  .success-icon { font-size: 3rem; margin-bottom: 1rem; }
+  .success-title {
+    font-size: 1.2rem; font-weight: 900;
+    color: var(--green); margin-bottom: .4rem;
+  }
+  .success-sub { font-size: .82rem; color: var(--dim); }
+</style>
+</head>
+<body>
 
-### 4️⃣ دوال الأدمن — حذف من Supabase أولاً
-`deleteTenantAccount`, `deleteUserAccount`, `toggleTenant`, `toggleUserActive`, `approveUpgrade` — جميعها تتحقق الآن من `res.ok` لكل طلب. حماية للحسابات الأساسية + منع حذف الذات.
+<!-- Animated Background -->
+<div class="bg-layer">
+  <div class="bg-grid"></div>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+</div>
 
-### 5️⃣ ضبط sequences في SQL
-`SELECT setval('tenants_id_seq', GREATEST(MAX(id), 100))` — يحل خطأ `duplicate key value` عند التسجيل الجديد.
+<!-- Login Card -->
+<div class="card" id="mainCard">
 
----
+  <!-- Header -->
+  <div class="card-header">
+    <div class="logo-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="32" height="32">
+        <defs>
+          <linearGradient id="ssGA" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#09120A"/>
+            <stop offset="100%" stop-color="#09120A"/>
+          </linearGradient>
+        </defs>
+        <rect x="4" y="5" width="28" height="5" rx="2.5" fill="#09120A"/>
+        <rect x="4" y="15.5" width="20" height="5" rx="2.5" fill="#09120A" opacity=".82"/>
+        <rect x="4" y="26" width="13" height="5" rx="2.5" fill="#09120A" opacity=".6"/>
+        <rect x="4" y="5" width="5" height="26" rx="2.5" fill="#09120A" opacity=".35"/>
+      </svg>
+    </div>
+    <div class="card-title">SmartStruct — لوحة الإدارة</div>
+    <div class="card-sub">هذه الصفحة مخصصة لمسؤول النظام فقط</div>
+  </div>
 
-## 🚀 خطوات النشر
+  <div style="text-align:center; margin-bottom:1.5rem">
+    <div class="sec-badge">
+      <div class="sec-dot"></div>
+      منطقة مقيدة — Admin Only
+    </div>
+  </div>
 
-### 1) إنشاء مشروع Supabase
-[supabase.com](https://supabase.com) → New project (مجاني).
+  <!-- Form Content -->
+  <div id="formContent">
+    <!-- Error Alert -->
+    <div class="alert alert-error" id="alertError">❌ <span id="alertMsg">بيانات غير صحيحة</span></div>
+    <div class="alert alert-warn" id="alertWarn">⚠️ <span id="alertWarnMsg"></span></div>
 
-### 2) ⚠️ تشغيل SQL Schema
-**مهم**: إذا كان لديك قاعدة بيانات قديمة، احذف الجداول أولاً. الـ schema الجديد يبدأ بـ `DROP TABLE IF EXISTS ... CASCADE`:
+    <!-- Email -->
+    <div class="form-group">
+      <label class="form-label">📧 البريد الإلكتروني</label>
+      <input class="form-input" id="adminEmail" type="email" placeholder="admin@smartbtp.dz" dir="ltr" autocomplete="off">
+    </div>
 
-```
-Supabase Dashboard → SQL Editor → New Query → الصق محتوى supabase-schema.sql → Run
-```
+    <!-- Password -->
+    <div class="form-group">
+      <label class="form-label">🔑 كلمة المرور</label>
+      <div class="pass-wrap">
+        <input class="form-input" id="adminPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="off">
+        <button class="pass-toggle" type="button" onclick="togglePass()">👁️</button>
+      </div>
+    </div>
 
-### 3) إدخال مفاتيح Supabase
-**خيار A (الأفضل):** افتح `supabase-db.js` السطرين 28-29:
-```javascript
-const SUPABASE_URL = 'https://xxxx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_xxxxx';
-```
+    <!-- Security Key (2nd Factor) -->
+    <div class="sec-field-wrap">
+      <div class="sec-field-label">🛡️ مفتاح الأمان (طبقة ثانية)</div>
+      <div class="form-group" style="margin-bottom:0">
+        <input class="form-input" id="adminSecKey" type="password" placeholder="أدخل مفتاح الأمان السري" dir="ltr" autocomplete="off"
+          style="background:rgba(232,184,75,.04);border-color:rgba(232,184,75,.2)">
+      </div>
+    </div>
 
-**خيار B:** التطبيق → الإعدادات → Supabase → أدخل URL و Key.
+    <!-- Login Button -->
+    <button class="btn-login" id="loginBtn" onclick="doAdminLogin()">
+      <span id="btnText">🔓 دخول آمن</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
 
-### 4) (اختياري) تفعيل AI
-أدخل API Key من [groq.com](https://groq.com) (مجاني) في:
-- لوحة المسؤول → الإعدادات → AI
+    <!-- Attempts Dots -->
+    <div class="attempts-bar" id="attemptsDots">
+      <div class="attempt-dot" id="dot1"></div>
+      <div class="attempt-dot" id="dot2"></div>
+      <div class="attempt-dot" id="dot3"></div>
+      <div class="attempt-dot" id="dot4"></div>
+      <div class="attempt-dot" id="dot5"></div>
+    </div>
+  </div>
 
----
+  <!-- Lockout State -->
+  <div class="lockout" id="lockoutState">
+    <div class="lockout-icon">🔒</div>
+    <div class="lockout-title">تم قفل الوصول مؤقتاً</div>
+    <div class="lockout-text">تجاوزت عدد المحاولات المسموح بها.<br>يُرجى الانتظار:</div>
+    <div class="lockout-timer" id="lockTimer">05:00</div>
+    <div class="lockout-text">ثم أعد المحاولة</div>
+  </div>
 
-## 🔐 بيانات الدخول الافتراضية
+  <!-- Success State -->
+  <div class="success-state" id="successState">
+    <div class="success-icon">✅</div>
+    <div class="success-title">تم التحقق بنجاح</div>
+    <div class="success-sub">جاري التحويل إلى لوحة التحكم...</div>
+  </div>
 
-### لوحة الإدارة (`admin-login.html`)
-| الحقل | القيمة |
-|-------|--------|
-| البريد | `admin@smartbtp.dz` |
-| كلمة المرور | `Admin@SmartStruct2025` |
-| مفتاح الأمان | `SSTR-ADMIN-2025` |
+  <!-- Footer -->
+  <div class="card-footer">
+    <a class="back-link" onclick="goBack()">← العودة إلى الصفحة الرئيسية</a>
+  </div>
 
-### حساب تجريبي (التطبيق الرئيسي)
-| الحقل | القيمة |
-|-------|--------|
-| البريد | `demo@algerie-construction.dz` |
-| كلمة المرور | `Demo@1234` |
+</div>
 
-> ⚠️ كلمات المرور الافتراضية في SQL **غير مشفّرة** — ستُشفَّر تلقائياً عند أول تسجيل دخول.
+<script>
+// ═══════════════════════════════════════════════════════
+//  SmartStruct — Secure Admin Login
+//  هذا الملف يجب أن يبقى سرياً ولا يُشارك رابطه
+// ═══════════════════════════════════════════════════════
 
----
-
-## 🗄️ جداول قاعدة البيانات (27 جدول)
-
-**الأساسية (18):** `plans` · `tenants` · `users` · `projects` · `workers` · `equipment` · `transactions` · `attendance` · `materials` · `stock_movements` · `invoices` · `salary_records` · `kanban_tasks` · `documents` · `obligations` · `notes` · `notifications` · `global_settings`
-
-**الجديدة في v7.2 (9):** `audit_log` · `custom_roles` · `equipment_locations` · `tenders` · `tender_offers` · `bank_transactions` · `signatures` · `ai_conversations` + توسعات على `users`, `tenants`, `attendance`
-
----
-
-## 🔧 للمطورين
-
-### إضافة جدول جديد
-يجب إضافته في **3 أماكن**:
-1. **`supabase-schema.sql`** — تعريف الجدول
-2. **`supabase-db.js`** — في `_SB_SCHEMA_INTERNAL` + `_SB_DATE_FIELDS_INTERNAL` + `_SB_NUM_FIELDS_INTERNAL`
-3. **`js/app.js`** — في `SB_SCHEMA`
-
-### إضافة ميزة جديدة
-أضفها كـ module في `js/features.js`:
-```javascript
-window.MyFeature = {
-  doSomething() { /* ... */ }
+// ── إعدادات الأمان ──
+const ADMIN_CONFIG = {
+  maxAttempts: 5,
+  lockoutMinutes: 5,
+  // مفتاح الأمان الثاني — يجب تغييره من قِبل المسؤول
+  securityKey: 'SSTR-ADMIN-2025',
 };
-```
 
-### استخدام Audit Log
-```javascript
-AuditLog.log('update', 'projects', projectId, oldData, newData);
-```
+// ── DB: قراءة بيانات المستخدمين من localStorage (مع Supabase fallback) ──
+async function getUsersAsync() {
+  // محاولة جلب من Supabase أولاً
+  try {
+    const cfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (cfg.url && cfg.anonKey) {
+      const resp = await fetch(`${cfg.url}/rest/v1/users?is_admin=eq.true&is_active=eq.true`, {
+        headers: {
+          'apikey': cfg.anonKey,
+          'Authorization': `Bearer ${cfg.anonKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (resp.ok) {
+        const users = await resp.json();
+        if (users.length) return users;
+      }
+    }
+  } catch(e) {}
+  // Fallback to localStorage
+  return getUsers();
+}
 
----
+function getUsers() {
+  try {
+    // المفتاح الصحيح يطابق ما يستخدمه التطبيق الرئيسي: sbtp5_users
+    const raw = localStorage.getItem('sbtp5_users');
+    if (raw) return JSON.parse(raw);
+    // Fallback: بيانات افتراضية إذا لم تُهيَّأ قاعدة البيانات بعد
+    return [
+      {
+        id: 1, tenant_id: null, full_name: 'مسؤول النظام',
+        email: 'admin@smartbtp.dz', password: 'Admin@SmartBTP2025',
+        role: 'admin', is_admin: true, is_active: true
+      }
+    ];
+  } catch(e) { return []; }
+}
 
-SmartStruct v7.2 Pro — صُمم للشركات الجزائرية في قطاع البناء والمقاولات
+// ── تهيئة بيانات افتراضية إذا كانت قاعدة البيانات فارغة ──
+function ensureDefaultAdmin() {
+  try {
+    const initialized = localStorage.getItem('sbtp5_initialized');
+    if (!initialized) {
+      // لم يُشغَّل التطبيق الرئيسي بعد — نحفظ المسؤول الافتراضي
+      const existing = localStorage.getItem('sbtp5_users');
+      if (!existing) {
+        localStorage.setItem('sbtp5_users', JSON.stringify([
+          { id:1, tenant_id:null, full_name:'مسؤول النظام', email:'admin@smartbtp.dz',
+            password:'Admin@SmartBTP2025', role:'admin', is_admin:true, is_active:true }
+        ]));
+      }
+    }
+  } catch(e) {}
+}
+
+// ── حالة المحاولات ──
+let attempts = parseInt(sessionStorage.getItem('adm_att') || '0');
+let lockUntil = parseInt(sessionStorage.getItem('adm_lock') || '0');
+
+// ── تحقق من الحالة عند التحميل ──
+window.addEventListener('DOMContentLoaded', () => {
+  ensureDefaultAdmin();
+  checkLockout();
+  document.getElementById('adminEmail').focus();
+  // Enter key
+  ['adminEmail','adminPass','adminSecKey'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') doAdminLogin();
+    });
+  });
+  renderDots();
+});
+
+// ── رسم نقاط المحاولات ──
+function renderDots() {
+  for (let i = 1; i <= 5; i++) {
+    const d = document.getElementById('dot' + i);
+    if (d) d.className = 'attempt-dot' + (i <= attempts ? ' used' : '');
+  }
+}
+
+// ── فحص القفل ──
+function checkLockout() {
+  if (lockUntil && Date.now() < lockUntil) {
+    showLockout();
+    startCountdown();
+    return true;
+  } else if (lockUntil && Date.now() >= lockUntil) {
+    // Reset after lockout
+    attempts = 0;
+    sessionStorage.removeItem('adm_att');
+    sessionStorage.removeItem('adm_lock');
+    lockUntil = 0;
+  }
+  return false;
+}
+
+// ── تسجيل الدخول الآمن ──
+async function doAdminLogin() {
+  if (checkLockout()) return;
+
+  const email   = document.getElementById('adminEmail')?.value?.trim().toLowerCase();
+  const pass    = document.getElementById('adminPass')?.value;
+  const secKey  = document.getElementById('adminSecKey')?.value?.trim();
+
+  // Validate fields
+  if (!email || !pass || !secKey) {
+    showError('يرجى ملء جميع الحقول بما فيها مفتاح الأمان');
+    return;
+  }
+
+  // Show loading
+  setLoading(true);
+  await delay(800); // Anti-brute-force delay
+
+  // 1️⃣ Check security key
+  if (secKey !== ADMIN_CONFIG.securityKey) {
+    setLoading(false);
+    recordFail('مفتاح الأمان غير صحيح');
+    return;
+  }
+
+  // 2️⃣ Check credentials (Supabase first, then localStorage)
+  const users = await getUsersAsync();
+  const user = users.find(u =>
+    u.email === email &&
+    u.password === pass &&
+    u.is_admin === true &&
+    u.is_active === true
+  );
+
+  if (!user) {
+    setLoading(false);
+    recordFail('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+    return;
+  }
+
+  // ✅ SUCCESS
+  attempts = 0;
+  sessionStorage.removeItem('adm_att');
+  sessionStorage.removeItem('adm_lock');
+
+  // Save session (same key as main app)
+  sessionStorage.setItem('sbtp_user', JSON.stringify(user));
+  sessionStorage.setItem('sbtp_admin_auth', '1'); // extra admin flag
+
+  setLoading(false);
+  showSuccess();
+
+  // Redirect after brief delay
+  setTimeout(() => {
+    window.location.href = 'index.html#admin';
+  }, 1800);
+}
+
+function recordFail(msg) {
+  attempts++;
+  sessionStorage.setItem('adm_att', attempts);
+  renderDots();
+
+  const remaining = ADMIN_CONFIG.maxAttempts - attempts;
+
+  if (attempts >= ADMIN_CONFIG.maxAttempts) {
+    lockUntil = Date.now() + ADMIN_CONFIG.lockoutMinutes * 60 * 1000;
+    sessionStorage.setItem('adm_lock', lockUntil);
+    showLockout();
+    startCountdown();
+  } else {
+    showError(msg + (remaining > 0 ? ` — تبقى ${remaining} محاولة` : ''));
+  }
+}
+
+function setLoading(on) {
+  const btn = document.getElementById('loginBtn');
+  const txt = document.getElementById('btnText');
+  const sp  = document.getElementById('spinner');
+  btn.disabled = on;
+  txt.style.display = on ? 'none' : 'inline';
+  sp.style.display  = on ? 'block' : 'none';
+}
+
+function showError(msg) {
+  const el = document.getElementById('alertError');
+  document.getElementById('alertMsg').textContent = msg;
+  el.style.display = 'flex';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function showLockout() {
+  document.getElementById('formContent').style.display = 'none';
+  document.getElementById('lockoutState').style.display = 'block';
+  document.getElementById('successState').style.display = 'none';
+}
+
+function showSuccess() {
+  document.getElementById('formContent').style.display = 'none';
+  document.getElementById('lockoutState').style.display = 'none';
+  document.getElementById('successState').style.display = 'block';
+}
+
+function startCountdown() {
+  const el = document.getElementById('lockTimer');
+  function tick() {
+    const rem = Math.max(0, lockUntil - Date.now());
+    if (rem <= 0) {
+      window.location.reload();
+      return;
+    }
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    setTimeout(tick, 1000);
+  }
+  tick();
+}
+
+function togglePass() {
+  const p = document.getElementById('adminPass');
+  p.type = p.type === 'password' ? 'text' : 'password';
+}
+
+function goBack() {
+  window.location.href = 'index.html';
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
