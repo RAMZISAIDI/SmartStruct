@@ -11069,148 +11069,25 @@ function exportInvoicesCSV() {
   a.download=`Factures_SmartStruct_${todayStr()}.csv`;a.click();
   Toast.success(L('✅ تم تصدير CSV','✅ CSV exporté'));
 }
-// ── Real PDF Export using jsPDF ──
+// ── PDF Export — يستخدم نفس قالب الطباعة الاحترافي ──
 function exportInvoicePDF(id) {
-  // تحميل jsPDF أولاً إذا لم يكن موجوداً
-  if (typeof window.jspdf === 'undefined' && typeof window.loadJsPDF === 'function') {
-    Toast.show(L('جاري تحميل مكتبة PDF...','Chargement PDF...'), 'info');
-    window.loadJsPDF().then(() => exportInvoicePDF(id));
-    return;
+  // الحل الأفضل: نفتح نافذة الطباعة الجميلة، ثم نطلق print()
+  // المتصفح سيعطي المستخدم خيار "Save as PDF" تلقائياً
+  // النتيجة: PDF بنفس جودة العرض، مع دعم كامل للعربية والشعار
+  
+  const inv = DB.get('invoices').find(i => i.id === id);
+  if (!inv) { 
+    Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); 
+    return; 
   }
-  const inv = DB.get('invoices').find(i=>i.id===id);
-  if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
-  const tenant = Auth.getTenant();
-  const proj = DB.get('projects').find(p=>p.id===inv.project_id);
-  const tvaRate = inv.tva_rate || tenant?.tva_rate || 19;
-  const amountHT = inv.amount_ht || Math.round(Number(inv.amount)/(1+tvaRate/100));
-  const tvaAmt = inv.tva_amount || (Number(inv.amount) - amountHT);
 
-  try {
-    const { jsPDF } = window.jspdf;
-    if (!jsPDF) throw new Error('jsPDF not loaded');
-    const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-
-    // Gold header bar
-    doc.setFillColor(232,184,75);
-    doc.rect(0,0,pw,18,'F');
-    doc.setTextColor(9,18,10);
-    doc.setFontSize(14);doc.setFont('helvetica','bold');
-    doc.text('SmartStruct', 14, 12);
-    doc.setFontSize(9);doc.setFont('helvetica','normal');
-    doc.text(tenant?.name||'', pw-14, 12, {align:'right'});
-
-    // Invoice title block
-    doc.setTextColor(30,30,30);
-    doc.setFontSize(22);doc.setFont('helvetica','bold');
-    doc.text('FACTURE', pw-14, 35, {align:'right'});
-    doc.setFontSize(11);doc.setFont('helvetica','normal');
-    doc.setTextColor(200,144,48);
-    doc.text(inv.number, pw-14, 42, {align:'right'});
-
-    // Company info
-    doc.setTextColor(60,60,60);doc.setFontSize(9);
-    let y=25;
-    doc.setFont('helvetica','bold');doc.text(tenant?.name||'SmartStruct',14,y);
-    doc.setFont('helvetica','normal');
-    if(tenant?.address){y+=5;doc.text(tenant.address,14,y);}
-    if(tenant?.nif){y+=5;doc.text('NIF: '+tenant.nif,14,y);}
-    if(tenant?.nis){y+=5;doc.text('NIS: '+tenant.nis,14,y);}
-    if(tenant?.rc_number){y+=5;doc.text('RC: '+tenant.rc_number,14,y);}
-
-    // Client box
-    doc.setFillColor(248,248,248);
-    doc.roundedRect(14,52,86,28,3,3,'F');
-    doc.setDrawColor(220,220,220);doc.roundedRect(14,52,86,28,3,3,'D');
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(140,140,140);
-    doc.text('CLIENT',17,59);
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(30,30,30);
-    doc.text(inv.client||'—',17,66);
-    if(proj){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,100,100);doc.text('Projet: '+proj.name,17,72);}
-
-    // Dates box
-    doc.setFillColor(248,248,248);
-    doc.roundedRect(pw-100,52,86,28,3,3,'F');
-    doc.setDrawColor(220,220,220);doc.roundedRect(pw-100,52,86,28,3,3,'D');
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(140,140,140);
-    doc.text("DATE D'ÉMISSION",pw-97,59);
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(30,30,30);
-    doc.text(inv.date||'—',pw-97,65);
-    if(inv.due_date){
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(140,140,140);
-      doc.text("DATE D'ÉCHÉANCE",pw-97,72);
-      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(200,50,50);
-      doc.text(inv.due_date,pw-97,77);
-    }
-
-    // Status badge
-    if(inv.status==='paid'){doc.setFillColor(52,195,143);}else{doc.setFillColor(255,112,67);}
-    doc.roundedRect(pw-42,55,28,10,3,3,'F');
-    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(8);
-    doc.text(inv.status==='paid'?'PAYÉE':'EN ATTENTE',pw-28,62,{align:'center'});
-
-    // Items table
-    const tableY = 88;
-    const items = inv.items && inv.items.length > 0 ? inv.items : [
-      {desc: inv.description||'Prestations de service', qty:1, price:amountHT, total:amountHT}
-    ];
-    doc.autoTable({
-      startY: tableY,
-      head:[['Description','Qté','Prix unit. (DA)','Total HT (DA)']],
-      body: items.map(it=>[it.desc||'Service',it.qty||1,Number(it.price||0).toLocaleString('fr-DZ'),Number(it.total||0).toLocaleString('fr-DZ')]),
-      theme:'grid',
-      headStyles:{fillColor:[232,184,75],textColor:[9,18,10],fontStyle:'bold',fontSize:9},
-      bodyStyles:{fontSize:9,textColor:[40,40,40]},
-      alternateRowStyles:{fillColor:[252,252,252]},
-      columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:20,halign:'center'},2:{cellWidth:40,halign:'right'},3:{cellWidth:40,halign:'right'}},
-      margin:{left:14,right:14}
-    });
-
-    // Totals
-    const finalY = doc.lastAutoTable.finalY + 6;
-    const tw = 80;
-    const tx = pw - 14 - tw;
-    doc.setFillColor(250,250,250);doc.setDrawColor(220,220,220);
-    doc.roundedRect(tx,finalY,tw,30,3,3,'FD');
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
-    doc.text('Total HT:',tx+4,finalY+8);
-    doc.text(Number(amountHT).toLocaleString('fr-DZ')+' DA',tx+tw-4,finalY+8,{align:'right'});
-    doc.text(`TVA (${tvaRate}%):`,tx+4,finalY+15);
-    doc.text(Number(tvaAmt).toLocaleString('fr-DZ')+' DA',tx+tw-4,finalY+15,{align:'right'});
-    doc.setDrawColor(200,200,200);doc.line(tx+4,finalY+18,tx+tw-4,finalY+18);
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(200,144,48);
-    doc.text('Total TTC:',tx+4,finalY+26);
-    doc.text(Number(inv.amount).toLocaleString('fr-DZ')+' DA',tx+tw-4,finalY+26,{align:'right'});
-
-    // Notes/conditions
-    if(inv.description && inv.items?.length > 0){
-      doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);
-      doc.text('Notes / Conditions:',14,finalY+8);
-      doc.setFont('helvetica','normal');
-      doc.text(doc.splitTextToSize(inv.description,tx-20),14,finalY+14);
-    }
-
-    // Legal footer
-    const footY = ph - 20;
-    doc.setDrawColor(232,184,75);doc.line(14,footY,pw-14,footY);
-    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(140,140,140);
-    let legalStr = 'SmartStruct — Plateforme de gestion BTP algérienne';
-    if(tenant?.nif) legalStr += ' | NIF: '+tenant.nif;
-    if(tenant?.nis) legalStr += ' | NIS: '+tenant.nis;
-    doc.text(legalStr,pw/2,footY+5,{align:'center'});
-    doc.text('Généré le: '+new Date().toLocaleDateString('fr-DZ'),pw/2,footY+10,{align:'center'});
-
-    doc.save(`Facture_${inv.number.replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`);
-    Toast.success(L('✅ تم تصدير PDF بنجاح','✅ PDF exporté avec succès'));
-  } catch(e) {
-    console.error('PDF error:', e);
-    Toast.info(L('جارٍ فتح نافذة الطباعة...','Ouverture de la fenêtre d\'impression...'));
-    printInvoiceWindow(id);
-  }
+  Toast.info(L('🖨️ افتح نافذة الطباعة ثم اختر "حفظ كـ PDF"','🖨️ Ouvrir l\'impression puis "Enregistrer en PDF"'));
+  
+  // نفس دالة الطباعة لكن مع تشغيل تلقائي لـ print
+  printInvoiceWindow(id, /* autoPrint */ true);
 }
 
-function printInvoiceWindow(id) {
+function printInvoiceWindow(id, autoPrint = false) {
   const inv    = DB.get('invoices').find(i => i.id === id);
   const tenant = Auth.getTenant();
   const proj   = DB.get('projects').find(p => p.id === inv?.project_id);
@@ -11531,6 +11408,22 @@ function printInvoiceWindow(id) {
 </div>
 </body></html>`);
   win.document.close();
+  
+  // إذا طُلب الطباعة التلقائية (من زر PDF) — انتظر تحميل الصورة (الشعار) ثم اطبع
+  if (autoPrint) {
+    win.addEventListener('load', function() {
+      // ننتظر قليلاً للتأكد أن الـ CSS و الخطوط حُمّلت
+      setTimeout(() => {
+        try { win.focus(); win.print(); } catch (e) { console.error(e); }
+      }, 800);
+    });
+    // fallback إذا event load لم يُطلق (الصفحة جاهزة بالفعل)
+    if (win.document.readyState === 'complete') {
+      setTimeout(() => {
+        try { win.focus(); win.print(); } catch (e) { console.error(e); }
+      }, 800);
+    }
+  }
 }
 /* ── INVENTORY PAGE ── */
 Pages.inventory = function() {
