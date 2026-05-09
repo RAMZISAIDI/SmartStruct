@@ -1159,7 +1159,11 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
   .sidebar-overlay{display:none !important}
   .hamburger{display:none !important}
   .sidebar-close-btn{display:none !important}
-  .main-wrap{margin-right:var(--sidebar-w) !important}
+  /* RTL default */
+  [dir="rtl"] .main-wrap { margin-right:var(--sidebar-w) !important; margin-left:0 !important; }
+  /* LTR (French) */
+  [dir="ltr"] .main-wrap { margin-left:var(--sidebar-w) !important; margin-right:0 !important; }
+  [dir="ltr"] .sidebar   { right:auto !important; left:0 !important; }
 }
 @media(max-width:480px){
   .stats-grid{grid-template-columns:1fr 1fr}
@@ -1341,11 +1345,98 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 
 /* ===== NEW v6.0 FEATURES ===== */
 /* Language toggle */
-[dir="ltr"] body { font-family: Arial, 'Tajawal', sans-serif; }
-[dir="ltr"] .main-wrap { margin-right: 0; margin-left: var(--sidebar-w); }
-[dir="ltr"] .sidebar { right: auto; left: 0; border-left: none; border-right: 1px solid var(--border); }
-[dir="ltr"] .topbar-breadcrumb { direction: ltr; }
-[dir="ltr"] thead th { text-align: left; }
+/* ══════════════════════════════════════════════════
+   LTR FULL OVERRIDE — French / Left-to-Right Layout
+   ══════════════════════════════════════════════════ */
+
+/* ── Layout principal ── */
+[dir="ltr"] body                { font-family: Arial, 'Tajawal', sans-serif; }
+[dir="ltr"] .main-wrap          { margin-right: 0 !important; margin-left: var(--sidebar-w) !important; }
+[dir="ltr"] .sidebar            { right: auto !important; left: 0 !important; border-left: none !important; border-right: 1px solid var(--border) !important; }
+[dir="ltr"] .sidebar::before    { left: auto; right: 0; }
+
+/* ── Topbar ── */
+[dir="ltr"] .topbar             { flex-direction: row; }
+[dir="ltr"] .topbar-breadcrumb  { direction: ltr; text-align: left; }
+
+/* ── Page header & actions ── */
+[dir="ltr"] .page-header        { direction: ltr; }
+[dir="ltr"] .page-actions       { flex-direction: row; }
+[dir="ltr"] .page-title         { text-align: left; }
+[dir="ltr"] .page-sub           { text-align: left; }
+
+/* ── Tableaux ── */
+[dir="ltr"] table               { direction: ltr; }
+[dir="ltr"] thead th            { text-align: left; }
+[dir="ltr"] tbody td            { text-align: left; }
+
+/* ── Cards & Stats ── */
+[dir="ltr"] .card               { text-align: left; }
+[dir="ltr"] .stat-card          { text-align: left; }
+[dir="ltr"] .stat-label         { text-align: left; }
+[dir="ltr"] .stat-value         { text-align: left; }
+[dir="ltr"] .stat-icon          { text-align: left; }
+
+/* ── Sidebar nav ── */
+[dir="ltr"] .sidebar-nav        { text-align: left; }
+[dir="ltr"] .nav-item           { flex-direction: row; text-align: left; }
+[dir="ltr"] .nav-section        { text-align: left; }
+[dir="ltr"] .sidebar-footer     { text-align: left; }
+[dir="ltr"] .sidebar-logo       { flex-direction: row; }
+
+/* ── Formulaires ── */
+[dir="ltr"] .form-label         { text-align: left; }
+[dir="ltr"] .form-input         { text-align: left; direction: ltr; }
+[dir="ltr"] .form-select        { text-align: left; direction: ltr; }
+[dir="ltr"] .modal              { direction: ltr; }
+[dir="ltr"] .modal-title        { text-align: left; }
+
+/* ── Badges & Status ── */
+[dir="ltr"] .badge              { direction: ltr; }
+
+/* ── Buttons ── */
+[dir="ltr"] .btn                { flex-direction: row; }
+[dir="ltr"] .page-actions .btn  { margin-left: 0; margin-right: .5rem; }
+[dir="ltr"] .page-actions .btn:first-child { margin-right: 0; }
+
+/* ── Tabs & Filters ── */
+[dir="ltr"] .tabs               { flex-direction: row; justify-content: flex-start; }
+[dir="ltr"] .tab                { text-align: left; }
+
+/* ── Footer ── */
+[dir="ltr"] footer              { direction: ltr; text-align: left; }
+
+/* ── Notifications ── */
+[dir="ltr"] .notif-bell         { order: -1; }
+
+/* ── Sync pill ── */
+[dir="ltr"] #syncPill           { direction: ltr; }
+
+/* ── Toast ── */
+[dir="ltr"] .toast-wrap         { right: auto; left: 1.2rem; }
+
+/* ── Mobile ── */
+@media(max-width:768px) {
+  [dir="ltr"] .main-wrap        { margin-left: 0 !important; }
+  [dir="ltr"] .sidebar          { right: auto !important; left: 0 !important; }
+}
+
+/* ── Toast direction ── */
+[dir="ltr"] .toast-container,
+[dir="ltr"] .toast-wrap         { right: auto; left: 1.2rem; }
+
+/* ── Page header spacing fix ── */
+[dir="ltr"] .page-header        { padding-right: 0; padding-left: 0; }
+[dir="ltr"] .page-actions       { margin-right: auto; margin-left: 0; }
+
+/* ── Stats & cards text align ── */
+[dir="ltr"] .stats-grid *       { text-align: left; }
+[dir="ltr"] .form-group         { text-align: left; }
+
+/* ── Whitespace fix: no residual right gap ── */
+html[dir="ltr"] body            { overflow-x: hidden; }
+[dir="ltr"] .app-shell          { flex-direction: row; }
+[dir="ltr"] #app                { direction: ltr; }
 /* Calendar */
 .cal-today { background: rgba(232,184,75,.08) !important; border-color: rgba(232,184,75,.4) !important; }
 /* Map SVG tooltip */

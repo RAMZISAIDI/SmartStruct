@@ -1,138 +1,111 @@
-// ═══════════════════════════════════════════
-//  EmailJS Configuration — SmartStruct
-// ═══════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartStruct v7.2 Pro — منصة إدارة مشاريع المقاولة الجزائرية</title>
+<meta name="description" content="SmartStruct — منصة ذكية لإدارة مشاريع البناء والمقاولات في الجزائر">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
 
-// ── القيم الافتراضية — يمكن تغييرها من صفحة المسؤول وتُحفظ في localStorage ──
-const EMAILJS_DEFAULTS = {
-  SERVICE_ID:     'service_37ya8ru',
-  TEMPLATE_ADMIN: 'template_haus94b',
-  TEMPLATE_USER:  'template_9hzgy4s',
-  PUBLIC_KEY:     'hn_PRTs7PuJAgrrDp',
-  ADMIN_EMAIL:    'ramzisaidi2018@gmail.com',
+<!-- ════════════════════════════════════════════════════════════
+     SmartStruct Design System (تم الدمج — May 2026)
+     ▸ fonts.css         : تعريفات الخطوط (Tajawal + JetBrains Mono)
+     ▸ design-system.css : التوكنز الموحدة (ألوان، خطوط، spacing، shadows، motion)
+     ▸ main.css          : ستايل التطبيق (يستخدم التوكنز أعلاه)
+     ▸ atmosphere.css    : خلفية SmartStruct المميزة (اختياري)
+     الترتيب مهم: التوكنز قبل main.css دائماً.
+═══════════════════════════════════════════════════════════════ -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/design-system.css">
+<link rel="stylesheet" href="assets/textures/atmosphere.css">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+<div id="app">
+  <div id="appLoader" style="position:fixed;inset:0;background:#060A10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Tajawal',sans-serif;">
+    <div style="width:52px;height:52px;border:3px solid rgba(232,184,75,0.2);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1.2rem;"></div>
+    <div style="color:#E8B84B;font-size:1.1rem;font-weight:700">SmartStruct</div>
+    <div style="color:#4A5B7A;font-size:0.8rem;margin-top:0.3rem" id="loaderStatus">جاري التحميل...</div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<button class="ai-fab" id="aiFab" onclick="SmartAI.toggleChat()" title="SmartAI" style="display:none">
+  🤖<span class="ai-fab-badge" id="aiFabBadge" style="display:none">!</span>
+</button>
+<div class="ai-chat-panel" id="aiChatPanel" style="display:none">
+  <div class="ai-chat-header">
+    <div class="ai-chat-avatar">🤖</div>
+    <div>
+      <div class="ai-chat-name">SmartAI — مساعدك الذكي</div>
+      <div class="ai-chat-status"><span class="ai-status-dot"></span>متصل — يعمل بـ Claude AI</div>
+    </div>
+    <button class="ai-chat-close" onclick="SmartAI.toggleChat()">✕</button>
+  </div>
+  <div class="ai-chat-messages" id="aiMessages"></div>
+  <div class="ai-quick-btns" id="aiQuickBtns">
+    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('حلّل مشاريعي وأعطني توصيات')">📊 تحليل</button>
+    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('ما هي أبرز المخاطر المالية؟')">⚠️ مخاطر</button>
+    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('توقع ربحي هذا الشهر')">💰 توقعات</button>
+    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('ماذا يجب أن أفعل الآن؟')">🎯 أولويات</button>
+  </div>
+  <div class="ai-chat-input-wrap">
+    <textarea class="ai-chat-input" id="aiInput" placeholder="اسأل SmartAI عن مشاريعك..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();SmartAI.send()}"
+      oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+    <button class="ai-send-btn" id="aiSendBtn" onclick="SmartAI.send()">➤</button>
+  </div>
+</div>
+
+<!-- EmailJS (خفيف ~30KB) — يُحمَّل بشكل طبيعي -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
+  onerror="window._emailjsError=true;console.warn('EmailJS CDN unavailable')"></script>
+<script>
+if (typeof emailjs !== 'undefined') emailjs.init({ publicKey: 'hn_PRTs7PuJAgrrDp' });
+
+// ════ Lazy Loader — Chart.js و jsPDF تُحمَّل عند الحاجة فقط ════
+window.loadChartJS = function() {
+  return new Promise(function(resolve) {
+    if (typeof Chart !== 'undefined') { resolve(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    s.onload = resolve;
+    s.onerror = function() { console.warn('Chart.js not available'); resolve(); };
+    document.head.appendChild(s);
+  });
 };
-function getEmailJSConfig() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('sbtp_emailjs_config') || '{}');
-    return { ...EMAILJS_DEFAULTS, ...saved };
-  } catch(e) { return { ...EMAILJS_DEFAULTS }; }
-}
-function saveEmailJSConfig(cfg) {
-  localStorage.setItem('sbtp_emailjs_config', JSON.stringify(cfg));
-  // أعد تهيئة EmailJS بالـ Public Key الجديد
-  try { emailjs.init({ publicKey: cfg.PUBLIC_KEY }); } catch(e) {}
-}
 
-const EMAILJS = {
-  get SERVICE_ID()     { return getEmailJSConfig().SERVICE_ID; },
-  get TEMPLATE_ADMIN() { return getEmailJSConfig().TEMPLATE_ADMIN; },
-  get TEMPLATE_USER()  { return getEmailJSConfig().TEMPLATE_USER; },
-  get ADMIN_EMAIL()    { return getEmailJSConfig().ADMIN_EMAIL; },
-
-  // ── إرسال إشعار للمسؤول عند تسجيل حساب جديد ──
-  async notifyNewAccount(userData) {
-    try {
-      const params = {
-        to_email:    this.ADMIN_EMAIL,
-        to_name:     'المسؤول',
-        user_name:   userData.name,
-        user_email:  userData.email,
-        company_name:userData.company,
-        plan_name:   'تجريبي 14 يوم',
-        wilaya:      userData.wilaya || '—',
-        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}),
-        message:     `تم تسجيل مؤسسة جديدة "${userData.company}" بواسطة ${userData.name} (${userData.email}) من ولاية ${userData.wilaya||'غير محددة'}.`
-      };
-      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_ADMIN, params);
-      console.log('✅ EmailJS: إشعار المسؤول أُرسل');
-      return true;
-    } catch(e) {
-      console.warn('⚠️ EmailJS notifyNewAccount:', e);
-      return false;
-    }
-  },
-
-  // ── إرسال كلمة المرور الجديدة للمستخدم ──
-  async sendNewPassword(userData, newPassword) {
-    try {
-      const params = {
-        to_email:    userData.email,
-        to_name:     userData.full_name || userData.name,
-        user_email:  userData.email,
-        new_password:newPassword,
-        company_name:userData.company || '',
-        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
-        message:     `تم تعيين كلمة مرور جديدة لحسابك في SmartStruct. يُنصح بتغييرها بعد أول تسجيل دخول.`
-      };
-      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
-      console.log('✅ EmailJS: كلمة المرور أُرسلت للمستخدم');
-      return true;
-    } catch(e) {
-      console.warn('⚠️ EmailJS sendNewPassword:', e);
-      return false;
-    }
-  },
-
-  // ── إرسال إشعار طلب إعادة تعيين كلمة المرور للمسؤول ──
-  async notifyResetRequest(userData) {
-    try {
-      const params = {
-        to_email:    this.ADMIN_EMAIL,
-        to_name:     'المسؤول',
-        user_name:   userData.full_name,
-        user_email:  userData.email,
-        company_name:userData.companyName || '',
-        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}),
-        message:     `طلب المستخدم ${userData.full_name} (${userData.email}) إعادة تعيين كلمة المرور الخاصة به.`
-      };
-      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_ADMIN, params);
-      console.log('✅ EmailJS: إشعار طلب كلمة المرور أُرسل للمسؤول');
-      return true;
-    } catch(e) {
-      console.warn('⚠️ EmailJS notifyResetRequest:', e);
-      return false;
-    }
-  },
-
-  // ── إرسال إيميل تفعيل الحساب للمستخدم الجديد ──
-  async sendActivationEmail(userData) {
-    try {
-      const userName   = userData.full_name || userData.name || '';
-      const userEmail  = userData.email || '';
-      const userPass   = userData.password || '';
-      const company    = userData.company || userData.name || '';
-
-      const params = {
-        // ── المُستلِم: إيميل الحساب الجديد فقط ──
-        to_email:    userEmail,
-        to_name:     userName,
-
-        // ── بيانات الحساب للعرض في جسم الإيميل ──
-        user_email:  userEmail,
-        user_name:   userName,
-        new_password:userPass,
-        company_name:company,
-        plan_name:   'تجريبي 14 يوم',
-        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
-
-        // ── نص الرسالة الرئيسية ──
-        message: `مرحباً ${userName}،
-
-تم تفعيل حسابك في SmartStruct بنجاح! 🎉
-
-يمكنك الآن تسجيل الدخول باستخدام:
-• البريد الإلكتروني: ${userEmail}
-• كلمة المرور: ${userPass}
-
-مع تحيات فريق SmartStruct.`
-      };
-
-      // إرسال إلى إيميل الحساب الجديد مباشرةً
-      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
-      console.log(`✅ EmailJS: إيميل التفعيل أُرسل إلى ${userEmail}`);
-      return true;
-    } catch(e) {
-      console.warn('⚠️ EmailJS sendActivationEmail:', e);
-      return false;
-    }
-  }
+window.loadJsPDF = function() {
+  return new Promise(function(resolve) {
+    if (typeof window.jspdf !== 'undefined') { resolve(); return; }
+    var s1 = document.createElement('script');
+    s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s1.onerror = function() { console.warn('jsPDF not available'); resolve(); };
+    s1.onload = function() {
+      var s2 = document.createElement('script');
+      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+      s2.onload = resolve;
+      s2.onerror = resolve;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+  });
 };
+</script>
+
+<!-- ملفات التطبيق المحلية (تعمل بدون إنترنت) -->
+<script src="supabase-db.js"></script>
+<script src="js/emailjs-config.js"></script>
+<script src="js/app.js"></script>
+<script src="js/features.js"></script>
+
+
+<!-- Supabase Connection Badge -->
+<div id="sbConnBadge" style="position:fixed;bottom:12px;left:12px;z-index:9999;padding:8px 10px;border-radius:12px;font:600 12px/1.2 Tajawal,system-ui;background:#111;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.18);display:none"></div>
+
+</body>
+</html>
