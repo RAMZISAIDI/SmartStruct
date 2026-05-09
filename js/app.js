@@ -4423,7 +4423,37 @@ Pages.reports = function() {
 };
 
 /* ─── SETTINGS ─── */
+/* ── مزامنة شعار الشركة من Supabase إلى localStorage عند كل فتح ── */
+async function syncTenantLogoFromSupabase() {
+  const tid = Auth.getTenant()?.id;
+  const sbUrl = DBHybrid._supabaseUrl;
+  const sbKey = DBHybrid._supabaseKey;
+  if (!tid || !sbUrl || !sbKey) return;
+  try {
+    const res = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tid}&select=logo_url`, {
+      headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const logoUrl = data?.[0]?.logo_url;
+    if (logoUrl) {
+      // حدّث localStorage cache
+      try { localStorage.setItem('sbtp_logo_' + tid, logoUrl); } catch {}
+      // حدّث كائن tenant المحلي
+      const tenants = DB.get('tenants');
+      const idx = tenants.findIndex(t => t.id === tid);
+      if (idx !== -1 && tenants[idx].logo_url !== logoUrl) {
+        tenants[idx].logo_url = logoUrl;
+        DB.set('tenants', tenants);
+      }
+    }
+  } catch (e) { /* silent */ }
+}
+
 Pages.settings = function() {
+
+  // جلب الشعار من Supabase في الخلفية وتحديث الـ cache
+  syncTenantLogoFromSupabase();
 
   const tenant=Auth.getTenant(), plan=Auth.getPlan(), user=Auth.getUser();
   const savedMode = localStorage.getItem('sbtp_mode') || 'advanced';
@@ -4450,6 +4480,38 @@ Pages.settings = function() {
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" value="${escHtml(tenant?.phone||'')}" placeholder="0550..."></div>
           <button class="btn btn-gold" onclick="saveTenantSettings()">💾 ${L('حفظ التغييرات','Sauvegarder')}</button>
+        </div>
+
+        <!-- Logo Upload -->
+        <div class="card" style="margin-bottom:1rem">
+          <div style="font-weight:800;margin-bottom:.3rem">🖼️ ${L('شعار الشركة','Logo de l\'entreprise')}</div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem">${L('يُحفَظ في Supabase ويظهر تلقائياً في كل الفواتير والوثائق المطبوعة','Sauvegardé dans Supabase, apparaît sur toutes les factures')}</div>
+          <div id="logoPreviewZone" style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+            ${(()=>{
+              const logo = getTenantLogo();
+              return logo
+                ? `<img id="logoPreviewImg" src="${logo}" style="height:64px;max-width:180px;object-fit:contain;border-radius:6px;border:1px solid var(--border);padding:6px;background:#fff">`
+                : `<div id="logoPreviewImg" style="width:120px;height:64px;border:2px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--dim)">${L('لا يوجد شعار','Aucun logo')}</div>`;
+            })()}
+            <div>
+              <div class="logo-status-text" style="font-size:.78rem">
+                ${(()=>{ const logo = getTenantLogo(); return logo
+                  ? `<span style="color:var(--green)">✅ ${L('الشعار مُحفَظ في Supabase','Logo sauvegardé dans Supabase')}</span>`
+                  : `<span style="color:var(--dim)">${L('PNG أو JPEG — حتى 2MB','PNG ou JPEG, max 2 Mo')}</span>`; })()}
+              </div>
+              <div style="font-size:.72rem;color:var(--dim);margin-top:4px">
+                ${L('يظهر في الفواتير والعقود والتقارير المطبوعة','Visible sur factures, contrats et rapports imprimés')}
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+            <label class="btn btn-blue" style="cursor:pointer;margin:0">
+              📁 ${L('رفع الشعار','Charger le logo')}
+              <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="uploadTenantLogo(this)">
+            </label>
+            <button class="btn btn-ghost btn-sm" onclick="removeTenantLogo()" style="color:var(--red)">🗑️ ${L('حذف','Supprimer')}</button>
+            <span style="font-size:.7rem;color:var(--dim)">☁️ Supabase</span>
+          </div>
         </div>
         
         <!-- Legal Algerian Fields -->
@@ -4543,6 +4605,174 @@ Pages.settings = function() {
     </div>
   `);
 };
+
+/* ── شعار الشركة — رفع وحذف وعرض (Supabase + localStorage cache) ── */
+
+/**
+ * يرفع الشعار كـ base64 مباشرة في حقل logo_url بجدول tenants
+ * ويحفظ نسخة محلية كـ cache لتسريع العرض
+ */
+async function uploadTenantLogo(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+
+  // ── تحقق من الحجم (2MB max) ──
+  if (file.size > 2 * 1024 * 1024) {
+    Toast.error(L('حجم الملف يتجاوز 2MB — يرجى ضغط الصورة','Fichier > 2 Mo, veuillez compresser'));
+    return;
+  }
+
+  const tid = Auth.getTenant()?.id;
+  if (!tid) { Toast.error('خطأ: لم يتم العثور على حساب الشركة'); return; }
+
+  // ── إظهار حالة الرفع ──
+  _logoSetStatus('uploading');
+
+  // ── تحويل الصورة إلى base64 ──
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const dataUrl = e.target.result;
+
+    // 1) حفظ محلي فوري كـ cache
+    try { localStorage.setItem('sbtp_logo_' + tid, dataUrl); } catch {}
+
+    // 2) رفع إلى Supabase — تحديث حقل logo_url في جدول tenants
+    try {
+      const sbUrl = DBHybrid._supabaseUrl;
+      const sbKey = DBHybrid._supabaseKey;
+
+      if (sbUrl && sbKey) {
+        const res = await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tid}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': sbKey,
+            'Authorization': 'Bearer ' + sbKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({ logo_url: dataUrl })
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          console.error('Supabase logo upload error:', err);
+          Toast.warn(L(
+            '⚠️ تم الحفظ محلياً فقط — تحقق من إعدادات Supabase',
+            '⚠️ Sauvegardé localement — vérifier Supabase'
+          ));
+        } else {
+          // تحديث كائن tenant المحلي أيضاً
+          const tenants = DB.get('tenants');
+          const idx = tenants.findIndex(t => t.id === tid);
+          if (idx !== -1) { tenants[idx].logo_url = dataUrl; DB.set('tenants', tenants); }
+          Toast.success(L('✅ تم رفع الشعار وحفظه في Supabase','✅ Logo sauvegardé dans Supabase'));
+        }
+      } else {
+        // وضع offline — محلي فقط
+        Toast.success(L('✅ تم حفظ الشعار محلياً','✅ Logo sauvegardé localement'));
+      }
+    } catch (err) {
+      console.error('Logo upload error:', err);
+      Toast.warn(L('تم الحفظ محلياً — لا يوجد اتصال بـ Supabase','Sauvegardé localement — pas de connexion'));
+    }
+
+    // ── تحديث المعاينة ──
+    _logoSetPreview(dataUrl);
+    _logoSetStatus('done');
+  };
+
+  reader.onerror = () => {
+    Toast.error(L('فشل قراءة الملف','Erreur de lecture du fichier'));
+    _logoSetStatus('idle');
+  };
+
+  reader.readAsDataURL(file);
+}
+
+async function removeTenantLogo() {
+  const tid = Auth.getTenant()?.id;
+  if (!tid) return;
+
+  // 1) حذف محلي
+  try { localStorage.removeItem('sbtp_logo_' + tid); } catch {}
+
+  // 2) مسح من Supabase
+  try {
+    const sbUrl = DBHybrid._supabaseUrl;
+    const sbKey = DBHybrid._supabaseKey;
+    if (sbUrl && sbKey) {
+      await fetch(`${sbUrl}/rest/v1/tenants?id=eq.${tid}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': sbKey,
+          'Authorization': 'Bearer ' + sbKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ logo_url: null })
+      });
+      // تحديث كائن tenant المحلي
+      const tenants = DB.get('tenants');
+      const idx = tenants.findIndex(t => t.id === tid);
+      if (idx !== -1) { tenants[idx].logo_url = null; DB.set('tenants', tenants); }
+    }
+  } catch (err) { console.error('Logo remove error:', err); }
+
+  _logoSetPreview(null);
+  _logoSetStatus('idle');
+  Toast.info(L('تم حذف الشعار','Logo supprimé'));
+}
+
+/** يسترجع الشعار: أولاً من tenant المحمّل، ثم من localStorage كـ cache */
+function getTenantLogo() {
+  const tenant = Auth.getTenant();
+  if (tenant?.logo_url) return tenant.logo_url;
+  const tid = tenant?.id;
+  if (!tid) return null;
+  try { return localStorage.getItem('sbtp_logo_' + tid) || null; } catch { return null; }
+}
+
+function getTenantLogoHTML(height = 56) {
+  const logo = getTenantLogo();
+  if (!logo) return '';
+  return `<img src="${logo}" style="height:${height}px;max-width:200px;object-fit:contain;display:block" alt="logo">`;
+}
+
+/** helpers UI ──────────────────── */
+function _logoSetPreview(dataUrl) {
+  const preview = document.getElementById('logoPreviewImg');
+  if (!preview) return;
+  if (dataUrl) {
+    if (preview.tagName === 'DIV') {
+      const img = document.createElement('img');
+      img.id = 'logoPreviewImg';
+      img.src = dataUrl;
+      img.style.cssText = 'height:64px;max-width:180px;object-fit:contain;border-radius:6px;border:1px solid var(--border);padding:6px;background:#fff';
+      preview.replaceWith(img);
+    } else {
+      preview.src = dataUrl;
+    }
+  } else {
+    const ph = document.createElement('div');
+    ph.id = 'logoPreviewImg';
+    ph.style.cssText = 'width:120px;height:64px;border:2px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--dim)';
+    ph.textContent = L('لا يوجد شعار','Aucun logo');
+    preview.replaceWith(ph);
+  }
+}
+
+function _logoSetStatus(state) {
+  const zone = document.getElementById('logoPreviewZone');
+  if (!zone) return;
+  const statusEl = zone.querySelector('.logo-status-text');
+  if (!statusEl) return;
+  const msgs = {
+    uploading: `<span style="color:var(--gold)">⏳ ${L('جاري الرفع إلى Supabase...','Chargement vers Supabase...')}</span>`,
+    done:      `<span style="color:var(--green)">✅ ${L('الشعار مُحفَظ في Supabase','Logo sauvegardé dans Supabase')}</span>`,
+    idle:      `<span style="color:var(--dim)">${L('ادعم PNG أو JPEG حتى 2MB','PNG ou JPEG, max 2 Mo')}</span>`,
+  };
+  statusEl.innerHTML = msgs[state] || msgs.idle;
+}
+
 
 /* ══════════════════════════════════════════════════════
    🤖 AI PROVIDER MANAGEMENT — إدارة وكلاء الذكاء الاصطناعي
@@ -6599,7 +6829,7 @@ const SB_SCHEMA = {
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
   users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login'],
-  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active'],
+  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name'],
   notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
   audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent'],
   custom_roles:        ['id','tenant_id','name','description','permissions','scope'],
@@ -10472,99 +10702,327 @@ function exportInvoicePDF(id) {
 }
 
 function printInvoiceWindow(id) {
-  const inv=DB.get('invoices').find(i=>i.id===id);
-  const tenant=Auth.getTenant();
-  const proj=DB.get('projects').find(p=>p.id===inv?.project_id);
-  if(!inv){Toast.error(L('الفاتورة غير موجودة','Facture introuvable'));return;}
-  const tvaRate = inv.tva_rate || tenant?.tva_rate || 19;
-  const amountHT = inv.amount_ht || Math.round(Number(inv.amount) / (1 + tvaRate/100));
-  const tvaAmount = inv.tva_amount || (Number(inv.amount) - amountHT);
-  const items = inv.items && inv.items.length>0 ? inv.items : [{desc:inv.description||'Prestations de service',qty:1,price:amountHT,total:amountHT}];
+  const inv    = DB.get('invoices').find(i => i.id === id);
+  const tenant = Auth.getTenant();
+  const proj   = DB.get('projects').find(p => p.id === inv?.project_id);
+  if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
 
-  const isAr = I18N.currentLang === 'ar';
-  const win=window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}"><head><meta charset="UTF-8"><title>Facture ${inv.number}</title><style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;color:#1a1a1a;background:#fff;padding:30px;max-width:800px;margin:0 auto}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #E8B84B;padding-bottom:16px;margin-bottom:24px}
-    .logo{font-size:20px;font-weight:900;color:#C49030} .logo-sub{font-size:10px;color:#888;margin-top:3px}
-    .inv-title-block{text-align:right}
-    .inv-title{font-size:26px;font-weight:900;color:#333;letter-spacing:1px} .inv-num{font-size:13px;color:#E8B84B;font-weight:700}
-    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
-    .info-box{background:#f9f9f9;border:1px solid #eee;border-radius:8px;padding:12px}
-    .info-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-    .info-value{font-size:13px;font-weight:700}
-    table{width:100%;border-collapse:collapse;margin:16px 0;font-size:12px}
-    thead th{background:#f5f5f5;padding:10px 12px;text-align:right;border:1px solid #e8e8e8;font-weight:700;font-size:11px}
-    tbody td{padding:10px 12px;border:1px solid #eee;vertical-align:top}
-    tbody tr:nth-child(even) td{background:#fafafa}
-    .totals{float:right;width:280px;margin-top:8px}
-    .total-line{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px solid #f0f0f0}
-    .total-final{font-size:16px;font-weight:900;color:#C49030;border-top:2px solid #E8B84B;margin-top:4px;padding-top:8px}
-    .status{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:${inv.status==='paid'?'#d4edda':'#fff3cd'};color:${inv.status==='paid'?'#155724':'#856404'}}
-    .footer{clear:both;margin-top:40px;padding-top:12px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center}
-    .stamp{float:left;width:80px;height:80px;border:3px solid #C49030;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;text-align:center;color:#C49030;transform:rotate(-15deg);opacity:0.7;line-height:1.4}
-    @media print{body{padding:0} .no-print{display:none}}
-  </style></head><body>
-  <div class="no-print" style="margin-bottom:20px;display:flex;gap:8px">
-    <button onclick="window.print()" style="padding:8px 20px;background:#E8B84B;border:none;border-radius:6px;cursor:pointer;font-weight:700">🖨️ ${isAr?'طباعة':'Imprimer'}</button>
-    <button onclick="window.close()" style="padding:8px 20px;background:#f0f0f0;border:none;border-radius:6px;cursor:pointer">${isAr?'إغلاق':'Fermer'}</button>
-  </div>
-  <div class="header">
+  const tvaRate   = inv.tva_rate   || tenant?.tva_rate || 19;
+  const amountHT  = inv.amount_ht  || Math.round(Number(inv.amount) / (1 + tvaRate / 100));
+  const tvaAmount = inv.tva_amount || (Number(inv.amount) - amountHT);
+  const items     = inv.items && inv.items.length > 0
+    ? inv.items
+    : [{ desc: inv.description || 'Prestations de service', qty: 1, price: amountHT, total: amountHT }];
+
+  const isAr   = I18N.currentLang === 'ar';
+  const isPaid = inv.status === 'paid';
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr ? 'فاتورة' : 'Facture'} ${escHtml(inv.number)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Cairo', Arial, sans-serif;
+    color: #1a1a1a;
+    background: #f4f4f6;
+    padding: 30px;
+  }
+
+  /* ── Boutons hors impression ── */
+  .no-print {
+    display: flex; gap: 10px; margin-bottom: 24px; justify-content: flex-start;
+  }
+  .btn-print {
+    padding: 10px 24px; background: #E8B84B; color: #1a1000;
+    border: none; border-radius: 8px; cursor: pointer;
+    font-family: inherit; font-size: 14px; font-weight: 700;
+  }
+  .btn-close {
+    padding: 10px 20px; background: #2a2a2a; color: #ccc;
+    border: none; border-radius: 8px; cursor: pointer;
+    font-family: inherit; font-size: 14px;
+  }
+
+  /* ── Feuille A4 ── */
+  .page {
+    background: #fff;
+    max-width: 780px;
+    margin: 0 auto;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,.12);
+  }
+
+  /* ── Header bande noire ── */
+  .inv-header {
+    background: #141414;
+    padding: 28px 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .brand-name {
+    font-size: 22px; font-weight: 900; color: #E8B84B; letter-spacing: .5px;
+  }
+  .brand-sub {
+    font-size: 10px; color: #888; margin-top: 4px;
+  }
+  .inv-label {
+    font-size: 28px; font-weight: 900; color: #fff; letter-spacing: 2px;
+    text-align: ${isAr ? 'left' : 'right'};
+  }
+  .inv-num {
+    font-size: 13px; color: #E8B84B; font-weight: 700; margin-top: 4px;
+    text-align: ${isAr ? 'left' : 'right'};
+  }
+
+  /* ── Bande dorée fine ── */
+  .gold-bar { height: 3px; background: linear-gradient(90deg,#C49030,#E8B84B,#C49030); }
+
+  /* ── Bloc infos ── */
+  .info-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border-bottom: 1px solid #eee;
+  }
+  .info-cell {
+    padding: 18px 24px;
+    border-${isAr ? 'left' : 'right'}: 1px solid #eee;
+  }
+  .info-cell:last-child { border: none; }
+  .info-cell-label {
+    font-size: 9px; font-weight: 700; color: #aaa;
+    text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px;
+  }
+  .info-cell-value { font-size: 13px; font-weight: 700; color: #111; }
+  .info-cell-sub   { font-size: 11px; color: #888; margin-top: 3px; }
+
+  /* ── Badge statut ── */
+  .status-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+    background: ${isPaid ? '#d4f5e2' : '#fff8e1'};
+    color: ${isPaid ? '#0a6e3f' : '#8a6000'};
+    border: 1px solid ${isPaid ? '#a8e6c6' : '#f0d060'};
+  }
+
+  /* ── Tableau articles ── */
+  .table-section { padding: 24px 36px 0; }
+  .table-title {
+    font-size: 11px; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th {
+    background: #141414; color: #E8B84B;
+    padding: 10px 14px; text-align: ${isAr ? 'right' : 'left'};
+    font-size: 10px; font-weight: 700; letter-spacing: .5px;
+  }
+  thead th:last-child { text-align: ${isAr ? 'left' : 'right'}; }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid #f0f0f0; color: #222; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) td { background: #fafafa; }
+  .td-right { text-align: ${isAr ? 'left' : 'right'}; font-variant-numeric: tabular-nums; }
+  .td-center { text-align: center; }
+
+  /* ── Totaux ── */
+  .totals-section {
+    display: flex;
+    justify-content: flex-end;
+    padding: 20px 36px;
+    border-top: 1px solid #f0f0f0;
+  }
+  .totals-box { width: 280px; }
+  .total-row {
+    display: flex; justify-content: space-between;
+    padding: 7px 0; font-size: 12.5px; color: #555;
+    border-bottom: 1px solid #f4f4f4;
+  }
+  .total-row:last-child { border: none; }
+  .total-final {
+    display: flex; justify-content: space-between;
+    margin-top: 8px; padding: 12px 16px;
+    background: #141414; border-radius: 8px;
+    font-size: 15px; font-weight: 900; color: #E8B84B;
+  }
+
+  /* ── Zone cachet + footer ── */
+  .bottom-section {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding: 20px 36px 28px;
+    border-top: 1px solid #f0f0f0;
+  }
+  .stamp-box {
+    width: 160px; height: 90px;
+    border: 2px solid #E8B84B; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #C49030; font-weight: 700;
+    opacity: .6; text-align: center; line-height: 1.5;
+  }
+  .legal-note { font-size: 10px; color: #bbb; text-align: ${isAr ? 'left' : 'right'}; line-height: 1.7; }
+
+  /* ── Footer bande ── */
+  .inv-footer {
+    background: #141414;
+    padding: 12px 36px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .inv-footer span { font-size: 10px; color: #666; }
+  .inv-footer .gold-text { color: #E8B84B; font-weight: 700; }
+
+  /* ── Notes ── */
+  .notes-block {
+    margin: 0 36px 0;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-left: 3px solid #E8B84B;
+    border-radius: 0 4px 4px 0;
+    font-size: 11.5px; color: #555; line-height: 1.7;
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .no-print { display: none !important; }
+    .page { box-shadow: none; border-radius: 0; }
+    .inv-header img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Boutons -->
+<div class="no-print">
+  <button class="btn-print" onclick="window.print()">🖨️ ${isAr ? 'طباعة' : 'Imprimer'}</button>
+  <button class="btn-close" onclick="window.close()">${isAr ? 'إغلاق' : 'Fermer'}</button>
+</div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="inv-header">
+    <div style="display:flex;align-items:center;gap:18px">
+      ${(()=>{ const _logo=getTenantLogo(); return _logo?`<img src="${_logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;background:#fff;padding:4px">`:'' })()}
+      <div>
+        <div class="brand-name">▦ SmartStruct</div>
+        <div class="brand-sub">${escHtml(tenant?.name || 'إدارة مشاريع المقاولة')}</div>
+        ${tenant?.nif    ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>`    : ''}
+        ${tenant?.nis    ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>`    : ''}
+        ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
+        ${tenant?.address? `<div class="brand-sub">📍 ${escHtml(tenant.address)}</div>` : ''}
+      </div>
+    </div>
     <div>
-      <div class="logo">▦ SmartStruct</div>
-      <div class="logo-sub">${escHtml(tenant?.name||'')}</div>
-      ${tenant?.rc_number?`<div class="logo-sub">RC: ${escHtml(tenant.rc_number)}</div>`:''}
-      ${tenant?.nif?`<div class="logo-sub">NIF: ${escHtml(tenant.nif)}</div>`:''}
-      ${tenant?.nis?`<div class="logo-sub">NIS: ${escHtml(tenant.nis)}</div>`:''}
-      ${tenant?.address?`<div class="logo-sub">📍 ${escHtml(tenant.address)}</div>`:''}
-    </div>
-    <div class="inv-title-block">
-      <div class="inv-title">${isAr?'فاتورة':'FACTURE'}</div>
+      <div class="inv-label">${isAr ? 'فاتورة' : 'FACTURE'}</div>
       <div class="inv-num">${escHtml(inv.number)}</div>
-      <div class="logo-sub">${isAr?'التاريخ':'Date'}: ${fmtDate(inv.date)}</div>
-      ${inv.due_date?`<div class="logo-sub" style="color:#e55">${isAr?'الاستحقاق':'Échéance'}: ${fmtDate(inv.due_date)}</div>`:''}
-      <div style="margin-top:6px"><span class="status">${inv.status==='paid'?(isAr?'✅ مدفوعة':'✅ Payée'):(isAr?'⏳ معلقة':'⏳ En attente')}</span></div>
     </div>
   </div>
-  <div class="info-grid">
-    <div class="info-box"><div class="info-label">${isAr?'العميل':'Client'}</div><div class="info-value">${escHtml(inv.client)}</div></div>
-    <div class="info-box">
-      <div class="info-label">${isAr?'المشروع':'Projet'}</div>
-      <div class="info-value">${proj?escHtml(proj.name):'—'}</div>
-      ${inv.payment_method?`<div class="info-label" style="margin-top:8px">${isAr?'طريقة الدفع':'Mode paiement'}</div><div class="info-value">${escHtml(inv.payment_method)}</div>`:''}
+
+  <!-- Bande dorée -->
+  <div class="gold-bar"></div>
+
+  <!-- Infos : dates | client | statut -->
+  <div class="info-section">
+    <div class="info-cell">
+      <div class="info-cell-label">${isAr ? 'تاريخ الإصدار' : "Date d'émission"}</div>
+      <div class="info-cell-value">${fmtDate(inv.date)}</div>
+      ${inv.due_date ? `
+        <div class="info-cell-label" style="margin-top:10px">${isAr ? 'تاريخ الاستحقاق' : "Date d'échéance"}</div>
+        <div class="info-cell-value" style="color:#c0392b">${fmtDate(inv.due_date)}</div>` : ''}
+    </div>
+    <div class="info-cell">
+      <div class="info-cell-label">${isAr ? 'العميل' : 'Client'}</div>
+      <div class="info-cell-value">${escHtml(inv.client)}</div>
+      ${proj ? `<div class="info-cell-sub">📁 ${escHtml(proj.name)}</div>` : ''}
+      ${inv.payment_method ? `<div class="info-cell-sub">💳 ${escHtml(inv.payment_method)}</div>` : ''}
+    </div>
+    <div class="info-cell">
+      <div class="info-cell-label">${isAr ? 'الحالة' : 'Statut'}</div>
+      <div style="margin-top:4px">
+        <span class="status-badge">${isPaid ? (isAr ? '✅ مدفوعة' : '✅ Payée') : (isAr ? '⏳ معلقة' : '⏳ En attente')}</span>
+      </div>
     </div>
   </div>
-  <table>
-    <thead><tr>
-      <th>${isAr?'البيان':'Description'}</th>
-      <th style="text-align:center;width:60px">${isAr?'الكمية':'Qté'}</th>
-      <th style="text-align:right;width:120px">${isAr?'سعر الوحدة (دج)':'Prix unit. (DA)'}</th>
-      <th style="text-align:right;width:130px">${isAr?'الإجمالي (دج)':'Total HT (DA)'}</th>
-    </tr></thead>
-    <tbody>
-      ${items.map(it=>`<tr>
-        <td>${escHtml(it.desc||'—')}</td>
-        <td style="text-align:center">${it.qty||1}</td>
-        <td style="text-align:right;font-family:monospace">${Number(it.price||0).toLocaleString('fr-DZ')}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:700">${Number(it.total||0).toLocaleString('fr-DZ')}</td>
-      </tr>`).join('')}
-    </tbody>
-  </table>
-  <div style="overflow:hidden;margin-top:16px">
-    <div class="stamp">SmartStruct<br>${isAr?'فاتورة':'Facture'}<br>${isAr?'رسمية':'Officielle'}</div>
-    <div class="totals">
-      <div class="total-line"><span>${isAr?'المجموع خارج رسم (HT)':'Sous-total HT'}</span><span style="font-family:monospace">${Number(amountHT).toLocaleString('fr-DZ')} ${isAr?'دج':'DA'}</span></div>
-      <div class="total-line"><span>TVA (${tvaRate}%)</span><span style="font-family:monospace">${Number(tvaAmount).toLocaleString('fr-DZ')} ${isAr?'دج':'DA'}</span></div>
-      <div class="total-line total-final"><span>${isAr?'المجموع الكلي (TTC)':'Total TTC'}</span><span style="font-family:monospace">${Number(inv.amount).toLocaleString('fr-DZ')} ${isAr?'دج':'DA'}</span></div>
+
+  <!-- Tableau articles -->
+  <div class="table-section">
+    <div class="table-title">${isAr ? 'تفاصيل الفاتورة' : 'Détail des prestations'}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>${isAr ? 'البيان' : 'Description'}</th>
+          <th class="td-center" style="width:60px">${isAr ? 'الكمية' : 'Qté'}</th>
+          <th class="td-right" style="width:130px">${isAr ? 'سعر الوحدة (دج)' : 'Prix unit. (DA)'}</th>
+          <th class="td-right" style="width:140px">${isAr ? 'الإجمالي HT (دج)' : 'Total HT (DA)'}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map(it => `<tr>
+          <td>${escHtml(it.desc || '—')}</td>
+          <td class="td-center">${it.qty || 1}</td>
+          <td class="td-right">${Number(it.price || 0).toLocaleString('fr-DZ')}</td>
+          <td class="td-right" style="font-weight:700">${Number(it.total || 0).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Totaux -->
+  <div class="totals-section">
+    <div class="totals-box">
+      <div class="total-row">
+        <span>${isAr ? 'المجموع HT' : 'Sous-total HT'}</span>
+        <span>${Number(amountHT).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
+      </div>
+      <div class="total-row">
+        <span>TVA (${tvaRate}%)</span>
+        <span>${Number(tvaAmount).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
+      </div>
+      <div class="total-final">
+        <span>${isAr ? 'المجموع TTC' : 'Total TTC'}</span>
+        <span>${Number(inv.amount).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
+      </div>
     </div>
   </div>
-  ${inv.description?`<div style="clear:both;margin-top:16px;padding:10px;background:#f9f9f9;border-radius:6px;font-size:11px;color:#555"><strong>${isAr?'ملاحظات:':'Notes / Conditions:'}</strong><br>${escHtml(inv.description)}</div>`:''}
-  <div class="footer">SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme algérienne de gestion BTP'}<br>${isAr?'تم إنشاؤها بتاريخ:':'Généré le:'} ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')} — ${escHtml(inv.number)}</div>
-  </body></html>`);
+
+  ${inv.description ? `
+  <!-- Notes -->
+  <div class="notes-block">
+    <strong>${isAr ? 'ملاحظات:' : 'Notes / Conditions :'}</strong><br>
+    ${escHtml(inv.description)}
+  </div>
+  <div style="height:16px"></div>` : ''}
+
+  <!-- Cachet + mentions légales -->
+  <div class="bottom-section">
+    <div class="stamp-box">${isAr ? 'الختم\nوالتوقيع' : 'Cachet &\nSignature'}</div>
+    <div class="legal-note">
+      ${isAr ? 'مطابق للقانون الجزائري' : 'Conforme à la législation algérienne'}<br>
+      TVA ${tvaRate}%&nbsp;&nbsp;|&nbsp;&nbsp;NIF / NIS / RC
+      ${tenant?.nif ? `<br>NIF : ${escHtml(tenant.nif)}` : ''}
+      ${tenant?.nis ? `<br>NIS : ${escHtml(tenant.nis)}` : ''}
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="inv-footer">
+    <span>SmartStruct — ${isAr ? 'منصة إدارة مشاريع المقاولة الجزائرية' : 'Plateforme algérienne de gestion BTP'}</span>
+    <span class="gold-text">${escHtml(inv.number)}&nbsp;&nbsp;|&nbsp;&nbsp;${new Date().toLocaleDateString(isAr ? 'ar-DZ' : 'fr-DZ')}</span>
+  </div>
+
+</div>
+</body></html>`);
   win.document.close();
 }
-
 /* ── INVENTORY PAGE ── */
 Pages.inventory = function() {
   const tid = Auth.getUser().tenant_id;
