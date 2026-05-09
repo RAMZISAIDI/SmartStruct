@@ -1352,8 +1352,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 /* ── Layout principal ── */
 [dir="ltr"] body                { font-family: Arial, 'Tajawal', sans-serif; }
 [dir="ltr"] .main-wrap          { margin-right: 0 !important; margin-left: var(--sidebar-w) !important; }
-[dir="ltr"] .sidebar            { right: auto !important; left: 0 !important;
-                                   border-left: none !important; border-right: 1px solid var(--border) !important; }
+[dir="ltr"] .sidebar            { right: auto !important; left: 0 !important; border-left: none !important; border-right: 1px solid var(--border) !important; }
 [dir="ltr"] .sidebar::before    { left: auto; right: 0; }
 
 /* ── Topbar ── */
