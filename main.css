@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" preserveAspectRatio="none">
+  <title>Perspective gold grid floor — used as a footer atmosphere</title>
+  <defs>
+    <linearGradient id="fade" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#000" stop-opacity="0"></stop>
+      <stop offset="60%" stop-color="#000" stop-opacity="1"></stop>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"></stop>
+    </linearGradient>
+    <mask id="m">
+      <rect width="800" height="400" fill="url(#fade)"></rect>
+    </mask>
+    <pattern id="grid" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M0 0H60M0 0V60" stroke="rgba(232,184,75,0.18)" stroke-width="1" fill="none"></path>
+    </pattern>
+  </defs>
+  <g mask="url(#m)" transform="translate(400 400) scale(2.5 1.6) translate(-400 -400)">
+    <rect x="-400" y="0" width="1600" height="400" fill="url(#grid)"></rect>
+  </g>
+</svg>
