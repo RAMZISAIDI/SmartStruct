@@ -1953,16 +1953,16 @@ Pages.landing = function() {
           <h4>${L('الشركة','Entreprise')}</h4>
           <ul>
             <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
-            <li><a href="mailto:contact@smartstruct.dz?subject=${L('من نحن — SmartStruct','À propos — SmartStruct')}">${L('من نحن','À propos')}</a></li>
-            <li><a href="mailto:contact@smartstruct.dz?subject=${L('طلب وظيفة','Candidature')}">${L('الوظائف','Carrières')}</a></li>
+            <li><a href="#">${L('من نحن','À propos')}</a></li>
+            <li><a href="#">${L('الوظائف','Carrières')}</a></li>
           </ul>
         </div>
         <div class="ll-footer-col">
           <h4>${L('الدعم','Support')}</h4>
           <ul>
-            <li><a href="mailto:contact@smartstruct.dz?subject=${L('طلب مساعدة','Demande d\'aide')}" target="_blank">${L('مركز المساعدة','Aide')}</a></li>
-            <li><a href="https://github.com/ramzisaidi/SmartStruct" target="_blank" rel="noopener">${L('التوثيق','Documentation')}</a></li>
-            <li><a href="https://github.com/ramzisaidi/SmartStruct/issues" target="_blank" rel="noopener">${L('حالة الخدمة','Statut')}</a></li>
+            <li><a href="#">${L('مركز المساعدة','Aide')}</a></li>
+            <li><a href="#">${L('التوثيق','Documentation')}</a></li>
+            <li><a href="#">${L('حالة الخدمة','Statut')}</a></li>
           </ul>
         </div>
       </div>
@@ -5287,11 +5287,11 @@ function _logoSetStatus(state) {
 */
 const DEFAULT_AI_CONFIG = {
   provider: 'groq',
-  apiKey: '', // ← يُدخَل من لوحة الإدارة: SmartAI Settings → Groq API Key
+  apiKey: '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', // ← مُحدَّث من لوحة المسؤول
   model: 'llama-3.3-70b-versatile',
   endpoint: 'https://api.groq.com/openai/v1/chat/completions',
   apiStyle: 'openai',
-  status: 'inactive'
+  status: 'active'
 };
 
 const AI_PROVIDERS = [
