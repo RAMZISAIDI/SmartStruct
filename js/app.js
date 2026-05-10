@@ -1160,13 +1160,7 @@ function topbarHTML(breadcrumb) {
       <button class="lang-toggle-btn" style="padding:.25rem .7rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${I18N.currentLang==='ar'?'Français':'العربية'}">
         ${I18N.currentLang === 'ar' ? '🇫🇷 FR' : '🇩🇿 AR'}
       </button>
-      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}"
-        style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:default;
-               background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s"
-        onclick="App.navigate('settings')">
-        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
-        <span id="syncLabel">${L('متزامن','Synchronisé')}</span>
-      </div>
+      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}" style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s" onclick="App.navigate('settings')"><span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span> <span id="syncLabel">${L('متزامن','Synchronisé')}</span></div>
       <div class="topbar-user">
         <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">${initial}</div>
         <span style="font-size:.82rem;color:var(--muted)">${escHtml((user?.full_name||'').split(' ')[0])}</span>
@@ -3192,9 +3186,9 @@ const TrialManager = {
       }
 
       if (typeof Toast !== 'undefined') {
-        Toast.success('✅ تم إرسال طلبك — سيتواصل معك المسؤول قريباً عبر البريد');
+        Toast.success(L('✅ تم إرسال طلبك — سيتواصل معك المسؤول قريباً عبر البريد','✅ Demande envoyée — l\'administrateur vous contactera bientôt'));
       } else {
-        alert('✅ تم إرسال طلبك بنجاح. سيتواصل معك المسؤول قريباً.');
+        alert(L('✅ تم إرسال طلبك بنجاح. سيتواصل معك المسؤول قريباً.','✅ Demande envoyée. L\'administrateur vous contactera bientôt.'));
       }
     } catch(e) {
       console.warn('_requestUpgrade error:', e);
@@ -3320,7 +3314,7 @@ function requestPlanUpgrade(companyNameOpt) {
   const adminNotifs = DB.get('notifications') || [];
   const alreadyPending = adminNotifs.find(n => n.type === 'upgrade_request' && n.tenant_id === tenant.id && n.status === 'pending');
   if (alreadyPending) {
-    if (typeof Toast !== 'undefined') Toast.warn('⏳ طلبك مرسل بالفعل — ينتظر موافقة المسؤول');
+    if (typeof Toast !== 'undefined') Toast.warn(L('⏳ طلبك مرسل بالفعل — ينتظر موافقة المسؤول','⏳ Demande déjà envoyée — en attente d\'approbation'));
     return;
   }
   adminNotifs.unshift({
@@ -3348,7 +3342,7 @@ function requestPlanUpgrade(companyNameOpt) {
       subject: '⬆️ طلب ترقية اشتراك — ' + company
     }).catch(() => {});
   }
-  if (typeof Toast !== 'undefined') Toast.success('✅ تم إرسال طلب الترقية للمسؤول — سيتواصل معك قريباً');
+  if (typeof Toast !== 'undefined') Toast.success(L('✅ تم إرسال طلب الترقية للمسؤول — سيتواصل معك قريباً','✅ Demande de mise à niveau envoyée — vous serez contacté bientôt'));
 }
 
 /* ─── DASHBOARD ─── */
@@ -4041,7 +4035,7 @@ function updateSyncPill(state, detail = '') {
   if (!pill || !dot || !label) return;
 
   pill.className = '';
-  const cfg = {
+  const states = {
     synced:  {
       cls:   '',
       color: '#34C38F',
@@ -4072,7 +4066,8 @@ function updateSyncPill(state, detail = '') {
       anim:  'none',
       txt:   isAr ? '📵 غير متصل' : '📵 Hors ligne',
     },
-  }[state] || cfg.synced;
+  };
+  const cfg = states[state] || states.synced;
 
   pill.classList.add(cfg.cls);
   dot.style.background  = cfg.color;
@@ -4579,7 +4574,7 @@ Pages.equipment = function() {
   const tid = Auth.getUser().tenant_id;
   const equip = DB.get('equipment').filter(e=>e.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const statusMap = { active:{label:'نشط',col:'var(--green)'}, maintenance:{label:'صيانة',col:'var(--gold)'}, idle:{label:'خامل',col:'var(--dim)'} };
+  const statusMap = { active:{label:L('نشط','Actif'),col:'var(--green)'}, maintenance:{label:L('صيانة','Maintenance'),col:'var(--gold)'}, idle:{label:L('خامل','Inactif'),col:'var(--dim)'} };
   const cards = equip.map(e=>{
     const proj=projects.find(p=>p.id===e.project_id);
     const st=statusMap[e.status]||statusMap.idle;
@@ -4589,43 +4584,43 @@ Pages.equipment = function() {
         <div><div style="font-weight:800">${escHtml(e.name)}</div><div style="font-size:.75rem;color:var(--dim)">${escHtml(e.model||'')}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.78rem;margin-bottom:.8rem">
-        <div><div style="color:var(--dim)">المشروع</div><div style="font-weight:600">${escHtml(proj?.name||'—')}</div></div>
-        <div><div style="color:var(--dim)">رقم اللوحة</div><div style="font-weight:600;font-family:monospace;direction:ltr;text-align:right">${escHtml(e.plate_number||'—')}</div></div>
-        <div><div style="color:var(--dim)">قيمة الشراء</div><div style="font-weight:600;font-family:monospace">${fmt(e.purchase_price)} دج</div></div>
-        <div><div style="color:var(--dim)">الحالة</div>
+        <div><div style="color:var(--dim)">${L('المشروع','Projet')}</div><div style="font-weight:600">${escHtml(proj?.name||'—')}</div></div>
+        <div><div style="color:var(--dim)">${L('رقم اللوحة','N° plaque')}</div><div style="font-weight:600;font-family:monospace;direction:ltr;text-align:right">${escHtml(e.plate_number||'—')}</div></div>
+        <div><div style="color:var(--dim)">${L('قيمة الشراء','Valeur d\'achat')}</div><div style="font-weight:600;font-family:monospace">${fmt(e.purchase_price)} دج</div></div>
+        <div><div style="color:var(--dim)">${L('الحالة','État')}</div>
           <select class="form-select" style="padding:.2rem .5rem;font-size:.75rem;margin-top:2px" onchange="updateEquipStatus(${e.id},this.value)">
             ${Object.entries(statusMap).map(([k,v])=>`<option value="${k}"${e.status===k?' selected':''}>${v.label}</option>`).join('')}
           </select>
         </div>
       </div>
-      <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" style="width:100%;justify-content:center">🗑️ حذف</button>
+      <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" style="width:100%;justify-content:center">🗑️ ${L('حذف','Supprimer')}</button>
     </div>`;
-  }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">لا توجد معدات</div></div>`;
+  }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">${L('لا توجد معدات','Aucun équipement')}</div></div>`;
 
-  return layoutHTML('equipment','المعدات',`
+  return layoutHTML('equipment',L('المعدات','Équipements'),`
     <div class="page-header">
-      <div><div class="page-title">🚜 المعدات</div><div class="page-sub">${equip.length} معدة مسجلة</div></div>
-      <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button><button class="btn btn-gold" data-modal-open="addEquipModal">+ إضافة معدة</button></div>
+      <div><div class="page-title">🚜 ${L('المعدات','Équipements')}</div><div class="page-sub">${equip.length} ${L('معدة مسجلة','équipement(s)')}</div></div>
+      <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button><button class="btn btn-gold" data-modal-open="addEquipModal">+ ${L('إضافة معدة','Ajouter équipement')}</button></div>
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card"><div class="stat-value" style="color:var(--green)">${equip.filter(e=>e.status==='active').length}</div><div class="stat-label">نشط</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--gold)">${equip.filter(e=>e.status==='maintenance').length}</div><div class="stat-label">صيانة</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--dim)">${equip.filter(e=>e.status==='idle').length}</div><div class="stat-label">خامل</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:var(--green)">${equip.filter(e=>e.status==='active').length}</div><div class="stat-label">${L('نشط','Actif')}</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:var(--gold)">${equip.filter(e=>e.status==='maintenance').length}</div><div class="stat-label">${L('صيانة','Maintenance')}</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:var(--dim)">${equip.filter(e=>e.status==='idle').length}</div><div class="stat-label">${L('خامل','Inactif')}</div></div>
     </div>
     <div class="grid-cards">${cards}</div>
     <div class="modal-overlay" id="addEquipModal">
       <div class="modal">
-        <div class="modal-title">🚜 إضافة معدة</div>
+        <div class="modal-title">🚜 ${L('إضافة معدة','Ajouter un équipement')}</div>
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">الاسم *</label><input class="form-input" id="eName" placeholder="حفارة..."></div>
-          <div class="form-group"><label class="form-label">الطراز</label><input class="form-input" id="eModel" placeholder="CAT 320"></div>
-          <div class="form-group"><label class="form-label">رقم اللوحة</label><input class="form-input" id="ePlate" dir="ltr"></div>
-          <div class="form-group"><label class="form-label">الأيقونة</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option></select></div>
-          <div class="form-group"><label class="form-label">قيمة الشراء (دج)</label><input class="form-input" id="ePrice" type="number"></div>
-          <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="eProject"><option value="">اختر...</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الاسم *','Nom *')}</label><input class="form-input" id="eName" placeholder="${L('حفارة...','Pelle...')}"></div>
+          <div class="form-group"><label class="form-label">${L('الطراز','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320"></div>
+          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° plaque')}</label><input class="form-input" id="ePlate" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">${L('الأيقونة','Icône')}</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option></select></div>
+          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="eProject"><option value="">${L('اختر...','Choisir...')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
         </div>
-        <div class="form-group"><label class="form-label">ملاحظات</label><textarea class="form-textarea" id="eNotes" style="min-height:60px"></textarea></div>
-        <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="addEquip()">💾 حفظ</button></div>
+        <div class="form-group"><label class="form-label">${L('ملاحظات','Notes')}</label><textarea class="form-textarea" id="eNotes" style="min-height:60px"></textarea></div>
+        <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addEquip()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
     </div>
   `);
@@ -4769,7 +4764,7 @@ Pages.attendance = function() {
     const salary = Number(w.daily_salary || 0);
     const earnedStr = status === 'present' ? fmt(salary) : status === 'halfday' ? fmt(salary * 0.5) : '0';
     const statusColors = {present:'var(--green)', absent:'var(--red)', halfday:'var(--gold)', holiday:'var(--blue)', '':'var(--dim)'};
-    const statusLabels = {present:'حاضر ✅', absent:'غائب ❌', halfday:'نصف يوم 🔶', holiday:'إجازة 🏖️', '':'لم يُسجَّل ⏳'};
+    const statusLabels = {present:L('حاضر ✅','Présent ✅'), absent:L('غائب ❌','Absent ❌'), halfday:L('نصف يوم 🔶','Demi-journée 🔶'), holiday:L('إجازة 🏖️','Congé 🏖️'), '':L('لم يُسجَّل ⏳','Non noté ⏳')};
     const projBadge = proj
       ? '<span style="background:' + proj.color + '22;color:' + proj.color + ';padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:700">' + escHtml(proj.name) + '</span>'
       : '—';
@@ -4781,16 +4776,16 @@ Pages.attendance = function() {
     rows += '<div style="font-size:.7rem;color:var(--dim)">' + escHtml(w.role||'') + '</div></div></div></td>';
     rows += '<td>' + projBadge + '</td>';
     rows += '<td><select class="form-select" style="padding:.35rem .7rem;font-size:.82rem;min-width:140px" id="att_' + w.id + '" onchange="saveAtt(' + w.id + ',\'' + selDate + '\',this.value)">';
-    rows += '<option value=""' + (!status ? ' selected' : '') + '>⏳ لم يُسجَّل</option>';
-    rows += '<option value="present"' + (status==='present'?' selected':'') + '>✅ حاضر</option>';
-    rows += '<option value="absent"'  + (status==='absent' ?' selected':'') + '>❌ غائب</option>';
-    rows += '<option value="halfday"' + (status==='halfday'?' selected':'') + '>🔶 نصف يوم</option>';
-    rows += '<option value="holiday"' + (status==='holiday'?' selected':'') + '>🏖️ إجازة</option>';
+    rows += '<option value=""' + (!status ? ' selected' : '') + '>'+L('⏳ لم يُسجَّل','⏳ Non noté')+'</option>';
+    rows += '<option value="present"' + (status==='present'?' selected':'') + '>'+L('✅ حاضر','✅ Présent')+'</option>';
+    rows += '<option value="absent"'  + (status==='absent' ?' selected':'') + '>'+L('❌ غائب','❌ Absent')+'</option>';
+    rows += '<option value="halfday"' + (status==='halfday'?' selected':'') + '>'+L('🔶 نصف يوم','🔶 Demi-journée')+'</option>';
+    rows += '<option value="holiday"' + (status==='holiday'?' selected':'') + '>'+L('🏖️ إجازة','🏖️ Congé')+'</option>';
     rows += '</select></td>';
     rows += '<td><input type="number" class="form-input" style="width:65px;padding:.3rem .5rem;font-size:.8rem;text-align:center" value="' + hours + '" min="1" max="12" id="hours_' + w.id + '" onchange="saveAttHours(' + w.id + ',\'' + selDate + '\',this.value)"' + hoursDisabled + '></td>';
-    rows += '<td><input type="text" class="form-input" style="padding:.3rem .6rem;font-size:.78rem;min-width:110px" placeholder="ملاحظة..." value="' + escHtml(note) + '" id="note_' + w.id + '" onblur="saveAttNote(' + w.id + ',\'' + selDate + '\',this.value)"></td>';
+    rows += '<td><input type="text" class="form-input" style="padding:.3rem .6rem;font-size:.78rem;min-width:110px" placeholder="' + L('ملاحظة...','Note...') + '" value="' + escHtml(note) + '" id="note_' + w.id + '" onblur="saveAttNote(' + w.id + ',\'' + selDate + '\',this.value)"></td>';
     rows += '<td style="color:' + (statusColors[status]||'var(--dim)') + ';font-weight:700;font-size:.8rem">' + (statusLabels[status]||statusLabels['']) + '</td>';
-    rows += '<td style="font-family:monospace;font-size:.82rem;color:var(--gold);font-weight:700">' + earnedStr + ' دج</td>';
+    rows += '<td style="font-family:monospace;font-size:.82rem;color:var(--gold);font-weight:700">' + earnedStr + ' '+L('دج','DA')+'</td>';
     rows += '</tr>';
   });
 
@@ -5130,7 +5125,7 @@ async function uploadTenantLogo(input) {
   }
 
   const tid = Auth.getTenant()?.id;
-  if (!tid) { Toast.error('خطأ: لم يتم العثور على حساب الشركة'); return; }
+  if (!tid) { Toast.error(L('خطأ: لم يتم العثور على حساب الشركة','Erreur : entreprise introuvable')); return; }
 
   // ── إظهار حالة الرفع ──
   _logoSetStatus('uploading');
@@ -6253,7 +6248,7 @@ async function saveAndTestAIKey() {
           📥 تحميل index.html محدَّث (مع المفتاح)
         </button>
       </div>`;
-    Toast.success('✅ SmartAI تم تفعيله! حمّل الملف المحدَّث وارفعه على GitHub.');
+    Toast.success(L('✅ SmartAI تم تفعيله! حمّل الملف المحدَّث وارفعه على GitHub.','✅ SmartAI activé ! Téléchargez le fichier mis à jour.'));
 
     // تحديث SmartAI engine فوراً
     try {
@@ -6344,14 +6339,14 @@ async function testAIConnection(provider, apiKey, model) {
 }
 
 function clearAIKey() {
-  if (!confirm('هل تريد مسح مفتاح API الحالي؟')) return;
+  if (!confirm(L('هل تريد مسح مفتاح API الحالي؟','Effacer la clé API actuelle ?'))) return;
   saveAIConfig({ apiKey: '', status: 'inactive', lastTested: null });
   const input = document.getElementById('aiApiKeyInput');
   if (input) { input.value = ''; input.setAttribute('data-real', ''); }
   const testResult = document.getElementById('aiTestResult');
   if (testResult) { testResult.className = 'ai-test-result'; testResult.textContent = ''; }
   try { if (typeof SmartAI !== 'undefined' && SmartAI) { SmartAI.activeKey = null; } } catch(e) {}
-  Toast.success('تم مسح مفتاح API');
+  Toast.success(L('تم مسح مفتاح API','Clé API effacée'));
 }
 
 function switchAdminTab(tab) {
@@ -7148,7 +7143,7 @@ Pages.project_detail = function() {
           <td style="font-family:monospace">${fmt(m.unit_price)}</td>
           <td style="font-family:monospace;font-weight:700">${fmt(m.quantity*m.unit_price)}</td>
           <td style="color:var(--dim);font-size:.8rem">${escHtml(m.supplier||'—')}</td>
-          <td><span class="material-badge ${m.quantity<=m.min_quantity?'material-low':'material-ok'}">${m.quantity<=m.min_quantity?L('⚠️ منخفض','⚠️ Bas'):L('✅ كافٍ','✅ Suffisant')}</span></td>
+          <td><span class="material-badge ${m.quantity<=m.min_quantity?'material-low':'material-ok'}">${m.quantity<=m.min_quantity?L(L('⚠️ منخفض','⚠️ Bas'),'⚠️ Bas'):L(L('✅ كافٍ','✅ OK'),'✅ Suffisant')}</span></td>
         </tr>`).join('')}</tbody>
       </table></div>`:`<div class="empty"><div class="empty-icon">🧱</div><div class="empty-title">${L('لا توجد مواد مسجلة','Aucun matériau enregistré')}</div></div>`}
     </div>
@@ -7214,14 +7209,14 @@ Pages.materials = function() {
       <td style="font-family:monospace">${fmt(m.unit_price)}</td>
       <td style="font-family:monospace;font-weight:700">${fmt(m.quantity*m.unit_price)}</td>
       <td style="color:var(--dim);font-size:.8rem">${escHtml(m.supplier||'—')}</td>
-      <td><span class="material-badge ${isLow?'material-low':'material-ok'}">${isLow?'⚠️ منخفض':'✅ كافٍ'}</span></td>
+      <td><span class="material-badge ${isLow?'material-low':'material-ok'}">${isLow?L('⚠️ منخفض','⚠️ Bas'):L('✅ كافٍ','✅ OK')}</span></td>
       <td><button class="btn btn-red btn-sm" onclick="deleteMat(${m.id})">🗑️</button></td>
     </tr>`;
   }).join('');
 
   return layoutHTML('materials','المواد والمخزون',`
     <div class="page-header">
-      <div><div class="page-title">🧱 المواد والمخزون</div><div class="page-sub">${materials.length} مادة مسجلة</div></div>
+      <div><div class="page-title">🧱 المواد والمخزون</div><div class="page-sub">${materials.length} ${L('مادة مسجلة','matériau(x)')}</div></div>
       <div class="page-actions">
         <button class="btn btn-ghost btn-sm" onclick="exportMaterials()">📥 تصدير CSV</button>
         <button class="btn btn-gold" data-modal-open="addMatModal">+ إضافة مادة</button>
@@ -7621,8 +7616,8 @@ async function sbSyncUpsert(table, record) {
 function saveSupabaseConfigInline() {
   const url = (document.getElementById('sbUrlInput')?.value || '').trim();
   const key = (document.getElementById('sbKeyInput')?.value || '').trim();
-  if (!url || !key) { Toast.error('❌ أدخل URL والـ Key كاملين'); return; }
-  if (!url.includes('supabase.co')) { Toast.error('❌ URL غير صحيح — يجب أن يحتوي على supabase.co'); return; }
+  if (!url || !key) { Toast.error(L('❌ أدخل URL والـ Key كاملين','❌ Saisir URL et Key complets')); return; }
+  if (!url.includes('supabase.co')) { Toast.error(L('❌ URL غير صحيح — يجب أن يحتوي على supabase.co','❌ URL invalide — doit contenir supabase.co')); return; }
 
   const cfg = { url, anonKey: key };
   localStorage.setItem('sbtp_supabase_config', JSON.stringify(cfg));
@@ -7641,7 +7636,7 @@ function saveSupabaseConfigInline() {
     }
   }
 
-  Toast.success('✅ تم حفظ إعدادات Supabase — جاري التحقق من الاتصال...');
+  Toast.success(L('✅ تم حفظ إعدادات Supabase — جاري التحقق من الاتصال...','✅ Configuration Supabase sauvegardée — vérification...'));
 
   // تحقق تلقائي من الاتصال بعد الحفظ
   setTimeout(async () => {
@@ -7651,7 +7646,7 @@ function saveSupabaseConfigInline() {
       });
       const badge = document.getElementById('sbStatusBadge');
       if (res.ok) {
-        Toast.success('✅ Supabase متصل بنجاح!');
+        Toast.success(L('✅ Supabase متصل بنجاح!','✅ Supabase connecté !'));
         if (badge) { badge.textContent='🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
       } else {
         const err = await res.text();
@@ -7659,7 +7654,7 @@ function saveSupabaseConfigInline() {
         if (badge) { badge.textContent='🔴 خطأ في الاتصال'; badge.style.color='#F04E6A'; }
       }
     } catch(e) {
-      Toast.warn('⚠️ الإعدادات حُفظت — تحقق من اتصال الإنترنت');
+      Toast.warn(L('⚠️ الإعدادات حُفظت — تحقق من اتصال الإنترنت','⚠️ Configuration sauvegardée — vérifier connexion'));
     }
   }, 500);
 
@@ -7671,7 +7666,7 @@ function saveSupabaseConfigInline() {
 async function testSupabaseConnectionInline() {
   const url = (document.getElementById('sbUrlInput')?.value || SUPABASE_HARDCODED.url || '').trim();
   const key = (document.getElementById('sbKeyInput')?.value || SUPABASE_HARDCODED.anonKey || '').trim();
-  if (!url || !key) { Toast.error('❌ أدخل البيانات أولاً'); return; }
+  if (!url || !key) { Toast.error(L('❌ أدخل البيانات أولاً','❌ Saisir les données d\'abord')); return; }
 
   const result = document.getElementById('sbTestResult');
   if (result) { result.style.display='block'; result.style.background='rgba(232,184,75,0.1)'; result.style.color='#E8B84B'; result.textContent='⏳ جاري اختبار الاتصال...'; }
@@ -7684,11 +7679,11 @@ async function testSupabaseConnectionInline() {
       if (result) { result.style.background='rgba(52,195,143,0.1)'; result.style.color='#34C38F'; result.textContent='✅ الاتصال ناجح! Supabase يعمل بشكل صحيح.'; }
       const badge = document.getElementById('sbStatusBadge');
       if (badge) { badge.textContent='🟢 متصل'; badge.style.background='rgba(52,195,143,0.1)'; badge.style.color='#34C38F'; badge.style.borderColor='rgba(52,195,143,0.3)'; }
-      Toast.success('✅ Supabase متصل بنجاح!');
+      Toast.success(L('✅ Supabase متصل بنجاح!','✅ Supabase connecté !'));
     } else {
       const err = await res.text();
       if (result) { result.style.background='rgba(240,78,106,0.1)'; result.style.color='#F04E6A'; result.textContent='❌ فشل: ' + err.slice(0,100); }
-      Toast.error('❌ فشل الاتصال — تحقق من URL والـ Key');
+      Toast.error(L('❌ فشل الاتصال — تحقق من URL والـ Key','❌ Connexion échouée — vérifier URL et Key'));
     }
   } catch(e) {
     if (result) { result.style.background='rgba(240,78,106,0.1)'; result.style.color='#F04E6A'; result.textContent='❌ خطأ: ' + e.message; }
@@ -8512,7 +8507,7 @@ function saveAtt(wid, date, status) {
   var row = document.getElementById('attrow_' + wid);
   if (!row) return;
   var worker = DB.get('workers').find(function(w) { return w.id === wid; });
-  var statusLabels = {present:'حاضر ✅', absent:'غائب ❌', halfday:'نصف يوم 🔶', holiday:'إجازة 🏖️', '':'لم يُسجَّل ⏳'};
+  var statusLabels = {present:L('حاضر ✅','Présent ✅'), absent:L('غائب ❌','Absent ❌'), halfday:L('نصف يوم 🔶','Demi-journée 🔶'), holiday:L('إجازة 🏖️','Congé 🏖️'), '':L('لم يُسجَّل ⏳','Non noté ⏳')};
   var statusColors = {present:'var(--green)', absent:'var(--red)', halfday:'var(--gold)', holiday:'var(--blue)', '':'var(--dim)'};
   var cells = row.cells;
   if (cells[5]) { cells[5].textContent = statusLabels[status] || statusLabels['']; cells[5].style.color = statusColors[status] || 'var(--dim)'; }
@@ -10077,6 +10072,12 @@ function topbarHTMLv5(title) {
       <span class="topbar-breadcrumb">SmartStruct / <strong>${escHtml(title)}</strong></span>
     </div>
     <div class="topbar-user" style="position:relative">
+      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}"
+        style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s;margin-${I18N.currentLang==='ar'?'left':'right'}:.5rem"
+        onclick="App.navigate('settings')">
+        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
+        <span id="syncLabel">${L('متزامن','Synchronisé')}</span>
+      </div>
       <div id="notifPanelWrap" style="position:relative">
         ${user?.is_admin ? `
           <div class="notif-bell" onclick="openAdminNotifTab()" title="طلبات إعادة تعيين كلمة المرور" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
@@ -10659,18 +10660,18 @@ Pages.salary = function() {
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     return `<option value="${key}"${key===selectedMonthKey?' selected':''}>${MONTHS_AR[d.getMonth()]} ${d.getFullYear()}</option>`;
   }).join('');
-  return layoutHTML('salary', 'الرواتب', `
+  return layoutHTML('salary', L('الرواتب','Salaires'), `
     <div class="page-header">
-      <div><div class="page-title">💵 الرواتب الشهرية</div><div class="page-sub">${monthLabel}</div></div>
+      <div><div class="page-title">💵 ${L('الرواتب الشهرية','Salaires mensuels')}</div><div class="page-sub">${monthLabel}</div></div>
       <div class="page-actions">
         <select class="form-select" style="width:auto" onchange="App.navigate('salary',{monthKey:this.value})">${monthOpts}</select>
         <button class="btn btn-ghost btn-sm" onclick="printSalary()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>
-        ${canDo('salary')?`<button class="btn btn-gold" onclick="payAllSalaries('${selectedMonthKey}')">💳 صرف الكل</button>`:''}
+        ${canDo('salary')?`<button class="btn btn-gold" onclick="payAllSalaries('${selectedMonthKey}')">💳 ${L('صرف الكل','Payer tout')}</button>`:''}
       </div>
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card"><div class="stat-icon">💵</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total)}</div><div class="stat-label">إجمالي الرواتب (دج)</div></div>
-      <div class="stat-card"><div class="stat-icon">👷</div><div class="stat-value">${workers.length}</div><div class="stat-label">عدد العمال</div></div>
+      <div class="stat-card"><div class="stat-icon">👷</div><div class="stat-value">${workers.length}</div><div class="stat-label">${L('عدد العمال','Nb ouvriers')}</div></div>
       <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:var(--blue)">${records.filter(r=>r.month_key===selectedMonthKey).length}</div><div class="stat-label">تم الصرف</div></div>
     </div>
     <div style="display:grid;gap:.8rem">
@@ -10683,7 +10684,7 @@ Pages.salary = function() {
               ${avatarHtml(w.full_name, w.color, 44)}
               <div>
                 <div style="font-weight:800;font-size:.9rem">${escHtml(w.full_name)}</div>
-                <div style="font-size:.74rem;color:var(--dim)">${escHtml(w.role)} • ${w.contract_type==='monthly'?'عقد شهري':'أجر يومي'}</div>
+                <div style="font-size:.74rem;color:var(--dim)">${escHtml(w.role)} • ${w.contract_type==='monthly'?L('عقد شهري','Contrat mensuel'):L('أجر يومي','Journalier')}</div>
               </div>
             </div>
             <div style="text-align:left">
@@ -11068,148 +11069,25 @@ function exportInvoicesCSV() {
   a.download=`Factures_SmartStruct_${todayStr()}.csv`;a.click();
   Toast.success(L('✅ تم تصدير CSV','✅ CSV exporté'));
 }
-// ── Real PDF Export using jsPDF ──
+// ── PDF Export — يستخدم نفس قالب الطباعة الاحترافي ──
 function exportInvoicePDF(id) {
-  // تحميل jsPDF أولاً إذا لم يكن موجوداً
-  if (typeof window.jspdf === 'undefined' && typeof window.loadJsPDF === 'function') {
-    Toast.show(L('جاري تحميل مكتبة PDF...','Chargement PDF...'), 'info');
-    window.loadJsPDF().then(() => exportInvoicePDF(id));
-    return;
+  // الحل الأفضل: نفتح نافذة الطباعة الجميلة، ثم نطلق print()
+  // المتصفح سيعطي المستخدم خيار "Save as PDF" تلقائياً
+  // النتيجة: PDF بنفس جودة العرض، مع دعم كامل للعربية والشعار
+  
+  const inv = DB.get('invoices').find(i => i.id === id);
+  if (!inv) { 
+    Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); 
+    return; 
   }
-  const inv = DB.get('invoices').find(i=>i.id===id);
-  if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
-  const tenant = Auth.getTenant();
-  const proj = DB.get('projects').find(p=>p.id===inv.project_id);
-  const tvaRate = inv.tva_rate || tenant?.tva_rate || 19;
-  const amountHT = inv.amount_ht || Math.round(Number(inv.amount)/(1+tvaRate/100));
-  const tvaAmt = inv.tva_amount || (Number(inv.amount) - amountHT);
 
-  try {
-    const { jsPDF } = window.jspdf;
-    if (!jsPDF) throw new Error('jsPDF not loaded');
-    const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-
-    // Gold header bar
-    doc.setFillColor(232,184,75);
-    doc.rect(0,0,pw,18,'F');
-    doc.setTextColor(9,18,10);
-    doc.setFontSize(14);doc.setFont('helvetica','bold');
-    doc.text('SmartStruct', 14, 12);
-    doc.setFontSize(9);doc.setFont('helvetica','normal');
-    doc.text(tenant?.name||'', pw-14, 12, {align:'right'});
-
-    // Invoice title block
-    doc.setTextColor(30,30,30);
-    doc.setFontSize(22);doc.setFont('helvetica','bold');
-    doc.text('FACTURE', pw-14, 35, {align:'right'});
-    doc.setFontSize(11);doc.setFont('helvetica','normal');
-    doc.setTextColor(200,144,48);
-    doc.text(inv.number, pw-14, 42, {align:'right'});
-
-    // Company info
-    doc.setTextColor(60,60,60);doc.setFontSize(9);
-    let y=25;
-    doc.setFont('helvetica','bold');doc.text(tenant?.name||'SmartStruct',14,y);
-    doc.setFont('helvetica','normal');
-    if(tenant?.address){y+=5;doc.text(tenant.address,14,y);}
-    if(tenant?.nif){y+=5;doc.text('NIF: '+tenant.nif,14,y);}
-    if(tenant?.nis){y+=5;doc.text('NIS: '+tenant.nis,14,y);}
-    if(tenant?.rc_number){y+=5;doc.text('RC: '+tenant.rc_number,14,y);}
-
-    // Client box
-    doc.setFillColor(248,248,248);
-    doc.roundedRect(14,52,86,28,3,3,'F');
-    doc.setDrawColor(220,220,220);doc.roundedRect(14,52,86,28,3,3,'D');
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(140,140,140);
-    doc.text('CLIENT',17,59);
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(30,30,30);
-    doc.text(inv.client||'—',17,66);
-    if(proj){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,100,100);doc.text('Projet: '+proj.name,17,72);}
-
-    // Dates box
-    doc.setFillColor(248,248,248);
-    doc.roundedRect(pw-100,52,86,28,3,3,'F');
-    doc.setDrawColor(220,220,220);doc.roundedRect(pw-100,52,86,28,3,3,'D');
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(140,140,140);
-    doc.text("DATE D'ÉMISSION",pw-97,59);
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(30,30,30);
-    doc.text(inv.date||'—',pw-97,65);
-    if(inv.due_date){
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(140,140,140);
-      doc.text("DATE D'ÉCHÉANCE",pw-97,72);
-      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(200,50,50);
-      doc.text(inv.due_date,pw-97,77);
-    }
-
-    // Status badge
-    if(inv.status==='paid'){doc.setFillColor(52,195,143);}else{doc.setFillColor(255,112,67);}
-    doc.roundedRect(pw-42,55,28,10,3,3,'F');
-    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(8);
-    doc.text(inv.status==='paid'?'PAYÉE':'EN ATTENTE',pw-28,62,{align:'center'});
-
-    // Items table
-    const tableY = 88;
-    const items = inv.items && inv.items.length > 0 ? inv.items : [
-      {desc: inv.description||'Prestations de service', qty:1, price:amountHT, total:amountHT}
-    ];
-    doc.autoTable({
-      startY: tableY,
-      head:[['Description','Qté','Prix unit. (DA)','Total HT (DA)']],
-      body: items.map(it=>[it.desc||'Service',it.qty||1,Number(it.price||0).toLocaleString('fr-DZ'),Number(it.total||0).toLocaleString('fr-DZ')]),
-      theme:'grid',
-      headStyles:{fillColor:[232,184,75],textColor:[9,18,10],fontStyle:'bold',fontSize:9},
-      bodyStyles:{fontSize:9,textColor:[40,40,40]},
-      alternateRowStyles:{fillColor:[252,252,252]},
-      columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:20,halign:'center'},2:{cellWidth:40,halign:'right'},3:{cellWidth:40,halign:'right'}},
-      margin:{left:14,right:14}
-    });
-
-    // Totals
-    const finalY = doc.lastAutoTable.finalY + 6;
-    const tw = 80;
-    const tx = pw - 14 - tw;
-    doc.setFillColor(250,250,250);doc.setDrawColor(220,220,220);
-    doc.roundedRect(tx,finalY,tw,30,3,3,'FD');
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
-    doc.text('Total HT:',tx+4,finalY+8);
-    doc.text(Number(amountHT).toLocaleString('fr-DZ')+' DA',tx+tw-4,finalY+8,{align:'right'});
-    doc.text(`TVA (${tvaRate}%):`,tx+4,finalY+15);
-    doc.text(Number(tvaAmt).toLocaleString('fr-DZ')+' DA',tx+tw-4,finalY+15,{align:'right'});
-    doc.setDrawColor(200,200,200);doc.line(tx+4,finalY+18,tx+tw-4,finalY+18);
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(200,144,48);
-    doc.text('Total TTC:',tx+4,finalY+26);
-    doc.text(Number(inv.amount).toLocaleString('fr-DZ')+' DA',tx+tw-4,finalY+26,{align:'right'});
-
-    // Notes/conditions
-    if(inv.description && inv.items?.length > 0){
-      doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);
-      doc.text('Notes / Conditions:',14,finalY+8);
-      doc.setFont('helvetica','normal');
-      doc.text(doc.splitTextToSize(inv.description,tx-20),14,finalY+14);
-    }
-
-    // Legal footer
-    const footY = ph - 20;
-    doc.setDrawColor(232,184,75);doc.line(14,footY,pw-14,footY);
-    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(140,140,140);
-    let legalStr = 'SmartStruct — Plateforme de gestion BTP algérienne';
-    if(tenant?.nif) legalStr += ' | NIF: '+tenant.nif;
-    if(tenant?.nis) legalStr += ' | NIS: '+tenant.nis;
-    doc.text(legalStr,pw/2,footY+5,{align:'center'});
-    doc.text('Généré le: '+new Date().toLocaleDateString('fr-DZ'),pw/2,footY+10,{align:'center'});
-
-    doc.save(`Facture_${inv.number.replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`);
-    Toast.success(L('✅ تم تصدير PDF بنجاح','✅ PDF exporté avec succès'));
-  } catch(e) {
-    console.error('PDF error:', e);
-    Toast.info(L('جارٍ فتح نافذة الطباعة...','Ouverture de la fenêtre d\'impression...'));
-    printInvoiceWindow(id);
-  }
+  Toast.info(L('🖨️ افتح نافذة الطباعة ثم اختر "حفظ كـ PDF"','🖨️ Ouvrir l\'impression puis "Enregistrer en PDF"'));
+  
+  // نفس دالة الطباعة لكن مع تشغيل تلقائي لـ print
+  printInvoiceWindow(id, /* autoPrint */ true);
 }
 
-function printInvoiceWindow(id) {
+function printInvoiceWindow(id, autoPrint = false) {
   const inv    = DB.get('invoices').find(i => i.id === id);
   const tenant = Auth.getTenant();
   const proj   = DB.get('projects').find(p => p.id === inv?.project_id);
@@ -11530,6 +11408,22 @@ function printInvoiceWindow(id) {
 </div>
 </body></html>`);
   win.document.close();
+  
+  // إذا طُلب الطباعة التلقائية (من زر PDF) — انتظر تحميل الصورة (الشعار) ثم اطبع
+  if (autoPrint) {
+    win.addEventListener('load', function() {
+      // ننتظر قليلاً للتأكد أن الـ CSS و الخطوط حُمّلت
+      setTimeout(() => {
+        try { win.focus(); win.print(); } catch (e) { console.error(e); }
+      }, 800);
+    });
+    // fallback إذا event load لم يُطلق (الصفحة جاهزة بالفعل)
+    if (win.document.readyState === 'complete') {
+      setTimeout(() => {
+        try { win.focus(); win.print(); } catch (e) { console.error(e); }
+      }, 800);
+    }
+  }
 }
 /* ── INVENTORY PAGE ── */
 Pages.inventory = function() {
@@ -11538,16 +11432,16 @@ Pages.inventory = function() {
   const movements = DB.get('stock_movements').filter(m=>m.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived);
   const lowStock = materials.filter(m=>m.quantity<=m.min_quantity);
-  return layoutHTML('inventory', 'المخزون', `
+  return layoutHTML('inventory', L('المخزون','Stock'), `
     <div class="page-header">
-      <div><div class="page-title">📦 إدارة المخزون</div><div class="page-sub">${materials.length} مادة مسجلة</div></div>
+      <div><div class="page-title">📦 ${L('إدارة المخزون','Gestion du stock')}</div><div class="page-sub">${materials.length} ${L('مادة مسجلة','matériau(x)')}</div></div>
       <div class="page-actions">
-        <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ مادة جديدة</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ ${L('مادة جديدة','Nouveau matériau')}</button>`:''}
       </div>
     </div>
-    ${lowStock.length?`<div class="stock-alert-bar">🔴 تنبيه: ${lowStock.length} مواد وصلت للحد الأدنى — ${lowStock.map(m=>escHtml(m.name)).join('، ')}</div>`:''}
+    ${lowStock.length?`<div class="stock-alert-bar">🔴 ${L('تنبيه:','Alerte :')} ${lowStock.length} ${L('مواد وصلت للحد الأدنى','matériaux en seuil bas')} — ${lowStock.map(m=>escHtml(m.name)).join('، ')}</div>`:''}
     <div class="table-wrap" style="margin-bottom:1.5rem">
-      <table><thead><tr><th>المادة</th><th>المشروع</th><th>الكمية</th><th>الحد الأدنى</th><th>السعر/وحدة</th><th>المورد</th><th>الحالة</th>${canDo('materials')?'<th>الإجراءات</th>':''}</tr></thead>
+      <table><thead><tr><th>${L('المادة','Matériau')}</th><th>${L('المشروع','Projet')}</th><th>${L('الكمية','Quantité')}</th><th>${L('الحد الأدنى','Seuil min')}</th><th>${L('السعر/وحدة','Prix/unité')}</th><th>${L('المورد','Fournisseur')}</th><th>${L('الحالة','Statut')}</th>${canDo('materials')?'<th>الإجراءات</th>':''}</tr></thead>
       <tbody>${materials.map(m=>{
         const proj=projects.find(p=>p.id===m.project_id);
         const isLow=m.quantity<=m.min_quantity;
@@ -11558,7 +11452,7 @@ Pages.inventory = function() {
           <td style="font-family:monospace;font-size:.82rem;color:var(--dim)">${m.min_quantity}</td>
           <td style="font-family:monospace;font-size:.82rem">${fmt(m.unit_price)} دج</td>
           <td style="font-size:.78rem;color:var(--dim)">${escHtml(m.supplier||'—')}</td>
-          <td><span class="material-badge ${isLow?'material-low':'material-ok'}">${isLow?'⚠️ منخفض':'✅ كافٍ'}</span></td>
+          <td><span class="material-badge ${isLow?'material-low':'material-ok'}">${isLow?L('⚠️ منخفض','⚠️ Bas'):L('✅ كافٍ','✅ OK')}</span></td>
           ${canDo('materials')?`<td><div style="display:flex;gap:.3rem"><button class="btn btn-green btn-sm" onclick="openStockMove(${m.id},'in')">+ دخول</button><button class="btn btn-red btn-sm" onclick="openStockMove(${m.id},'out')">- خروج</button></div></td>`:''}
         </tr>`;
       }).join('')}</tbody></table>
