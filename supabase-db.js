@@ -25,8 +25,8 @@
    ⚙️  إعداد Supabase — عدّل هذين السطرين فقط
    اذهب: Supabase Dashboard → Settings → API
 ══════════════════════════════════════════════════════ */
-const SUPABASE_URL     = '';   // ← أدخل عنوان مشروعك من لوحة الإدارة أو مباشرة هنا عند النشر
-const SUPABASE_KEY     = '';   // ← مفتاح anon/public — أدخله من لوحة الإدارة
+const SUPABASE_URL     = 'https://udinbxcnehcevajhrral.supabase.co';   // ← أدخل عنوان مشروعك من لوحة الإدارة أو مباشرة هنا عند النشر
+const SUPABASE_KEY     = 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ';   // ← مفتاح anon/public — أدخله من لوحة الإدارة
 
 // ─── LS_KEY: مفتاح localStorage الموحّد ────────────────
 const SB_LS_KEY = 'sbtp_supabase_config';
