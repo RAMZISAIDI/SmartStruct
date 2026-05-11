@@ -906,7 +906,7 @@ const PAGE_PERM_MAP = {
   materials:'materials', documents:'documents', reports:'reports',
   bank_report:'bank_report', simulator:'simulator', obligations:'obligations',
   audit_log:'audit_log', team:'team', settings:'settings',
-  dz_documents:'documents',
+  dz_documents:'documents', archive:'documents',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -1049,7 +1049,7 @@ const App = {
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
       audit_log:Pages.auditLog, obligations:Pages.obligations,
-      dz_documents:Pages.dz_documents };
+      dz_documents:Pages.dz_documents, archive:Pages.archive };
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -7372,7 +7372,7 @@ const SB_SCHEMA = {
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
   invoices:        ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method'],
-  documents:       ['id','tenant_id','name','project_id','category','type','url','size','date','uploader_id'],
+  documents:       ['id','tenant_id','name','project_id','worker_id','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number'],
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
@@ -10270,6 +10270,7 @@ function sidebarHTML(active='') {
     const docLinks = [
       navLink('documents','📁',__('nav.documents')),
       navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
+      navLink('archive','📂',L('أرشيف الوثائق','Archive documents')),
       navLink('reports','📈',__('nav.reports')),
       navLink('bank_report','🏦',L('تقرير بنكي','Rapport bancaire')),
       navLink('simulator','🧮',L('محاكي الربح','Simulateur')),
@@ -14246,7 +14247,7 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis','dz_documents'];
+    'audit_log','obligations','team','ai_analysis','dz_documents','archive'];
   if (hash && validPages.includes(hash)) {
     App.currentPage = hash;
   }
