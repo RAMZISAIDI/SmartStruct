@@ -906,7 +906,7 @@ const PAGE_PERM_MAP = {
   materials:'materials', documents:'documents', reports:'reports',
   bank_report:'bank_report', simulator:'simulator', obligations:'obligations',
   audit_log:'audit_log', team:'team', settings:'settings',
-  dz_documents:'documents', archive:'documents',
+  dz_documents:'documents',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -1049,7 +1049,7 @@ const App = {
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
       audit_log:Pages.auditLog, obligations:Pages.obligations,
-      dz_documents:Pages.dz_documents, archive:Pages.archive };
+      dz_documents:Pages.dz_documents };
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -7372,7 +7372,7 @@ const SB_SCHEMA = {
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
   invoices:        ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method'],
-  documents:       ['id','tenant_id','name','project_id','worker_id','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number'],
+  documents:       ['id','tenant_id','name','project_id','category','type','url','size','date','uploader_id'],
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
@@ -10270,7 +10270,6 @@ function sidebarHTML(active='') {
     const docLinks = [
       navLink('documents','📁',__('nav.documents')),
       navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
-      navLink('archive','📂',L('أرشيف الوثائق','Archive documents')),
       navLink('reports','📈',__('nav.reports')),
       navLink('bank_report','🏦',L('تقرير بنكي','Rapport bancaire')),
       navLink('simulator','🧮',L('محاكي الربح','Simulateur')),
@@ -11025,6 +11024,120 @@ Pages.invoices = function() {
         </div>
       </div>
     </div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- 📂 قسم الوثائق المولَّدة (مدمج في صفحة الفواتير)   -->
+<!-- ════════════════════════════════════════════════════ -->
+<div style="margin-top:2.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <div class="section-title" style="font-size:1.05rem;font-weight:800">📂 ${L('الوثائق المولَّدة','Documents générés')}</div>
+      <div style="font-size:.75rem;color:var(--dim)">${(()=>{
+        const tid2=Auth.getUser().tenant_id;
+        const cnt=(DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id===tid2).length;
+        return cnt + ' ' + L('وثيقة محفوظة','document(s)');
+      })()}</div>
+    </div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="App.navigate('dz_documents')">📚 ${L('مركز الوثائق','Centre docs')}</button>
+      <button class="btn btn-red btn-sm" id="dzsClearBtn" style="display:none" onclick="dzsClearAll()">🗑️ ${L('مسح الكل','Tout effacer')}</button>
+    </div>
+  </div>
+
+  <!-- فلتر النوع -->
+  <div id="dzsFilterBar" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem"></div>
+
+  <!-- البطاقات -->
+  <div id="dzsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:.8rem"></div>
+  <div id="dzsEmpty" style="display:none;text-align:center;padding:2rem 1rem;color:var(--dim)">
+    <div style="font-size:2.5rem">📂</div>
+    <div style="font-size:.85rem;margin-top:.5rem">${L('لا توجد وثائق محفوظة بعد','Aucun document enregistré')}</div>
+    <div style="font-size:.72rem;margin-top:.3rem">${L('كل وثيقة تولّدها ستُحفظ هنا تلقائياً','Chaque document généré sera automatiquement enregistré ici')}</div>
+  </div>
+</div>
+
+<script>
+(function initDzsGrid(){
+  // خريطة أنواع الوثائق
+  const META = {};
+  if(typeof DZ_DOC_CATALOG !== 'undefined'){
+    DZ_DOC_CATALOG.forEach(sec => sec.docs.forEach(d=>{
+      META[d.key]={icon:d.icon, ar:d.name.ar, fr:d.name.fr};
+    }));
+  }
+  const lbl = (ar,fr) => {try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;}};
+  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const tid = Auth.getUser().tenant_id;
+  let allDocs = (DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id===tid);
+  let activeFilter = sessionStorage.getItem('dzs_filter')||'all';
+
+  // زر مسح الكل
+  const clearBtn = document.getElementById('dzsClearBtn');
+  if(clearBtn && allDocs.length > 0) clearBtn.style.display='';
+
+  // فلتر
+  const bar = document.getElementById('dzsFilterBar');
+  if(bar){
+    const usedKeys = [...new Set(allDocs.map(d=>d.doc_type).filter(Boolean))];
+    const mkBtn = (key, label, count) => {
+      const b = document.createElement('button');
+      b.className = 'btn btn-sm ' + (activeFilter===key?'btn-gold':'btn-ghost');
+      b.textContent = label + ' (' + count + ')';
+      b.onclick = () => { sessionStorage.setItem('dzs_filter',key); initDzsGrid(); };
+      return b;
+    };
+    bar.innerHTML='';
+    bar.appendChild(mkBtn('all', lbl('الكل','Tout'), allDocs.length));
+    usedKeys.forEach(k=>{
+      const m=META[k];
+      const name = m ? (lbl(m.ar,m.fr)) : k;
+      const icon = m ? m.icon+' ' : '';
+      bar.appendChild(mkBtn(k, icon+name, allDocs.filter(d=>d.doc_type===k).length));
+    });
+  }
+
+  // الوثائق المفلترة
+  const shown = activeFilter==='all' ? allDocs : allDocs.filter(d=>d.doc_type===activeFilter);
+  const grid  = document.getElementById('dzsGrid');
+  const empty = document.getElementById('dzsEmpty');
+  if(!grid) return;
+
+  if(shown.length===0){
+    grid.style.display='none';
+    if(empty) empty.style.display='';
+    return;
+  }
+  grid.style.display='';
+  if(empty) empty.style.display='none';
+
+  grid.innerHTML = shown.map(doc => {
+    const m = META[doc.doc_type];
+    const icon  = m ? m.icon  : '📄';
+    const tname = m ? lbl(m.ar,m.fr) : (doc.doc_type||'—');
+    // أبرز الحقول
+    const f = doc.fields||{};
+    const snippet = Object.keys(f).slice(0,5).map(k=>{
+      const v=String(f[k]||'').trim();
+      return v && v.length<60 ? '<span style="color:var(--text)">'+esc(v.substring(0,35))+'</span>' : '';
+    }).filter(Boolean).join(' <span style="color:var(--dim)">·</span> ');
+
+    return \`<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(232,184,75,.5)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="font-size:.66rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">\${icon} \${esc(tname)}</div>
+      <div style="font-size:.88rem;font-weight:800;line-height:1.3">\${esc(doc.doc_title||tname)}</div>
+      <div style="font-size:.7rem;color:var(--dim)">📅 \${doc.date||''}</div>
+      \${snippet ? \`<div style="font-size:.7rem;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:.35rem;margin-top:.1rem">\${snippet}</div>\` : ''}
+      <div style="display:flex;gap:.35rem;margin-top:auto;padding-top:.45rem">
+        <button class="btn btn-gold btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReopen(\${doc.id})" title="\${lbl('تعديل وإعادة توليد','Modifier & regénérer')}">✏️ \${lbl('تعديل','Modifier')}</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReprint(\${doc.id})" title="\${lbl('إعادة طباعة','Réimprimer')}">🖨️ \${lbl('طباعة','Imprimer')}</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="dzsPrintPDF(\${doc.id})" title="PDF">📥 PDF</button>
+        <button class="btn btn-red btn-sm" style="font-size:.72rem" onclick="dzsDelete(\${doc.id})" title="\${lbl('حذف','Supprimer')}">🗑️</button>
+      </div>
+    </div>\`;
+  }).join('');
+})();
+</script>
+
   `);
 };
 
@@ -14247,7 +14360,7 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis','dz_documents','archive'];
+    'audit_log','obligations','team','ai_analysis','dz_documents'];
   if (hash && validPages.includes(hash)) {
     App.currentPage = hash;
   }
@@ -14452,3 +14565,68 @@ document.addEventListener('DOMContentLoaded', () => {
   }, {passive:true});
 })();
 
+
+// ════════════════════════════════════════════════════════════════════
+//  📂 دوال سجل الوثائق المولَّدة (dz_generated_docs)
+// ════════════════════════════════════════════════════════════════════
+
+window.dzsDelete = function(id) {
+  const msg = typeof L === 'function'
+    ? L('حذف هذه الوثيقة من السجل؟', 'Supprimer ce document du registre ?')
+    : 'Supprimer ?';
+  if (!confirm(msg)) return;
+  const docs = (DB.get('dz_generated_docs') || []).filter(d => d.id !== id);
+  DB.set('dz_generated_docs', docs);
+  App.navigate('invoices');
+};
+
+window.dzsClearAll = function() {
+  const msg = typeof L === 'function'
+    ? L('مسح جميع الوثائق المحفوظة؟ لا يمكن التراجع.', 'Effacer tout l\'historique ? Irréversible.')
+    : 'Effacer tout ?';
+  if (!confirm(msg)) return;
+  const tid = Auth.getUser()?.tenant_id;
+  const remaining = (DB.get('dz_generated_docs') || []).filter(d => d.tenant_id !== tid);
+  DB.set('dz_generated_docs', remaining);
+  App.navigate('invoices');
+};
+
+// فتح النموذج مع ملء الحقول بالبيانات المحفوظة
+window.dzsReopen = function(id) {
+  const doc = (DB.get('dz_generated_docs') || []).find(d => d.id === id);
+  if (!doc || !doc.doc_type) return;
+  if (typeof DZDocsUI === 'undefined') { alert('DZDocsUI not loaded'); return; }
+  DZDocsUI.open(doc.doc_type);
+  setTimeout(() => {
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && fields[fid] !== undefined) el.value = fields[fid];
+    });
+  }, 160);
+};
+
+// إعادة طباعة: فتح النموذج + ملء الحقول + ضغط توليد تلقائياً
+window.dzsReprint = function(id) {
+  const doc = (DB.get('dz_generated_docs') || []).find(d => d.id === id);
+  if (!doc || !doc.doc_type) return;
+  if (typeof DZDocsUI === 'undefined') { alert('DZDocsUI not loaded'); return; }
+  DZDocsUI.open(doc.doc_type);
+  setTimeout(() => {
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && fields[fid] !== undefined) el.value = fields[fid];
+    });
+    setTimeout(() => {
+      const btn = document.getElementById('dzdGenerateBtn');
+      if (btn) btn.click();
+    }, 130);
+  }, 170);
+};
+
+// تصدير PDF مباشر (نفس منطق إعادة الطباعة لكنه يُنتج PDF تلقائياً)
+window.dzsPrintPDF = function(id) {
+  // نفس آلية dzsReprint — يُفعّل توليد PDF عبر زر التوليد
+  window.dzsReprint(id);
+};

@@ -321,10 +321,6 @@ CREATE TABLE documents (
   size        BIGINT DEFAULT 0,
   date        DATE DEFAULT CURRENT_DATE,-- ✅ مضاف
   uploader_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- ✅ مضاف
-  meta_data   JSONB,                    -- ✅ v7.3 بيانات الوثيقة لإعادة الطباعة
-  doc_kind    VARCHAR(50),              -- ✅ v7.3 نوع الوثيقة (proforma/contract/...)
-  doc_number  VARCHAR(100),             -- ✅ v7.3 رقم الوثيقة
-  worker_id   INTEGER REFERENCES workers(id) ON DELETE SET NULL, -- ✅ v7.3 للعقود/الرواتب
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -742,9 +738,3 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url     TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stamp_url    TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_account VARCHAR(100);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_name    VARCHAR(100);
-
--- ✅ v7.3 — حقول جديدة في جدول documents لأرشفة الوثائق المولّدة
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS meta_data  JSONB;
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_kind   VARCHAR(50);
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_number VARCHAR(100);
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS worker_id  INTEGER REFERENCES workers(id) ON DELETE SET NULL;

@@ -106,7 +106,7 @@ const _SB_SCHEMA_INTERNAL = {
   invoices:       ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method','created_at'],
   salary_records: ['id','tenant_id','worker_id','month_key','amount','paid_date','created_at'],
   kanban_tasks:   ['id','tenant_id','project_id','title','priority','assignee_id','due_date','col','created_at'],
-  documents:      ['id','tenant_id','project_id','worker_id','name','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number','created_at'],
+  documents:      ['id','tenant_id','project_id','name','category','type','url','size','date','uploader_id','created_at'],
   obligations:    ['id','tenant_id','title','amount','due','created_at'],
   notes:          ['id','tenant_id','project_id','user_id','text','date','created_at'],
   notifications:  ['id','tenant_id','user_id','type','title','body','date','read','status','created_at'],

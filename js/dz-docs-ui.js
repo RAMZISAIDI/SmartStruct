@@ -205,49 +205,6 @@ ${pct < 100 ? `
   <button class="btn btn-gold btn-sm" onclick="App.navigate('settings')">⚙️ ${_L('استكمال', 'Compléter')}</button>
 </div>` : ''}
 
-<!-- ════════ قسم الأرشيف ════════ -->
-${(() => {
-  const archived = (typeof DZArchive !== 'undefined') ? DZArchive.list() : [];
-  const stats    = (typeof DZArchive !== 'undefined') ? DZArchive.stats() : { total:0, byCategory:{} };
-  if (archived.length === 0) return '';
-  const recent = archived.slice(0, 6);
-  return `
-  <div class="dzd-section" style="border-color:rgba(232,184,75,.3)">
-    <div class="dzd-section-header" style="background:linear-gradient(90deg,rgba(232,184,75,.08),transparent)">
-      <div class="dzd-section-icon" style="background:rgba(232,184,75,.15);color:#E8B84B">📁</div>
-      <div style="flex:1">
-        <div class="dzd-section-title">${_L('الأرشيف — الوثائق المحفوظة','Archive — Documents sauvegardés')}</div>
-        <div class="dzd-section-desc">${_L('كل وثيقة تُوَلّد تُحفظ تلقائياً وتُعاد طباعتها متى أردت','Chaque document est sauvegardé automatiquement et réimprimable')}</div>
-      </div>
-      <div style="display:flex;gap:.5rem;align-items:center">
-        <span class="dzd-section-count" style="background:rgba(232,184,75,.15);color:#E8B84B">${stats.total} ${_L('وثيقة','docs')}</span>
-        <button class="btn btn-blue btn-sm" onclick="App.navigate('archive')">📂 ${_L('عرض الكل','Voir tout')}</button>
-      </div>
-    </div>
-    <div style="padding:.8rem 1.2rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.6rem">
-      ${recent.map(doc => {
-        const reg = (typeof DZ_DOC_REGISTRY !== 'undefined') ? DZ_DOC_REGISTRY[doc.doc_kind] : null;
-        const icon = reg?.icon || '📄';
-        const label = reg ? _L(reg.label.ar, reg.label.fr) : doc.doc_kind;
-        const date  = new Date(doc.created_at || doc.date).toLocaleDateString('fr-DZ', { day:'2-digit', month:'2-digit', year:'numeric' });
-        return `
-        <div style="padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:.6rem">
-          <div style="font-size:1.4rem">${icon}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:.82rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(label)}</div>
-            <div style="font-size:.7rem;color:var(--dim);font-family:'JetBrains Mono',monospace">${_esc(doc.doc_number || '—')}</div>
-            <div style="font-size:.68rem;color:var(--dim)">${date}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:.25rem">
-            <button class="btn btn-ghost btn-sm" style="padding:.25rem .5rem;font-size:.7rem" onclick="DZArchive.reprint(${doc.id})" title="${_L('إعادة طباعة','Réimprimer')}">🖨️</button>
-            <button class="btn btn-ghost btn-sm" style="padding:.25rem .5rem;font-size:.7rem;color:#F04E6A" onclick="if(confirm('${_L('حذف هذه الوثيقة من الأرشيف؟','Supprimer du archive ?')}')){DZArchive.delete(${doc.id});App.navigate('dz_documents');}" title="${_L('حذف','Supprimer')}">🗑️</button>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>`;
-})()}
-
 ${DZ_DOC_CATALOG.map(section => `
   <div class="dzd-section">
     <div class="dzd-section-header">
@@ -270,6 +227,18 @@ ${DZ_DOC_CATALOG.map(section => `
     </div>
   </div>
 `).join('')}
+
+<!-- ═════════ MODAL UNIVERSEL ═════════ -->
+<div class="modal-overlay" id="dzdModal">
+  <div class="modal" style="max-width:800px">
+    <div class="modal-title" id="dzdModalTitle">📄 ${_L('توليد وثيقة', 'Générer document')}</div>
+    <div id="dzdModalBody" style="max-height:65vh;overflow-y:auto;padding:.4rem"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="DZDocsUI.close()">${_L('إلغاء', 'Annuler')}</button>
+      <button class="btn btn-gold" id="dzdGenerateBtn">📄 ${_L('توليد وطباعة PDF', 'Générer & Imprimer PDF')}</button>
+    </div>
+  </div>
+</div>
   `);
 };
 
@@ -278,71 +247,38 @@ ${DZ_DOC_CATALOG.map(section => `
 // ════════════════════════════════════════════════════════════════════
 window.DZDocsUI = {
 
-  // ── ضمان وجود المودال (يُحقن تلقائياً في أي صفحة) ──
+  // ── إنشاء المودال في الـ DOM إذا لم يكن موجوداً (لأنه يُعرض فقط داخل صفحة dz_documents) ──
   _ensureModal() {
     if (document.getElementById('dzdModal')) return;
-    // حقن CSS للمودال إن لم يكن موجوداً (احتياط)
-    if (!document.getElementById('dzd-modal-styles')) {
-      const css = document.createElement('style');
-      css.id = 'dzd-modal-styles';
-      css.textContent = `
-        #dzdModal { position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:9999; display:none; align-items:flex-start; justify-content:center; padding:2rem 1rem; overflow-y:auto; }
-        #dzdModal.show { display:flex; }
-        #dzdModal .dzd-modal-inner { background:var(--card-bg,#0e1720); border:1px solid var(--border,#22303f); border-radius:14px; padding:1.4rem; max-width:800px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 16px 48px rgba(0,0,0,.5); animation:dzdMIn .2s ease; }
-        @keyframes dzdMIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
-        #dzdModalTitle { font-size:1.15rem; font-weight:800; color:var(--gold,#E8B84B); margin-bottom:1rem; padding-bottom:.6rem; border-bottom:1px solid var(--border,#22303f); display:flex; justify-content:space-between; align-items:center; }
-        #dzdModalTitle .dzd-x { background:none; border:none; color:var(--dim,#888); font-size:1.4rem; cursor:pointer; padding:0 .5rem; line-height:1; }
-        #dzdModalTitle .dzd-x:hover { color:#F04E6A; }
-        #dzdModalBody { flex:1; overflow-y:auto; padding:.3rem .1rem; }
-        #dzdModalBody::-webkit-scrollbar { width:6px; }
-        #dzdModalBody::-webkit-scrollbar-thumb { background:rgba(232,184,75,.3); border-radius:3px; }
-        .dzd-modal-footer { display:flex; gap:.6rem; justify-content:flex-end; padding-top:1rem; border-top:1px solid var(--border,#22303f); margin-top:1rem; }
-        #dzdModal .form-group { margin-bottom:.8rem; }
-        #dzdModal .form-label { display:block; font-size:.78rem; font-weight:700; color:var(--text,#fff); margin-bottom:.35rem; }
-        #dzdModal .form-input, #dzdModal .form-select, #dzdModal textarea.form-input { width:100%; padding:.55rem .7rem; background:rgba(0,0,0,.25); border:1px solid var(--border,#22303f); border-radius:8px; color:var(--text,#fff); font-family:inherit; font-size:.85rem; }
-        #dzdModal .form-input:focus, #dzdModal .form-select:focus { outline:none; border-color:var(--gold,#E8B84B); }
-        #dzdModal .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
-        @media (max-width:600px){ #dzdModal .form-grid-2{ grid-template-columns:1fr; } }
-      `;
-      document.head.appendChild(css);
-    }
-    // إنشاء العنصر
-    const modal = document.createElement('div');
-    modal.id = 'dzdModal';
-    modal.innerHTML = `
-      <div class="dzd-modal-inner">
-        <div id="dzdModalTitle">
-          <span id="dzdModalTitleText">📄 ${_L('توليد وثيقة','Générer document')}</span>
-          <button class="dzd-x" onclick="DZDocsUI.close()" title="${_L('إغلاق','Fermer')}">✕</button>
-        </div>
-        <div id="dzdModalBody"></div>
-        <div class="dzd-modal-footer">
+    const div = document.createElement('div');
+    div.className = 'modal-overlay';
+    div.id = 'dzdModal';
+    div.innerHTML = `
+      <div class="modal" style="max-width:800px">
+        <div class="modal-title" id="dzdModalTitle">📄 ${_L('توليد وثيقة','Générer document')}</div>
+        <div id="dzdModalBody" style="max-height:65vh;overflow-y:auto;padding:.4rem"></div>
+        <div class="modal-footer">
           <button class="btn btn-ghost" onclick="DZDocsUI.close()">${_L('إلغاء','Annuler')}</button>
           <button class="btn btn-gold" id="dzdGenerateBtn">📄 ${_L('توليد وطباعة PDF','Générer & Imprimer PDF')}</button>
         </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    // إغلاق عند النقر خارج
-    modal.addEventListener('click', (e) => { if (e.target === modal) this.close(); });
-    // إغلاق على Escape
-    if (!window._dzdEscInstalled) {
-      window._dzdEscInstalled = true;
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.close(); });
-    }
+      </div>`;
+    document.body.appendChild(div);
+    // إغلاق عند النقر على الخلفية
+    div.addEventListener('click', e => { if (e.target === div) this.close(); });
   },
 
   open(key) {
     const handler = this._handlers[key];
     if (!handler) { _toast(_L('وثيقة غير معروفة','Document inconnu'),'error'); return; }
-    this._ensureModal();  // ✅ يضمن وجود المودال في أي صفحة
+    this._ensureModal();
+    this._currentKey = key;
     handler.call(this);
     document.getElementById('dzdModal')?.classList.add('show');
   },
   close() { document.getElementById('dzdModal')?.classList.remove('show'); },
 
   // ── Helpers ──
-  _setTitle(t)        { const el=document.getElementById('dzdModalTitleText') || document.getElementById('dzdModalTitle'); if(el) el.innerHTML = t + (document.getElementById('dzdModalTitleText') ? '' : ' <button class="dzd-x" onclick="DZDocsUI.close()">✕</button>'); },
+  _setTitle(t)        { const el=document.getElementById('dzdModalTitle'); if(el) el.innerHTML=t; },
   _setBody(html)      { const el=document.getElementById('dzdModalBody'); if(el) el.innerHTML=html; },
   _setAction(label, fn) {
     const old = document.getElementById('dzdGenerateBtn');
@@ -353,9 +289,44 @@ window.DZDocsUI = {
     btn.innerHTML = label;
     old.parentNode.replaceChild(btn, old);
     btn.addEventListener('click', () => {
-      try { fn(); this.close(); }
+      try {
+        fn();
+        this._saveToHistory();
+        this.close();
+      }
       catch(e) { console.error('[DZDocs]',e); _toast(e.message||'Erreur','error'); }
     });
+  },
+
+  // ── حفظ بيانات الوثيقة في سجل التاريخ ──
+  _saveToHistory() {
+    try {
+      if (typeof Auth === 'undefined' || typeof DB === 'undefined') return;
+      const tid = Auth.getUser()?.tenant_id;
+      if (!tid) return;
+
+      const body = document.getElementById('dzdModalBody');
+      const titleEl = document.getElementById('dzdModalTitle');
+      const fields = {};
+      if (body) {
+        body.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+          if (el.id && el.value) fields[el.id] = el.value;
+        });
+      }
+      const docs = DB.get('dz_generated_docs') || [];
+      const record = {
+        id: docs.length > 0 ? Math.max(...docs.map(d=>d.id||0)) + 1 : 1,
+        tenant_id: tid,
+        doc_type: this._currentKey || '',
+        doc_title: titleEl ? titleEl.innerText.replace(/[\n\r]/g,'').trim() : '',
+        fields,
+        date: new Date().toISOString().split('T')[0],
+        created_at: new Date().toISOString(),
+      };
+      docs.unshift(record);
+      if (docs.length > 300) docs.splice(300);
+      DB.set('dz_generated_docs', docs);
+    } catch(e) { console.warn('[DZDocs] saveToHistory error:', e); }
   },
   _val(id, fb='') { const el=document.getElementById(id); return el ? (el.value||fb) : fb; },
   _num(id, fb=0)  { const el=document.getElementById(id); if(!el) return fb; const n=Number(el.value); return isNaN(n)?fb:n; },
@@ -1868,146 +1839,167 @@ window.DZDocsUI.openAttendanceCard = function() {
   this.open('pointage');
 };
 
+})();
+
+
 // ════════════════════════════════════════════════════════════════════
-//  📂 Pages.archive — صفحة الأرشيف الكاملة
+//  📂 Pages.dz_saved — سجل الوثائق المولَّدة
 // ════════════════════════════════════════════════════════════════════
-window.Pages.archive = function() {
+window.Pages.dz_saved = function() {
   if (typeof Auth === 'undefined' || !Auth.getUser()) return '';
-  if (typeof DZArchive === 'undefined') return '<div style="padding:2rem;text-align:center">DZArchive non chargé</div>';
+  const tid = Auth.getUser().tenant_id;
+  const allDocs = (DB.get('dz_generated_docs') || []).filter(d => d.tenant_id === tid);
 
-  // الفلاتر من sessionStorage (آمن في أي بيئة)
-  const _ss = (k) => { try { return sessionStorage.getItem(k); } catch(_) { return null; } };
-  const filters = {
-    category: _ss('arch_cat') || '',
-    kind:     _ss('arch_kind') || '',
-    search:   _ss('arch_search') || '',
+  // خريطة: key → {icon, name_ar, name_fr}
+  const DOC_META = {};
+  if (typeof DZ_DOC_CATALOG !== 'undefined') {
+    DZ_DOC_CATALOG.forEach(sec => sec.docs.forEach(d => {
+      DOC_META[d.key] = { icon: d.icon, ar: d.name.ar, fr: d.name.fr };
+    }));
+  }
+
+  // دالة مساعدة محلية للترجمة
+  const lbl = (ar, fr) => {
+    try { return (typeof I18N !== 'undefined' && I18N.currentLang === 'fr') ? fr : ar; } catch(_) { return ar; }
   };
-  const docs   = DZArchive.list(filters);
-  const stats  = DZArchive.stats();
-  const layoutFn = (typeof layoutHTML === 'function') ? layoutHTML : ((id, t, c) => c);
 
-  // فهرس الأنواع متاحة (من الأرشيف)
-  const availableKinds = new Set(DZArchive.list().map(d => d.doc_kind));
-  const allKinds = Object.entries(DZ_DOC_REGISTRY).filter(([k]) => availableKinds.has(k));
+  // تصفية بالنوع
+  const filterKey = sessionStorage.getItem('dzs_filter') || 'all';
+  const filtered = filterKey === 'all' ? allDocs : allDocs.filter(d => d.doc_type === filterKey);
 
-  return layoutFn('archive', _L('أرشيف الوثائق', 'Archive des documents'), `
+  // الأنواع الموجودة فعلاً
+  const usedKeys = [...new Set(allDocs.map(d => d.doc_type).filter(Boolean))];
+
+  const layoutFn = (typeof layoutHTML === 'function') ? layoutHTML : ((_,__,c) => c);
+
+  return layoutFn('dz_saved', lbl('سجل الوثائق المولَّدة','Historique des documents'), `
 <style>
-  .arch-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:.7rem; margin-bottom:1.2rem; }
-  .arch-stat { padding:.9rem 1rem; background:var(--card-bg,#0e1720); border:1px solid var(--border); border-radius:10px; cursor:pointer; transition:all .15s; }
-  .arch-stat:hover { border-color:rgba(232,184,75,.4); transform:translateY(-1px); }
-  .arch-stat.active { border-color:#E8B84B; background:rgba(232,184,75,.06); }
-  .arch-stat .lbl { font-size:.7rem; color:var(--dim); font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
-  .arch-stat .num { font-size:1.8rem; font-weight:900; color:var(--gold); font-family:'JetBrains Mono',monospace; margin-top:.2rem; }
-  .arch-stat .ic  { font-size:1.6rem; margin-bottom:.3rem; }
-  .arch-filters { display:flex; gap:.5rem; align-items:center; padding:.8rem 1rem; background:var(--card-bg,#0e1720); border:1px solid var(--border); border-radius:10px; margin-bottom:1rem; flex-wrap:wrap; }
-  .arch-filters input, .arch-filters select { padding:.5rem .7rem; background:rgba(0,0,0,.25); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:.82rem; }
-  .arch-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.7rem; }
-  .arch-card { padding:.9rem; background:var(--card-bg,#0e1720); border:1px solid var(--border); border-radius:10px; display:flex; gap:.7rem; align-items:flex-start; transition:all .15s; }
-  .arch-card:hover { border-color:rgba(232,184,75,.3); }
-  .arch-card .ic { font-size:1.8rem; }
-  .arch-card .info { flex:1; min-width:0; }
-  .arch-card .lbl { font-size:.88rem; font-weight:800; color:var(--text); margin-bottom:.2rem; }
-  .arch-card .num { font-size:.74rem; color:var(--gold); font-family:'JetBrains Mono',monospace; margin-bottom:.15rem; }
-  .arch-card .meta { font-size:.7rem; color:var(--dim); }
-  .arch-card .actions { display:flex; flex-direction:column; gap:.25rem; }
-  .arch-empty { padding:3rem 1rem; text-align:center; color:var(--dim); background:var(--card-bg,#0e1720); border:1px dashed var(--border); border-radius:14px; }
-  .arch-empty .ic { font-size:3rem; margin-bottom:.6rem; }
+  .dzs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.9rem;margin-top:1rem}
+  .dzs-card{background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.5rem;transition:border-color .2s}
+  .dzs-card:hover{border-color:rgba(232,184,75,.5)}
+  .dzs-type{font-size:.68rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px}
+  .dzs-title{font-size:.9rem;font-weight:800;line-height:1.3}
+  .dzs-date{font-size:.72rem;color:var(--dim)}
+  .dzs-fields{font-size:.72rem;color:var(--muted);line-height:1.7;margin-top:.2rem;border-top:1px solid var(--border);padding-top:.4rem}
+  .dzs-actions{display:flex;gap:.4rem;margin-top:auto;padding-top:.5rem}
+  .dzs-empty{text-align:center;padding:3rem 1rem;color:var(--dim)}
+  .dzs-filter-bar{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
 </style>
 
 <div class="page-header">
   <div>
-    <div class="page-title">📁 ${_L('أرشيف الوثائق','Archive des documents')}</div>
-    <div class="page-sub">${_L('كل الوثائق المُولّدة محفوظة هنا — يمكنك إعادة طباعتها متى تشاء','Tous les documents générés sont sauvegardés ici — réimprimables à tout moment')}</div>
+    <div class="page-title">📂 ${lbl('سجل الوثائق المولَّدة','Historique des documents')}</div>
+    <div class="page-sub">${allDocs.length} ${lbl('وثيقة محفوظة','document(s) enregistré(s)')}</div>
   </div>
   <div class="page-actions">
-    <button class="btn btn-gold" onclick="App.navigate('dz_documents')">📚 ${_L('مركز الوثائق','Centre documents')}</button>
+    <button class="btn btn-ghost" onclick="App.navigate('dz_documents')">📚 ${lbl('مركز الوثائق','Centre docs')}</button>
+    ${allDocs.length > 0 ? `<button class="btn btn-red btn-sm" onclick="dzsClearAll()">${lbl('🗑️ مسح الكل','🗑️ Tout effacer')}</button>` : ''}
   </div>
 </div>
 
-<!-- إحصائيات حسب الفئة (نقر للفلترة) -->
-<div class="arch-stats">
-  <div class="arch-stat ${!filters.category?'active':''}" onclick="sessionStorage.removeItem('arch_cat');App.navigate('archive')">
-    <div class="ic">📁</div>
-    <div class="lbl">${_L('الكل','Tous')}</div>
-    <div class="num">${stats.total}</div>
-  </div>
-  <div class="arch-stat ${filters.category==='commercial'?'active':''}" onclick="sessionStorage.setItem('arch_cat','commercial');App.navigate('archive')">
-    <div class="ic" style="color:#3498db">📑</div>
-    <div class="lbl">${_L('تجارية','Commercial')}</div>
-    <div class="num">${stats.byCategory.commercial||0}</div>
-  </div>
-  <div class="arch-stat ${filters.category==='chantier'?'active':''}" onclick="sessionStorage.setItem('arch_cat','chantier');App.navigate('archive')">
-    <div class="ic" style="color:#e67e22">🏗️</div>
-    <div class="lbl">${_L('ميدانية','Chantier')}</div>
-    <div class="num">${stats.byCategory.chantier||0}</div>
-  </div>
-  <div class="arch-stat ${filters.category==='finance'?'active':''}" onclick="sessionStorage.setItem('arch_cat','finance');App.navigate('archive')">
-    <div class="ic" style="color:#27ae60">💵</div>
-    <div class="lbl">${_L('مالية','Finance')}</div>
-    <div class="num">${stats.byCategory.finance||0}</div>
-  </div>
-  <div class="arch-stat ${filters.category==='hr'?'active':''}" onclick="sessionStorage.setItem('arch_cat','hr');App.navigate('archive')">
-    <div class="ic" style="color:#9b59b6">👥</div>
-    <div class="lbl">${_L('موارد بشرية','RH')}</div>
-    <div class="num">${stats.byCategory.hr||0}</div>
-  </div>
-  <div class="arch-stat ${filters.category==='logistics'?'active':''}" onclick="sessionStorage.setItem('arch_cat','logistics');App.navigate('archive')">
-    <div class="ic" style="color:#e74c3c">📦</div>
-    <div class="lbl">${_L('لوجستيك','Logistique')}</div>
-    <div class="num">${stats.byCategory.logistics||0}</div>
-  </div>
-</div>
-
-<!-- شريط الفلاتر والبحث -->
-<div class="arch-filters">
-  <input type="text" placeholder="🔍 ${_L('بحث برقم الوثيقة أو الاسم...','Rechercher...')}" value="${_esc(filters.search)}"
-    onchange="sessionStorage.setItem('arch_search',this.value);App.navigate('archive')" style="flex:1;min-width:200px">
-  <select onchange="if(this.value){sessionStorage.setItem('arch_kind',this.value)}else{sessionStorage.removeItem('arch_kind')};App.navigate('archive')">
-    <option value="">— ${_L('كل الأنواع','Tous types')} —</option>
-    ${allKinds.map(([k, reg]) => `<option value="${k}" ${filters.kind===k?'selected':''}>${reg.icon} ${_esc(_L(reg.label.ar, reg.label.fr))}</option>`).join('')}
-  </select>
-  ${(filters.category||filters.kind||filters.search)?`
-  <button class="btn btn-ghost btn-sm" onclick="sessionStorage.removeItem('arch_cat');sessionStorage.removeItem('arch_kind');sessionStorage.removeItem('arch_search');App.navigate('archive')">
-    ✕ ${_L('مسح الفلاتر','Réinitialiser')}
-  </button>`:''}
-</div>
-
-<!-- قائمة الوثائق -->
-${docs.length === 0 ? `
-<div class="arch-empty">
-  <div class="ic">📂</div>
-  <div style="font-size:1.1rem;font-weight:700;margin-bottom:.4rem">${_L('لا توجد وثائق في الأرشيف','Aucun document archivé')}</div>
-  <div style="font-size:.85rem;margin-bottom:1rem">${_L('كل وثيقة تُولّدها ستُحفظ هنا تلقائياً','Chaque document généré sera sauvegardé ici')}</div>
-  <button class="btn btn-gold" onclick="App.navigate('dz_documents')">📚 ${_L('انتقل لمركز الوثائق','Aller au centre des documents')}</button>
-</div>
-` : `
-<div class="arch-list">
-  ${docs.map(doc => {
-    const reg = DZ_DOC_REGISTRY[doc.doc_kind];
-    const icon = reg?.icon || '📄';
-    const label = reg ? _L(reg.label.ar, reg.label.fr) : doc.doc_kind;
-    const date  = new Date(doc.created_at || doc.date).toLocaleDateString('fr-DZ', { day:'2-digit', month:'2-digit', year:'numeric' });
-    const time  = new Date(doc.created_at || doc.date).toLocaleTimeString('fr-DZ', { hour:'2-digit', minute:'2-digit' });
-    const meta  = doc.meta_data || {};
-    const subject = meta.clientName || meta.subject || meta.maitreOuvrage || meta.payerName || (meta.worker && meta.worker.full_name) || '—';
-    return `
-    <div class="arch-card">
-      <div class="ic">${icon}</div>
-      <div class="info">
-        <div class="lbl">${_esc(label)}</div>
-        <div class="num">${_esc(doc.doc_number || '—')}</div>
-        <div class="meta">👤 ${_esc(subject)}</div>
-        <div class="meta">📅 ${date} ${time}</div>
-      </div>
-      <div class="actions">
-        <button class="btn btn-blue btn-sm" style="padding:.3rem .55rem" onclick="DZArchive.reprint(${doc.id})" title="${_L('إعادة طباعة','Réimprimer')}">🖨️</button>
-        <button class="btn btn-ghost btn-sm" style="padding:.3rem .55rem;color:#F04E6A" onclick="if(confirm('${_L('حذف هذه الوثيقة من الأرشيف؟','Supprimer ?')}')){DZArchive.delete(${doc.id});App.navigate('archive');}" title="${_L('حذف','Supprimer')}">🗑️</button>
-      </div>
-    </div>`;
+<!-- فلتر بالنوع -->
+<div class="dzs-filter-bar">
+  <button class="btn ${filterKey==='all'?'btn-gold':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('dzs_filter','all');App.navigate('dz_saved')">${lbl('الكل','Tout')} (${allDocs.length})</button>
+  ${usedKeys.map(k => {
+    const m = DOC_META[k];
+    const name = m ? lbl(m.ar, m.fr) : k;
+    const count = allDocs.filter(d=>d.doc_type===k).length;
+    return `<button class="btn ${filterKey===k?'btn-gold':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('dzs_filter','${k}');App.navigate('dz_saved')">${m?m.icon:''} ${name} (${count})</button>`;
   }).join('')}
 </div>
+
+${filtered.length === 0 ? `
+  <div class="dzs-empty">
+    <div style="font-size:3rem;margin-bottom:1rem">📂</div>
+    <div style="font-size:.95rem">${lbl('لا توجد وثائق محفوظة بعد','Aucun document enregistré')}</div>
+    <div style="font-size:.78rem;margin-top:.4rem;color:var(--dim)">${lbl('كل وثيقة تولّدها ستُحفظ هنا تلقائياً','Chaque document généré sera sauvegardé ici')}</div>
+    <button class="btn btn-gold" style="margin-top:1.2rem" onclick="App.navigate('dz_documents')">📚 ${lbl('ابدأ من مركز الوثائق','Aller au centre')}</button>
+  </div>
+` : `
+  <div class="dzs-grid">
+    ${filtered.map(doc => {
+      const m = DOC_META[doc.doc_type];
+      const icon  = m ? m.icon : '📄';
+      const tname = m ? lbl(m.ar, m.fr) : (doc.doc_type || '—');
+
+      // استخراج أبرز الحقول
+      const f = doc.fields || {};
+      const snippetKeys = Object.keys(f).slice(0, 4);
+      const snippet = snippetKeys.map(k => {
+        const v = f[k];
+        if (!v || v.length > 60) return '';
+        return `<span style="color:var(--text)">${String(v).substring(0,40)}</span>`;
+      }).filter(Boolean).join(' · ');
+
+      return `<div class="dzs-card">
+        <div class="dzs-type">${icon} ${tname}</div>
+        <div class="dzs-title">${escHtml ? escHtml(doc.doc_title||tname) : (doc.doc_title||tname)}</div>
+        <div class="dzs-date">📅 ${doc.date || ''}</div>
+        ${snippet ? `<div class="dzs-fields">${snippet}</div>` : ''}
+        <div class="dzs-actions">
+          <button class="btn btn-gold btn-sm" style="flex:1" onclick="dzsReprint(${doc.id})"
+            title="${lbl('إعادة توليد وطباعة','Régénérer & imprimer')}">🖨️ ${lbl('إعادة طباعة','Réimprimer')}</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="dzsReopen(${doc.id})"
+            title="${lbl('فتح النموذج مع البيانات السابقة','Rouvrir avec données')}">✏️ ${lbl('تعديل','Modifier')}</button>
+          <button class="btn btn-red btn-sm" onclick="dzsDelete(${doc.id})" title="${lbl('حذف','Supprimer')}">🗑️</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
 `}
   `);
 };
 
-})();
+// ── دوال سجل الوثائق ──
+
+window.dzsDelete = function(id) {
+  if (!confirm(_L ? _L('حذف هذه الوثيقة من السجل؟','Supprimer ce document du registre ?') : 'Supprimer ?')) return;
+  const docs = (DB.get('dz_generated_docs') || []).filter(d => d.id !== id);
+  DB.set('dz_generated_docs', docs);
+  App.navigate('dz_saved');
+};
+
+window.dzsClearAll = function() {
+  const msg = typeof L === 'function'
+    ? L('مسح جميع الوثائق المحفوظة؟ لا يمكن التراجع.','Effacer tout l\'historique ? Irréversible.')
+    : 'Effacer tout ?';
+  if (!confirm(msg)) return;
+  const tid = Auth.getUser()?.tenant_id;
+  const remaining = (DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id!==tid);
+  DB.set('dz_generated_docs', remaining);
+  App.navigate('dz_saved');
+};
+
+// إعادة فتح النموذج مع ملء الحقول بالبيانات المحفوظة
+window.dzsReopen = function(id) {
+  const doc = (DB.get('dz_generated_docs')||[]).find(d=>d.id===id);
+  if (!doc || !doc.doc_type) return;
+  DZDocsUI.open(doc.doc_type);
+  setTimeout(() => {
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && fields[fid]) el.value = fields[fid];
+    });
+  }, 150);
+};
+
+// إعادة توليد وطباعة مباشرة (فتح النموذج ثم ضغط توليد تلقائياً)
+window.dzsReprint = function(id) {
+  const doc = (DB.get('dz_generated_docs')||[]).find(d=>d.id===id);
+  if (!doc || !doc.doc_type) return;
+  DZDocsUI.open(doc.doc_type);
+  setTimeout(() => {
+    // ملء الحقول
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && fields[fid]) el.value = fields[fid];
+    });
+    // ثم نضغط زر التوليد تلقائياً
+    setTimeout(() => {
+      const btn = document.getElementById('dzdGenerateBtn');
+      if (btn) btn.click();
+    }, 120);
+  }, 180);
+};
