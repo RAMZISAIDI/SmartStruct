@@ -97,6 +97,8 @@ CREATE TABLE tenants (
   rib                   VARCHAR(100),         -- ✅ v7.3 رقم الحساب البنكي
   logo_url              TEXT,                 -- ✅ v7.3 شعار المؤسسة
   stamp_url             TEXT,                 -- ✅ v7.3 ختم المؤسسة
+  bank_account          VARCHAR(100),         -- ✅ رقم الحساب المصرفي
+  bank_name             VARCHAR(100),         -- ✅ اسم البنك
   tva_rate              INTEGER DEFAULT 19,
   subscription_status   VARCHAR(50) DEFAULT 'pending',
   trial_start           DATE,
@@ -728,28 +730,11 @@ END $$;
 
 -- ══════════════════════════════════════════════════════════════════════
 --  🆕 v7.3 — Migration: إضافة الحقول الجديدة للترويسة القانونية
---  (للقواعد الموجودة فقط — التشغيل الأول لا يحتاجها)
+--  آمن للتشغيل على قواعد جديدة وقديمة على حد سواء
 -- ══════════════════════════════════════════════════════════════════════
-DO $$
-BEGIN
-  -- إضافة article_imp إن لم يكن موجوداً
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='tenants' AND column_name='article_imp') THEN
-    ALTER TABLE tenants ADD COLUMN article_imp VARCHAR(100);
-  END IF;
-  -- إضافة rib
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='tenants' AND column_name='rib') THEN
-    ALTER TABLE tenants ADD COLUMN rib VARCHAR(100);
-  END IF;
-  -- إضافة logo_url
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='tenants' AND column_name='logo_url') THEN
-    ALTER TABLE tenants ADD COLUMN logo_url TEXT;
-  END IF;
-  -- إضافة stamp_url
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='tenants' AND column_name='stamp_url') THEN
-    ALTER TABLE tenants ADD COLUMN stamp_url TEXT;
-  END IF;
-END $$;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS article_imp  VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rib          VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url     TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stamp_url    TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_account VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_name    VARCHAR(100);
