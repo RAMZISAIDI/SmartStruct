@@ -906,6 +906,7 @@ const PAGE_PERM_MAP = {
   materials:'materials', documents:'documents', reports:'reports',
   bank_report:'bank_report', simulator:'simulator', obligations:'obligations',
   audit_log:'audit_log', team:'team', settings:'settings',
+  dz_documents:'documents',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -1047,7 +1048,8 @@ const App = {
       documents:Pages.documents, team:Pages.team,
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
-      audit_log:Pages.auditLog, obligations:Pages.obligations };
+      audit_log:Pages.auditLog, obligations:Pages.obligations,
+      dz_documents:Pages.dz_documents };
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -4505,7 +4507,20 @@ Pages.workers = function() {
       <td><span style="font-weight:700;font-family:monospace">${fmt(w.daily_salary)}</span> <span style="font-size:.72rem;color:var(--dim)">${L('دج','DA')}</span></td>
       <td><span class="badge" style="background:rgba(74,144,226,.1);color:#60A5FA;border:1px solid rgba(74,144,226,.2)">${typeLabel}</span></td>
       <td style="color:var(--dim);font-size:.82rem">${fmtDate(w.hire_date)}</td>
-      <td><div style="display:flex;gap:.3rem"><button class="btn btn-blue btn-sm" onclick="editWorker(${w.id})">✏️</button><button class="btn btn-red btn-sm" onclick="deleteWorker(${w.id},'${escHtml(w.full_name)}')">🗑️</button></div></td>
+      <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
+        <div style="position:relative;display:inline-block" class="dz-dd">
+          <button class="btn btn-blue btn-sm" onclick="toggleWorkerDocs(${w.id}, event)" title="${L('وثائق العامل','Documents')}">📄 ${L('وثائق','Docs')} ▾</button>
+          <div id="wDocs${w.id}" class="dz-dd-menu" style="display:none;position:absolute;top:100%;${I18N.currentLang==='ar'?'right':'left'}:0;margin-top:4px;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:200px;z-index:100;padding:.3rem">
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('cdd',${w.id})">📝 ${L('عقد CDD محدد المدة','Contrat CDD')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('cta',${w.id})">🤝 ${L('عقد CTA مدعم','Contrat CTA')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('cdi',${w.id})">🔒 ${L('عقد CDI دائم','Contrat CDI')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('attestation',${w.id})">📄 ${L('شهادة عمل','Attestation travail')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('paie',${w.id})">💼 ${L('كشف راتب','Bulletin paie')}</button>
+          </div>
+        </div>
+        <button class="btn btn-blue btn-sm" onclick="editWorker(${w.id})">✏️</button>
+        <button class="btn btn-red btn-sm" onclick="deleteWorker(${w.id},'${escHtml(w.full_name)}')">🗑️</button>
+      </div></td>
     </tr>`;
   }).join('');
 
@@ -4593,7 +4608,10 @@ Pages.equipment = function() {
           </select>
         </div>
       </div>
-      <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" style="width:100%;justify-content:center">🗑️ ${L('حذف','Supprimer')}</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-blue btn-sm" style="flex:1;justify-content:center" onclick="DZDocsUI.openForEquipment('suivi',${e.id})" title="${L('بطاقة تتبع PDF','Fiche suivi PDF')}">📄 ${L('بطاقة تتبع','Fiche suivi')}</button>
+        <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" title="${L('حذف','Suppr.')}">🗑️</button>
+      </div>
     </div>`;
   }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">${L('لا توجد معدات','Aucun équipement')}</div></div>`;
 
@@ -4867,6 +4885,7 @@ Pages.attendance = function() {
       <div style="flex:1"></div>
       <button class="btn btn-green btn-sm" onclick="markAllStatus('present','${selDate}')">✅ تحديد الكل حاضر</button>
       <button class="btn btn-red btn-sm" onclick="markAllStatus('absent','${selDate}')">❌ تحديد الكل غائب</button>
+      <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openAttendanceCard()" title="${L('بطاقة حضور PDF لعامل ومدة محددة','Fiche pointage PDF')}">📄 ${L('بطاقة حضور PDF','Fiche pointage')}</button>
       <button class="btn btn-ghost btn-sm" onclick="exportAttendanceMonthly()">📥 تصدير CSV</button>
     </div>
 
@@ -5035,6 +5054,16 @@ Pages.settings = function() {
               <input class="form-input" id="setNis" value="${escHtml(tenant?.nis||'')}" placeholder="000000000000000">
             </div>
             <div class="form-group">
+              <label class="form-label">${L('رقم المادة الجبائية','Article d\'imposition')}</label>
+              <input class="form-input" id="setArticleImp" value="${escHtml(tenant?.article_imp||'')}" placeholder="0000000000">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">${L('رقم الحساب البنكي (RIB)','Compte bancaire (RIB)')}</label>
+              <input class="form-input" id="setRib" value="${escHtml(tenant?.rib||'')}" placeholder="00000 00000 00000000 00">
+            </div>
+            <div class="form-group">
               <label class="form-label">${L('نسبة TVA (%)','Taux TVA (%)')}</label>
               <input class="form-input" id="setTva" type="number" value="${escHtml(String(tenant?.tva_rate||19))}" placeholder="19">
             </div>
@@ -5044,6 +5073,9 @@ Pages.settings = function() {
             <input class="form-input" id="setAddress" value="${escHtml(tenant?.address||'')}" placeholder="${L('شارع، حي، ولاية...','Rue, quartier, wilaya...')}">
           </div>
           <button class="btn btn-blue" onclick="saveLegalSettings()">💾 ${L('حفظ البيانات القانونية','Sauvegarder données légales')}</button>
+          <div style="margin-top:.6rem;font-size:.72rem;color:var(--dim);background:rgba(232,184,75,0.06);padding:.6rem .8rem;border-radius:8px;border-right:3px solid var(--gold)">
+            💡 ${L('هذه البيانات تظهر تلقائياً على رأس كل الوثائق المولّدة من <strong>مركز الوثائق الإدارية والمالية</strong>','Ces données apparaissent automatiquement en haut de chaque document généré depuis le <strong>Centre des documents administratifs</strong>')}
+          </div>
         </div>
 
         <!-- UI Mode -->
@@ -7061,6 +7093,20 @@ Pages.project_detail = function() {
       </div>
       <div class="page-actions">
         <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ ${L('طباعة','Imprimer')}</button>
+        <div style="position:relative;display:inline-block" class="dz-dd">
+          <button class="btn btn-blue btn-sm" onclick="toggleProjDocs(event)" title="${L('وثائق الميدان','Documents chantier')}">📚 ${L('وثائق الميدان','Docs chantier')} ▾</button>
+          <div id="projDocsMenu" class="dz-dd-menu" style="display:none;position:absolute;top:100%;${I18N.currentLang==='ar'?'right':'left'}:0;margin-top:4px;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:240px;z-index:100;padding:.3rem">
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('pv_ouverture',${p.id})">🚀 ${L('محضر بدء الأشغال','PV d\'Ouverture')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('attachement',${p.id})">📐 ${L('كشف المرفقات','Attachement')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('journal',${p.id})">📔 ${L('يوميات الورشة','Journal Chantier')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('pv_reception_pro',${p.id})">🤝 ${L('استلام مؤقت','PV Réception Provisoire')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('pv_reception_def',${p.id})">✅ ${L('استلام نهائي','PV Réception Définitive')}</button>
+            <div style="height:1px;background:var(--border);margin:.3rem 0"></div>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('acompte',${p.id})">⏩ ${L('فاتورة تسبيق','Facture Acompte')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('situation',${p.id})">📈 ${L('كشف أشغال (وضعية)','Situation Travaux')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('def_invoice',${p.id})">🏁 ${L('فاتورة نهائية','Facture Définitive')}</button>
+          </div>
+        </div>
         <button class="btn btn-blue btn-sm" onclick="editProject(${p.id})">✏️ ${L('تعديل','Modifier')}</button>
       </div>
     </div>
@@ -7331,7 +7377,7 @@ const SB_SCHEMA = {
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
   users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login'],
-  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name'],
+  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','article_imp','rib','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name'],
   notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
   audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent'],
   custom_roles:        ['id','tenant_id','name','description','permissions','scope'],
@@ -8573,11 +8619,14 @@ function saveTenantSettings() {
 function saveLegalSettings() {
 
   const tid=Auth.getUser().tenant_id;
+  const rc_number = document.getElementById('setRc')?.value||'';
   const nif = document.getElementById('setNif')?.value||'';
   const nis = document.getElementById('setNis')?.value||'';
+  const article_imp = document.getElementById('setArticleImp')?.value||'';
+  const rib = document.getElementById('setRib')?.value||'';
   const tva = document.getElementById('setTva')?.value||'19';
   const address = document.getElementById('setAddress')?.value||'';
-  const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, nif, nis, tva_rate: parseFloat(tva), address }:t);
+  const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, rc_number, nif, nis, article_imp, rib, tva_rate: parseFloat(tva), address }:t);
   DB.set('tenants', tenants);
   const updLegalTenant = tenants.find(t=>t.id===tid);
   if (updLegalTenant) sbSync('tenants', updLegalTenant, 'PATCH').catch(()=>{});
@@ -10220,6 +10269,7 @@ function sidebarHTML(active='') {
     // ── Docs & Reports Section ──
     const docLinks = [
       navLink('documents','📁',__('nav.documents')),
+      navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
       navLink('reports','📈',__('nav.reports')),
       navLink('bank_report','🏦',L('تقرير بنكي','Rapport bancaire')),
       navLink('simulator','🧮',L('محاكي الربح','Simulateur')),
@@ -10689,7 +10739,10 @@ Pages.salary = function() {
             </div>
             <div style="text-align:left">
               <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(calc.total)} دج</div>
-              ${paid?`<span class="badge badge-active">✅ تم الصرف</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${calc.total})">💳 صرف</button>`:'<span class="badge">معلق</span>'}
+              <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.3rem">
+                <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.total},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}'})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 ${L('كشف PDF','Bulletin PDF')}</button>
+                ${paid?`<span class="badge badge-active">✅ تم الصرف</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${calc.total})">💳 صرف</button>`:'<span class="badge">معلق</span>'}
+              </div>
             </div>
           </div>
           <div class="salary-breakdown">
@@ -10782,6 +10835,21 @@ Pages.invoices = function() {
       </div>
       <div class="page-actions">
         ${canDo('transactions')?`<button class="btn btn-gold" data-modal-open="addInvModal">+ ${L('فاتورة جديدة','Nouvelle facture')}</button>`:''}
+        <div style="position:relative;display:inline-block" class="dz-dd">
+          <button class="btn btn-blue" onclick="toggleFinDocs(event)" title="${L('وثائق مالية إضافية','Documents financiers')}">📚 ${L('وثائق مالية','Docs financiers')} ▾</button>
+          <div id="finDocsMenu" class="dz-dd-menu" style="display:none;position:absolute;top:100%;${I18N.currentLang==='ar'?'right':'left'}:0;margin-top:4px;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:240px;z-index:100;padding:.3rem">
+            <div style="padding:.4rem .8rem;font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px">${L('قبل التعاقد','Pré-contrat')}</div>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('proforma')">📋 ${L('فاتورة شكلية (Proforma)','Facture Proforma')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('devis')">📊 ${L('كشف كمي وتقديري','Devis Estimatif')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('bpu')">💰 ${L('جدول أسعار وحدوية','Bordereau Prix Unit.')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('offre')">🏢 ${L('عرض الخدمة','Offre de Service')}</button>
+            <div style="padding:.4rem .8rem;font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:.3rem;border-top:1px solid var(--border)">${L('المرحلية','Intermédiaires')}</div>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('acompte')">⏩ ${L('فاتورة تسبيق','Facture d\'Acompte')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('situation')">📈 ${L('كشف أشغال (وضعية)','Situation de Travaux')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('def_invoice')">🏁 ${L('فاتورة نهائية','Facture Définitive')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('quittance')">🧾 ${L('وصل تسديد','Quittance Paiement')}</button>
+          </div>
+        </div>
         <button class="btn btn-ghost" onclick="exportInvoicesCSV()">📥 CSV</button>
       </div>
     </div>
@@ -10858,6 +10926,7 @@ Pages.invoices = function() {
             <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
               <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
+              ${inv.status==='paid'?`<button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForInvoice('quittance',${inv.id})" title="${L('وصل تسديد PDF','Quittance PDF')}">🧾</button>`:''}
               ${inv.status!=='paid'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة','Marquer payée')}">✅</button>`:''}
               ${canDo('transactions')?`<button class="btn btn-red btn-sm" onclick="deleteInvoiceItem(${inv.id})">🗑️</button>`:''}
             </div></td>
@@ -11436,7 +11505,11 @@ Pages.inventory = function() {
     <div class="page-header">
       <div><div class="page-title">📦 ${L('إدارة المخزون','Gestion du stock')}</div><div class="page-sub">${materials.length} ${L('مادة مسجلة','matériau(x)')}</div></div>
       <div class="page-actions">
-        <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ ${L('مادة جديدة','Nouveau matériau')}</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>
+        <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('commande')" title="${L('وصل طلب جديد','Nouveau bon de commande')}">🛒 ${L('وصل طلب','Bon commande')}</button>
+        <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('reception')" title="${L('وصل استلام','Bon de réception')}">📥 ${L('وصل استلام','Bon réception')}</button>
+        <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('sortie')" title="${L('وصل خروج','Bon de sortie')}">📤 ${L('وصل خروج','Bon sortie')}</button>
+        ${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ ${L('مادة جديدة','Nouveau matériau')}</button>`:''}
       </div>
     </div>
     ${lowStock.length?`<div class="stock-alert-bar">🔴 ${L('تنبيه:','Alerte :')} ${lowStock.length} ${L('مواد وصلت للحد الأدنى','matériaux en seuil bas')} — ${lowStock.map(m=>escHtml(m.name)).join('، ')}</div>`:''}
@@ -14173,7 +14246,7 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis'];
+    'audit_log','obligations','team','ai_analysis','dz_documents'];
   if (hash && validPages.includes(hash)) {
     App.currentPage = hash;
   }

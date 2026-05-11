@@ -95,7 +95,7 @@ const SUPABASE_CONFIG = {
 ══════════════════════════════════════════════════════ */
 const _SB_SCHEMA_INTERNAL = {
   plans:          ['id','slug','name','price_monthly','price','max_projects','max_workers','max_equipment','max_emails','created_at'],
-  tenants:        ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
+  tenants:        ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','article_imp','rib','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
   users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login','created_at','updated_at'],
   projects:       ['id','tenant_id','name','project_type','wilaya','client_name','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at','updated_at'],
   workers:        ['id','tenant_id','project_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','hire_date','color','avatar_color','is_active','created_at'],

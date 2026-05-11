@@ -93,6 +93,10 @@ CREATE TABLE tenants (
   nif                   VARCHAR(100),
   nis                   VARCHAR(100),
   rc_number             VARCHAR(100),
+  article_imp           VARCHAR(100),         -- ✅ v7.3 رقم المادة الجبائية
+  rib                   VARCHAR(100),         -- ✅ v7.3 رقم الحساب البنكي
+  logo_url              TEXT,                 -- ✅ v7.3 شعار المؤسسة
+  stamp_url             TEXT,                 -- ✅ v7.3 ختم المؤسسة
   tva_rate              INTEGER DEFAULT 19,
   subscription_status   VARCHAR(50) DEFAULT 'pending',
   trial_start           DATE,
@@ -720,4 +724,32 @@ BEGIN
         RAISE NOTICE 'Could not add % to publication: %', tbl, SQLERRM;
     END;
   END LOOP;
+END $$;
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🆕 v7.3 — Migration: إضافة الحقول الجديدة للترويسة القانونية
+--  (للقواعد الموجودة فقط — التشغيل الأول لا يحتاجها)
+-- ══════════════════════════════════════════════════════════════════════
+DO $$
+BEGIN
+  -- إضافة article_imp إن لم يكن موجوداً
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='tenants' AND column_name='article_imp') THEN
+    ALTER TABLE tenants ADD COLUMN article_imp VARCHAR(100);
+  END IF;
+  -- إضافة rib
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='tenants' AND column_name='rib') THEN
+    ALTER TABLE tenants ADD COLUMN rib VARCHAR(100);
+  END IF;
+  -- إضافة logo_url
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='tenants' AND column_name='logo_url') THEN
+    ALTER TABLE tenants ADD COLUMN logo_url TEXT;
+  END IF;
+  -- إضافة stamp_url
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='tenants' AND column_name='stamp_url') THEN
+    ALTER TABLE tenants ADD COLUMN stamp_url TEXT;
+  END IF;
 END $$;
