@@ -738,3 +738,15 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url     TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stamp_url    TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_account VARCHAR(100);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_name    VARCHAR(100);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🆕 v7.3 — Migration: حقول جديدة لجدول documents (نظام الأرشفة)
+-- ══════════════════════════════════════════════════════════════════════
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS meta_data  JSONB;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_kind   VARCHAR(50);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_number VARCHAR(100);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS worker_id  INTEGER REFERENCES workers(id) ON DELETE SET NULL;
+
+-- فهرس لتسريع البحث في الأرشيف
+CREATE INDEX IF NOT EXISTS idx_documents_doc_kind ON documents(doc_kind);
+CREATE INDEX IF NOT EXISTS idx_documents_tenant_kind ON documents(tenant_id, doc_kind);

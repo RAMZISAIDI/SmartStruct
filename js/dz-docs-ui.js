@@ -42,8 +42,8 @@ const DZ_DOC_CATALOG = [
     desc: { ar: 'مرحلة التفاوض والمناقصات والتمويلات البنكية (ANADE)', fr: 'Phase de négociation, appels d\'offres, financement bancaire' },
     docs: [
       { key: 'proforma', icon: '📋', name: { ar: 'فاتورة شكلية', fr: 'Facture Proforma' },     desc: { ar: 'وثيقة غير ملزمة لتقديم الأسعار', fr: 'Devis informatif non engageant' } },
-      { key: 'devis',    icon: '📊', name: { ar: 'كشف كمي وتقديري', fr: 'Devis Estimatif' },   desc: { ar: 'تفصيل دقيق لكل بند من الأشغال', fr: 'Détail des prestations avec quantités' } },
-      { key: 'bpu',      icon: '💰', name: { ar: 'جدول أسعار وحدوية', fr: 'Bordereau Prix Unitaires' }, desc: { ar: 'مرجع قانوني للأسعار حسب الوحدة', fr: 'Prix unitaires fermes par unité' } },
+      { key: 'devis',    icon: '📊', name: { ar: 'كشف كمّي وتقديري', fr: 'Devis Estimatif' },   desc: { ar: 'تفصيل دقيق لكل بند من الأشغال', fr: 'Détail des prestations avec quantités' } },
+      { key: 'bpu',      icon: '💰', name: { ar: 'جدول أسعار وحدويّة', fr: 'Bordereau Prix Unitaires' }, desc: { ar: 'مرجع قانوني للأسعار حسب الوحدة', fr: 'Prix unitaires fermes par unité' } },
       { key: 'offre',    icon: '🏢', name: { ar: 'عرض الخدمة', fr: 'Offre de Service' },       desc: { ar: 'ملف تعريفي بالشركة وسوابقها', fr: 'Présentation entreprise + références' } },
     ]
   },
@@ -512,8 +512,8 @@ _handlers: {
         const items = this._readRows('proItems', ['desc','unit','qty','price'])
           .map(r => ({...r, total: Number(r.qty||0)*Number(r.price||0)}))
           .filter(r => r.desc);
-        if (!this._val('proClient')) { _toast(_L('أدخل اسم العميل','Saisir le client'),'error'); return; }
-        if (!items.length) { _toast(_L('أضف بنداً واحداً على الأقل','Au moins une ligne'),'error'); return; }
+        if (!this._val('proClient')) { _toast(_L('أدخِل اسم العميل','Saisir le client'),'error'); return; }
+        if (!items.length) { _toast(_L('أضِف بندًا واحداً على الأقل','Au moins une ligne'),'error'); return; }
         DZDocs.factureProforma({ clientName:this._val('proClient'), clientNif:this._val('proClientNif'), clientAddress:this._val('proClientAddr'), subject:this._val('proSubject'), validity:this._val('proValid'), payTerms:this._val('proPay'), items });
       });
     },
@@ -521,7 +521,7 @@ _handlers: {
     devis() {
       const projs = this._projectsList();
       const defProj = projs.length === 1 ? projs[0] : null;
-      this._setTitle('📊 ' + _L('كشف كمي وتقديري','Devis Estimatif'));
+      this._setTitle('📊 ' + _L('كشف كمّي وتقديري','Devis Estimatif'));
       this._setBody(`
 <div class="form-grid-2">
   <div class="form-group">
@@ -574,7 +574,7 @@ _handlers: {
           }).filter(i => i.desc);
           return { name, items };
         }).filter(l => l.items.length > 0);
-        if (!lots.length) { _toast(_L('أضف لوطاً واحداً','Ajouter au moins un lot'),'error'); return; }
+        if (!lots.length) { _toast(_L('أضِف لوطًا واحداً','Ajouter au moins un lot'),'error'); return; }
         const projId = this._val('devProj');
         const proj = projId ? this._projectsList().find(p => String(p.id)===String(projId)) : null;
         DZDocs.devisEstimatif({ project: proj||{name:this._val('devProjName')}, maitreOuvrage:this._val('devMO'), delay:this._val('devDelay'), lots });
@@ -584,7 +584,7 @@ _handlers: {
     bpu() {
       const projs = this._projectsList();
       const defProj = projs.length === 1 ? projs[0] : null;
-      this._setTitle('💰 ' + _L('جدول الأسعار الوحدوية','BPU'));
+      this._setTitle('💰 ' + _L('جدول الأسعار الوحدويّة','BPU'));
       this._setBody(`
 <div class="form-grid-2">
   <div class="form-group">
@@ -610,7 +610,7 @@ _handlers: {
       setTimeout(() => this._addRow('bpuItems', ['code','desc','unit','price']), 30);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const items = this._readRows('bpuItems', ['code','desc','unit','price']).filter(i => i.desc);
-        if (!items.length) { _toast(_L('أضف بنداً','Au moins une ligne'),'error'); return; }
+        if (!items.length) { _toast(_L('أضِف بندًا','Au moins une ligne'),'error'); return; }
         DZDocs.bpu({ marketRef:this._val('bpuMarket'), maitreOuvrage:this._val('bpuMO'), subject:this._val('bpuSubject'), items });
       });
     },
@@ -647,7 +647,7 @@ _handlers: {
     <input class="form-input" id="offRecipAddr">
   </div>
   <div class="form-group" style="grid-column:1/-1">
-    <label class="form-label">${_L('تقديم المؤسسة (اتركه فارغاً للنص الافتراضي)','Présentation (vide = défaut)')}</label>
+    <label class="form-label">${_L('تقديم المؤسسة (اتركه فارغًا للنص الافتراضي)','Présentation (laissez vide pour défaut)')}</label>
     <textarea class="form-input" id="offPresent" rows="2"></textarea>
   </div>
   <div class="form-group" style="grid-column:1/-1">
@@ -678,7 +678,7 @@ _handlers: {
 </div>`);
       setTimeout(() => this._addRow('offRefs', ['project','client','year','amount']), 30);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
-        if (!this._val('offRecipient')) { _toast(_L('أدخل المرسل إليه','Saisir le destinataire'),'error'); return; }
+        if (!this._val('offRecipient')) { _toast(_L('أدخِل المرسل إليه','Saisir le destinataire'),'error'); return; }
         DZDocs.offreService({
           recipient:this._val('offRecipient'), recipientAddress:this._val('offRecipAddr'),
           presentation:this._val('offPresent'), domains:this._val('offDomains'),
@@ -748,14 +748,14 @@ _handlers: {
   </div>
   <div class="form-group" style="grid-column:1/-1">
     <label class="form-label">${_L('الملاحظات والمعاينات','Observations')}</label>
-    <textarea class="form-input" id="pvoObs" rows="2" placeholder="${_L('اتركه فارغاً للنص الافتراضي','Vide = texte par défaut')}"></textarea>
+    <textarea class="form-input" id="pvoObs" rows="2" placeholder="${_L('اتركه فارغًا للنص الافتراضي','Vide = texte par défaut')}"></textarea>
   </div>
 </div>`);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const projId = this._val('pvoProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
-        if (!proj) { _toast(_L('اختر مشروعاً','Choisir un projet'),'error'); return; }
-        if (!this._val('pvoMO')) { _toast(_L('أدخل صاحب المشروع','Saisir le MO'),'error'); return; }
+        if (!proj) { _toast(_L('اختر مشروعًا','Choisir un projet'),'error'); return; }
+        if (!this._val('pvoMO')) { _toast(_L('أدخِل صاحب المشروع','Saisir le MO'),'error'); return; }
         DZDocs.pvOuverture({ project:proj, marketRef:this._val('pvoMarket'), maitreOuvrage:this._val('pvoMO'), maitreRep:this._val('pvoMOrep'), entrepriseRep:this._val('pvoEntRep'), bet:this._val('pvoBet'), controle:this._val('pvoCtrl'), date:this._val('pvoDate'), hour:this._val('pvoHour'), startDate:this._val('pvoStart'), delay:this._val('pvoDelay'), observations:this._val('pvoObs') });
       });
     },
@@ -899,8 +899,8 @@ _handlers: {
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const projId = this._val('pvrProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
-        if (!proj) { _toast(_L('اختر مشروعاً','Choisir un projet'),'error'); return; }
-        if (!this._val('pvrMO')) { _toast(_L('أدخل صاحب المشروع','Saisir le MO'),'error'); return; }
+        if (!proj) { _toast(_L('اختر مشروعًا','Choisir un projet'),'error'); return; }
+        if (!this._val('pvrMO')) { _toast(_L('أدخِل صاحب المشروع','Saisir le MO'),'error'); return; }
         DZDocs.pvReception({ kind, project:proj, marketRef:this._val('pvrMarket'), maitreOuvrage:this._val('pvrMO'), date:this._val('pvrDate'), warrantyPeriod:this._val('pvrWarranty'), warrantyEnd:this._val('pvrWarrantyEnd'), reserves:this._readRows('pvrReserves',['desc','deadline','status']) });
       });
     },
@@ -950,8 +950,8 @@ _handlers: {
   </div>
 </div>`);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
-        if (!this._val('acoClient')) { _toast(_L('أدخل العميل','Saisir le client'),'error'); return; }
-        if (!this._num('acoAmount')) { _toast(_L('أدخل مبلغ التسبيق','Saisir le montant'),'error'); return; }
+        if (!this._val('acoClient')) { _toast(_L('أدخِل العميل','Saisir le client'),'error'); return; }
+        if (!this._num('acoAmount')) { _toast(_L('أدخِل مبلغ التسبيق','Saisir le montant'),'error'); return; }
         const projId = this._val('acoProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
         DZDocs.factureAcompte({ clientName:this._val('acoClient'), clientNif:this._val('acoClientNif'), projectName:proj?.name||'', marketRef:this._val('acoMarket'), totalContract:this._num('acoTotal'), amount:this._num('acoAmount'), description:this._val('acoDesc') });
@@ -1014,7 +1014,7 @@ _handlers: {
       setTimeout(() => this._addRow('sitItems',['desc','unit','qtyCumul','price']), 30);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const items = this._readRows('sitItems',['desc','unit','qtyCumul','price']).map(r=>({...r,cumulAmount:Number(r.qtyCumul||0)*Number(r.price||0)}));
-        if (!items.length) { _toast(_L('أضف بنداً','Au moins une ligne'),'error'); return; }
+        if (!items.length) { _toast(_L('أضِف بندًا','Au moins une ligne'),'error'); return; }
         const projId = this._val('sitProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
         DZDocs.situationTravaux({ sitNum:this._val('sitNum'), marketRef:this._val('sitMarket'), projectName:proj?.name||'', maitreOuvrage:this._val('sitMO'), from:this._val('sitFrom'), to:this._val('sitTo'), previousCumul:this._num('sitPrev'), acompteDeducted:this._num('sitAco'), attRef:this._val('sitAtt'), items });
@@ -1068,8 +1068,8 @@ _handlers: {
   </div>
 </div>`);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
-        if (!this._val('defClient')) { _toast(_L('أدخل العميل','Saisir le client'),'error'); return; }
-        if (!this._num('defTotal')) { _toast(_L('أدخل قيمة العقد','Saisir le montant'),'error'); return; }
+        if (!this._val('defClient')) { _toast(_L('أدخِل العميل','Saisir le client'),'error'); return; }
+        if (!this._num('defTotal')) { _toast(_L('أدخِل قيمة العقد','Saisir le montant'),'error'); return; }
         const projId = this._val('defProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
         DZDocs.factureDefinitive({ clientName:this._val('defClient'), clientNif:this._val('defNif'), projectName:proj?.name||'', marketRef:this._val('defMarket'), pvRef:this._val('defPv'), totalContract:this._num('defTotal'), acompteSum:this._num('defAcoSum'), situationsSum:this._num('defSitSum'), payTerms:this._val('defPay') });
@@ -1131,9 +1131,9 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
   </div>
 </div>`);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
-        if (!this._val('quitPayer')) { _toast(_L('أدخل المستلم منه','Saisir le payeur'),'error'); return; }
-        if (!this._num('quitAmount')) { _toast(_L('أدخل المبلغ','Saisir le montant'),'error'); return; }
-        if (!this._val('quitSubject')) { _toast(_L('أدخل الموضوع','Saisir l\'objet'),'error'); return; }
+        if (!this._val('quitPayer')) { _toast(_L('أدخِل المستلم منه','Saisir le payeur'),'error'); return; }
+        if (!this._num('quitAmount')) { _toast(_L('أدخِل المبلغ','Saisir le montant'),'error'); return; }
+        if (!this._val('quitSubject')) { _toast(_L('أدخِل الموضوع','Saisir l\'objet'),'error'); return; }
         DZDocs.quittance({ payerName:this._val('quitPayer'), payerAddress:this._val('quitPayerAddr'), payerNif:this._val('quitPayerNif'), amount:this._num('quitAmount'), invoiceRef:this._val('quitInvRef'), subject:this._val('quitSubject'), method:this._val('quitMethod'), checkNum:this._val('quitRef'), location:this._val('quitLocation') });
       });
     },
@@ -1179,7 +1179,7 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
   </div>
   <div class="form-group">
     <label class="form-label">${_L('الراتب القاعدي (دج)','Salaire de base (DA)')} *</label>
-    <input class="form-input" type="number" id="paieBase" value="${defBase}" min="0" placeholder="${_L('يُملأ تلقائياً عند اختيار العامل','Auto-rempli à la sélection')}">
+    <input class="form-input" type="number" id="paieBase" value="${defBase}" min="0" placeholder="${_L('يُملأ تلقائياً عند اختيار العامل','Pré-rempli à la sélection')}">
   </div>
   <div class="form-group">
     <label class="form-label">${_L('ساعات إضافية (دج)','Heures supp. (DA)')}</label>
@@ -1204,8 +1204,8 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const wid = this._val('paieWorker');
         const worker = wid ? this._workersList().find(w=>String(w.id)===String(wid)) : null;
-        if (!worker) { _toast(_L('اختر عاملاً','Choisir employé'),'error'); return; }
-        if (!this._num('paieBase')) { _toast(_L('أدخل الراتب القاعدي','Saisir salaire base'),'error'); return; }
+        if (!worker) { _toast(_L('اختر عاملًا','Choisir employé'),'error'); return; }
+        if (!this._num('paieBase')) { _toast(_L('أدخِل الراتب القاعدي','Saisir salaire base'),'error'); return; }
         DZDocs.fichePaie({ worker, month:this._val('paieMonth'), daysWorked:this._num('paieDays',26), baseSalary:this._num('paieBase'), overtime:this._num('paieOT'), bonuses:this._num('paieBonus'), transport:this._num('paieTransp'), otherDeductions:this._num('paieOther') });
       });
     },
@@ -1276,7 +1276,7 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const wid = this._val('ctWorker');
         const worker = wid ? this._workersList().find(w=>String(w.id)===String(wid)) : null;
-        if (!worker) { _toast(_L('اختر عاملاً','Choisir employé'),'error'); return; }
+        if (!worker) { _toast(_L('اختر عاملًا','Choisir employé'),'error'); return; }
         const projId = this._val('ctProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
         DZDocs.contract({ kind, worker, workerAddress:this._val('ctWorkerAddr'), employerRep:this._val('ctEmpRep'), startDate:this._val('ctStart'), endDate:this._val('ctEnd'), duration:this._val('ctDuration'), trialPeriod:this._val('ctTrial'), workplace:this._val('ctWorkplace'), projectName:proj?.name||'' });
@@ -1332,7 +1332,7 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const wOpt = document.getElementById('ptWorker')?.selectedOptions?.[0];
         const pOpt = document.getElementById('ptProj')?.selectedOptions?.[0];
-        if (!wOpt?.value) { _toast(_L('اختر عاملاً','Choisir employé'),'error'); return; }
+        if (!wOpt?.value) { _toast(_L('اختر عاملًا','Choisir employé'),'error'); return; }
         DZDocs.fichePointage({ workerName:wOpt.dataset.name, workerRole:wOpt.dataset.role, projectName:pOpt?.dataset?.name||'', from:this._val('ptFrom'), to:this._val('ptTo'), days:this._readRows('ptDays',['date','checkIn','checkOut','hours','overtime','notes']) });
       });
     },
@@ -1369,13 +1369,13 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
   </div>
   <div class="form-group" style="grid-column:1/-1">
     <label class="form-label">${_L('ملاحظات إضافية','Observations')}</label>
-    <textarea class="form-input" id="atObs" rows="2" placeholder="${_L('اتركه فارغاً للنص الافتراضي','Vide = texte par défaut')}"></textarea>
+    <textarea class="form-input" id="atObs" rows="2" placeholder="${_L('اتركه فارغًا للنص الافتراضي','Vide = texte par défaut')}"></textarea>
   </div>
 </div>`);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const wid = this._val('atWorker');
         const worker = wid ? this._workersList().find(w=>String(w.id)===String(wid)) : null;
-        if (!worker) { _toast(_L('اختر عاملاً','Choisir employé'),'error'); return; }
+        if (!worker) { _toast(_L('اختر عاملًا','Choisir employé'),'error'); return; }
         DZDocs.attestationTravail({ worker, startDate:this._val('atStart'), endDate:this._val('atEnd'), signerName:this._val('atSigner'), signerRole:this._val('atSignerRole'), observations:this._val('atObs') });
       });
     },
@@ -1436,8 +1436,8 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
       setTimeout(() => this._addRow('bcItems',['desc','unit','qty','price']), 30);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const items = this._readRows('bcItems',['desc','unit','qty','price']).map(r=>({...r,total:Number(r.qty||0)*Number(r.price||0)})).filter(i=>i.desc);
-        if (!this._val('bcSupplier')) { _toast(_L('أدخل اسم المورد','Saisir fournisseur'),'error'); return; }
-        if (!items.length) { _toast(_L('أضف مادة واحدة','Ajouter article'),'error'); return; }
+        if (!this._val('bcSupplier')) { _toast(_L('أدخِل اسم المورد','Saisir fournisseur'),'error'); return; }
+        if (!items.length) { _toast(_L('أضِف مادّة واحدة','Ajouter article'),'error'); return; }
         const projOpt = document.getElementById('bcProj')?.selectedOptions?.[0];
         DZDocs.bonCommande({ supplierName:this._val('bcSupplier'), supplierPhone:this._val('bcSupplierPhone'), supplierNif:this._val('bcSupplierNif'), supplierAddress:this._val('bcSupplierAddr'), deliveryAddress:this._val('bcDeliveryAddr'), deliveryDate:this._val('bcDeliveryDate'), projectName:projOpt?.dataset?.name||'', payTerms:this._val('bcPay'), items });
       });
@@ -1491,8 +1491,8 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
       setTimeout(() => this._addRow('brItems',['desc','unit','qtyOrdered','qtyDelivered','qtyAccepted','status']), 30);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
         const items = this._readRows('brItems',['desc','unit','qtyOrdered','qtyDelivered','qtyAccepted','status']).filter(i=>i.desc);
-        if (!this._val('brSupplier')) { _toast(_L('أدخل اسم المورد','Saisir fournisseur'),'error'); return; }
-        if (!items.length) { _toast(_L('أضف مادة','Ajouter article'),'error'); return; }
+        if (!this._val('brSupplier')) { _toast(_L('أدخِل اسم المورد','Saisir fournisseur'),'error'); return; }
+        if (!items.length) { _toast(_L('أضِف مادّة','Ajouter article'),'error'); return; }
         const projOpt = document.getElementById('brProj')?.selectedOptions?.[0];
         DZDocs.bonReception({ supplierName:this._val('brSupplier'), supplierPhone:this._val('brSupplierPhone'), bcRef:this._val('brBcRef'), blRef:this._val('brBlRef'), location:this._val('brLocation'), projectName:projOpt?.dataset?.name||'', observations:this._val('brObs'), items });
       });
@@ -1540,7 +1540,7 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
         const items = this._readRows('bsItems',['desc','unit','stockBefore','qtyOut','usage']).filter(i=>i.desc);
         const projOpt = document.getElementById('bsProj')?.selectedOptions?.[0];
         if (!projOpt?.value) { _toast(_L('اختر الورشة','Choisir chantier'),'error'); return; }
-        if (!items.length) { _toast(_L('أضف مادة','Ajouter article'),'error'); return; }
+        if (!items.length) { _toast(_L('أضِف مادّة','Ajouter article'),'error'); return; }
         DZDocs.bonSortie({ projectName:projOpt.dataset.name, location:projOpt.dataset.loc, requestedBy:this._val('bsRequester'), requesterRole:this._val('bsRequesterRole'), date:this._val('bsDate'), observations:this._val('bsObs'), items });
       });
     },
@@ -1848,163 +1848,178 @@ window.DZDocsUI.openAttendanceCard = function() {
 
 
 // ════════════════════════════════════════════════════════════════════
-//  📂 Pages.dz_saved — سجل الوثائق المولَّدة
+//  📂 Pages.archive — أرشيف الوثائق المولّدة (يستخدم DZArchive)
 // ════════════════════════════════════════════════════════════════════
-window.Pages.dz_saved = function() {
+window.Pages.archive = function() {
   if (typeof Auth === 'undefined' || !Auth.getUser()) return '';
-  const tid = Auth.getUser().tenant_id;
-  const allDocs = (DB.get('dz_generated_docs') || []).filter(d => d.tenant_id === tid);
-
-  // خريطة: key → {icon, name_ar, name_fr}
-  const DOC_META = {};
-  if (typeof DZ_DOC_CATALOG !== 'undefined') {
-    DZ_DOC_CATALOG.forEach(sec => sec.docs.forEach(d => {
-      DOC_META[d.key] = { icon: d.icon, ar: d.name.ar, fr: d.name.fr };
-    }));
+  if (typeof DZArchive === 'undefined') {
+    return '<div style="padding:3rem;text-align:center;color:var(--dim)">DZArchive غير محمّل</div>';
   }
 
-  // دالة مساعدة محلية للترجمة
-  const lbl = (ar, fr) => {
-    try { return (typeof I18N !== 'undefined' && I18N.currentLang === 'fr') ? fr : ar; } catch(_) { return ar; }
+  // ── helpers محلية (آمنة خارج IIFE) ──
+  const _L = (ar, fr) => {
+    try { if (typeof L === 'function') return L(ar, fr); } catch(_) {}
+    try { if (typeof I18N !== 'undefined' && I18N && I18N.currentLang === 'fr') return fr; } catch(_) {}
+    return ar;
+  };
+  const _esc = (s) => {
+    if (typeof escHtml === 'function') return escHtml(s);
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   };
 
-  // تصفية بالنوع
-  const filterKey = sessionStorage.getItem('dzs_filter') || 'all';
-  const filtered = filterKey === 'all' ? allDocs : allDocs.filter(d => d.doc_type === filterKey);
+  // sessionStorage آمن
+  const _ss = (k) => { try { return sessionStorage.getItem(k); } catch(_) { return null; } };
+  const filters = {
+    category: _ss('arch_cat')   || '',
+    kind:     _ss('arch_kind')  || '',
+    search:   _ss('arch_search')|| '',
+  };
+  const docs   = DZArchive.list(filters);
+  const stats  = DZArchive.stats();
+  const layoutFn = (typeof layoutHTML === 'function') ? layoutHTML : ((id, t, c) => c);
 
-  // الأنواع الموجودة فعلاً
-  const usedKeys = [...new Set(allDocs.map(d => d.doc_type).filter(Boolean))];
+  const availableKinds = new Set(DZArchive.list().map(d => d.doc_kind));
+  const allKinds = Object.entries(DZ_DOC_REGISTRY || {}).filter(([k]) => availableKinds.has(k));
 
-  const layoutFn = (typeof layoutHTML === 'function') ? layoutHTML : ((_,__,c) => c);
-
-  return layoutFn('dz_saved', lbl('سجل الوثائق المولَّدة','Historique des documents'), `
+  return layoutFn('archive', _L('أرشيف الوثائق', 'Archive des documents'), `
 <style>
-  .dzs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.9rem;margin-top:1rem}
-  .dzs-card{background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.5rem;transition:border-color .2s}
-  .dzs-card:hover{border-color:rgba(232,184,75,.5)}
-  .dzs-type{font-size:.68rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px}
-  .dzs-title{font-size:.9rem;font-weight:800;line-height:1.3}
-  .dzs-date{font-size:.72rem;color:var(--dim)}
-  .dzs-fields{font-size:.72rem;color:var(--muted);line-height:1.7;margin-top:.2rem;border-top:1px solid var(--border);padding-top:.4rem}
-  .dzs-actions{display:flex;gap:.4rem;margin-top:auto;padding-top:.5rem}
-  .dzs-empty{text-align:center;padding:3rem 1rem;color:var(--dim)}
-  .dzs-filter-bar{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+  .arch-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.7rem;margin-bottom:1.2rem}
+  .arch-stat{padding:.9rem 1rem;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s}
+  .arch-stat:hover{border-color:rgba(232,184,75,.4);transform:translateY(-1px)}
+  .arch-stat.active{border-color:#E8B84B;background:rgba(232,184,75,.06)}
+  .arch-stat .lbl{font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+  .arch-stat .num{font-size:1.8rem;font-weight:900;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-top:.2rem}
+  .arch-stat .ic{font-size:1.6rem;margin-bottom:.3rem}
+  .arch-filters{display:flex;gap:.5rem;align-items:center;padding:.8rem 1rem;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;margin-bottom:1rem;flex-wrap:wrap}
+  .arch-filters input,.arch-filters select{padding:.5rem .7rem;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem}
+  .arch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.7rem}
+  .arch-card{padding:.9rem;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;display:flex;gap:.7rem;align-items:flex-start;transition:all .15s}
+  .arch-card:hover{border-color:rgba(232,184,75,.3)}
+  .arch-card .ic{font-size:1.8rem}
+  .arch-card .info{flex:1;min-width:0}
+  .arch-card .lbl{font-size:.88rem;font-weight:800;color:var(--text);margin-bottom:.2rem}
+  .arch-card .num{font-size:.74rem;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-bottom:.15rem}
+  .arch-card .meta{font-size:.7rem;color:var(--dim)}
+  .arch-card .actions{display:flex;flex-direction:column;gap:.25rem}
+  .arch-empty{padding:3rem 1rem;text-align:center;color:var(--dim);background:var(--card-bg,#0e1720);border:1px dashed var(--border);border-radius:14px}
+  .arch-empty .ic{font-size:3rem;margin-bottom:.6rem}
+  .arch-import-zone{background:linear-gradient(135deg,rgba(74,144,226,.06),rgba(74,144,226,.02));border:1px dashed rgba(74,144,226,.4);border-radius:12px;padding:1rem 1.2rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 </style>
 
 <div class="page-header">
   <div>
-    <div class="page-title">📂 ${lbl('سجل الوثائق المولَّدة','Historique des documents')}</div>
-    <div class="page-sub">${allDocs.length} ${lbl('وثيقة محفوظة','document(s) enregistré(s)')}</div>
+    <div class="page-title">📁 ${_L('أرشيف الوثائق','Archive des documents')}</div>
+    <div class="page-sub">${_L('جميع الوثائق المُولَّدة محفوظة هنا — يمكنك إعادة طباعتها أو تصديرها للحاسوب','Tous les documents générés sont sauvegardés ici')}</div>
   </div>
   <div class="page-actions">
-    <button class="btn btn-ghost" onclick="App.navigate('dz_documents')">📚 ${lbl('مركز الوثائق','Centre docs')}</button>
-    ${allDocs.length > 0 ? `<button class="btn btn-red btn-sm" onclick="dzsClearAll()">${lbl('🗑️ مسح الكل','🗑️ Tout effacer')}</button>` : ''}
+    <button class="btn btn-blue btn-sm" onclick="DZArchive.triggerImport()" title="${_L('استيراد من ملف JSON','Importer depuis fichier JSON')}">📥 ${_L('استيراد','Importer')}</button>
+    <button class="btn btn-blue btn-sm" onclick="DZArchive.exportAll()" title="${_L('تصدير كل الأرشيف كملف JSON على الحاسوب','Exporter tout l\'archive')}">💾 ${_L('تصدير','Exporter')}</button>
+    <button class="btn btn-gold btn-sm" onclick="App.navigate('dz_documents')">📚 ${_L('مركز الوثائق','Centre docs')}</button>
   </div>
 </div>
 
-<!-- فلتر بالنوع -->
-<div class="dzs-filter-bar">
-  <button class="btn ${filterKey==='all'?'btn-gold':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('dzs_filter','all');App.navigate('dz_saved')">${lbl('الكل','Tout')} (${allDocs.length})</button>
-  ${usedKeys.map(k => {
-    const m = DOC_META[k];
-    const name = m ? lbl(m.ar, m.fr) : k;
-    const count = allDocs.filter(d=>d.doc_type===k).length;
-    return `<button class="btn ${filterKey===k?'btn-gold':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('dzs_filter','${k}');App.navigate('dz_saved')">${m?m.icon:''} ${name} (${count})</button>`;
+<!-- منطقة الاستيراد المرئية -->
+<div class="arch-import-zone">
+  <div style="display:flex;align-items:center;gap:.8rem">
+    <div style="font-size:1.8rem">💾</div>
+    <div>
+      <div style="font-size:.85rem;font-weight:800;color:var(--text)">${_L('احفظ أرشيفك على حاسوبك','Sauvegardez votre archive')}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">${_L('صدّر كل الوثائق كملف JSON واسترجعها لاحقاً من أي جهاز','Exportez puis réimportez depuis n\'importe quel appareil')}</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:.4rem">
+    <button class="btn btn-ghost btn-sm" onclick="DZArchive.triggerImport()">📥 ${_L('استيراد ملف','Importer')}</button>
+    <button class="btn btn-blue btn-sm" onclick="DZArchive.exportAll()">💾 ${_L('تصدير الكل','Tout exporter')}</button>
+  </div>
+</div>
+
+<!-- إحصائيات حسب الفئة -->
+<div class="arch-stats">
+  <div class="arch-stat ${!filters.category?'active':''}" onclick="(function(){try{sessionStorage.removeItem('arch_cat');}catch(_){}App.navigate('archive');})()">
+    <div class="ic">📁</div>
+    <div class="lbl">${_L('الكل','Tous')}</div>
+    <div class="num">${stats.total}</div>
+  </div>
+  <div class="arch-stat ${filters.category==='commercial'?'active':''}" onclick="(function(){try{sessionStorage.setItem('arch_cat','commercial');}catch(_){}App.navigate('archive');})()">
+    <div class="ic" style="color:#3498db">📑</div>
+    <div class="lbl">${_L('تجارية','Commercial')}</div>
+    <div class="num">${stats.byCategory.commercial||0}</div>
+  </div>
+  <div class="arch-stat ${filters.category==='chantier'?'active':''}" onclick="(function(){try{sessionStorage.setItem('arch_cat','chantier');}catch(_){}App.navigate('archive');})()">
+    <div class="ic" style="color:#e67e22">🏗️</div>
+    <div class="lbl">${_L('ميدانية','Chantier')}</div>
+    <div class="num">${stats.byCategory.chantier||0}</div>
+  </div>
+  <div class="arch-stat ${filters.category==='finance'?'active':''}" onclick="(function(){try{sessionStorage.setItem('arch_cat','finance');}catch(_){}App.navigate('archive');})()">
+    <div class="ic" style="color:#27ae60">💵</div>
+    <div class="lbl">${_L('مالية','Finance')}</div>
+    <div class="num">${stats.byCategory.finance||0}</div>
+  </div>
+  <div class="arch-stat ${filters.category==='hr'?'active':''}" onclick="(function(){try{sessionStorage.setItem('arch_cat','hr');}catch(_){}App.navigate('archive');})()">
+    <div class="ic" style="color:#9b59b6">👥</div>
+    <div class="lbl">${_L('موارد بشرية','RH')}</div>
+    <div class="num">${stats.byCategory.hr||0}</div>
+  </div>
+  <div class="arch-stat ${filters.category==='logistics'?'active':''}" onclick="(function(){try{sessionStorage.setItem('arch_cat','logistics');}catch(_){}App.navigate('archive');})()">
+    <div class="ic" style="color:#e74c3c">📦</div>
+    <div class="lbl">${_L('لوجستيك','Logistique')}</div>
+    <div class="num">${stats.byCategory.logistics||0}</div>
+  </div>
+</div>
+
+<!-- شريط الفلاتر -->
+<div class="arch-filters">
+  <input type="text" placeholder="🔍 ${_L('ابحث برقم الوثيقة أو الاسم...','Rechercher...')}" value="${_esc(filters.search)}"
+    onchange="(function(v){try{if(v){sessionStorage.setItem('arch_search',v);}else{sessionStorage.removeItem('arch_search');}}catch(_){}App.navigate('archive');})(this.value)" style="flex:1;min-width:200px">
+  <select onchange="(function(v){try{if(v){sessionStorage.setItem('arch_kind',v);}else{sessionStorage.removeItem('arch_kind');}}catch(_){}App.navigate('archive');})(this.value)">
+    <option value="">— ${_L('كل الأنواع','Tous types')} —</option>
+    ${allKinds.map(([k, reg]) => `<option value="${k}" ${filters.kind===k?'selected':''}>${reg.icon} ${_esc(_L(reg.label.ar, reg.label.fr))}</option>`).join('')}
+  </select>
+  ${(filters.category||filters.kind||filters.search)?`
+  <button class="btn btn-ghost btn-sm" onclick="(function(){try{sessionStorage.removeItem('arch_cat');sessionStorage.removeItem('arch_kind');sessionStorage.removeItem('arch_search');}catch(_){}App.navigate('archive');})()">
+    ✕ ${_L('مسح الفلاتر','Réinitialiser')}
+  </button>`:''}
+</div>
+
+<!-- قائمة الوثائق -->
+${docs.length === 0 ? `
+<div class="arch-empty">
+  <div class="ic">📂</div>
+  <div style="font-size:1.1rem;font-weight:700;margin-bottom:.4rem">${_L('لا توجد وثائق في الأرشيف','Aucun document archivé')}</div>
+  <div style="font-size:.85rem;margin-bottom:1rem">${_L('كل وثيقة تُولّدها ستُحفظ هنا تلقائياً','Chaque document sera sauvegardé automatiquement')}</div>
+  <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+    <button class="btn btn-gold" onclick="App.navigate('dz_documents')">📚 ${_L('انتقل إلى مركز الوثائق','Centre des documents')}</button>
+    <button class="btn btn-ghost" onclick="DZArchive.triggerImport()">📥 ${_L('أو استورد ملف أرشيف','Ou importer archive')}</button>
+  </div>
+</div>
+` : `
+<div class="arch-list">
+  ${docs.map(doc => {
+    const reg = (DZ_DOC_REGISTRY || {})[doc.doc_kind];
+    const icon = reg?.icon || '📄';
+    const label = reg ? _L(reg.label.ar, reg.label.fr) : doc.doc_kind;
+    const dt = new Date(doc.created_at || doc.date);
+    const date  = dt.toLocaleDateString('fr-DZ', { day:'2-digit', month:'2-digit', year:'numeric' });
+    const time  = dt.toLocaleTimeString('fr-DZ', { hour:'2-digit', minute:'2-digit' });
+    const meta  = doc.meta_data || {};
+    const subject = meta.clientName || meta.subject || meta.maitreOuvrage || meta.payerName ||
+                    (meta.worker && meta.worker.full_name) || meta.recipient || meta.supplierName || '—';
+    return `
+    <div class="arch-card">
+      <div class="ic">${icon}</div>
+      <div class="info">
+        <div class="lbl">${_esc(label)}</div>
+        <div class="num">${_esc(doc.doc_number || '—')}</div>
+        <div class="meta">👤 ${_esc(String(subject).substring(0, 40))}</div>
+        <div class="meta">📅 ${date} ${time}</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-blue btn-sm" style="padding:.3rem .55rem" onclick="DZArchive.reprint(${doc.id})" title="${_L('إعادة طباعة','Réimprimer')}">🖨️</button>
+        <button class="btn btn-ghost btn-sm" style="padding:.3rem .55rem;color:#F04E6A" onclick="if(confirm('${_L('حذف هذه الوثيقة من الأرشيف؟','Supprimer ?')}')){DZArchive.delete(${doc.id});App.navigate('archive');}" title="${_L('حذف','Supprimer')}">🗑️</button>
+      </div>
+    </div>`;
   }).join('')}
 </div>
-
-${filtered.length === 0 ? `
-  <div class="dzs-empty">
-    <div style="font-size:3rem;margin-bottom:1rem">📂</div>
-    <div style="font-size:.95rem">${lbl('لا توجد وثائق محفوظة بعد','Aucun document enregistré')}</div>
-    <div style="font-size:.78rem;margin-top:.4rem;color:var(--dim)">${lbl('كل وثيقة تولّدها ستُحفظ هنا تلقائياً','Chaque document généré sera sauvegardé ici')}</div>
-    <button class="btn btn-gold" style="margin-top:1.2rem" onclick="App.navigate('dz_documents')">📚 ${lbl('ابدأ من مركز الوثائق','Aller au centre')}</button>
-  </div>
-` : `
-  <div class="dzs-grid">
-    ${filtered.map(doc => {
-      const m = DOC_META[doc.doc_type];
-      const icon  = m ? m.icon : '📄';
-      const tname = m ? lbl(m.ar, m.fr) : (doc.doc_type || '—');
-
-      // استخراج أبرز الحقول
-      const f = doc.fields || {};
-      const snippetKeys = Object.keys(f).slice(0, 4);
-      const snippet = snippetKeys.map(k => {
-        const v = f[k];
-        if (!v || v.length > 60) return '';
-        return `<span style="color:var(--text)">${String(v).substring(0,40)}</span>`;
-      }).filter(Boolean).join(' · ');
-
-      return `<div class="dzs-card">
-        <div class="dzs-type">${icon} ${tname}</div>
-        <div class="dzs-title">${escHtml ? escHtml(doc.doc_title||tname) : (doc.doc_title||tname)}</div>
-        <div class="dzs-date">📅 ${doc.date || ''}</div>
-        ${snippet ? `<div class="dzs-fields">${snippet}</div>` : ''}
-        <div class="dzs-actions">
-          <button class="btn btn-gold btn-sm" style="flex:1" onclick="dzsReprint(${doc.id})"
-            title="${lbl('إعادة توليد وطباعة','Régénérer & imprimer')}">🖨️ ${lbl('إعادة طباعة','Réimprimer')}</button>
-          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="dzsReopen(${doc.id})"
-            title="${lbl('فتح النموذج مع البيانات السابقة','Rouvrir avec données')}">✏️ ${lbl('تعديل','Modifier')}</button>
-          <button class="btn btn-red btn-sm" onclick="dzsDelete(${doc.id})" title="${lbl('حذف','Supprimer')}">🗑️</button>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>
 `}
   `);
-};
-
-// ── دوال سجل الوثائق ──
-
-window.dzsDelete = function(id) {
-  if (!confirm(_L ? _L('حذف هذه الوثيقة من السجل؟','Supprimer ce document du registre ?') : 'Supprimer ?')) return;
-  const docs = (DB.get('dz_generated_docs') || []).filter(d => d.id !== id);
-  DB.set('dz_generated_docs', docs);
-  App.navigate('dz_saved');
-};
-
-window.dzsClearAll = function() {
-  const msg = typeof L === 'function'
-    ? L('مسح جميع الوثائق المحفوظة؟ لا يمكن التراجع.','Effacer tout l\'historique ? Irréversible.')
-    : 'Effacer tout ?';
-  if (!confirm(msg)) return;
-  const tid = Auth.getUser()?.tenant_id;
-  const remaining = (DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id!==tid);
-  DB.set('dz_generated_docs', remaining);
-  App.navigate('dz_saved');
-};
-
-// إعادة فتح النموذج مع ملء الحقول بالبيانات المحفوظة
-window.dzsReopen = function(id) {
-  const doc = (DB.get('dz_generated_docs')||[]).find(d=>d.id===id);
-  if (!doc || !doc.doc_type) return;
-  DZDocsUI.open(doc.doc_type);
-  setTimeout(() => {
-    const fields = doc.fields || {};
-    Object.keys(fields).forEach(fid => {
-      const el = document.getElementById(fid);
-      if (el && fields[fid]) el.value = fields[fid];
-    });
-  }, 150);
-};
-
-// إعادة توليد وطباعة مباشرة (فتح النموذج ثم ضغط توليد تلقائياً)
-window.dzsReprint = function(id) {
-  const doc = (DB.get('dz_generated_docs')||[]).find(d=>d.id===id);
-  if (!doc || !doc.doc_type) return;
-  DZDocsUI.open(doc.doc_type);
-  setTimeout(() => {
-    // ملء الحقول
-    const fields = doc.fields || {};
-    Object.keys(fields).forEach(fid => {
-      const el = document.getElementById(fid);
-      if (el && fields[fid]) el.value = fields[fid];
-    });
-    // ثم نضغط زر التوليد تلقائياً
-    setTimeout(() => {
-      const btn = document.getElementById('dzdGenerateBtn');
-      if (btn) btn.click();
-    }, 120);
-  }, 180);
 };

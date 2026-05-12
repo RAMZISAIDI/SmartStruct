@@ -7,11 +7,11 @@
    ① الوثائق التجارية (Pre-Contract)
       • Facture Proforma  — الفاتورة الشكلية
       • Devis Estimatif   — الكشف الكمي والتقديري
-      • BPU              — جدول الأسعار الوحدوية
+      • BPU              — جدول الأسعار الوحدويّة
       • Offre de Service  — عرض الخدمة
       
    ② وثائق الميدان (Execution)
-      • PV d'Ouverture    — محضر بدء الأشغال
+      • PV d'ouverture    — محضر بدء الأشغال
       • Attachement       — كشف المرفقات
       • Journal de Chantier — يوميات الورشة
       • PV de Réception   — محضر الاستلام (مؤقت/نهائي)
@@ -102,140 +102,215 @@ function _getLogo() {
 // ════════════════════════════════════════════════════════════════════
 const _SHARED_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+/* ════════════════════════════════════════════════════════════════════
+   🖨️ Eco-Print Mode — تصميم اقتصادي يوفر حبر الطابعة
+   - بدون خلفيات داكنة
+   - استخدام الخطوط الرفيعة الأنيقة بدلاً من الكتل الملوّنة
+   - حدود رفيعة بدلاً من المساحات الممتلئة
+   ════════════════════════════════════════════════════════════════════ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: 'Cairo', 'Tajawal', Arial, sans-serif;
-  color: #1a1a1a; background: #f4f4f6; padding: 24px;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', Arial, sans-serif;
+  color: #2c2c2c; background: #fafafa; padding: 24px;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .no-print {
   display: flex; gap: 10px; margin-bottom: 18px; justify-content: flex-start; flex-wrap: wrap;
 }
 .btn-print {
-  padding: 9px 22px; background: #E8B84B; color: #1a1000;
-  border: none; border-radius: 8px; cursor: pointer;
+  padding: 9px 22px; background: #B8902F; color: #fff;
+  border: none; border-radius: 6px; cursor: pointer;
   font-family: inherit; font-size: 13px; font-weight: 700;
 }
-.btn-print:hover { background: #d4a83a; }
+.btn-print:hover { background: #a07d28; }
 .btn-close {
-  padding: 9px 18px; background: #2a2a2a; color: #ccc;
-  border: none; border-radius: 8px; cursor: pointer;
+  padding: 9px 18px; background: #fff; color: #555;
+  border: 1px solid #ccc; border-radius: 6px; cursor: pointer;
   font-family: inherit; font-size: 13px;
 }
+.btn-close:hover { background: #f5f5f5; }
 .page {
   background: #fff; max-width: 820px; margin: 0 auto;
-  border-radius: 4px; overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0,0,0,.12);
+  border: 1px solid #e5e5e5;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
-/* === Header قانوني موحد === */
+
+/* ═════════ Header — حدود رفيعة بدلاً من خلفية داكنة ═════════ */
 .dz-header {
-  background: #141414; padding: 22px 32px;
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
+  background: #fff; padding: 18px 28px;
+  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  border-bottom: 2px solid #B8902F;
 }
-.dz-brand { display: flex; align-items: center; gap: 16px; flex: 1; }
-.dz-brand img { height: 56px; max-width: 140px; object-fit: contain; border-radius: 4px; background: #fff; padding: 4px; }
-.dz-brand-text .name { font-size: 18px; font-weight: 900; color: #E8B84B; letter-spacing: .3px; }
-.dz-brand-text .legal { font-size: 9.5px; color: #aaa; margin-top: 3px; line-height: 1.6; }
-.dz-doc-title { text-align: left; }
-.dz-doc-title .label { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: 1.5px; }
-.dz-doc-title .num { font-size: 12px; color: #E8B84B; font-weight: 700; margin-top: 4px; }
-.dz-doc-title .date { font-size: 10px; color: #999; margin-top: 2px; }
-.gold-bar { height: 3px; background: linear-gradient(90deg,#C49030,#E8B84B,#C49030); }
-/* === Sections === */
-.section { padding: 18px 32px; border-bottom: 1px solid #f0f0f0; }
+.dz-brand { display: flex; align-items: center; gap: 14px; flex: 1; }
+.dz-brand img {
+  height: 60px; max-width: 130px; object-fit: contain;
+  border: 1px solid #e5e5e5; padding: 3px; background: #fff;
+}
+.dz-brand-text .name {
+  font-size: 17px; font-weight: 800; color: #B8902F;
+  letter-spacing: .2px;
+}
+.dz-brand-text .legal {
+  font-size: 9.5px; color: #666; margin-top: 4px; line-height: 1.7;
+}
+.dz-doc-title {
+  text-align: left; border-right: 2px solid #B8902F; padding-right: 16px;
+}
+.dz-doc-title .label {
+  font-size: 19px; font-weight: 800; color: #2c2c2c;
+  letter-spacing: 1.2px; text-transform: uppercase;
+}
+.dz-doc-title .num {
+  font-size: 11px; color: #B8902F; font-weight: 700; margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.dz-doc-title .date { font-size: 10px; color: #888; margin-top: 2px; }
+.gold-bar { height: 1px; background: #B8902F; }
+
+/* ═════════ Sections ═════════ */
+.section { padding: 14px 28px; border-bottom: 1px solid #f0f0f0; }
 .section:last-child { border-bottom: none; }
 .section-title {
-  font-size: 11px; font-weight: 700; color: #888;
-  text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
+  font-size: 10.5px; font-weight: 700; color: #B8902F;
+  text-transform: uppercase; letter-spacing: .7px; margin-bottom: 8px;
+  padding-bottom: 4px; border-bottom: 1px dashed #d8d8d8;
 }
-.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.info-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-.info-block { background: #fafafa; padding: 12px 14px; border-radius: 6px; border-right: 3px solid #E8B84B; }
-.info-block h4 { font-size: 11px; color: #888; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
-.info-block p { font-size: 12.5px; line-height: 1.7; color: #222; margin: 2px 0; }
-.info-block strong { color: #111; font-weight: 700; }
-/* === Tables === */
-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 10px 0; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.info-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.info-block {
+  background: #fff; padding: 10px 12px;
+  border: 1px solid #e5e5e5; border-right: 2px solid #B8902F;
+  border-radius: 4px;
+}
+.info-block h4 {
+  font-size: 10px; color: #888; font-weight: 700;
+  margin-bottom: 5px; text-transform: uppercase; letter-spacing: .3px;
+}
+.info-block p {
+  font-size: 12px; line-height: 1.7; color: #333; margin: 1px 0;
+}
+.info-block strong { color: #2c2c2c; font-weight: 700; }
+
+/* ═════════ Tables — أنيقة وخفيفة ═════════ */
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 8px 0; }
 thead th {
-  background: #141414; color: #E8B84B;
-  padding: 9px 12px; text-align: right;
-  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  background: #fafafa;
+  color: #2c2c2c;
+  padding: 8px 10px; text-align: right;
+  font-size: 10px; font-weight: 700; letter-spacing: .3px;
+  border-bottom: 2px solid #B8902F;
+  border-top: 1px solid #e5e5e5;
+  text-transform: uppercase;
 }
 thead th:last-child, thead th.td-right { text-align: left; }
-tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; color: #222; vertical-align: top; }
-tbody tr:last-child td { border-bottom: none; }
-tbody tr:nth-child(even) td { background: #fafafa; }
+tbody td {
+  padding: 8px 10px; border-bottom: 1px solid #f0f0f0;
+  color: #333; vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: 1px solid #e5e5e5; }
+tbody tr:nth-child(even) td { background: #fcfcfc; }
 .td-right { text-align: left; font-variant-numeric: tabular-nums; }
 .td-center { text-align: center; }
-.td-num { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
-/* === Totaux === */
-.totals-section { display: flex; justify-content: flex-end; padding: 16px 32px; border-top: 1px solid #f0f0f0; }
+.td-num { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #2c2c2c; }
+
+/* ═════════ Totals — مع حدود فقط ═════════ */
+.totals-section { display: flex; justify-content: flex-end; padding: 14px 28px; border-top: 1px solid #e5e5e5; }
 .totals-box { width: 320px; }
-.total-row { display: flex; justify-content: space-between; padding: 6px 4px; font-size: 12.5px; color: #555; border-bottom: 1px solid #f4f4f4; }
+.total-row {
+  display: flex; justify-content: space-between;
+  padding: 5px 4px; font-size: 12px; color: #555;
+  border-bottom: 1px solid #f4f4f4;
+}
 .total-row:last-child { border: none; }
 .total-final {
   display: flex; justify-content: space-between;
-  margin-top: 8px; padding: 11px 14px;
-  background: #141414; border-radius: 6px;
-  font-size: 14px; font-weight: 900; color: #E8B84B;
+  margin-top: 6px; padding: 10px 14px;
+  background: #fff;
+  border: 2px solid #B8902F; border-radius: 4px;
+  font-size: 13.5px; font-weight: 800; color: #B8902F;
 }
-/* === Signatures === */
-.signatures { display: flex; justify-content: space-between; gap: 30px; padding: 30px 32px 16px; }
+
+/* ═════════ Signatures ═════════ */
+.signatures { display: flex; justify-content: space-between; gap: 24px; padding: 24px 28px 14px; }
 .sig-block { flex: 1; text-align: center; }
-.sig-block .role { font-size: 11px; color: #777; margin-bottom: 50px; font-weight: 700; text-transform: uppercase; }
-.sig-block .line { border-top: 1px solid #1a1a1a; padding-top: 6px; font-size: 10px; color: #555; }
+.sig-block .role {
+  font-size: 10.5px; color: #777; margin-bottom: 45px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+}
+.sig-block .line {
+  border-top: 1px solid #888; padding-top: 5px;
+  font-size: 10px; color: #555;
+}
 .stamp-zone {
-  border: 2px dashed #E8B84B; border-radius: 6px;
-  padding: 20px; min-height: 80px;
-  text-align: center; color: #C49030; font-size: 10px; font-weight: 700;
+  border: 1.5px dashed #B8902F; border-radius: 4px;
+  padding: 18px 12px; min-height: 70px;
+  text-align: center; color: #B8902F;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .4px;
 }
-/* === Footer === */
+
+/* ═════════ Footer — خفيف ═════════ */
 .dz-footer {
-  background: #141414; padding: 10px 32px;
+  background: #fafafa; padding: 8px 28px;
   display: flex; justify-content: space-between; align-items: center;
+  border-top: 1px solid #e5e5e5;
 }
-.dz-footer span { font-size: 10px; color: #666; }
-.dz-footer .gold-text { color: #E8B84B; font-weight: 700; }
-/* === Articles juridiques === */
-.article { padding: 10px 32px; }
-.article h3 { font-size: 13px; color: #1a1a1a; font-weight: 900; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 2px solid #E8B84B; display: inline-block; }
-.article p { font-size: 12px; line-height: 1.9; color: #333; text-align: justify; }
-/* === Big amount === */
+.dz-footer span { font-size: 9.5px; color: #888; }
+.dz-footer .gold-text { color: #B8902F; font-weight: 600; }
+
+/* ═════════ Articles ═════════ */
+.article { padding: 10px 28px; }
+.article h3 {
+  font-size: 12.5px; color: #2c2c2c; font-weight: 800;
+  margin-bottom: 5px; padding-bottom: 3px;
+  border-bottom: 1.5px solid #B8902F; display: inline-block;
+}
+.article p { font-size: 11.5px; line-height: 1.85; color: #333; text-align: justify; }
+
+/* ═════════ Big amount — بحدود بدلاً من خلفية ═════════ */
 .big-amount {
-  font-size: 28px; font-weight: 900; color: #E8B84B;
-  text-align: center; padding: 16px; background: #141414;
-  border-radius: 8px; letter-spacing: 1px; margin: 16px 32px;
+  font-size: 24px; font-weight: 800; color: #B8902F;
+  text-align: center; padding: 14px;
+  background: #fff;
+  border: 2px solid #B8902F; border-radius: 4px;
+  letter-spacing: .8px; margin: 14px 28px;
 }
-/* === Notes === */
+
+/* ═════════ Notes ═════════ */
 .notes-block {
-  margin: 8px 32px;
-  padding: 10px 14px;
-  background: #fafafa;
-  border-left: 3px solid #E8B84B;
-  border-radius: 0 4px 4px 0;
-  font-size: 11.5px; color: #555; line-height: 1.7;
+  margin: 8px 28px; padding: 8px 12px;
+  background: #fff; border: 1px solid #e5e5e5;
+  border-left: 3px solid #B8902F; border-radius: 0 4px 4px 0;
+  font-size: 11px; color: #555; line-height: 1.7;
 }
-/* === Watermark === */
+
+/* ═════════ Watermark ═════════ */
 .watermark {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%,-50%) rotate(-30deg);
-  font-size: 110px; font-weight: 900; color: #E8B84B;
-  opacity: .04; pointer-events: none; z-index: 0;
-  letter-spacing: 8px;
+  font-size: 90px; font-weight: 900; color: #B8902F;
+  opacity: .035; pointer-events: none; z-index: 0;
+  letter-spacing: 6px;
 }
 .page { position: relative; }
 .page > * { position: relative; z-index: 1; }
-/* === République === */
+
+/* ═════════ République ═════════ */
 .republique {
-  text-align: center; padding: 12px 32px 0;
-  font-size: 11px; color: #555; line-height: 1.6; font-weight: 600;
+  text-align: center; padding: 10px 28px 0;
+  font-size: 10.5px; color: #555; line-height: 1.5; font-weight: 600;
 }
-.republique .ar { font-size: 12.5px; color: #1a1a1a; font-weight: 700; }
+.republique .ar { font-size: 12px; color: #2c2c2c; font-weight: 700; }
+
+/* ═════════ Print Optimizations ═════════ */
 @media print {
   body { background: #fff; padding: 0; }
   .no-print { display: none !important; }
-  .page { box-shadow: none; border-radius: 0; max-width: 100%; }
+  .page { box-shadow: none; border: none; max-width: 100%; }
   @page { size: A4; margin: 1cm; }
+  /* تجنب كسر الجداول عبر الصفحات */
+  table { page-break-inside: avoid; }
+  tr { page-break-inside: avoid; }
+  .signatures { page-break-inside: avoid; }
 }
 `;
 
@@ -248,7 +323,7 @@ function _buildHeader(tenant, docLabel, docNumber, docDate) {
   if (tenant?.rc_number) lines.push(`RC: ${_esc(tenant.rc_number)}`);
   if (tenant?.nif)       lines.push(`NIF: ${_esc(tenant.nif)}`);
   if (tenant?.nis)       lines.push(`NIS: ${_esc(tenant.nis)}`);
-  if (tenant?.article_imp) lines.push(`Art. d'imp: ${_esc(tenant.article_imp)}`);
+  if (tenant?.article_imp) lines.push(`Art. d'imp.: ${_esc(tenant.article_imp)}`);
   if (tenant?.address)   lines.push(`📍 ${_esc(tenant.address)}${tenant?.wilaya ? ', ' + _esc(tenant.wilaya) : ''}`);
   if (tenant?.phone)     lines.push(`📞 ${_esc(tenant.phone)}`);
   if (tenant?.rib)       lines.push(`RIB: ${_esc(tenant.rib)}`);
@@ -317,6 +392,18 @@ function _wrap(title, bodyHtml, watermarkText) {
 <body>
 <div class="no-print">
   <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+  <button class="btn-print" style="background:#34C38F" onclick="(function(){
+    const html = document.documentElement.outerHTML;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ${JSON.stringify(title)} + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  })()">💾 حفظ على الحاسوب</button>
   <button class="btn-close" onclick="window.close()">✕ إغلاق</button>
 </div>
 <div class="page">
@@ -555,7 +642,7 @@ ${_buildHeader(tenant, 'BORDEREAU DES PRIX UNITAIRES', num, _fmtDate(opts.date |
 </div>
 
 <div class="section">
-  <div class="section-title">💰 Liste des prix unitaires / قائمة الأسعار الوحدوية</div>
+  <div class="section-title">💰 Liste des prix unitaires / قائمة الأسعار الوحدويّة</div>
   <table>
     <thead><tr>
       <th style="width:50px">N°</th>
@@ -702,7 +789,7 @@ ${_buildFooter(num)}`;
      ② وثائق الميدان (Execution Phase)
      ════════════════════════════════════════════════════ */
 
-  // 2.1 PV d'Ouverture de Chantier — محضر بدء الأشغال
+  // 2.1 PV d'ouverture de Chantier — محضر بدء الأشغال
   pvOuverture(opts) {
     opts = opts || {};
     const tenant = Auth.getTenant() || {};
@@ -859,9 +946,9 @@ ${_buildHeader(tenant, 'ATTACHEMENT N° ' + (opts.attNum || '01'), num, _fmtDate
             <td class="td-right td-num"><strong>${_fmt(amount)}</strong></td>
           </tr>`;
         }).join('')}
-      ${items.length > 0 ? `<tr style="background:#141414 !important">
-        <td colspan="7" style="text-align:left;font-weight:900;color:#E8B84B;padding:12px">TOTAL EXÉCUTÉ HT</td>
-        <td class="td-right td-num" style="font-weight:900;color:#E8B84B;padding:12px">${_fmt(total)} DA</td>
+      ${items.length > 0 ? `<tr style="background:#fafafa !important">
+        <td colspan="7" style="text-align:left;font-weight:900;color:#B8902F;padding:12px;border-top:2px solid #B8902F">TOTAL EXÉCUTÉ HT</td>
+        <td class="td-right td-num" style="font-weight:900;color:#B8902F;padding:12px;border-top:2px solid #B8902F">${_fmt(total)} DA</td>
       </tr>` : ''}
     </tbody>
   </table>
@@ -1319,9 +1406,9 @@ ${_buildHeader(tenant, 'FACTURE DÉFINITIVE', num, _fmtDate(opts.date || _todayI
         <td>TVA ${tvaRate}%</td>
         <td class="td-right td-num">${_fmt(tva)}</td>
       </tr>
-      <tr style="background:#141414 !important">
-        <td style="color:#E8B84B;font-weight:900;padding:12px">MONTANT TOTAL TTC</td>
-        <td class="td-right td-num" style="color:#E8B84B;font-weight:900;padding:12px">${_fmt(total)}</td>
+      <tr style="background:#fafafa !important">
+        <td style="color:#B8902F;font-weight:900;padding:12px">MONTANT TOTAL TTC</td>
+        <td class="td-right td-num" style="color:#B8902F;font-weight:900;padding:12px">${_fmt(total)}</td>
       </tr>
       ${acompteSum > 0 ? `<tr style="color:#c0392b">
         <td>− Acomptes versés</td>
@@ -1335,9 +1422,9 @@ ${_buildHeader(tenant, 'FACTURE DÉFINITIVE', num, _fmtDate(opts.date || _todayI
         <td>− Retenue de garantie 5%</td>
         <td class="td-right td-num">${_fmt(retenue)}</td>
       </tr>
-      <tr style="background:#0a6e3f !important">
-        <td style="color:#fff;font-weight:900;padding:12px">NET À PAYER</td>
-        <td class="td-right td-num" style="color:#fff;font-weight:900;padding:12px;font-size:14px">${_fmt(netToPay)} DA</td>
+      <tr style="background:#fff !important">
+        <td style="color:#0a6e3f;font-weight:900;padding:12px;border-top:2px solid #0a6e3f">NET À PAYER</td>
+        <td class="td-right td-num" style="color:#0a6e3f;font-weight:900;padding:12px;font-size:14px;border-top:2px solid #0a6e3f">${_fmt(netToPay)} DA</td>
       </tr>
     </tbody>
   </table>
@@ -1802,11 +1889,11 @@ ${_buildHeader(tenant, 'FICHE DE POINTAGE', num, _fmtDate(opts.date || _todayISO
           <td class="td-center td-num" style="color:${d.overtime>0?'#0a6e3f':'#999'}">${_esc(d.overtime || 0)} h</td>
           <td style="font-size:11px">${_esc(d.notes || '')}</td>
         </tr>`).join('')}
-      <tr style="background:#141414 !important">
-        <td colspan="3" style="text-align:left;font-weight:900;color:#E8B84B;padding:12px">TOTAL</td>
-        <td class="td-center td-num" style="font-weight:900;color:#E8B84B;padding:12px">${totalHours - totalOT} h</td>
-        <td class="td-center td-num" style="font-weight:900;color:#E8B84B;padding:12px">${totalOT} h</td>
-        <td style="color:#E8B84B;font-weight:700;padding:12px">${days.length} jour(s)</td>
+      <tr style="background:#fafafa !important">
+        <td colspan="3" style="text-align:left;font-weight:900;color:#B8902F;padding:12px;border-top:2px solid #B8902F">TOTAL</td>
+        <td class="td-center td-num" style="font-weight:900;color:#B8902F;padding:12px;border-top:2px solid #B8902F">${totalHours - totalOT} h</td>
+        <td class="td-center td-num" style="font-weight:900;color:#B8902F;padding:12px;border-top:2px solid #B8902F">${totalOT} h</td>
+        <td style="color:#B8902F;font-weight:700;padding:12px">${days.length} jour(s)</td>
       </tr>
     </tbody>
   </table>
@@ -2217,10 +2304,10 @@ ${_buildHeader(tenant, "FICHE DE SUIVI D'ÉQUIPEMENT", num, _fmtDate(opts.date |
           <td class="td-center td-num">${_fmt(u.fuel || 0)}</td>
           <td style="font-size:11px">${_esc(u.notes || '')}</td>
         </tr>`).join('')}
-      ${usages.length > 0 ? `<tr style="background:#141414 !important">
-        <td colspan="4" style="text-align:left;font-weight:900;color:#E8B84B;padding:10px">TOTAL</td>
-        <td class="td-center td-num" style="font-weight:900;color:#E8B84B;padding:10px">${totalHours} h</td>
-        <td class="td-center td-num" style="font-weight:900;color:#E8B84B;padding:10px">${_fmt(totalFuel)} L</td>
+      ${usages.length > 0 ? `<tr style="background:#fafafa !important">
+        <td colspan="4" style="text-align:left;font-weight:900;color:#B8902F;padding:10px;border-top:2px solid #B8902F">TOTAL</td>
+        <td class="td-center td-num" style="font-weight:900;color:#B8902F;padding:10px;border-top:2px solid #B8902F">${totalHours} h</td>
+        <td class="td-center td-num" style="font-weight:900;color:#B8902F;padding:10px;border-top:2px solid #B8902F">${_fmt(totalFuel)} L</td>
         <td></td>
       </tr>` : ''}
     </tbody>
@@ -2278,5 +2365,326 @@ ${_buildFooter(num)}`;
 };
 
 console.log('✅ DZDocs — وحدة الوثائق الجزائرية الاحترافية محمّلة (20+ نوع وثيقة)');
+
+// ════════════════════════════════════════════════════════════════════
+//  📁 DZArchive — نظام أرشفة الوثائق المولّدة
+// ════════════════════════════════════════════════════════════════════
+const DZ_DOC_REGISTRY = {
+  proforma:         { category: 'commercial', label: { ar:'فاتورة شكلية', fr:'Facture Proforma' },    fn: 'factureProforma',  prefix: 'PRO',     icon: '📋' },
+  devis:            { category: 'commercial', label: { ar:'كشف تقديري', fr:'Devis Estimatif' },       fn: 'devisEstimatif',   prefix: 'DEV',     icon: '📊' },
+  bpu:              { category: 'commercial', label: { ar:'جدول أسعار', fr:'BPU' },                   fn: 'bpu',              prefix: 'BPU',     icon: '💰' },
+  offre:            { category: 'commercial', label: { ar:'عرض خدمة', fr:'Offre Service' },           fn: 'offreService',     prefix: 'OFF',     icon: '🏢' },
+  pv_ouverture:     { category: 'chantier',   label: { ar:'محضر بدء أشغال', fr:'PV Ouverture' },     fn: 'pvOuverture',      prefix: 'PV-OUV',  icon: '🚀' },
+  attachement:      { category: 'chantier',   label: { ar:'كشف مرفقات', fr:'Attachement' },           fn: 'attachement',      prefix: 'ATT',     icon: '📐' },
+  journal:          { category: 'chantier',   label: { ar:'يوميات ورشة', fr:'Journal Chantier' },     fn: 'journalChantier',  prefix: 'JC',      icon: '📔' },
+  pv_reception_pro: { category: 'chantier',   label: { ar:'استلام مؤقت', fr:'PV Réception Prov.' },   fn: 'pvReception',      prefix: 'PV-PRO',  icon: '🤝', extraArgs: { kind: 'pro' } },
+  pv_reception_def: { category: 'chantier',   label: { ar:'استلام نهائي', fr:'PV Réception Déf.' },   fn: 'pvReception',      prefix: 'PV-DEF',  icon: '✅', extraArgs: { kind: 'final' } },
+  acompte:          { category: 'finance',    label: { ar:'فاتورة تسبيق', fr:'Facture Acompte' },     fn: 'factureAcompte',   prefix: 'ACO',     icon: '⏩' },
+  situation:        { category: 'finance',    label: { ar:'كشف أشغال', fr:'Situation Travaux' },      fn: 'situationTravaux', prefix: 'SIT',     icon: '📈' },
+  def_invoice:      { category: 'finance',    label: { ar:'فاتورة نهائية', fr:'Facture Définitive' }, fn: 'factureDefinitive',prefix: 'DEF',     icon: '🏁' },
+  quittance:        { category: 'finance',    label: { ar:'وصل تسديد', fr:'Quittance' },              fn: 'quittance',        prefix: 'QUIT',    icon: '🧾' },
+  paie:             { category: 'hr',         label: { ar:'كشف راتب', fr:'Bulletin Paie' },           fn: 'fichePaie',        prefix: 'PAIE',    icon: '💼' },
+  cdd:              { category: 'hr',         label: { ar:'عقد CDD', fr:'Contrat CDD' },              fn: 'contract',         prefix: 'CONT-CDD', icon: '📝', extraArgs: { kind: 'cdd' } },
+  cta:              { category: 'hr',         label: { ar:'عقد CTA', fr:'Contrat CTA' },              fn: 'contract',         prefix: 'CONT-CTA', icon: '🤝', extraArgs: { kind: 'cta' } },
+  cdi:              { category: 'hr',         label: { ar:'عقد CDI', fr:'Contrat CDI' },              fn: 'contract',         prefix: 'CONT-CDI', icon: '🔒', extraArgs: { kind: 'cdi' } },
+  pointage:         { category: 'hr',         label: { ar:'بطاقة حضور', fr:'Fiche Pointage' },         fn: 'fichePointage',    prefix: 'POINT',   icon: '⏱️' },
+  attestation:      { category: 'hr',         label: { ar:'شهادة عمل', fr:'Attestation Travail' },    fn: 'attestationTravail',prefix: 'ATT-TRAV', icon: '📄' },
+  commande:         { category: 'logistics',  label: { ar:'وصل طلب', fr:'Bon Commande' },             fn: 'bonCommande',      prefix: 'BC',      icon: '🛒' },
+  reception:        { category: 'logistics',  label: { ar:'وصل استلام', fr:'Bon Réception' },         fn: 'bonReception',     prefix: 'BR',      icon: '📥' },
+  sortie:           { category: 'logistics',  label: { ar:'وصل خروج', fr:'Bon Sortie' },              fn: 'bonSortie',        prefix: 'BS',      icon: '📤' },
+  suivi:            { category: 'logistics',  label: { ar:'بطاقة تتبع عتاد', fr:'Suivi Équipement' }, fn: 'ficheSuiviEquip',  prefix: 'FSE',     icon: '🚜' },
+};
+
+window.DZ_DOC_REGISTRY = DZ_DOC_REGISTRY;
+
+window.DZArchive = {
+
+  save(kind, opts) {
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return null;
+    const reg = DZ_DOC_REGISTRY[kind];
+    if (!reg) return null;
+
+    const tenant_id = Auth.getUser().tenant_id;
+    const user_id   = Auth.getUser().id;
+    const number    = opts.number || `${reg.prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    const docName   = `${reg.label.ar} - ${number}`;
+
+    let project_id = null, worker_id = null;
+    try {
+      if (opts.project && opts.project.id) project_id = Number(opts.project.id);
+      if (opts.projectId)                  project_id = Number(opts.projectId);
+      if (opts.worker && opts.worker.id)   worker_id  = Number(opts.worker.id);
+      if (opts.workerId)                   worker_id  = Number(opts.workerId);
+    } catch(_) {}
+
+    const cleanOpts = JSON.parse(JSON.stringify(opts || {}));
+    delete cleanOpts.html;
+    delete cleanOpts._isReprint;
+
+    const record = {
+      id:          Date.now() * 1000 + Math.floor(Math.random() * 1000),
+      tenant_id, project_id, worker_id,
+      name:        docName,
+      category:    reg.category,
+      type:        kind,
+      doc_kind:    kind,
+      doc_number:  number,
+      url:         null,
+      size:        0,
+      date:        new Date().toISOString().split('T')[0],
+      uploader_id: user_id,
+      meta_data:   cleanOpts,
+      created_at:  new Date().toISOString(),
+    };
+
+    try {
+      const existing = (typeof DB !== 'undefined') ? (DB.get('documents') || []) : [];
+      existing.unshift(record);
+      if (typeof DB !== 'undefined') DB.set('documents', existing);
+      if (typeof sbSync === 'function') {
+        sbSync('documents', record, 'POST').catch(e => console.warn('[DZArchive]', e.message));
+      }
+      if (typeof AuditLog !== 'undefined' && AuditLog.log) {
+        AuditLog.log('archive', 'documents', record.id, null, { kind, number });
+      }
+      console.log(`📁 [DZArchive] saved: ${kind} #${number}`);
+      return record;
+    } catch (e) {
+      console.warn('[DZArchive] save failed:', e.message);
+      return null;
+    }
+  },
+
+  list(filters) {
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return [];
+    const tid = Auth.getUser().tenant_id;
+    let docs = (typeof DB !== 'undefined') ? (DB.get('documents') || []) : [];
+    docs = docs.filter(d => d.tenant_id === tid && d.doc_kind);
+    filters = filters || {};
+    if (filters.kind)       docs = docs.filter(d => d.doc_kind === filters.kind);
+    if (filters.category)   docs = docs.filter(d => d.category === filters.category);
+    if (filters.project_id) docs = docs.filter(d => d.project_id === Number(filters.project_id));
+    if (filters.worker_id)  docs = docs.filter(d => d.worker_id  === Number(filters.worker_id));
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      docs = docs.filter(d => (d.name||'').toLowerCase().includes(q) || (d.doc_number||'').toLowerCase().includes(q));
+    }
+    return docs.sort((a,b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date));
+  },
+
+  get(id) {
+    const docs = (typeof DB !== 'undefined') ? (DB.get('documents') || []) : [];
+    return docs.find(d => String(d.id) === String(id));
+  },
+
+  reprint(id) {
+    const doc = this.get(id);
+    if (!doc) { if (typeof Toast !== 'undefined') Toast.error('الوثيقة غير موجودة'); return false; }
+    const reg = DZ_DOC_REGISTRY[doc.doc_kind];
+    if (!reg) { if (typeof Toast !== 'undefined') Toast.error('نوع وثيقة غير معروف'); return false; }
+    const fn = window.DZDocs[reg.fn];
+    if (typeof fn !== 'function') return false;
+    const opts = Object.assign({}, doc.meta_data || {}, reg.extraArgs || {});
+    if (doc.doc_number && !opts.number) opts.number = doc.doc_number;
+    opts._isReprint = true;
+    try {
+      fn(opts);
+      if (typeof Toast !== 'undefined') Toast.success('✅ تم إعادة فتح الوثيقة');
+      return true;
+    } catch (e) {
+      console.error('[DZArchive] reprint failed:', e);
+      if (typeof Toast !== 'undefined') Toast.error('فشل: ' + e.message);
+      return false;
+    }
+  },
+
+  delete(id) {
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return false;
+    const tid = Auth.getUser().tenant_id;
+    const docs = (typeof DB !== 'undefined') ? (DB.get('documents') || []) : [];
+    const doc = docs.find(d => String(d.id) === String(id) && d.tenant_id === tid);
+    if (!doc) return false;
+    const filtered = docs.filter(d => String(d.id) !== String(id));
+    if (typeof DB !== 'undefined') DB.set('documents', filtered);
+    if (typeof sbSyncDelete === 'function') {
+      sbSyncDelete('documents', id).catch(e => console.warn('[DZArchive]', e.message));
+    }
+    if (typeof AuditLog !== 'undefined' && AuditLog.log) {
+      AuditLog.log('delete', 'documents', id, doc, null);
+    }
+    return true;
+  },
+
+  stats() {
+    const all = this.list();
+    const byCategory = { commercial: 0, chantier: 0, finance: 0, hr: 0, logistics: 0 };
+    all.forEach(d => { if (byCategory[d.category] !== undefined) byCategory[d.category]++; });
+    return { total: all.length, byCategory };
+  },
+
+  // ── تصدير كل الأرشيف كملف JSON على الحاسوب ──
+  exportAll() {
+    const all = this.list();
+    if (all.length === 0) {
+      if (typeof Toast !== 'undefined') Toast.error('لا توجد وثائق للتصدير');
+      return;
+    }
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      if (typeof Toast !== 'undefined') Toast.error('متصفحك لا يدعم التصدير');
+      return;
+    }
+    const tenantName = (typeof Auth !== 'undefined') ? (Auth.getTenant()?.name || 'archive') : 'archive';
+    const dataStr = JSON.stringify({
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      tenant_name: tenantName,
+      count: all.length,
+      documents: all
+    }, null, 2);
+    try {
+      const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `archive_${tenantName.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (typeof Toast !== 'undefined') Toast.success(`✅ تم تصدير ${all.length} وثيقة`);
+    } catch(e) {
+      console.error('[DZArchive.exportAll]', e);
+      if (typeof Toast !== 'undefined') Toast.error('فشل التصدير: ' + e.message);
+    }
+  },
+
+  // ── استيراد وثائق من ملف JSON (محفوظ سابقاً) ──
+  async importFromFile(file) {
+    if (!file) return;
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return;
+    const tid = Auth.getUser().tenant_id;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.documents || !Array.isArray(data.documents)) {
+        if (typeof Toast !== 'undefined') Toast.error('ملف غير صالح');
+        return;
+      }
+      // إضافة الوثائق مع إعطائها IDs جديدة لتجنب التضارب
+      const existing = (typeof DB !== 'undefined') ? (DB.get('documents') || []) : [];
+      const existingIds = new Set(existing.map(d => d.id));
+      let imported = 0, skipped = 0;
+      const newDocs = data.documents.map(doc => {
+        // تجنّب الازدواج: إذا doc_number موجود مسبقاً، تخطّى
+        if (existing.some(e => e.doc_number === doc.doc_number && e.doc_kind === doc.doc_kind)) {
+          skipped++;
+          return null;
+        }
+        imported++;
+        return {
+          ...doc,
+          id: existingIds.has(doc.id) ? Date.now()*1000 + Math.floor(Math.random()*1000) : doc.id,
+          tenant_id: tid,  // ✅ ربط مع المؤسسة الحالية
+          uploader_id: Auth.getUser().id,
+        };
+      }).filter(Boolean);
+
+      const merged = [...newDocs, ...existing];
+      if (typeof DB !== 'undefined') DB.set('documents', merged);
+
+      // مزامنة مع Supabase
+      if (typeof sbSync === 'function') {
+        for (const doc of newDocs) {
+          sbSync('documents', doc, 'POST').catch(e => console.warn('[import]', e.message));
+        }
+      }
+      if (typeof AuditLog !== 'undefined' && AuditLog.log) {
+        AuditLog.log('import', 'documents', null, null, { imported, skipped });
+      }
+
+      if (typeof Toast !== 'undefined') {
+        Toast.success(`✅ تم استيراد ${imported} وثيقة` + (skipped > 0 ? ` (تخطّي ${skipped} مكرّرة)` : ''));
+      }
+      // إعادة تحميل الصفحة
+      if (typeof App !== 'undefined') setTimeout(() => App.navigate('archive'), 600);
+    } catch (e) {
+      console.error('[DZArchive.import]', e);
+      if (typeof Toast !== 'undefined') Toast.error('❌ خطأ في الملف: ' + e.message);
+    }
+  },
+
+  // ── إعداد file input مخفي للاستيراد ──
+  triggerImport() {
+    let inp = document.getElementById('dzArchImportInput');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file';
+      inp.id = 'dzArchImportInput';
+      inp.accept = '.json,application/json';
+      inp.style.display = 'none';
+      inp.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this.importFromFile(e.target.files[0]);
+          e.target.value = ''; // إعادة تعيين للسماح برفع نفس الملف مرة أخرى
+        }
+      });
+      document.body.appendChild(inp);
+    }
+    inp.click();
+  },
+
+};
+
+// ─── Hook: حفظ تلقائي لكل وثيقة مولّدة ───
+(function _installArchiveHook() {
+  const fnToKindsMap = {
+    factureProforma:    ['proforma'],
+    devisEstimatif:     ['devis'],
+    bpu:                ['bpu'],
+    offreService:       ['offre'],
+    pvOuverture:        ['pv_ouverture'],
+    attachement:        ['attachement'],
+    journalChantier:    ['journal'],
+    pvReception:        ['pv_reception_pro', 'pv_reception_def'],
+    factureAcompte:     ['acompte'],
+    situationTravaux:   ['situation'],
+    factureDefinitive:  ['def_invoice'],
+    quittance:          ['quittance'],
+    fichePaie:          ['paie'],
+    contract:           ['cdd', 'cta', 'cdi'],
+    fichePointage:      ['pointage'],
+    attestationTravail: ['attestation'],
+    bonCommande:        ['commande'],
+    bonReception:       ['reception'],
+    bonSortie:          ['sortie'],
+    ficheSuiviEquip:    ['suivi'],
+  };
+
+  Object.entries(fnToKindsMap).forEach(([fnName, kinds]) => {
+    const orig = window.DZDocs[fnName];
+    if (typeof orig !== 'function') return;
+    window.DZDocs[fnName] = function(opts) {
+      opts = opts || {};
+      const result = orig.call(this, opts);
+      if (!opts._isReprint) {
+        try {
+          let kind = kinds[0];
+          if (kinds.length > 1 && opts.kind) {
+            const map = { 'pro':'pv_reception_pro', 'final':'pv_reception_def', 'cdd':'cdd', 'cta':'cta', 'cdi':'cdi' };
+            const m = map[opts.kind];
+            if (m && kinds.includes(m)) kind = m;
+          }
+          window.DZArchive.save(kind, opts);
+        } catch(e) {
+          console.warn('[DZArchive hook]', e.message);
+        }
+      }
+      return result;
+    };
+  });
+
+  console.log('📁 DZArchive — نظام الأرشفة مُفعّل (22 نوع وثيقة)');
+})();
 
 })();

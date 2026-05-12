@@ -906,7 +906,7 @@ const PAGE_PERM_MAP = {
   materials:'materials', documents:'documents', reports:'reports',
   bank_report:'bank_report', simulator:'simulator', obligations:'obligations',
   audit_log:'audit_log', team:'team', settings:'settings',
-  dz_documents:'documents',
+  dz_documents:'documents', archive:'documents',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -1049,7 +1049,7 @@ const App = {
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
       audit_log:Pages.auditLog, obligations:Pages.obligations,
-      dz_documents:Pages.dz_documents };
+      dz_documents:Pages.dz_documents, archive:Pages.archive };
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -2768,11 +2768,14 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
   document.body.appendChild(overlay);
 }
 
-// ─── ربوت الترحيب للحسابات الجديدة ───
+// ─── ربوت الترحيب للحسابات الجديدة (مرة واحدة فقط لكل مستخدم) ───
 function showWelcomeRobot(userName, daysLeft) {
-  // لا تظهر لو مش أول مرة
-  if (sessionStorage.getItem('sbtp_welcomed')) return;
-  sessionStorage.setItem('sbtp_welcomed', '1');
+  // ✅ استخدام localStorage مع معرّف المستخدم — مرة واحدة على الإطلاق
+  const userId = Auth.getUser()?.id;
+  const tid    = Auth.getUser()?.tenant_id;
+  const key    = `sbtp_welcomed_${tid}_${userId}`;
+  if (localStorage.getItem(key)) return;   // ✅ سبق أن شاهدها
+  localStorage.setItem(key, '1');           // ✅ تسجيل أنها ظهرت
 
   const firstName = userName.split(' ')[0];
   const overlay = document.createElement('div');
@@ -3521,6 +3524,39 @@ Pages.dashboard = function() {
   return layoutHTML('dashboard','لوحة التحكم',`
     ${trialBannerHTML}
 
+    <!-- ✅ بطاقة المؤسسة الترحيبية — شعار + اسم الشركة + معلومات قانونية -->
+    <div style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.25);border-radius:18px;padding:1.2rem 1.5rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap">
+      <!-- شعار الشركة -->
+      <div style="flex-shrink:0">
+        ${tenant?.logo_url ? `
+          <div style="width:80px;height:80px;border-radius:14px;background:#fff;padding:6px;border:1px solid rgba(232,184,75,.3);box-shadow:0 4px 12px rgba(0,0,0,.15)">
+            <img src="${escHtml(tenant.logo_url)}" alt="Logo" style="width:100%;height:100%;object-fit:contain;border-radius:8px">
+          </div>` : `
+          <div style="width:80px;height:80px;border-radius:14px;background:linear-gradient(135deg,#E8B84B,#C49030);display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:900;color:#1a1000;box-shadow:0 4px 12px rgba(232,184,75,.3)">
+            ${escHtml((tenant?.name||'?').charAt(0))}
+          </div>`}
+      </div>
+      <!-- اسم الشركة والمعلومات -->
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:1.5rem;font-weight:900;color:var(--gold);letter-spacing:.3px;margin-bottom:.2rem">
+          ${escHtml(tenant?.name || L('مؤسستك','Votre entreprise'))}
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);font-weight:600;margin-bottom:.4rem">
+          ${L('مرحباً','Bienvenue')} <strong style="color:var(--text)">${escHtml(user.full_name)}</strong> ${L('في لوحة تحكم مؤسستك','dans le tableau de bord')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.6rem;font-size:.7rem">
+          ${tenant?.rc_number ? `<span style="background:rgba(255,255,255,.04);padding:3px 9px;border-radius:8px;color:var(--muted);border:1px solid var(--border)"><strong style="color:var(--gold)">RC:</strong> ${escHtml(tenant.rc_number)}</span>` : ''}
+          ${tenant?.nif ? `<span style="background:rgba(255,255,255,.04);padding:3px 9px;border-radius:8px;color:var(--muted);border:1px solid var(--border)"><strong style="color:var(--gold)">NIF:</strong> ${escHtml(tenant.nif)}</span>` : ''}
+          ${tenant?.wilaya ? `<span style="background:rgba(255,255,255,.04);padding:3px 9px;border-radius:8px;color:var(--muted);border:1px solid var(--border)">📍 ${escHtml(tenant.wilaya)}</span>` : ''}
+        </div>
+      </div>
+      <!-- شارة الخطة + التاريخ -->
+      <div style="text-align:left">
+        <div style="font-size:.7rem;color:var(--dim);margin-bottom:.3rem">${new Date().toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{weekday:'long',day:'numeric',month:'long'})}</div>
+        <span style="display:inline-block;font-size:.75rem;background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.35);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✓ ${escHtml(plan?.name||'—')}</span>
+      </div>
+    </div>
+
     <!-- AI CEO DAILY SUMMARY -->
     <div class="ai-ceo-banner">
       <div class="ai-ceo-icon">🤖</div>
@@ -3547,13 +3583,12 @@ Pages.dashboard = function() {
 
     <div class="page-header">
       <div>
-        <div class="page-title">👋 أهلاً، ${escHtml(user.full_name.split(' ')[0])}</div>
-        <div class="page-sub">${new Date().toLocaleDateString('ar-DZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+        <div class="page-title">📊 ${L('لوحة التحكم','Tableau de bord')}</div>
+        <div class="page-sub">${L('نظرة شاملة على مؤسستك','Vue d\'ensemble de votre entreprise')}</div>
       </div>
       <div class="page-actions">
-        <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
-        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
-        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
+        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ ${L('رفع البيانات','Sync')}</button>
+        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
     </div>
@@ -6520,6 +6555,7 @@ Pages.admin = function() {
             <button class="btn btn-ghost btn-sm" data-nav="landing">🌐 ${L('الموقع','Site')}</button>
             <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Sync Supabase')}</button>
             <button class="btn btn-ghost btn-sm" onclick="cleanupDuplicateTenants()" title="${L('حذف المؤسسات المكررة والمستخدمين اليتامى','Supprimer les doublons')}">🧹 ${L('تنظيف التكرارات','Nettoyer doublons')}</button>
+            <button class="btn btn-ghost btn-sm" onclick="cleanupAccountsWithoutEmail()" title="${L('حذف الحسابات التي ليس لديها بريد إلكتروني','Supprimer les comptes sans email')}" style="color:var(--red)">📧 ${L('حذف بلا إيميل','Sans email')}</button>
             <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter entreprise')}</button>
           </div>
         </div>
@@ -7372,7 +7408,7 @@ const SB_SCHEMA = {
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
   invoices:        ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method'],
-  documents:       ['id','tenant_id','name','project_id','category','type','url','size','date','uploader_id'],
+  documents:       ['id','tenant_id','name','project_id','worker_id','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number'],
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
@@ -8945,6 +8981,136 @@ async function toggleTenant(id) {
    يبحث عن المؤسسات التي لها نفس الاسم أو نفس الـ NIF/RC،
    ويُبقي على الأقدم (الأصلي) ويحذف النسخ المكررة من Supabase.
 ══════════════════════════════════════════════════════ */
+// ════════════════════════════════════════════════════════════════════
+// 🧹 حذف الحسابات التي ليس لديها بريد إلكتروني (admin only)
+// ════════════════════════════════════════════════════════════════════
+async function cleanupAccountsWithoutEmail() {
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbConnected = cfg?.url && cfg?.key;
+  const sbH = sbConnected ? {
+    'Content-Type':'application/json',
+    'apikey': cfg.key,
+    'Authorization': `Bearer ${cfg.key}`,
+    'Prefer':'return=representation'
+  } : null;
+
+  Toast.info('🔍 جاري البحث عن الحسابات بدون بريد...');
+
+  try {
+    // ① حسابات بدون email في localStorage
+    const localUsers = (DB.get('users') || []).filter(u => !u.is_admin); // استثناء الأدمن
+    const noEmailUsers = localUsers.filter(u => !u.email || !u.email.trim() || u.email === 'null');
+
+    // ② حسابات بدون email في Supabase
+    let remoteNoEmail = [];
+    let remoteOrphanTenants = [];
+    if (sbConnected) {
+      try {
+        const uRes = await fetch(`${cfg.url}/rest/v1/users?select=*&is_admin=is.false`, { headers: sbH });
+        if (uRes.ok) {
+          const allRemote = await uRes.json();
+          remoteNoEmail = allRemote.filter(u => !u.email || !u.email.trim());
+        }
+        // المؤسسات التي ليس لديها أي مستخدم (يتيمة)
+        const tRes = await fetch(`${cfg.url}/rest/v1/tenants?select=*&id=gt.2`, { headers: sbH });
+        if (tRes.ok) {
+          const allTenants = await tRes.json();
+          const usedTids = new Set((await (await fetch(`${cfg.url}/rest/v1/users?select=tenant_id`, { headers: sbH })).json()).map(u => u.tenant_id));
+          remoteOrphanTenants = allTenants.filter(t => !usedTids.has(t.id));
+        }
+      } catch (e) {
+        console.warn('[cleanup] Supabase fetch failed:', e.message);
+      }
+    }
+
+    const totalToDelete = noEmailUsers.length + remoteNoEmail.length + remoteOrphanTenants.length;
+    if (!totalToDelete) {
+      Toast.success(L('✅ لا توجد حسابات بلا بريد إلكتروني','✅ Aucun compte sans email'));
+      return;
+    }
+
+    // ③ تأكيد المستخدم
+    const msg = L(
+      `هل تريد حذف ${noEmailUsers.length + remoteNoEmail.length} حساب بدون بريد + ${remoteOrphanTenants.length} مؤسسة يتيمة؟\n\n⚠️ هذا الإجراء نهائي ولا يمكن التراجع عنه.`,
+      `Supprimer ${noEmailUsers.length + remoteNoEmail.length} compte(s) sans email + ${remoteOrphanTenants.length} entreprise(s) orpheline(s) ?\n\n⚠️ Cette action est irréversible.`
+    );
+    if (!confirm(msg)) {
+      Toast.info(L('تم الإلغاء','Annulé'));
+      return;
+    }
+
+    let deletedLocal = 0, deletedRemote = 0, deletedTenants = 0;
+    const tenantsToDelete = new Set();
+
+    // ④ حذف من localStorage + جمع tenant_ids
+    if (noEmailUsers.length > 0) {
+      const remainingUsers = (DB.get('users') || []).filter(u => {
+        if (u.is_admin) return true;
+        if (!u.email || !u.email.trim() || u.email === 'null') {
+          if (u.tenant_id) tenantsToDelete.add(u.tenant_id);
+          deletedLocal++;
+          return false;
+        }
+        return true;
+      });
+      DB.set('users', remainingUsers);
+    }
+
+    // ⑤ حذف من Supabase
+    if (sbConnected) {
+      for (const u of remoteNoEmail) {
+        try {
+          await fetch(`${cfg.url}/rest/v1/users?id=eq.${u.id}`, { method:'DELETE', headers: sbH });
+          if (u.tenant_id) tenantsToDelete.add(u.tenant_id);
+          deletedRemote++;
+        } catch(e) { console.warn('[cleanup] delete user failed:', u.id); }
+      }
+      // حذف المؤسسات اليتيمة
+      for (const t of remoteOrphanTenants) {
+        try {
+          await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`, { method:'DELETE', headers: sbH });
+          deletedTenants++;
+        } catch(e) { console.warn('[cleanup] delete tenant failed:', t.id); }
+      }
+      // حذف المؤسسات المرتبطة بالحسابات المحذوفة
+      for (const tid of tenantsToDelete) {
+        if (tid > 2) {  // حماية افتراضي
+          try {
+            // التحقق أن المؤسسة فعلاً لا يوجد بها مستخدم آخر
+            const check = await fetch(`${cfg.url}/rest/v1/users?select=id&tenant_id=eq.${tid}&limit=1`, { headers: sbH });
+            const rest = check.ok ? await check.json() : [];
+            if (rest.length === 0) {
+              await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tid}`, { method:'DELETE', headers: sbH });
+              deletedTenants++;
+            }
+          } catch(e) {}
+        }
+      }
+      // حذف من localStorage tenants أيضاً
+      const remTenants = (DB.get('tenants') || []).filter(t => !tenantsToDelete.has(t.id) || t.id <= 2);
+      DB.set('tenants', remTenants);
+    }
+
+    // ⑥ سجل audit
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(L(`تنظيف: ${deletedLocal + deletedRemote} حساب + ${deletedTenants} مؤسسة محذوفة`,
+                    `Nettoyage: ${deletedLocal + deletedRemote} compte(s) + ${deletedTenants} entreprise(s) supprimés`),
+                  { icon: '🧹' });
+    }
+
+    Toast.success(L(
+      `✅ تم حذف ${deletedLocal + deletedRemote} حساب و ${deletedTenants} مؤسسة`,
+      `✅ ${deletedLocal + deletedRemote} compte(s) et ${deletedTenants} entreprise(s) supprimés`
+    ));
+
+    // إعادة تحميل الصفحة
+    setTimeout(() => App.navigate('admin'), 800);
+  } catch (e) {
+    console.error('[cleanupAccountsWithoutEmail]', e);
+    Toast.error(L('❌ فشل التنظيف: ','❌ Échec: ') + e.message);
+  }
+}
+
 async function cleanupDuplicateTenants() {
   const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
   if (!cfg?.url || !cfg?.key) {
@@ -10290,6 +10456,7 @@ function sidebarHTML(active='') {
     const docLinks = [
       navLink('documents','📁',__('nav.documents')),
       navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
+      navLink('archive','📂',L('أرشيف الوثائق','Archive documents')),
       navLink('reports','📈',__('nav.reports')),
       navLink('bank_report','🏦',L('تقرير بنكي','Rapport bancaire')),
       navLink('simulator','🧮',L('محاكي الربح','Simulateur')),
@@ -13615,7 +13782,7 @@ function runSimulator() {
 function saveSimulatorAsProject() {
 
   const contract = parseFloat(document.getElementById('sim_contract')?.value) || 0;
-  if (!contract) { Toast.error(L('أدخل قيمة العقد أولاً','Entrez la valeur du contrat d\'abord')); return; }
+  if (!contract) { Toast.error(L('أدخِل قيمة العقد أولاً','Entrez la valeur du contrat d\'abord')); return; }
   Toast.success(L('✅ يمكنك إضافة مشروع جديد من صفحة المشاريع','✅ Vous pouvez ajouter un nouveau projet depuis la page Projets'));
   App.navigate('projects');
 }
@@ -14462,7 +14629,7 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis','dz_documents'];
+    'audit_log','obligations','team','ai_analysis','dz_documents','archive'];
   if (hash && validPages.includes(hash)) {
     App.currentPage = hash;
   }
