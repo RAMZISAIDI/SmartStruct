@@ -270,6 +270,11 @@ window.DZDocsUI = {
   open(key) {
     const handler = this._handlers[key];
     if (!handler) { _toast(_L('وثيقة غير معروفة','Document inconnu'),'error'); return; }
+    // ── التحقق من صلاحية توليد الوثائق ──
+    if (typeof canDo === 'function' && !canDo('write_documents')) {
+      _toast(_L('ليس لديك صلاحية لتوليد الوثائق','Permission refusée : génération de documents'), 'error');
+      return;
+    }
     this._ensureModal();
     this._currentKey = key;
     handler.call(this);

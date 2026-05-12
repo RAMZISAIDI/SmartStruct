@@ -7881,6 +7881,7 @@ async function syncAllDataToSupabase() {
 
 
 function addNote(pid) {
+  if (!canDo('write_notes')) { Toast.error(L('ليس لديك صلاحية لإضافة ملاحظة','Permission refusée : note')); return; }
   const text = document.getElementById('noteText')?.value?.trim();
   if (!text) { Toast.error('أدخل نص الملاحظة'); return; }
   const user = Auth.getUser();
@@ -7894,6 +7895,7 @@ function addNote(pid) {
 }
 
 function deleteNote(id, pid) {
+  if (!canDo('write_notes')) { Toast.error(L('ليس لديك صلاحية لحذف الملاحظة','Permission refusée : note')); return; }
   if (!confirm('حذف هذه الملاحظة؟')) return;
   DB.set('notes', DB.get('notes').filter(n=>n.id!==id));
   sbSyncDelete('notes', id).catch(()=>{});
@@ -7903,6 +7905,7 @@ function deleteNote(id, pid) {
 
 /* ─── MATERIALS ─── */
 function addMat() {
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لإضافة مادة','Permission refusée : matériau')); return; }
   const name = document.getElementById('mName')?.value?.trim();
   if (!name) { Toast.error('أدخل اسم المادة'); return; }
   const tid = Auth.getUser().tenant_id;
@@ -7916,6 +7919,7 @@ function addMat() {
 }
 
 function updateMatQty(id, delta) {
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتعديل المخزون','Permission refusée : stock')); return; }
   const mats = DB.get('materials');
   const idx = mats.findIndex(m=>m.id===id); if (idx<0) return;
   mats[idx].quantity = Math.max(0, (mats[idx].quantity||0) + delta);
@@ -7925,6 +7929,7 @@ function updateMatQty(id, delta) {
 }
 
 function deleteMat(id) {
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لحذف المادة','Permission refusée : matériau')); return; }
   if (!confirm('حذف هذه المادة؟')) return;
   DB.set('materials', DB.get('materials').filter(m=>m.id!==id));
   sbSyncDelete('materials', id).catch(()=>{});
@@ -8365,6 +8370,7 @@ function sanitizeFileName(name) {
 }
 
 function addProject() {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لإضافة مشروع','Permission refusée : projet')); return; }
   const name = document.getElementById('pName')?.value?.trim();
   const budget = document.getElementById('pBudget')?.value;
   if (!validateForm([
@@ -8382,6 +8388,7 @@ function addProject() {
 }
 
 function editProject(id) {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لتعديل المشروع','Permission refusée : projet')); return; }
   const p = DB.get('projects').find(p=>p.id===id); if (!p) return;
   document.getElementById('epId').value=id; document.getElementById('epName').value=p.name;
   document.getElementById('epType').value=p.project_type||'';
@@ -8393,6 +8400,7 @@ function editProject(id) {
 }
 
 function saveProject() {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لتعديل المشروع','Permission refusée : projet')); return; }
   const id=Number(document.getElementById('epId').value);
   const projs=DB.get('projects'); const idx=projs.findIndex(p=>p.id===id); if(idx<0) return;
   projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
@@ -8404,6 +8412,7 @@ function saveProject() {
 }
 
 function deleteProject(id,name) {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لحذف المشروع','Permission refusée : projet')); return; }
   if(!confirm(`حذف المشروع "${name}"؟`)) return;
   const updProjs = DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p);
   DB.set('projects', updProjs);
@@ -8412,6 +8421,7 @@ function deleteProject(id,name) {
 }
 
 function addWorker() {
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لإضافة عامل','Permission refusée : ouvrier')); return; }
   const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
   const phone=document.getElementById('wPhone')?.value?.trim();
   const salary=document.getElementById('wSalary')?.value;
@@ -8430,6 +8440,7 @@ function addWorker() {
 }
 
 function editWorker(id) {
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لتعديل العامل','Permission refusée : ouvrier')); return; }
   const w=DB.get('workers').find(w=>w.id===id); if(!w) return;
   document.getElementById('ewId').value=id; document.getElementById('ewName').value=w.full_name;
   document.getElementById('ewRole').value=w.role; document.getElementById('ewPhone').value=w.phone||'';
@@ -8439,6 +8450,7 @@ function editWorker(id) {
 }
 
 function saveWorker() {
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لتعديل العامل','Permission refusée : ouvrier')); return; }
   const id=Number(document.getElementById('ewId').value); const ws=DB.get('workers');
   const idx=ws.findIndex(w=>w.id===id); if(idx<0) return;
   ws[idx]={...ws[idx], full_name:document.getElementById('ewName').value, role:document.getElementById('ewRole').value, phone:document.getElementById('ewPhone').value, daily_salary:Number(document.getElementById('ewSalary').value)||0, contract_type:document.getElementById('ewContract').value, project_id:Number(document.getElementById('ewProject').value)||null };
@@ -8448,6 +8460,7 @@ function saveWorker() {
 }
 
 function deleteWorker(id,name) {
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لحذف العامل','Permission refusée : ouvrier')); return; }
   if(!confirm(`حذف العامل "${name}"؟`)) return;
   DB.set('workers', DB.get('workers').filter(w=>w.id!==id));
   sbSyncDelete('workers', id).catch(()=>{});
@@ -8465,6 +8478,7 @@ function exportWorkers() {
 }
 
 function addEquip() {
+  if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لإضافة معدة','Permission refusée : équipement')); return; }
   const name=document.getElementById('eName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المعدة');return;}
   const tid=Auth.getUser().tenant_id; const eq=DB.get('equipment');
@@ -8476,6 +8490,7 @@ function addEquip() {
 }
 
 function updateEquipStatus(id,status) {
+  if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لتعديل حالة المعدة','Permission refusée : équipement')); return; }
   const updEquip = DB.get('equipment').map(e=>e.id===id?{...e,status}:e);
   DB.set('equipment', updEquip);
   sbSync('equipment', {id, status}, 'PATCH').catch(()=>{});
@@ -8483,6 +8498,7 @@ function updateEquipStatus(id,status) {
 }
 
 function deleteEquip(id,name) {
+  if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لحذف المعدة','Permission refusée : équipement')); return; }
   if(!confirm(`حذف "${name}"؟`)) return;
   DB.set('equipment', DB.get('equipment').filter(e=>e.id!==id));
   sbSyncDelete('equipment', id).catch(()=>{});
@@ -8511,6 +8527,7 @@ function updateTxCats() {
 }
 
 function addTx() {
+  if (!canDo('write_transactions')) { Toast.error(L('ليس لديك صلاحية لإضافة معاملة مالية','Permission refusée : transaction')); return; }
   const amount=document.getElementById('txAmount')?.value;
   const desc=document.getElementById('txDesc')?.value?.trim();
   if (!validateForm([
@@ -8532,6 +8549,7 @@ function addTx() {
 }
 
 function deleteTx(id) {
+  if (!canDo('write_transactions')) { Toast.error(L('ليس لديك صلاحية لحذف المعاملة','Permission refusée : transaction')); return; }
   if(!confirm('حذف هذه المعاملة؟')) return;
   DB.set('transactions', DB.get('transactions').filter(t=>t.id!==id));
   sbSyncDelete('transactions', id).catch(()=>{});
@@ -8567,12 +8585,14 @@ function saveAtt(wid, date, status) {
 }
 
 function saveAttHours(wid, date, hours) {
+  if (!canDo('write_attendance')) { Toast.error(L('ليس لديك صلاحية لتعديل ساعات الحضور','Permission refusée : présence')); return; }
   var att = DB.get('attendance');
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
   if (idx >= 0) { att[idx].hours = Number(hours); DB.set('attendance', att); sbSync('attendance', att[idx], 'PATCH').catch(()=>{}); }
 }
 
 function saveAttNote(wid, date, note) {
+  if (!canDo('write_attendance')) { Toast.error(L('ليس لديك صلاحية لتعديل ملاحظات الحضور','Permission refusée : présence')); return; }
   var att = DB.get('attendance');
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
   if (idx >= 0) {
@@ -10444,6 +10464,7 @@ function kanbanDrop(e, colKey) {
   Toast.success('✅ تم نقل المهمة');
 }
 function addKanbanTask() {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لإضافة مهمة','Permission refusée : tâche')); return; }
   const title = document.getElementById('taskTitle')?.value?.trim();
   if (!title) { Toast.error('أدخل عنوان المهمة'); return; }
   const tid = Auth.getUser().tenant_id;
@@ -10456,6 +10477,7 @@ function addKanbanTask() {
   App.navigate('kanban');
 }
 function deleteKanbanTask(id) {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لحذف المهمة','Permission refusée : tâche')); return; }
   if (!confirm('حذف هذه المهمة؟')) return;
   DB.set('kanban_tasks', DB.get('kanban_tasks').filter(t => t.id !== id));
   sbSyncDelete('kanban_tasks', id).catch(()=>{});
@@ -10757,6 +10779,7 @@ Pages.salary = function() {
 };
 
 function paySalary(wid, monthKey, amount) {
+  if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaire')); return; }
   const records = DB.get('salary_records');
   if (records.find(r=>r.worker_id===wid&&r.month_key===monthKey)) { Toast.warn('تم صرف الراتب مسبقاً'); return; }
   const worker = DB.get('workers').find(w=>w.id===wid);
@@ -10775,6 +10798,7 @@ function paySalary(wid, monthKey, amount) {
 }
 
 function payAllSalaries(monthKey) {
+  if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaires')); return; }
   if (!confirm('صرف رواتب جميع العمال لهذا الشهر؟')) return;
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
@@ -11142,6 +11166,7 @@ Pages.invoices = function() {
 };
 
 function addInvLine() {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لإضافة سطر فاتورة','Permission refusée : facture')); return; }
   const L_fn = (ar, fr) => I18N.currentLang==='ar'?ar:fr;
   const row = document.createElement('div');
   row.className='inv-line-row';
@@ -11175,6 +11200,7 @@ function calcInvTotal() {
 }
 
 function addInvoiceItem() {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لإضافة فاتورة','Permission refusée : facture')); return; }
   const num=document.getElementById('invNum')?.value?.trim();
   const client=document.getElementById('invClient')?.value?.trim();
   if(!num||!client){Toast.error(L('أدخل رقم الفاتورة والعميل','Renseignez le numéro et le client'));return;}
@@ -11222,6 +11248,7 @@ function addInvoiceItem() {
 }
 
 function deleteInvoiceItem(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لحذف الفاتورة','Permission refusée : facture')); return; }
   if(!confirm(L('حذف هذه الفاتورة؟','Supprimer cette facture ?')))return;
   DB.set('invoices',DB.get('invoices').filter(i=>i.id!==id));
   sbSyncDelete('invoices', id).catch(()=>{});
@@ -11230,6 +11257,7 @@ function deleteInvoiceItem(id) {
 }
 
 function markInvoicePaid(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لتعديل الفاتورة','Permission refusée : facture')); return; }
   const invs=DB.get('invoices');
   const idx=invs.findIndex(i=>i.id===id);
   if(idx<0)return;
@@ -11697,6 +11725,7 @@ function addMaterialItem(){
   Toast.success('✅ تم إضافة المادة');App.navigate('inventory');
 }
 function openStockMove(matId,type){
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتحريك المخزون','Permission refusée : stock')); return; }
   document.getElementById('stockMatId').value=matId;
   document.getElementById('stockMoveTyp').value=type;
   document.getElementById('stockMoveTitle').textContent=type==='in'?'📦 إدخال مواد':'📦 إخراج مواد';
@@ -11705,6 +11734,7 @@ function openStockMove(matId,type){
   document.getElementById('stockMoveModal').classList.add('show');
 }
 function confirmStockMoveV5(){
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتأكيد حركة المخزون','Permission refusée : stock')); return; }
   const matId=Number(document.getElementById('stockMatId')?.value);
   const type=document.getElementById('stockMoveTyp')?.value;
   const qty=Number(document.getElementById('stockMoveQty')?.value);
@@ -12046,6 +12076,7 @@ function downloadDocFile(id) {
 }
 
 function deleteDocItem(id){
+  if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لحذف الوثيقة','Permission refusée : document')); return; }
 
   if(!confirm(L('حذف هذه الوثيقة؟','Supprimer ce document ?')))return;
   DB.set('documents',DB.get('documents').filter(d=>d.id!==id));
@@ -12056,299 +12087,369 @@ function deleteDocItem(id){
 
 /* ── TEAM PAGE ── */
 Pages.team = function() {
-  const tid = Auth.getUser().tenant_id;
-  const users = DB.get('users').filter(u=>u.tenant_id===tid&&u.is_active);
-  const currentUser = Auth.getUser();
-  const canManage = currentUser.role === 'admin' || currentUser.is_admin;
+  const tid        = Auth.getUser().tenant_id;
+  const currentUser= Auth.getUser();
+  const isAdmin    = currentUser.role === 'admin' || currentUser.is_admin;
+  const users      = DB.get('users').filter(u => u.tenant_id === tid && u.is_active !== false);
 
-  // Permission matrix for display
-  const permMatrix = [
-    {key:'dashboard',    label:L('لوحة التحكم','Tableau de bord')},
-    {key:'analytics',    label:L('التحليلات','Analytiques')},
-    {key:'projects',     label:L('المشاريع','Projets') + ' (تعديل)'},
-    {key:'workers',      label:L('العمال','Ouvriers') + ' (تعديل)'},
-    {key:'attendance',   label:L('الحضور','Présence') + ' (تعديل)'},
-    {key:'salary',       label:L('الرواتب','Salaires') + ' (تعديل)'},
-    {key:'transactions', label:L('المعاملات','Transactions') + ' (تعديل)'},
-    {key:'invoices',     label:L('الفواتير','Factures') + ' (تعديل)'},
-    {key:'inventory',    label:L('المخزون','Stock') + ' (تعديل)'},
-    {key:'equipment',    label:L('المعدات','Équipements') + ' (تعديل)'},
-    {key:'documents',    label:L('الوثائق','Documents') + ' (تعديل)'},
-    {key:'reports',      label:L('التقارير','Rapports')},
-    {key:'kanban',       label:'Kanban'},
-    {key:'gantt',        label:'Gantt'},
-    {key:'simulator',    label:L('المحاكي','Simulateur')},
-    {key:'bank_report',  label:L('تقرير بنكي','Rapport bancaire')},
-    {key:'audit_log',    label:L('سجل النشاط','Journal activité')},
+  // ── جميع مفاتيح الصلاحيات القابلة للتخصيص ──
+  const PERM_KEYS = [
+    { key:'dashboard',        ar:'لوحة التحكم',         fr:'Tableau de bord',      cat:'view' },
+    { key:'analytics',        ar:'التحليلات',            fr:'Analytiques',          cat:'view' },
+    { key:'projects',         ar:'مشاريع (عرض)',         fr:'Projets (voir)',        cat:'view' },
+    { key:'write_projects',   ar:'مشاريع (تعديل)',       fr:'Projets (édit.)',       cat:'write'},
+    { key:'workers',          ar:'عمال (عرض)',           fr:'Ouvriers (voir)',       cat:'view' },
+    { key:'write_workers',    ar:'عمال (تعديل)',         fr:'Ouvriers (édit.)',      cat:'write'},
+    { key:'attendance',       ar:'حضور (عرض)',           fr:'Présence (voir)',       cat:'view' },
+    { key:'write_attendance', ar:'حضور (تعديل)',         fr:'Présence (édit.)',      cat:'write'},
+    { key:'salary',           ar:'رواتب (عرض)',          fr:'Salaires (voir)',       cat:'view' },
+    { key:'write_salary',     ar:'رواتب (تعديل)',        fr:'Salaires (édit.)',      cat:'write'},
+    { key:'transactions',     ar:'معاملات (عرض)',        fr:'Transactions (voir)',   cat:'view' },
+    { key:'write_transactions',ar:'معاملات (تعديل)',    fr:'Transactions (édit.)',  cat:'write'},
+    { key:'invoices',         ar:'فواتير (عرض)',         fr:'Factures (voir)',       cat:'view' },
+    { key:'write_invoices',   ar:'فواتير (تعديل)',       fr:'Factures (édit.)',      cat:'write'},
+    { key:'inventory',        ar:'مخزون (عرض)',          fr:'Stock (voir)',          cat:'view' },
+    { key:'write_materials',  ar:'مخزون (تعديل)',        fr:'Stock (édit.)',         cat:'write'},
+    { key:'equipment',        ar:'معدات (عرض)',          fr:'Équip. (voir)',         cat:'view' },
+    { key:'write_equipment',  ar:'معدات (تعديل)',        fr:'Équip. (édit.)',        cat:'write'},
+    { key:'documents',        ar:'وثائق (عرض)',          fr:'Documents (voir)',      cat:'view' },
+    { key:'write_documents',  ar:'وثائق (تعديل)',        fr:'Documents (édit.)',     cat:'write'},
+    { key:'reports',          ar:'التقارير',             fr:'Rapports',             cat:'view' },
+    { key:'bank_report',      ar:'تقرير بنكي',          fr:'Rapport bancaire',      cat:'view' },
+    { key:'kanban',           ar:'كانبان',               fr:'Kanban',               cat:'view' },
+    { key:'gantt',            ar:'غانت',                 fr:'Gantt',                cat:'view' },
+    { key:'simulator',        ar:'المحاكي',              fr:'Simulateur',           cat:'view' },
+    { key:'audit_log',        ar:'سجل النشاط',          fr:'Journal activité',      cat:'view' },
   ];
 
-  const roleOrder = ['manager','accountant','hr','viewer'];
+  // دالة فحص صلاحية فردية لمستخدم معين
+  function userEffectivePerm(u, key) {
+    if (u.custom_perms && u.custom_perms[key] !== undefined) return u.custom_perms[key];
+    const rp = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
+    return rp[key];
+  }
 
-  function permIcon(perm) {
-    if(perm === true) return `<span style="color:var(--green);font-size:.9rem" title="${L('وصول كامل','Accès complet')}">✅</span>`;
-    if(perm === 'view') return `<span style="color:var(--blue);font-size:.9rem" title="${L('قراءة فقط','Lecture seule')}">👁️</span>`;
-    return `<span style="color:var(--dim);font-size:.9rem" title="${L('محظور','Interdit')}">—</span>`;
+  function permBadge(val) {
+    if (val === true)   return `<span style="color:var(--green);font-size:.85rem">✅</span>`;
+    if (val === 'view') return `<span style="color:#4A90E2;font-size:.85rem">👁️</span>`;
+    return `<span style="color:var(--dim);font-size:.85rem">—</span>`;
   }
 
   return layoutHTML('team', L('الفريق','Équipe'), `
-    <div class="page-header">
-      <div>
-        <div class="page-title">👥 ${L('فريق العمل','Équipe de travail')}</div>
-        <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
-      </div>
-      <div class="page-actions">
-        ${canManage?`<button class="btn btn-gold" data-modal-open="inviteUserModal">✉️ ${L('إضافة مستخدم','Ajouter utilisateur')}</button>`:''}
-      </div>
-    </div>
+<style>
+  .team-user-row{display:flex;align-items:center;gap:.8rem;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;transition:border-color .18s;flex-wrap:wrap}
+  .team-user-row:hover{border-color:rgba(232,184,75,.35)}
+  .team-user-info{flex:1;min-width:160px}
+  .team-user-name{font-weight:800;font-size:.9rem}
+  .team-user-email{font-size:.72rem;color:var(--dim);direction:ltr;text-align:left}
+  .team-user-stats{font-size:.68rem;color:var(--muted);margin-top:2px}
+  .perm-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;max-height:62vh;overflow-y:auto;padding:.2rem}
+  .perm-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:.42rem .7rem;gap:.4rem}
+  .perm-row.cat-write{border-color:rgba(232,184,75,.15);background:rgba(232,184,75,.03)}
+  .perm-label{font-size:.75rem;color:var(--text);flex:1}
+  .perm-toggle{display:flex;gap:2px}
+  .perm-toggle button{font-size:.65rem;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;transition:all .15s}
+  .perm-toggle button.active-allow{background:var(--green);color:#fff;border-color:var(--green)}
+  .perm-toggle button.active-view{background:#4A90E2;color:#fff;border-color:#4A90E2}
+  .perm-toggle button.active-deny{background:rgba(240,78,106,.2);color:var(--red);border-color:var(--red)}
+  .role-matrix-table th,.role-matrix-table td{padding:.45rem .6rem;font-size:.78rem}
+</style>
 
-    <!-- Users list -->
-    <div style="display:grid;gap:.7rem;margin-bottom:2rem">
-      ${users.map(u=>{
-        const isMe = u.id === currentUser.id;
-        const rolePerm = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
-        const accessCount = Object.values(rolePerm).filter(v=>v===true||v==='view').length;
-        const writeCount = Object.entries(rolePerm).filter(([k,v])=>!k.startsWith('write_')&&v===true).length;
-        return `<div class="user-card-v5" style="border-color:${isMe?'rgba(232,184,75,0.3)':''}">
-          ${avatarHtml(u.full_name, u.avatar_color||'#4A90E2', 48)}
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-              <span style="font-weight:800;font-size:.9rem">${escHtml(u.full_name)}</span>
-              ${isMe?`<span style="font-size:.65rem;padding:2px 7px;background:var(--gold-dim);color:var(--gold);border-radius:8px">${L('أنت','Vous')}</span>`:''}
-              ${!u.is_active?`<span style="font-size:.65rem;padding:2px 7px;background:rgba(240,78,106,.1);color:var(--red);border-radius:8px">${L('موقوف','Désactivé')}</span>`:''}
-            </div>
-            <div style="font-size:.75rem;color:var(--dim);direction:ltr;text-align:right">${escHtml(u.email)}</div>
-            <div style="font-size:.7rem;color:var(--muted);margin-top:2px">${L('وصول:','Accès:')} ${accessCount} ${L('صفحة','pages')} &nbsp;|&nbsp; ${L('تعديل:','Édit:')} ${writeCount} ${L('وحدة','modules')}</div>
-          </div>
-          ${roleBadge(u.role)}
-          <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
-            ${canManage&&!isMe?`
-              <select class="role-select-mini" onchange="changeUserRoleV5(${u.id},this.value)" title="${L('تغيير الدور','Changer rôle')}">
-                ${Object.entries(ROLE_NAMES).map(([k,v])=>`<option value="${k}"${u.role===k?' selected':''}>${v}</option>`).join('')}
-              </select>
-              <button class="btn btn-sm ${u.is_active?'btn-ghost':'btn-green'}" onclick="toggleUserActive(${u.id})" title="${u.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">${u.is_active?'⏸️':'▶️'}</button>
-              <button class="btn btn-sm btn-red" onclick="deleteUserAccount(${u.id})" title="${L('حذف المستخدم','Supprimer')}">🗑️</button>
-            `:''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
+<div class="page-header">
+  <div>
+    <div class="page-title">👥 ${L('فريق العمل','Équipe de travail')}</div>
+    <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
+  </div>
+  <div class="page-actions">
+    ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">✉️ ${L('إضافة مستخدم','Ajouter utilisateur')}</button>` : ''}
+  </div>
+</div>
 
-    <!-- Permission Matrix -->
-    <div style="margin-bottom:2rem">
-      <div style="font-size:1rem;font-weight:900;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem">
-        🔐 ${L('مصفوفة الصلاحيات','Matrice des permissions')}
-        <span style="font-size:.72rem;color:var(--dim);font-weight:400">${L('✅ وصول كامل &nbsp; 👁️ قراءة فقط &nbsp; — محظور','✅ Accès complet &nbsp; 👁️ Lecture seule &nbsp; — Interdit')}</span>
+<!-- ══════════════ قائمة المستخدمين ══════════════ -->
+<div style="display:grid;gap:.65rem;margin-bottom:2.2rem">
+  ${users.map(u => {
+    const isMe = u.id === currentUser.id;
+    const rp = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
+    const hasCustom = u.custom_perms && Object.keys(u.custom_perms).length > 0;
+    const viewCount = PERM_KEYS.filter(p => p.cat==='view' && userEffectivePerm(u, p.key)).length;
+    const writeCount= PERM_KEYS.filter(p => p.cat==='write' && userEffectivePerm(u, p.key) === true).length;
+    return `
+    <div class="team-user-row" style="${isMe ? 'border-color:rgba(232,184,75,.4)' : ''}">
+      ${avatarHtml(u.full_name, u.avatar_color||'#4A90E2', 44)}
+      <div class="team-user-info">
+        <div class="team-user-name">
+          ${escHtml(u.full_name)}
+          ${isMe ? `<span style="font-size:.62rem;padding:2px 8px;background:var(--gold-dim);color:var(--gold);border-radius:8px;margin-right:.3rem">${L('أنت','Vous')}</span>` : ''}
+          ${!u.is_active ? `<span style="font-size:.62rem;padding:2px 8px;background:rgba(240,78,106,.12);color:var(--red);border-radius:8px;margin-right:.3rem">${L('موقوف','Désactivé')}</span>` : ''}
+          ${hasCustom ? `<span style="font-size:.62rem;padding:2px 8px;background:rgba(155,109,255,.15);color:#9B6DFF;border-radius:8px;margin-right:.3rem" title="${L('لديه صلاحيات مخصصة فوق الدور','Permissions personnalisées')}">✏️ ${L('مخصص','Custom')}</span>` : ''}
+        </div>
+        <div class="team-user-email">${escHtml(u.email)}</div>
+        <div class="team-user-stats">
+          ${L('عرض:','Voir:')} ${viewCount} &nbsp;|&nbsp; ${L('تعديل:','Édit:')} ${writeCount}
+          ${hasCustom ? ` &nbsp;|&nbsp; <span style="color:#9B6DFF">${L('صلاحيات مخصصة','Custom perms')}</span>` : ''}
+        </div>
       </div>
-      <div class="table-wrap" style="overflow-x:auto">
-        <table style="min-width:600px">
-          <thead>
-            <tr>
-              <th style="min-width:160px">${L('الصفحة / الوحدة','Page / Module')}</th>
-              ${roleOrder.map(r=>`<th style="text-align:center">${roleBadge(r)}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${permMatrix.map(item=>{
-              const allSame = roleOrder.every(r=>(ROLE_PERMISSIONS[r]||{})[item.key] === (ROLE_PERMISSIONS[roleOrder[0]]||{})[item.key]);
-              return `<tr>
-                <td style="font-size:.82rem;font-weight:600">${item.label}</td>
-                ${roleOrder.map(r=>`<td style="text-align:center">${permIcon((ROLE_PERMISSIONS[r]||{})[item.key])}</td>`).join('')}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- ADD USER MODAL -->
-    <div class="modal-overlay" id="inviteUserModal">
-      <div class="modal">
-        <div class="modal-title">✉️ ${L('إضافة مستخدم جديد','Ajouter un utilisateur')}</div>
-        <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label><input class="form-input" id="iName" placeholder="${L('الاسم الكامل...','Nom complet...')}"></div>
-        <div class="form-group"><label class="form-label">${L('البريد الإلكتروني *','Email *')}</label><input class="form-input" id="iEmail" type="email" placeholder="user@company.dz" dir="ltr"></div>
-        <div class="form-group"><label class="form-label">${L('كلمة المرور المؤقتة *','Mot de passe temporaire *')}</label><input class="form-input" id="iPass" type="password" placeholder="${L('كلمة مرور مؤقتة...','Mot de passe temporaire...')}"></div>
-        <div class="form-group">
-          <label class="form-label">${L('الدور','Rôle')}</label>
-          <select class="form-select" id="iRole" onchange="showRolePreview(this.value)">
-            ${Object.entries(ROLE_NAMES).filter(([k])=>k!=='admin').map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}
+      ${roleBadge(u.role)}
+      <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
+        ${isAdmin && !isMe ? `
+          <select class="role-select-mini" onchange="changeUserRoleV5(${u.id},this.value)" title="${L('تغيير الدور','Changer rôle')}">
+            ${Object.entries(ROLE_NAMES).map(([k,v]) => `<option value="${k}"${u.role===k?' selected':''}>${v}</option>`).join('')}
           </select>
-        </div>
-        <div id="rolePreviewBox" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:.8rem;font-size:.78rem;color:var(--muted);margin-bottom:.5rem">
-          <strong style="color:var(--gold)">${L('مدير مشروع','Chef de projet')}</strong> — ${L('يمكنه إدارة المشاريع والعمال والمواد والوثائق. يرى المالية ولا يعدلها.','Peut gérer projets, ouvriers, matériaux et documents. Voit les finances sans les modifier.')}
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
-          <button class="btn btn-gold" onclick="inviteUserV5()">✅ ${L('إضافة','Ajouter')}</button>
-        </div>
+          <button class="btn btn-gold btn-sm" onclick="openPermEditor(${u.id})" title="${L('تخصيص صلاحيات','Personnaliser permissions')}">🔐 ${L('صلاحيات','Perms')}</button>
+          <button class="btn btn-sm ${u.is_active ? 'btn-ghost' : 'btn-green'}" onclick="toggleUserActive(${u.id})" title="${u.is_active ? L('إيقاف','Désactiver') : L('تفعيل','Activer')}">${u.is_active ? '⏸️' : '▶️'}</button>
+          <button class="btn btn-sm btn-red" onclick="deleteUserAccount(${u.id})" title="${L('حذف','Supprimer')}">🗑️</button>
+        ` : ''}
       </div>
+    </div>`;
+  }).join('')}
+</div>
+
+<!-- ══════════════ مصفوفة الصلاحيات بالأدوار ══════════════ -->
+<div style="margin-bottom:2.5rem">
+  <div style="font-size:1rem;font-weight:900;margin-bottom:.8rem">
+    🔐 ${L('مصفوفة الصلاحيات الافتراضية','Matrice des permissions par rôle')}
+    <span style="font-size:.7rem;color:var(--dim);font-weight:400;margin-right:.6rem">${L('✅ تعديل كامل &nbsp; 👁️ قراءة فقط &nbsp; — محظور','✅ Édit. complet &nbsp; 👁️ Lecture &nbsp; — Interdit')}</span>
+  </div>
+  <div class="table-wrap" style="overflow-x:auto">
+    <table class="role-matrix-table" style="min-width:560px">
+      <thead>
+        <tr>
+          <th style="min-width:150px">${L('الوحدة / الإجراء','Module / Action')}</th>
+          ${['manager','accountant','hr','viewer'].map(r => `<th style="text-align:center">${roleBadge(r)}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${PERM_KEYS.map(pk => `
+        <tr style="${pk.cat==='write'?'background:rgba(232,184,75,.03)':''}">
+          <td style="font-size:.8rem;font-weight:${pk.cat==='write'?700:500};color:${pk.cat==='write'?'var(--gold)':'var(--text)'}">
+            ${pk.cat==='write'?'✏️ ':''}${L(pk.ar, pk.fr)}
+          </td>
+          ${['manager','accountant','hr','viewer'].map(r => `<td style="text-align:center">${permBadge((ROLE_PERMISSIONS[r]||{})[pk.key])}</td>`).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ مودال: تخصيص صلاحيات مستخدم ══════════════ -->
+<div class="modal-overlay" id="permEditorModal">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-title">🔐 <span id="permEditorName"></span> — ${L('تخصيص الصلاحيات','Personnaliser les permissions')}</div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:.8rem;padding:0 .2rem">
+      ${L('الصلاحيات المخصصة تتجاوز دور المستخدم. اتركها "من الدور" لاستخدام الإعدادات الافتراضية.','Les permissions personnalisées écrasent le rôle. Laissez "Rôle" pour les valeurs par défaut.')}
     </div>
+    <div id="permEditorGrid" class="perm-modal-grid"></div>
+    <div style="margin-top:.8rem;padding:.6rem .8rem;background:rgba(240,78,106,.05);border:1px solid rgba(240,78,106,.15);border-radius:8px;font-size:.72rem;color:var(--muted)">
+      ⚠️ ${L('تغيير الصلاحيات يسري فوراً في المرة القادمة التي يفتح فيها المستخدم الصفحة.','Les changements prennent effet à la prochaine navigation de l\'utilisateur.')}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="resetUserPerms()" style="margin-left:auto">🔄 ${L('إعادة لصلاحيات الدور','Réinitialiser au rôle')}</button>
+      <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+      <button class="btn btn-gold" onclick="saveUserPerms()">💾 ${L('حفظ الصلاحيات','Enregistrer')}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ مودال: إضافة مستخدم ══════════════ -->
+<div class="modal-overlay" id="inviteUserModal">
+  <div class="modal">
+    <div class="modal-title">✉️ ${L('إضافة مستخدم جديد','Ajouter un utilisateur')}</div>
+    <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label>
+      <input class="form-input" id="iName" placeholder="${L('الاسم الكامل...','Nom complet...')}"></div>
+    <div class="form-group"><label class="form-label">${L('البريد الإلكتروني *','Email *')}</label>
+      <input class="form-input" id="iEmail" type="email" placeholder="user@company.dz" dir="ltr"></div>
+    <div class="form-group"><label class="form-label">${L('كلمة المرور المؤقتة *','Mot de passe temporaire *')}</label>
+      <input class="form-input" id="iPass" type="password" placeholder="${L('6 أحرف على الأقل','6 caractères minimum')}"></div>
+    <div class="form-group">
+      <label class="form-label">${L('الدور الافتراضي','Rôle par défaut')}</label>
+      <select class="form-select" id="iRole" onchange="showRolePreview(this.value)">
+        ${Object.entries(ROLE_NAMES).filter(([k]) => k !== 'admin').map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+      </select>
+    </div>
+    <div id="rolePreviewBox" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:.8rem;font-size:.78rem;color:var(--muted);margin-bottom:.5rem">
+      ${L('اختر دوراً لعرض وصفه.','Choisissez un rôle pour voir sa description.')}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+      <button class="btn btn-gold" onclick="inviteUserV5()">✅ ${L('إضافة','Ajouter')}</button>
+    </div>
+  </div>
+</div>
   `);
 };
-function changeUserRoleV5(uid,role){
-  const users = DB.get('users').map(u=>u.id===uid?{...u,role}:u);
-  DB.set('users', users);
-  sbSync('users', {id:uid, role}, 'PATCH').catch(()=>{});
-  Toast.success(`✅ ${L('تم تغيير الدور إلى','Rôle changé en')} "${ROLE_NAMES[role]}"`);
-  App.navigate('team');
+
+// ════════════════════════════════════════════════════════════════
+//  🔐 نظام الصلاحيات الفردية — Individual Permission Editor
+// ════════════════════════════════════════════════════════════════
+
+let _permEditorUserId = null;
+
+const PERM_KEYS_DEF = [
+  { key:'dashboard',         ar:'لوحة التحكم',          fr:'Tableau de bord',       cat:'view'  },
+  { key:'analytics',         ar:'التحليلات',             fr:'Analytiques',           cat:'view'  },
+  { key:'projects',          ar:'مشاريع (عرض)',          fr:'Projets (voir)',         cat:'view'  },
+  { key:'write_projects',    ar:'مشاريع (تعديل)',        fr:'Projets (édit.)',        cat:'write' },
+  { key:'workers',           ar:'عمال (عرض)',            fr:'Ouvriers (voir)',        cat:'view'  },
+  { key:'write_workers',     ar:'عمال (تعديل)',          fr:'Ouvriers (édit.)',       cat:'write' },
+  { key:'attendance',        ar:'حضور (عرض)',            fr:'Présence (voir)',        cat:'view'  },
+  { key:'write_attendance',  ar:'حضور (تعديل)',          fr:'Présence (édit.)',       cat:'write' },
+  { key:'salary',            ar:'رواتب (عرض)',           fr:'Salaires (voir)',        cat:'view'  },
+  { key:'write_salary',      ar:'رواتب (تعديل)',         fr:'Salaires (édit.)',       cat:'write' },
+  { key:'transactions',      ar:'معاملات (عرض)',         fr:'Transactions (voir)',    cat:'view'  },
+  { key:'write_transactions',ar:'معاملات (تعديل)',       fr:'Transactions (édit.)',   cat:'write' },
+  { key:'invoices',          ar:'فواتير (عرض)',          fr:'Factures (voir)',        cat:'view'  },
+  { key:'write_invoices',    ar:'فواتير (تعديل)',        fr:'Factures (édit.)',       cat:'write' },
+  { key:'inventory',         ar:'مخزون (عرض)',           fr:'Stock (voir)',           cat:'view'  },
+  { key:'write_materials',   ar:'مخزون (تعديل)',         fr:'Stock (édit.)',          cat:'write' },
+  { key:'equipment',         ar:'معدات (عرض)',           fr:'Équip. (voir)',          cat:'view'  },
+  { key:'write_equipment',   ar:'معدات (تعديل)',         fr:'Équip. (édit.)',         cat:'write' },
+  { key:'documents',         ar:'وثائق (عرض)',           fr:'Documents (voir)',       cat:'view'  },
+  { key:'write_documents',   ar:'وثائق (تعديل)',         fr:'Documents (édit.)',      cat:'write' },
+  { key:'reports',           ar:'التقارير',              fr:'Rapports',              cat:'view'  },
+  { key:'bank_report',       ar:'تقرير بنكي',           fr:'Rapport bancaire',       cat:'view'  },
+  { key:'kanban',            ar:'كانبان',                fr:'Kanban',                cat:'view'  },
+  { key:'gantt',             ar:'غانت',                  fr:'Gantt',                 cat:'view'  },
+  { key:'simulator',         ar:'المحاكي',               fr:'Simulateur',            cat:'view'  },
+  { key:'audit_log',         ar:'سجل النشاط',           fr:'Journal activité',       cat:'view'  },
+];
+
+// ── فتح مودال تخصيص الصلاحيات لمستخدم معين ──
+function openPermEditor(uid) {
+  if (!(Auth.getUser()?.role === 'admin' || Auth.getUser()?.is_admin)) {
+    Toast.error(L('هذه الصلاحية للمسؤول فقط','Réservé à l\'administrateur'));
+    return;
+  }
+  const u = (DB.get('users') || []).find(x => x.id === uid);
+  if (!u) return;
+  _permEditorUserId = uid;
+
+  document.getElementById('permEditorName').textContent = u.full_name;
+
+  const rolePerms   = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
+  const customPerms = u.custom_perms || {};
+
+  const grid = document.getElementById('permEditorGrid');
+  if (!grid) return;
+
+  grid.innerHTML = PERM_KEYS_DEF.map(pk => {
+    const roleVal   = rolePerms[pk.key];          // القيمة من الدور
+    const customVal = customPerms[pk.key];         // القيمة المخصصة (undefined = من الدور)
+    const effectVal = customVal !== undefined ? customVal : roleVal;
+
+    // تحديد الزر النشط
+    const isAllow = effectVal === true;
+    const isView  = effectVal === 'view';
+    const isDeny  = effectVal === false || effectVal === undefined || effectVal === null;
+    const fromRole= customVal === undefined;
+
+    // تصنيف "view" فقط للأذونات غير write_*
+    const showViewBtn = !pk.key.startsWith('write_');
+
+    return `
+    <div class="perm-row cat-${pk.cat}" data-perm-key="${pk.key}">
+      <div class="perm-label">
+        ${pk.cat==='write'?'✏️ ':''}${L(pk.ar, pk.fr)}
+        ${fromRole ? `<span style="font-size:.6rem;color:var(--dim);margin-right:.2rem">(${L('من الدور','du rôle')})</span>` : `<span style="font-size:.6rem;color:#9B6DFF;margin-right:.2rem">✏️</span>`}
+      </div>
+      <div class="perm-toggle">
+        <button class="${isAllow ? 'active-allow' : ''}" onclick="setPermVal('${pk.key}', true)"  title="${L('سماح كامل','Autoriser')}">✅</button>
+        ${showViewBtn ? `<button class="${isView ? 'active-view' : ''}" onclick="setPermVal('${pk.key}', 'view')" title="${L('قراءة فقط','Lecture seule')}">👁️</button>` : ''}
+        <button class="${isDeny ? 'active-deny' : ''}" onclick="setPermVal('${pk.key}', false)" title="${L('منع','Interdire')}">🚫</button>
+        <button onclick="setPermVal('${pk.key}', null)" title="${L('إعادة للدور','Rôle')}" style="font-size:.6rem;padding:2px 5px;color:var(--dim)">↺</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('permEditorModal').classList.add('show');
 }
-async function toggleUserActive(uid){
-  const userId = Number(uid);
 
-  // ── حماية حساب المسؤول الأساسي ──
-  if (userId === 1) {
-    Toast.error(L('🛑 لا يمكن تعطيل حساب المسؤول الأساسي','🛑 Impossible de désactiver le compte admin principal'));
-    return;
-  }
+// ── تغيير قيمة صلاحية في المودال (مؤقت في DOM) ──
+function setPermVal(key, val) {
+  const row = document.querySelector(`[data-perm-key="${key}"]`);
+  if (!row) return;
 
-  // ── منع المستخدم من تعطيل نفسه ──
-  const currentUser = Auth.getUser();
-  if (currentUser && currentUser.id === userId) {
-    Toast.error(L('🛑 لا يمكنك تعطيل حسابك أنت!','🛑 Vous ne pouvez pas désactiver votre propre compte!'));
-    return;
-  }
+  const u         = (DB.get('users') || []).find(x => x.id === _permEditorUserId);
+  const rolePerms = ROLE_PERMISSIONS[u?.role] || ROLE_PERMISSIONS['viewer'];
+  const roleVal   = rolePerms[key];
+  const showViewBtn = !key.startsWith('write_');
 
-  const before = DB.get('users') || [];
-  const target = before.find(u => u.id === userId);
-  if (!target) { Toast.error(L('المستخدم غير موجود','Utilisateur introuvable')); return; }
+  // تحديث الأزرار المرئية
+  const btns = row.querySelectorAll('.perm-toggle button');
+  const btnAllow = btns[0];
+  const btnView  = showViewBtn ? btns[1] : null;
+  const btnDeny  = showViewBtn ? btns[2] : btns[1];
+  const btnReset = showViewBtn ? btns[3] : btns[2];
 
-  const nextActive = !target.is_active;
-  const nextStatus = nextActive ? 'active' : 'disabled';
+  btnAllow.className = val === true  ? 'active-allow' : '';
+  if (btnView) btnView.className = val === 'view' ? 'active-view' : '';
+  btnDeny.className  = val === false ? 'active-deny' : '';
 
-  // ── جلب إعدادات Supabase ──
-  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
-  const sbUrl = cfg?.url || '';
-  const sbKey = cfg?.key || '';
-
-  if (!sbUrl || !sbKey) {
-    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن تحديث الحالة','⚠️ Supabase non connecté'));
-    return;
-  }
-
-  // ── تحديث Supabase أولاً ──
-  try {
-    const res = await fetch(`${sbUrl}/rest/v1/users?id=eq.${userId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type':'application/json',
-        'apikey': sbKey,
-        'Authorization': `Bearer ${sbKey}`,
-        'Prefer':'return=minimal'
-      },
-      body: JSON.stringify({ is_active: nextActive, account_status: nextStatus })
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status} — ${errText}`);
-    }
-
-    // ── نجح في Supabase → حدّث محلياً ──
-    DB.set('users', before.map(u => u.id === userId
-      ? {...u, is_active: nextActive, account_status: nextStatus}
-      : u
-    ));
-
-    Toast.success(nextActive
-      ? L('▶️ تم تفعيل المستخدم','▶️ Utilisateur activé')
-      : L('⏸️ تم إيقاف المستخدم','⏸️ Utilisateur désactivé'));
-  } catch(e) {
-    console.error('❌ toggleUserActive failed:', e);
-    Toast.error(L(`❌ تعذر تحديث الحالة: ${e.message}`,`❌ Impossible: ${e.message}`));
-    return;
-  }
-
-  App.navigate('team');
-}
-
-async function deleteUserAccount(uid){
-  const userId = Number(uid);
-  const u = (DB.get('users')||[]).find(x=>x.id===userId);
-  const name = u?.full_name || u?.name || u?.email || ('#'+userId);
-
-  // ── حماية الحسابات الأساسية ──
-  if (userId === 1) {
-    Toast.error(L('🛑 لا يمكن حذف حساب المسؤول الأساسي','🛑 Impossible de supprimer le compte admin principal'));
-    return;
-  }
-  if (userId === 2) {
-    if (!confirm(L(
-      '⚠️ هذا هو الحساب التجريبي الافتراضي. هل أنت متأكد من حذفه؟',
-      '⚠️ Ceci est le compte de démonstration. Êtes-vous sûr ?'
-    ))) return;
+  // تحديث label
+  const lbl = row.querySelector('.perm-label span');
+  if (val === null) {
+    if (lbl) { lbl.textContent = `(${L('من الدور','du rôle')})`; lbl.style.color = 'var(--dim)'; }
+    // إزالة المخصص ← القيمة null تعني "من الدور"
+    row.dataset.pendingVal = 'NULL';
   } else {
-    if (!confirm(L(
-      `هل تريد حذف حساب المستخدم نهائياً؟\n${name}`,
-      `Supprimer définitivement ce compte ?\n${name}`
-    ))) return;
+    if (lbl) { lbl.textContent = '✏️'; lbl.style.color = '#9B6DFF'; }
+    row.dataset.pendingVal = JSON.stringify(val);
   }
+}
 
-  // ── منع المستخدم من حذف نفسه ──
-  const currentUser = Auth.getUser();
-  if (currentUser && currentUser.id === userId) {
-    Toast.error(L('🛑 لا يمكنك حذف حسابك أنت!','🛑 Vous ne pouvez pas supprimer votre propre compte!'));
-    return;
-  }
+// ── حفظ الصلاحيات المخصصة ──
+function saveUserPerms() {
+  if (!_permEditorUserId) return;
 
-  // ── جلب إعدادات Supabase ──
-  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
-  const sbUrl = cfg?.url || '';
-  const sbKey = cfg?.key || '';
+  const users = DB.get('users') || [];
+  const idx   = users.findIndex(u => u.id === _permEditorUserId);
+  if (idx < 0) return;
 
-  if (!sbUrl || !sbKey) {
-    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن حذف الحساب من قاعدة البيانات السحابية',
-                   '⚠️ Supabase non connecté — impossible de supprimer'));
-    return;
-  }
+  const current = users[idx].custom_perms || {};
+  const updated = { ...current };
 
-  if (typeof Toast !== 'undefined') Toast.info(L('⏳ جاري حذف المستخدم...','⏳ Suppression en cours...'));
+  document.querySelectorAll('[data-perm-key]').forEach(row => {
+    const key = row.dataset.permKey;
+    const pending = row.dataset.pendingVal;
+    if (pending === undefined) return; // لم يُغيَّر
 
-  // ── حذف من Supabase أولاً (مصدر الحقيقة) ──
-  const sbH = {
-    'Content-Type':'application/json',
-    'apikey': sbKey,
-    'Authorization': `Bearer ${sbKey}`,
-    'Prefer': 'return=minimal'
-  };
-
-  try {
-    const res = await fetch(
-      `${sbUrl}/rest/v1/users?id=eq.${userId}`,
-      { method: 'DELETE', headers: sbH }
-    );
-    if (!res.ok) {
-      const errText = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status} — ${errText}`);
+    if (pending === 'NULL') {
+      delete updated[key]; // إعادة لصلاحيات الدور
+    } else {
+      updated[key] = JSON.parse(pending);
     }
-    console.log(`✅ حُذف المستخدم #${userId} من Supabase`);
+  });
 
-    // ── نجح الحذف من Supabase → احذف محلياً ──
-    const before = DB.get('users') || [];
-    DB.set('users', before.filter(x => x.id !== userId));
+  users[idx] = { ...users[idx], custom_perms: updated };
+  DB.set('users', users);
+  sbSync('users', { id: _permEditorUserId, custom_perms: updated }, 'PATCH').catch(() => {});
 
-    // ── إزالة عمليات معلّقة في Offline Queue تخص هذا المستخدم ──
-    try {
-      const Q_KEY = 'sbtp5_offline_queue';
-      const q = JSON.parse(localStorage.getItem(Q_KEY) || '[]');
-      const filtered = q.filter(op => {
-        if (op?.table !== 'users') return true;
-        const recId = op?.record?.id;
-        return recId !== userId;
-      });
-      localStorage.setItem(Q_KEY, JSON.stringify(filtered));
-      if (typeof DBHybrid !== 'undefined' && DBHybrid._updateAdminSyncUI) {
-        DBHybrid._updateAdminSyncUI();
-      }
-    } catch{}
-
-    Toast.success(L(`🗑️ تم حذف "${name}" نهائياً`,`🗑️ "${name}" supprimé`));
-  } catch(e) {
-    console.error('❌ deleteUserAccount failed:', e);
-    Toast.error(L(`❌ تعذر حذف المستخدم من Supabase: ${e.message}`,
-                   `❌ Impossible de supprimer: ${e.message}`));
-    return;
-  }
-
+  Toast.success(L('✅ تم حفظ الصلاحيات المخصصة','✅ Permissions personnalisées enregistrées'));
+  document.getElementById('permEditorModal').classList.remove('show');
   App.navigate('team');
 }
+
+// ── إعادة الصلاحيات لإعدادات الدور (مسح كل custom_perms) ──
+function resetUserPerms() {
+  if (!_permEditorUserId) return;
+  const msg = L(
+    'إعادة جميع الصلاحيات لصلاحيات الدور الافتراضية؟',
+    'Réinitialiser toutes les permissions au rôle par défaut ?'
+  );
+  if (!confirm(msg)) return;
+
+  const users = DB.get('users') || [];
+  const idx   = users.findIndex(u => u.id === _permEditorUserId);
+  if (idx < 0) return;
+
+  users[idx] = { ...users[idx], custom_perms: {} };
+  DB.set('users', users);
+  sbSync('users', { id: _permEditorUserId, custom_perms: {} }, 'PATCH').catch(() => {});
+
+  Toast.success(L('🔄 تم إعادة الصلاحيات لإعدادات الدور','🔄 Permissions réinitialisées au rôle'));
+  document.getElementById('permEditorModal').classList.remove('show');
+  App.navigate('team');
+}
+
 
 function showRolePreview(role) {
   const desc = {
@@ -12371,6 +12472,7 @@ function showRolePreview(role) {
   if(box) box.innerHTML = `<strong style="color:var(--gold)">${names[role]||role}</strong> — ${desc[role]||''}`;
 }
 function inviteUserV5(){
+  if (!(Auth.getUser()?.role==='admin'||Auth.getUser()?.is_admin)) { Toast.error(L('هذه الصلاحية للمسؤول فقط',"Réservé à l'administrateur")); return; }
   const name=document.getElementById('iName')?.value?.trim();
   const email=document.getElementById('iEmail')?.value?.trim().toLowerCase();
   const pass=document.getElementById('iPass')?.value;
@@ -14571,6 +14673,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ════════════════════════════════════════════════════════════════════
 
 window.dzsDelete = function(id) {
+  if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لحذف الوثيقة','Permission refusée : document')); return; }
   const msg = typeof L === 'function'
     ? L('حذف هذه الوثيقة من السجل؟', 'Supprimer ce document du registre ?')
     : 'Supprimer ?';
@@ -14581,6 +14684,7 @@ window.dzsDelete = function(id) {
 };
 
 window.dzsClearAll = function() {
+  if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لمسح الوثائق','Permission refusée : document')); return; }
   const msg = typeof L === 'function'
     ? L('مسح جميع الوثائق المحفوظة؟ لا يمكن التراجع.', 'Effacer tout l\'historique ? Irréversible.')
     : 'Effacer tout ?';
