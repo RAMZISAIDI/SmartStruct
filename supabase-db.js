@@ -1834,3 +1834,408 @@ var SUPABASE_HARDCODED = {
   set url(v)     { SUPABASE_CONFIG.url     = v; },
   set anonKey(v) { SUPABASE_CONFIG.anonKey = v; }
 };
+
+/* ══════════════════════════════════════════════════════════════════════
+   ⚡ SmartRealtime — نظام مزامنة فورية عبر Supabase Realtime WebSocket
+   - يفتح اتصال WebSocket مباشر مع Supabase
+   - يستمع للتغييرات على جداول التطبيق الرئيسية
+   - يُعيد المحاولة تلقائياً عند الانقطاع
+   - heartbeat كل 30 ثانية للحفاظ على الاتصال
+══════════════════════════════════════════════════════════════════════ */
+window.SmartRealtime = {
+  isLive: false,
+  _ws: null,
+  _tenantId: null,
+  _heartbeatTimer: null,
+  _reconnectTimer: null,
+  _reconnectAttempts: 0,
+  _maxReconnect: 8,
+  _subscribedTables: ['projects','workers','transactions','attendance','salary_records',
+                      'invoices','materials','equipment','documents','tenants','users',
+                      'stock_movements','tasks','notifications'],
+  _ref: 1,
+  _lastMsgAt: 0,
+
+  start(tenantId) {
+    // إيقاف أي اتصال سابق
+    this.stop();
+
+    const url = (typeof SUPABASE_CONFIG !== 'undefined') ? SUPABASE_CONFIG.url     : '';
+    const key = (typeof SUPABASE_CONFIG !== 'undefined') ? SUPABASE_CONFIG.anonKey : '';
+    if (!url || !key) {
+      console.warn('[SmartRealtime] لا توجد إعدادات Supabase');
+      return false;
+    }
+    if (typeof WebSocket === 'undefined') {
+      console.warn('[SmartRealtime] WebSocket غير مدعوم في هذا المتصفح');
+      return false;
+    }
+
+    this._tenantId = tenantId;
+
+    // تحويل https://xxx.supabase.co → wss://xxx.supabase.co/realtime/v1/websocket
+    const wsUrl = url.replace(/^https?:\/\//, 'wss://').replace(/\/$/, '')
+                + `/realtime/v1/websocket?apikey=${encodeURIComponent(key)}&vsn=1.0.0`;
+
+    try {
+      this._ws = new WebSocket(wsUrl);
+    } catch(e) {
+      console.error('[SmartRealtime] فشل إنشاء WebSocket:', e);
+      this._scheduleReconnect();
+      return false;
+    }
+
+    this._ws.addEventListener('open', () => {
+      console.log('⚡ [SmartRealtime] الاتصال مفتوح');
+      this.isLive = true;
+      this._reconnectAttempts = 0;
+      this._lastMsgAt = Date.now();
+
+      // الاشتراك في كل الجداول
+      this._subscribedTables.forEach(table => this._subscribe(table));
+
+      // heartbeat
+      this._startHeartbeat();
+
+      // تحديث UI
+      this._updateUI();
+      this._notify(true);
+    });
+
+    this._ws.addEventListener('message', (ev) => {
+      this._lastMsgAt = Date.now();
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch(_) { return; }
+
+      // رسالة postgres_changes
+      if (msg.event === 'postgres_changes' && msg.payload && msg.payload.data) {
+        this._handleChange(msg.payload.data);
+      }
+      // ack من الـ phx_reply
+      else if (msg.event === 'phx_reply' && msg.payload && msg.payload.status === 'error') {
+        console.warn('[SmartRealtime] خطأ في الاشتراك:', msg.payload.response);
+      }
+    });
+
+    this._ws.addEventListener('close', (ev) => {
+      console.warn('⚡ [SmartRealtime] الاتصال مغلق (code='+ev.code+')');
+      this.isLive = false;
+      this._stopHeartbeat();
+      this._updateUI();
+      this._notify(false);
+      if (ev.code !== 1000) this._scheduleReconnect();
+    });
+
+    this._ws.addEventListener('error', (e) => {
+      console.warn('⚡ [SmartRealtime] خطأ:', e);
+    });
+
+    return true;
+  },
+
+  stop() {
+    this._stopHeartbeat();
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    if (this._ws) {
+      try { this._ws.close(1000, 'manual_stop'); } catch(_) {}
+      this._ws = null;
+    }
+    this.isLive = false;
+    this._updateUI();
+  },
+
+  _subscribe(table) {
+    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+    const topic = `realtime:public:${table}`;
+    const filter = this._tenantId ? `tenant_id=eq.${this._tenantId}` : '';
+    const payload = {
+      topic,
+      event: 'phx_join',
+      payload: {
+        config: {
+          postgres_changes: [{
+            event: '*',
+            schema: 'public',
+            table: table,
+            ...(filter ? { filter } : {})
+          }]
+        }
+      },
+      ref: String(this._ref++)
+    };
+    try {
+      this._ws.send(JSON.stringify(payload));
+    } catch(e) {
+      console.warn('[SmartRealtime] فشل subscribe لجدول '+table+':', e);
+    }
+  },
+
+  _handleChange(data) {
+    // data = { table, type: 'INSERT'|'UPDATE'|'DELETE', record, old_record }
+    const table = data.table;
+    const type  = data.type;
+    const rec   = data.record || data.old_record;
+    if (!table || !rec) return;
+
+    // فلترة tenant على مستوى العميل (حماية إضافية)
+    if (this._tenantId && rec.tenant_id && Number(rec.tenant_id) !== Number(this._tenantId)) {
+      return;
+    }
+
+    console.log(`⚡ [SmartRealtime] ${type} على ${table}: id=${rec.id}`);
+
+    // تحديث الـ localStorage بدون استدعاء set (لتجنب حلقة)
+    try {
+      const local = JSON.parse(localStorage.getItem('sbtp_'+table) || '[]');
+      let updated;
+
+      if (type === 'DELETE') {
+        updated = local.filter(r => r.id !== rec.id);
+      } else if (type === 'INSERT') {
+        if (!local.find(r => r.id === rec.id)) {
+          updated = [...local, rec];
+        } else {
+          updated = local.map(r => r.id === rec.id ? rec : r);
+        }
+      } else if (type === 'UPDATE') {
+        updated = local.map(r => r.id === rec.id ? { ...r, ...rec } : r);
+        if (!updated.find(r => r.id === rec.id)) updated.push(rec);
+      } else {
+        return;
+      }
+
+      localStorage.setItem('sbtp_'+table, JSON.stringify(updated));
+
+      // إشعار التطبيق بتحديث UI إن كان في صفحة ذات صلة
+      if (typeof App !== 'undefined' && App.currentPage) {
+        const pageToTables = {
+          dashboard: ['projects','workers','transactions','invoices'],
+          projects: ['projects'],
+          workers: ['workers'],
+          attendance: ['attendance'],
+          salary: ['salary_records','workers'],
+          invoices: ['invoices','transactions'],
+          inventory: ['materials','stock_movements'],
+          materials: ['materials'],
+          equipment: ['equipment'],
+          documents: ['documents'],
+          archive: ['documents'],
+          team: ['users'],
+        };
+        const watch = pageToTables[App.currentPage] || [];
+        if (watch.includes(table)) {
+          // تحديث الصفحة بهدوء
+          clearTimeout(this._refreshTimer);
+          this._refreshTimer = setTimeout(() => {
+            try { App.navigate(App.currentPage); } catch(_) {}
+          }, 300);
+        }
+      }
+
+      // toast للإشعار
+      if (typeof Toast !== 'undefined' && type === 'INSERT' && table !== 'audit_log') {
+        const tableNames = { projects:'مشروع', workers:'عامل', invoices:'فاتورة',
+                             documents:'وثيقة', transactions:'معاملة' };
+        const name = tableNames[table];
+        if (name && typeof Toast.info === 'function') {
+          Toast.info(`⚡ ${name} جديد من زميل`);
+        }
+      }
+    } catch(e) {
+      console.warn('[SmartRealtime] فشل تحديث local:', e);
+    }
+  },
+
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this._heartbeatTimer = setInterval(() => {
+      if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+        try {
+          this._ws.send(JSON.stringify({
+            topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(this._ref++)
+          }));
+        } catch(_) {}
+      }
+      // إذا لم تصل رسالة منذ دقيقة، أعد الاتصال
+      if (Date.now() - this._lastMsgAt > 60000) {
+        console.warn('[SmartRealtime] لا توجد رسائل منذ دقيقة، إعادة اتصال...');
+        this.stop();
+        this._scheduleReconnect();
+      }
+    }, 30000);
+  },
+
+  _stopHeartbeat() {
+    if (this._heartbeatTimer) {
+      clearInterval(this._heartbeatTimer);
+      this._heartbeatTimer = null;
+    }
+  },
+
+  _scheduleReconnect() {
+    if (this._reconnectAttempts >= this._maxReconnect) {
+      console.warn('[SmartRealtime] تجاوز عدد محاولات الاتصال');
+      return;
+    }
+    this._reconnectAttempts++;
+    // exponential backoff: 2s, 4s, 8s, 16s, ... max 60s
+    const delay = Math.min(60000, Math.pow(2, this._reconnectAttempts) * 1000);
+    console.log(`[SmartRealtime] إعادة محاولة بعد ${delay/1000} ثانية (${this._reconnectAttempts}/${this._maxReconnect})`);
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = setTimeout(() => {
+      this.start(this._tenantId);
+    }, delay);
+  },
+
+  _updateUI() {
+    // تحديث كل العناصر التي تعرض الحالة
+    const dots = document.querySelectorAll('[id^="rtAdminDot"], [id^="rtDot"]');
+    dots.forEach(d => { d.textContent = this.isLive ? '🟢' : '🔴'; });
+    const badges = document.querySelectorAll('.realtime-badge');
+    badges.forEach(b => {
+      b.style.color = this.isLive ? '#34C38F' : '#F04E6A';
+      b.textContent = this.isLive ? '⚡ Realtime نشط' : '⚡ Realtime غير متصل';
+    });
+  },
+
+  _notify(connected) {
+    if (typeof Toast === 'undefined') return;
+    if (connected && typeof Toast.success === 'function') {
+      // فقط بعد الاتصال الأول
+      if (this._reconnectAttempts === 0) {
+        Toast.success('⚡ المزامنة الفورية نشطة');
+      }
+    }
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   🔄 AutoSync — مزامنة تلقائية بدون ضغط زر
+   - تعمل عند:
+     • التحميل الأول
+     • كل تغيير محلي (debounced 1.5s)
+     • كل 5 دقائق (sync periodic للأمان)
+     • العودة للاتصال بالإنترنت
+══════════════════════════════════════════════════════════════════════ */
+window.AutoSync = {
+  _enabled: false,
+  _pendingChanges: new Set(),
+  _debounceTimer: null,
+  _periodicTimer: null,
+  _isSyncing: false,
+  _lastSync: 0,
+
+  enable() {
+    if (this._enabled) return;
+    this._enabled = true;
+
+    // مزامنة أولى بعد 3 ثوانٍ من التحميل
+    setTimeout(() => this._runSync('initial'), 3000);
+
+    // مزامنة دورية كل 5 دقائق
+    this._periodicTimer = setInterval(() => {
+      if (navigator.onLine && !this._isSyncing) {
+        this._runSync('periodic');
+      }
+    }, 5 * 60 * 1000);
+
+    // إعادة الاتصال بالإنترنت → مزامنة فورية
+    window.addEventListener('online', () => {
+      console.log('[AutoSync] الاتصال بالإنترنت عاد، مزامنة...');
+      setTimeout(() => this._runSync('online'), 1000);
+      // إعادة تشغيل Realtime
+      if (window.SmartRealtime && !window.SmartRealtime.isLive) {
+        const tid = (typeof Auth !== 'undefined') ? Auth.getUser()?.tenant_id : null;
+        window.SmartRealtime.start(tid);
+      }
+    });
+
+    // عند الرجوع للتاب → مزامنة سريعة
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && Date.now() - this._lastSync > 30000) {
+        this._runSync('visibility');
+      }
+    });
+
+    console.log('🔄 AutoSync — تم تفعيل المزامنة التلقائية');
+  },
+
+  disable() {
+    this._enabled = false;
+    if (this._periodicTimer) { clearInterval(this._periodicTimer); this._periodicTimer = null; }
+    if (this._debounceTimer) { clearTimeout(this._debounceTimer); this._debounceTimer = null; }
+  },
+
+  // يُستدعى عند كل تعديل محلي
+  markDirty(table) {
+    if (!this._enabled) return;
+    this._pendingChanges.add(table);
+    // debounce — انتظر 1.5 ثانية قبل المزامنة لتجميع التعديلات
+    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => {
+      if (navigator.onLine && !this._isSyncing) {
+        this._runSync('change');
+      }
+    }, 1500);
+  },
+
+  async _runSync(reason) {
+    if (this._isSyncing) return;
+    if (!navigator.onLine) return;
+    if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return;
+
+    this._isSyncing = true;
+    const tablesToSync = Array.from(this._pendingChanges);
+    this._pendingChanges.clear();
+
+    try {
+      // استدعاء syncAllDataToSupabase من app.js إن كانت موجودة (للمزامنة الأولية)
+      if (reason === 'initial' && typeof window.syncAllDataToSupabase === 'function') {
+        await window.syncAllDataToSupabase(true /* silent */);
+      } else if (tablesToSync.length > 0 && typeof window.syncTablesToSupabase === 'function') {
+        // مزامنة جداول محددة
+        await window.syncTablesToSupabase(tablesToSync, true /* silent */);
+      } else if (typeof window.syncAllDataToSupabase === 'function') {
+        // افتراضياً مزامنة الكل بصمت
+        await window.syncAllDataToSupabase(true);
+      }
+
+      this._lastSync = Date.now();
+      console.log(`🔄 [AutoSync] تمت المزامنة (${reason})`);
+
+      // تحديث badge المزامنة
+      const lastSyncEl = document.getElementById('lastSyncTime');
+      if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString('fr-DZ');
+    } catch (e) {
+      console.warn('[AutoSync] فشل:', e.message);
+      // أعد إضافة الجداول المعلّقة
+      tablesToSync.forEach(t => this._pendingChanges.add(t));
+    } finally {
+      this._isSyncing = false;
+    }
+  },
+
+  // إجبار المزامنة فوراً
+  syncNow() {
+    return this._runSync('manual');
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   🪝 Hook: ربط DBHybrid.set بـ AutoSync.markDirty
+   عند كل DB.set('table', ...) نضع علامة dirty للمزامنة التلقائية
+══════════════════════════════════════════════════════════════════════ */
+(function _installAutoSyncHook() {
+  if (typeof DBHybrid === 'undefined' || !DBHybrid.set) return;
+  const origSet = DBHybrid.set.bind(DBHybrid);
+  DBHybrid.set = function(table, value) {
+    const result = origSet(table, value);
+    // ضع علامة dirty (سيتم debounce في AutoSync)
+    if (window.AutoSync) {
+      window.AutoSync.markDirty(table);
+    }
+    return result;
+  };
+  console.log('🪝 AutoSync hook مُثبَّت على DBHybrid.set');
+})();

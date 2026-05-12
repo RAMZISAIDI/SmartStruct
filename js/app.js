@@ -3587,7 +3587,7 @@ Pages.dashboard = function() {
         <div class="page-sub">${L('نظرة شاملة على مؤسستك','Vue d\'ensemble de votre entreprise')}</div>
       </div>
       <div class="page-actions">
-        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ ${L('رفع البيانات','Sync')}</button>
+        <button id="syncAllBtn" class="btn btn-sm realtime-badge" style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="(function(){if(typeof AutoSync!=='undefined'){AutoSync.syncNow().then(()=>Toast.success('⚡ تمت المزامنة'));}else{syncAllDataToSupabase();}})()" title="${L('المزامنة تلقائية — اضغط للمزامنة الفورية','Sync auto — clic pour forcer')}">⚡ <span id="lastSyncTime">${L('متصل','En ligne')}</span></button>
         <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
@@ -7805,13 +7805,13 @@ function checkSupabaseStatus() {
   }
 }
 
-async function syncAllDataToSupabase() {
-  const btn = document.getElementById('syncAllBtn');
+async function syncAllDataToSupabase(silent) {
+  const btn = silent ? null : document.getElementById('syncAllBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
 
   const user = Auth.getUser();
   if (!user || !user.tenant_id) {
-    Toast.error('❌ يجب تسجيل الدخول أولاً');
+    if (!silent) Toast.error('❌ يجب تسجيل الدخول أولاً');
     if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
@@ -7820,7 +7820,7 @@ async function syncAllDataToSupabase() {
   // ── جلب إعدادات Supabase ──
   const sbCfg = getSupabaseConfig();
   if (!sbCfg || !sbCfg.url || !sbCfg.key) {
-    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
+    if (!silent) Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
     if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
@@ -7906,6 +7906,12 @@ async function syncAllDataToSupabase() {
 
   if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
 
+  if (silent) {
+    // وضع silent: لا toast، فقط console
+    console.log(`[syncAll silent] ${totalSent} سجل مرفوع، ${errors.length} خطأ`);
+    return { totalSent, errors };
+  }
+
   if (errors.length === 0) {
     Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
   } else if (totalSent > 0) {
@@ -7914,6 +7920,45 @@ async function syncAllDataToSupabase() {
     Toast.error('❌ فشل الرفع: ' + errors[0]);
   }
 }
+
+// ── مزامنة جداول محددة (يستدعيها AutoSync) ──
+async function syncTablesToSupabase(tables, silent) {
+  if (!tables || tables.length === 0) return;
+  const user = Auth.getUser();
+  if (!user || !user.tenant_id) return;
+  const sbCfg = getSupabaseConfig();
+  if (!sbCfg || !sbCfg.url || !sbCfg.key) return;
+
+  const tid = user.tenant_id;
+  const sbH = {
+    'Content-Type': 'application/json',
+    'apikey': sbCfg.key,
+    'Authorization': `Bearer ${sbCfg.key}`,
+    'Prefer': 'resolution=merge-duplicates,return=minimal'
+  };
+
+  let total = 0;
+  for (const table of tables) {
+    try {
+      const records = DB.get(table) || [];
+      const myRecords = records.filter(r => !r.tenant_id || r.tenant_id === tid);
+      if (myRecords.length === 0) continue;
+      // تنظيف وتنقية للـ Supabase
+      const cleaned = myRecords.map(r => (typeof cleanForSupabase === 'function') ? cleanForSupabase(table, r) : r);
+      const res = await fetch(`${sbCfg.url}/rest/v1/${table}`, {
+        method: 'POST', headers: sbH, body: JSON.stringify(cleaned)
+      });
+      if (res.ok) total += myRecords.length;
+    } catch(e) {
+      console.warn(`[syncTables ${table}]`, e.message);
+    }
+  }
+  if (!silent && total > 0 && typeof Toast !== 'undefined') {
+    Toast.success(`⚡ تمت مزامنة ${total} سجل`);
+  }
+  return total;
+}
+window.syncTablesToSupabase = syncTablesToSupabase;
 
 
 function addNote(pid) {
@@ -8244,10 +8289,14 @@ async function doLogin() {
     App.navigate(sbUser.is_admin ? 'admin' : 'dashboard');
     setTimeout(() => TrialManager.checkAndEnforce(), 200);
 
-    // ⚡ تشغيل Realtime بعد تسجيل الدخول
+    // ⚡ تشغيل Realtime + AutoSync بعد تسجيل الدخول
     setTimeout(() => {
       if (typeof SmartRealtime !== 'undefined' && !SmartRealtime.isLive) {
         SmartRealtime.start(sbUser.tenant_id || null);
+      }
+      // 🔄 تفعيل المزامنة التلقائية (بدلاً من زر "رفع البيانات")
+      if (typeof AutoSync !== 'undefined') {
+        AutoSync.enable();
       }
     }, 1500);
     setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
@@ -14417,13 +14466,27 @@ document.addEventListener('DOMContentLoaded', function() {
   if (autoSyncEnabled && typeof DBHybrid !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined') {
     if (SUPABASE_CONFIG.isConfigured) {
       // الـ heartbeat يبدأ تلقائياً في initSupabase()
-      // لكن نضمن هنا أنه مُشغَّل دائماً
       setTimeout(() => {
         if (DBHybrid._useSupabase && !DBHybrid._heartbeatTimer) {
           DBHybrid._startHeartbeat();
           DBHybrid._setupNetworkEvents();
           console.log('🔄 Auto-sync: Heartbeat تم تشغيله تلقائياً');
         }
+
+        // ⚡ تشغيل SmartRealtime + AutoSync لو المستخدم مُسجَّل دخول
+        try {
+          const user = Auth?.getUser?.();
+          if (user) {
+            if (typeof SmartRealtime !== 'undefined' && !SmartRealtime.isLive) {
+              SmartRealtime.start(user.tenant_id || null);
+              console.log('⚡ SmartRealtime: تم التشغيل من بدء الصفحة');
+            }
+            if (typeof AutoSync !== 'undefined' && !AutoSync._enabled) {
+              AutoSync.enable();
+              console.log('🔄 AutoSync: تم التفعيل من بدء الصفحة');
+            }
+          }
+        } catch(_) {}
       }, 2000);
     }
   }
