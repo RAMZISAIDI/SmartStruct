@@ -9371,22 +9371,27 @@ async function deleteTenantAccount(tenantId){
     return;
   }
 
-  // ── نجح الحذف من Supabase → احذف محلياً أيضاً ──
-  DB.set('tenants', tenants.filter(x => x.id !== tid));
+  // ── نجح الحذف من Supabase → احذف محلياً نهائياً ──
+  // استخدم setSilent لمنع إعادة رفع الحذف إلى Supabase
+  const setSilentFn = (typeof DB.setSilent === 'function') ? DB.setSilent.bind(DB) : DB.set.bind(DB);
+  setSilentFn('tenants', tenants.filter(x => x.id !== tid));
   depTables.forEach(tbl => {
     try {
       const arr = DB.get(tbl);
-      if (Array.isArray(arr)) DB.set(tbl, arr.filter(r => r.tenant_id !== tid));
+      if (Array.isArray(arr)) setSilentFn(tbl, arr.filter(r => r.tenant_id !== tid));
     } catch{}
   });
 
   // ── إزالة عمليات معلّقة في Offline Queue تخص هذه المؤسسة ──
+  // (مهم: بدونه قد تُعاد المؤسسة المحذوفة عند مزامنة الـ queue)
   try {
     const Q_KEY = 'sbtp5_offline_queue';
     const q = JSON.parse(localStorage.getItem(Q_KEY) || '[]');
     const filtered = q.filter(op => {
       const recTid = op?.record?.tenant_id;
-      return recTid !== tid;
+      const recId  = op?.record?.id;
+      // احذف أي عملية تخص هذه المؤسسة أو تنشئها من جديد
+      return recTid !== tid && !(op?.table === 'tenants' && recId === tid);
     });
     localStorage.setItem(Q_KEY, JSON.stringify(filtered));
     if (typeof DBHybrid !== 'undefined' && DBHybrid._updateAdminSyncUI) {
@@ -9628,15 +9633,17 @@ async function syncAdminFromSupabase() {
     }
     const h = { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` };
 
+    // ✅ Supabase هو مصدر الحقيقة — استبدل المحلي بالبيانات من السحابة
+    // (لا دمج، لأن الدمج يعيد الحسابات المحذوفة)
+
     // جلب المؤسسات
     const tResp = await fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h });
     if (tResp.ok) {
       const sbTenants = await tResp.json();
       if (sbTenants.length) {
-        const local = DB.get('tenants');
-        const merged = [...sbTenants];
-        local.forEach(lt => { if (!merged.find(st => st.id === lt.id)) merged.push(lt); });
-        DB.set('tenants', merged);
+        // استبدل المحلي مباشرةً — لا دمج
+        if (typeof DB.setSilent === 'function') DB.setSilent('tenants', sbTenants);
+        else DB.set('tenants', sbTenants);
       }
     }
     // جلب المستخدمين
@@ -9644,10 +9651,8 @@ async function syncAdminFromSupabase() {
     if (uResp.ok) {
       const sbUsers = await uResp.json();
       if (sbUsers.length) {
-        const local = DB.get('users');
-        const merged = [...sbUsers];
-        local.forEach(lu => { if (!merged.find(su => su.id === lu.id)) merged.push(lu); });
-        DB.set('users', merged);
+        if (typeof DB.setSilent === 'function') DB.setSilent('users', sbUsers);
+        else DB.set('users', sbUsers);
       }
     }
     // جلب الإشعارات
@@ -9655,10 +9660,9 @@ async function syncAdminFromSupabase() {
     if (nResp.ok) {
       const sbNotifs = await nResp.json();
       if (sbNotifs.length) {
-        const local = DB.get('notifications') || [];
-        const merged = [...sbNotifs];
-        local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
-        DB.set('notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
+        const sorted = sbNotifs.sort((a,b) => new Date(b.date||0)-new Date(a.date||0));
+        if (typeof DB.setSilent === 'function') DB.setSilent('notifications', sorted);
+        else DB.set('notifications', sorted);
       }
     }
 

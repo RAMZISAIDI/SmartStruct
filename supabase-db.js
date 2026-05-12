@@ -651,15 +651,15 @@ const DBHybrid = {
     this._emitSyncEvent('syncing');
   },
 
-  /** سحب جدول من Supabase ودمجه مع المحلي */
+  /** سحب جدول من Supabase — Supabase هو مصدر الحقيقة (لا دمج) */
   async _pullRemoteTable(table, lsKey) {
-    const remote = await this._sb.select(table).catch(() => []);
-    if (!remote.length) return;
+    const remote = await this._sb.select(table).catch(() => null);
+    // إذا فشل الجلب أو كان فارغاً تماماً نتجاهل (لا نمسح المحلي)
+    if (!remote || !Array.isArray(remote)) return;
     try {
-      const local  = JSON.parse(localStorage.getItem(lsKey) || '[]');
-      const merged = [...remote];
-      local.forEach(l => { if (!merged.find(r => r.id === l.id)) merged.push(l); });
-      localStorage.setItem(lsKey, JSON.stringify(merged));
+      // ✅ استبدل المحلي بالبيانات من Supabase مباشرةً
+      // هذا يمنع عودة الحسابات المحذوفة من Supabase
+      localStorage.setItem(lsKey, JSON.stringify(remote));
     } catch (_) {}
   },
 
