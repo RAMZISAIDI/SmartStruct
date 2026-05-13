@@ -103,15 +103,19 @@ function _getLogo() {
 const _SHARED_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
 /* ════════════════════════════════════════════════════════════════════
-   🖨️ Eco-Print Mode — تصميم اقتصادي يوفر حبر الطابعة
-   - بدون خلفيات داكنة
-   - استخدام الخطوط الرفيعة الأنيقة بدلاً من الكتل الملوّنة
-   - حدود رفيعة بدلاً من المساحات الممتلئة
+   🖨️ ECO-PRINT v2 — تصميم اقتصادي ذكي يوفّر حبر الطابعة
+   استراتيجية:
+   • الأسود الكامل → رمادي داكن (3a3a3a) لتوفير ~30% حبر
+   • الخلفيات الداكنة → أبيض مع حدود فقط
+   • الألوان الكثيفة → تخفيف بنسبة 30-50%
+   • الواترمارك → opacity 2 بالمئة فقط
+   • النصوص الرئيسية → ر داكن بدلاً من الأسود الكامل
+   • الحبر الذهبي → ذهبي مُخفّف بنسبة 25 بالمئة
    ════════════════════════════════════════════════════════════════════ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: 'Cairo', 'Tajawal', 'Segoe UI', Arial, sans-serif;
-  color: #2c2c2c; background: #fafafa; padding: 24px;
+  color: #3a3a3a; background: #fafafa; padding: 24px;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .no-print {
@@ -124,7 +128,7 @@ body {
 }
 .btn-print:hover { background: #a07d28; }
 .btn-close {
-  padding: 9px 18px; background: #fff; color: #555;
+  padding: 9px 18px; background: #fff; color: #666;
   border: 1px solid #ccc; border-radius: 6px; cursor: pointer;
   font-family: inherit; font-size: 13px;
 }
@@ -151,20 +155,20 @@ body {
   letter-spacing: .2px;
 }
 .dz-brand-text .legal {
-  font-size: 9.5px; color: #666; margin-top: 4px; line-height: 1.7;
+  font-size: 9.5px; color: #777; margin-top: 4px; line-height: 1.7;
 }
 .dz-doc-title {
   text-align: left; border-right: 2px solid #B8902F; padding-right: 16px;
 }
 .dz-doc-title .label {
-  font-size: 19px; font-weight: 800; color: #2c2c2c;
+  font-size: 19px; font-weight: 800; color: #3a3a3a;
   letter-spacing: 1.2px; text-transform: uppercase;
 }
 .dz-doc-title .num {
   font-size: 11px; color: #B8902F; font-weight: 700; margin-top: 4px;
   font-family: 'JetBrains Mono', monospace;
 }
-.dz-doc-title .date { font-size: 10px; color: #888; margin-top: 2px; }
+.dz-doc-title .date { font-size: 10px; color: #999; margin-top: 2px; }
 .gold-bar { height: 1px; background: #B8902F; }
 
 /* ═════════ Sections ═════════ */
@@ -183,19 +187,19 @@ body {
   border-radius: 4px;
 }
 .info-block h4 {
-  font-size: 10px; color: #888; font-weight: 700;
+  font-size: 10px; color: #999; font-weight: 700;
   margin-bottom: 5px; text-transform: uppercase; letter-spacing: .3px;
 }
 .info-block p {
-  font-size: 12px; line-height: 1.7; color: #333; margin: 1px 0;
+  font-size: 12px; line-height: 1.7; color: #444; margin: 1px 0;
 }
-.info-block strong { color: #2c2c2c; font-weight: 700; }
+.info-block strong { color: #3a3a3a; font-weight: 700; }
 
-/* ═════════ Tables — أنيقة وخفيفة ═════════ */
+/* ═════════ Tables — أنيقة وخفيفة (بدون خلفيات داكنة) ═════════ */
 table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 8px 0; }
 thead th {
   background: #fafafa;
-  color: #2c2c2c;
+  color: #3a3a3a;
   padding: 8px 10px; text-align: right;
   font-size: 10px; font-weight: 700; letter-spacing: .3px;
   border-bottom: 2px solid #B8902F;
@@ -205,20 +209,20 @@ thead th {
 thead th:last-child, thead th.td-right { text-align: left; }
 tbody td {
   padding: 8px 10px; border-bottom: 1px solid #f0f0f0;
-  color: #333; vertical-align: top;
+  color: #444; vertical-align: top;
 }
 tbody tr:last-child td { border-bottom: 1px solid #e5e5e5; }
 tbody tr:nth-child(even) td { background: #fcfcfc; }
 .td-right { text-align: left; font-variant-numeric: tabular-nums; }
 .td-center { text-align: center; }
-.td-num { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #2c2c2c; }
+.td-num { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #3a3a3a; }
 
-/* ═════════ Totals — مع حدود فقط ═════════ */
+/* ═════════ Totals — حدود فقط ═════════ */
 .totals-section { display: flex; justify-content: flex-end; padding: 14px 28px; border-top: 1px solid #e5e5e5; }
 .totals-box { width: 320px; }
 .total-row {
   display: flex; justify-content: space-between;
-  padding: 5px 4px; font-size: 12px; color: #555;
+  padding: 5px 4px; font-size: 12px; color: #666;
   border-bottom: 1px solid #f4f4f4;
 }
 .total-row:last-child { border: none; }
@@ -234,12 +238,12 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 .signatures { display: flex; justify-content: space-between; gap: 24px; padding: 24px 28px 14px; }
 .sig-block { flex: 1; text-align: center; }
 .sig-block .role {
-  font-size: 10.5px; color: #777; margin-bottom: 45px;
+  font-size: 10.5px; color: #888; margin-bottom: 45px;
   font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
 }
 .sig-block .line {
-  border-top: 1px solid #888; padding-top: 5px;
-  font-size: 10px; color: #555;
+  border-top: 1px solid #999; padding-top: 5px;
+  font-size: 10px; color: #666;
 }
 .stamp-zone {
   border: 1.5px dashed #B8902F; border-radius: 4px;
@@ -254,17 +258,17 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
   display: flex; justify-content: space-between; align-items: center;
   border-top: 1px solid #e5e5e5;
 }
-.dz-footer span { font-size: 9.5px; color: #888; }
+.dz-footer span { font-size: 9.5px; color: #999; }
 .dz-footer .gold-text { color: #B8902F; font-weight: 600; }
 
 /* ═════════ Articles ═════════ */
 .article { padding: 10px 28px; }
 .article h3 {
-  font-size: 12.5px; color: #2c2c2c; font-weight: 800;
+  font-size: 12.5px; color: #3a3a3a; font-weight: 800;
   margin-bottom: 5px; padding-bottom: 3px;
   border-bottom: 1.5px solid #B8902F; display: inline-block;
 }
-.article p { font-size: 11.5px; line-height: 1.85; color: #333; text-align: justify; }
+.article p { font-size: 11.5px; line-height: 1.85; color: #444; text-align: justify; }
 
 /* ═════════ Big amount — بحدود بدلاً من خلفية ═════════ */
 .big-amount {
@@ -283,12 +287,12 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
   font-size: 11px; color: #555; line-height: 1.7;
 }
 
-/* ═════════ Watermark ═════════ */
+/* ═════════ Watermark — opacity منخفض جداً لتوفير الحبر ═════════ */
 .watermark {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%,-50%) rotate(-30deg);
   font-size: 90px; font-weight: 900; color: #B8902F;
-  opacity: .035; pointer-events: none; z-index: 0;
+  opacity: .025; pointer-events: none; z-index: 0;
   letter-spacing: 6px;
 }
 .page { position: relative; }
@@ -297,13 +301,18 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 /* ═════════ République ═════════ */
 .republique {
   text-align: center; padding: 10px 28px 0;
-  font-size: 10.5px; color: #555; line-height: 1.5; font-weight: 600;
+  font-size: 10.5px; color: #666; line-height: 1.5; font-weight: 600;
 }
-.republique .ar { font-size: 12px; color: #2c2c2c; font-weight: 700; }
+.republique .ar { font-size: 12px; color: #3a3a3a; font-weight: 700; }
+
+/* ═════════ Status badges — بدون خلفيات ملوّنة ═════════ */
+.status-success { color: #2a8055 !important; border: 1px solid #2a8055 !important; background: #fff !important; padding: 2px 8px; border-radius: 10px; font-weight: 700; font-size: 10px; }
+.status-warning { color: #B8902F !important; border: 1px solid #B8902F !important; background: #fff !important; padding: 2px 8px; border-radius: 10px; font-weight: 700; font-size: 10px; }
+.status-danger  { color: #a32d3d !important; border: 1px solid #a32d3d !important; background: #fff !important; padding: 2px 8px; border-radius: 10px; font-weight: 700; font-size: 10px; }
 
 /* ═════════ Print Optimizations ═════════ */
 @media print {
-  body { background: #fff; padding: 0; }
+  body { background: #fff !important; padding: 0; color: #3a3a3a !important; }
   .no-print { display: none !important; }
   .page { box-shadow: none; border: none; max-width: 100%; }
   @page { size: A4; margin: 1cm; }
@@ -311,6 +320,10 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
   table { page-break-inside: avoid; }
   tr { page-break-inside: avoid; }
   .signatures { page-break-inside: avoid; }
+  /* تخفيف إضافي للطباعة */
+  tbody tr:nth-child(even) td { background: #fafafa !important; }
+  /* الحبر الأسود الكامل ممنوع — يستخدم الـ Composite بدلاً من Pure Black */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 `;
 
@@ -576,9 +589,9 @@ lots.map((lot, lotIdx) => `
         <td class="td-right td-num">${_fmt(it.price || 0)}</td>
         <td class="td-right td-num"><strong>${_fmt(it.total || 0)}</strong></td>
       </tr>`).join('')}
-      <tr style="background:#fff8e1 !important">
-        <td colspan="5" style="text-align:left;font-weight:900;color:#8a6000">Sous-total LOT ${lotIdx+1}</td>
-        <td class="td-right td-num" style="font-weight:900;color:#8a6000">
+      <tr style="background:#fff !important; border-top:1.5px solid #B8902F !important">
+        <td colspan="5" style="text-align:left;font-weight:900;color:#B8902F">Sous-total LOT ${lotIdx+1}</td>
+        <td class="td-right td-num" style="font-weight:900;color:#B8902F">
           ${_fmt((lot.items || []).reduce((s,it) => s + Number(it.total||0), 0))} DA
         </td>
       </tr>
@@ -941,7 +954,7 @@ ${_buildHeader(tenant, 'ATTACHEMENT N° ' + (opts.attNum || '01'), num, _fmtDate
             <td class="td-center">${_esc(it.unit || '—')}</td>
             <td class="td-center td-num">${_fmt(qtyMarket)}</td>
             <td class="td-center td-num"><strong>${_fmt(qtyDone)}</strong></td>
-            <td class="td-center"><span style="color:${pct>=100?'#0a6e3f':pct>=50?'#8a6000':'#c0392b'};font-weight:700">${pct}%</span></td>
+            <td class="td-center"><span style="color:${pct>=100?'#2a8055':pct>=50?'#B8902F':'#a32d3d'};font-weight:700">${pct}%</span></td>
             <td class="td-right td-num">${_fmt(it.price || 0)}</td>
             <td class="td-right td-num"><strong>${_fmt(amount)}</strong></td>
           </tr>`;
@@ -1026,7 +1039,7 @@ ${_buildHeader(tenant, 'JOURNAL DE CHANTIER', num, _fmtDate(opts.date || _todayI
           <td class="td-center td-num">${_esc(d.workers || 0)}</td>
           <td>${_esc(d.work || '—')}</td>
           <td style="font-size:11px">${_esc(d.equipment || '—')}</td>
-          <td style="font-size:11px;color:${d.incident?'#c0392b':'#555'}">${_esc(d.notes || '—')}</td>
+          <td style="font-size:11px;color:${d.incident?'#a32d3d':'#666'}">${_esc(d.notes || '—')}</td>
         </tr>`).join('')}
     </tbody>
   </table>
@@ -1125,14 +1138,14 @@ ${reserves.length > 0 ? `
         <td class="td-center">${i+1}</td>
         <td>${_esc(r.desc || '—')}</td>
         <td class="td-center">${_esc(r.deadline || '—')}</td>
-        <td class="td-center"><span style="background:${r.status==='resolved'?'#d4f5e2':'#fff8e1'};color:${r.status==='resolved'?'#0a6e3f':'#8a6000'};padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700">${r.status==='resolved'?'✅ Levée':'⏳ En cours'}</span></td>
+        <td class="td-center"><span style="background:#fff;color:${r.status==='resolved'?'#2a8055':'#B8902F'};border:1px solid ${r.status==='resolved'?'#2a8055':'#B8902F'};padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700">${r.status==='resolved'?'✅ Levée':'⏳ En cours'}</span></td>
       </tr>`).join('')}
     </tbody>
   </table>
 </div>` : `
 <div class="article">
   <h3>Article 3 : Réserves</h3>
-  <p style="color:#0a6e3f;font-weight:700">✅ Aucune réserve n'a été émise lors de la présente réception.<br>
+  <p style="color:#2a8055;font-weight:700">✅ Aucune réserve n'a été émise lors de la présente réception.<br>
   ✅ لم تُسجل أي تحفظات خلال هذا الاستلام.</p>
 </div>`}
 
@@ -1325,8 +1338,8 @@ ${_buildHeader(tenant, 'SITUATION N° ' + (opts.sitNum || '01'), num, _fmtDate(o
     <div class="total-row" style="font-weight:700"><span>= Travaux de la période HT</span><span class="td-num">${_fmt(ht)} DA</span></div>
     <div class="total-row"><span>+ TVA ${tvaRate}%</span><span class="td-num">${_fmt(tva)} DA</span></div>
     <div class="total-row"><span>= Montant brut TTC</span><span class="td-num">${_fmt(thisPeriod)} DA</span></div>
-    ${acompte > 0 ? `<div class="total-row" style="color:#c0392b"><span>− Acompte versé</span><span class="td-num">${_fmt(acompte)} DA</span></div>` : ''}
-    <div class="total-row" style="color:#c0392b"><span>− Retenue de garantie 5%</span><span class="td-num">${_fmt(retenue)} DA</span></div>
+    ${acompte > 0 ? `<div class="total-row" style="color:#a32d3d"><span>− Acompte versé</span><span class="td-num">${_fmt(acompte)} DA</span></div>` : ''}
+    <div class="total-row" style="color:#a32d3d"><span>− Retenue de garantie 5%</span><span class="td-num">${_fmt(retenue)} DA</span></div>
     <div class="total-final"><span>NET À PAYER</span><span class="td-num">${_fmt(netToPay)} DA</span></div>
   </div>
 </div>
@@ -1410,21 +1423,21 @@ ${_buildHeader(tenant, 'FACTURE DÉFINITIVE', num, _fmtDate(opts.date || _todayI
         <td style="color:#B8902F;font-weight:900;padding:12px">MONTANT TOTAL TTC</td>
         <td class="td-right td-num" style="color:#B8902F;font-weight:900;padding:12px">${_fmt(total)}</td>
       </tr>
-      ${acompteSum > 0 ? `<tr style="color:#c0392b">
+      ${acompteSum > 0 ? `<tr style="color:#a32d3d">
         <td>− Acomptes versés</td>
         <td class="td-right td-num">${_fmt(acompteSum)}</td>
       </tr>` : ''}
-      ${sitSum > 0 ? `<tr style="color:#c0392b">
+      ${sitSum > 0 ? `<tr style="color:#a32d3d">
         <td>− Situations antérieures payées</td>
         <td class="td-right td-num">${_fmt(sitSum)}</td>
       </tr>` : ''}
-      <tr style="color:#c0392b">
+      <tr style="color:#a32d3d">
         <td>− Retenue de garantie 5%</td>
         <td class="td-right td-num">${_fmt(retenue)}</td>
       </tr>
       <tr style="background:#fff !important">
-        <td style="color:#0a6e3f;font-weight:900;padding:12px;border-top:2px solid #0a6e3f">NET À PAYER</td>
-        <td class="td-right td-num" style="color:#0a6e3f;font-weight:900;padding:12px;font-size:14px;border-top:2px solid #0a6e3f">${_fmt(netToPay)} DA</td>
+        <td style="color:#2a8055;font-weight:900;padding:12px;border-top:2px solid #2a8055">NET À PAYER</td>
+        <td class="td-right td-num" style="color:#2a8055;font-weight:900;padding:12px;font-size:14px;border-top:2px solid #2a8055">${_fmt(netToPay)} DA</td>
       </tr>
     </tbody>
   </table>
@@ -1616,9 +1629,9 @@ ${_buildHeader(tenant, 'BULLETIN DE PAIE', num, _fmtDate(opts.date || _todayISO(
         <td class="td-center">—</td>
         <td class="td-right td-num">${_fmt(transport)}</td>
       </tr>` : ''}
-      <tr style="background:#fff8e1 !important">
-        <td colspan="3" style="font-weight:900;color:#8a6000">SALAIRE BRUT</td>
-        <td class="td-right td-num" style="font-weight:900;color:#8a6000">${_fmt(grossSalary)}</td>
+      <tr style="background:#fff !important; border-top:1.5px solid #B8902F !important">
+        <td colspan="3" style="font-weight:900;color:#B8902F">SALAIRE BRUT</td>
+        <td class="td-right td-num" style="font-weight:900;color:#B8902F">${_fmt(grossSalary)}</td>
       </tr>
     </tbody>
   </table>
@@ -1638,23 +1651,23 @@ ${_buildHeader(tenant, 'BULLETIN DE PAIE', num, _fmtDate(opts.date || _todayISO(
         <td>CNAS — Cotisation sécurité sociale (part salariale)</td>
         <td class="td-center td-num">${_fmt(grossSalary)}</td>
         <td class="td-center">9.00%</td>
-        <td class="td-right td-num" style="color:#c0392b">−${_fmt(cnas)}</td>
+        <td class="td-right td-num" style="color:#a32d3d">−${_fmt(cnas)}</td>
       </tr>
       <tr>
         <td>IRG — Impôt sur le revenu global</td>
         <td class="td-center td-num">${_fmt(taxableBase)}</td>
         <td class="td-center">Barème</td>
-        <td class="td-right td-num" style="color:#c0392b">−${_fmt(irg)}</td>
+        <td class="td-right td-num" style="color:#a32d3d">−${_fmt(irg)}</td>
       </tr>
       ${otherDeductions > 0 ? `<tr>
         <td>Autres retenues (avances, prêts...)</td>
         <td class="td-center">—</td>
         <td class="td-center">—</td>
-        <td class="td-right td-num" style="color:#c0392b">−${_fmt(otherDeductions)}</td>
+        <td class="td-right td-num" style="color:#a32d3d">−${_fmt(otherDeductions)}</td>
       </tr>` : ''}
-      <tr style="background:#f8d7da !important">
-        <td colspan="3" style="font-weight:900;color:#721c24">TOTAL RETENUES</td>
-        <td class="td-right td-num" style="font-weight:900;color:#721c24">−${_fmt(cnas + irg + otherDeductions)}</td>
+      <tr style="background:#fff !important; border-top:1.5px solid #a32d3d !important">
+        <td colspan="3" style="font-weight:900;color:#a32d3d">TOTAL RETENUES</td>
+        <td class="td-right td-num" style="font-weight:900;color:#a32d3d">−${_fmt(cnas + irg + otherDeductions)}</td>
       </tr>
     </tbody>
   </table>
@@ -1886,7 +1899,7 @@ ${_buildHeader(tenant, 'FICHE DE POINTAGE', num, _fmtDate(opts.date || _todayISO
           <td class="td-center td-num">${_esc(d.checkIn || '—')}</td>
           <td class="td-center td-num">${_esc(d.checkOut || '—')}</td>
           <td class="td-center td-num"><strong>${_esc(d.hours || 0)} h</strong></td>
-          <td class="td-center td-num" style="color:${d.overtime>0?'#0a6e3f':'#999'}">${_esc(d.overtime || 0)} h</td>
+          <td class="td-center td-num" style="color:${d.overtime>0?'#2a8055':'#999'}">${_esc(d.overtime || 0)} h</td>
           <td style="font-size:11px">${_esc(d.notes || '')}</td>
         </tr>`).join('')}
       <tr style="background:#fafafa !important">
@@ -1947,7 +1960,7 @@ ${_buildHeader(tenant, 'ATTESTATION DE TRAVAIL', num, _fmtDate(opts.date || _tod
   </p>
 
   <div style="background:#fafafa;padding:20px;border-radius:8px;border-right:4px solid #E8B84B;margin:20px 0;text-align:center">
-    <p style="font-size:18px;font-weight:900;color:#1a1a1a;letter-spacing:1px">
+    <p style="font-size:18px;font-weight:900;color:#3a3a3a;letter-spacing:1px">
       ${_esc(worker.full_name || opts.workerName || '—')}
     </p>
     ${worker.national_id ? `<p style="font-size:12px;color:#555;margin-top:6px">Carte d'identité N° : <strong>${_esc(worker.national_id)}</strong></p>` : ''}
@@ -2126,7 +2139,7 @@ ${_buildHeader(tenant, 'BON DE RÉCEPTION', num, _fmtDate(opts.date || _todayISO
           <td class="td-center td-num">${_fmt(it.qtyOrdered || 0)}</td>
           <td class="td-center td-num">${_fmt(it.qtyDelivered || 0)}</td>
           <td class="td-center td-num"><strong>${_fmt(it.qtyAccepted || 0)}</strong></td>
-          <td class="td-center"><span style="background:${it.status==='ok'?'#d4f5e2':it.status==='partial'?'#fff8e1':'#f8d7da'};color:${it.status==='ok'?'#0a6e3f':it.status==='partial'?'#8a6000':'#721c24'};padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700">${it.status==='ok'?'✅ OK':it.status==='partial'?'⚠️ Partiel':it.status==='refused'?'❌ Refusé':'—'}</span></td>
+          <td class="td-center"><span style="background:#fff;color:${it.status==='ok'?'#2a8055':it.status==='partial'?'#B8902F':'#a32d3d'};border:1px solid ${it.status==='ok'?'#2a8055':it.status==='partial'?'#B8902F':'#a32d3d'};padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700">${it.status==='ok'?'✅ OK':it.status==='partial'?'⚠️ Partiel':it.status==='refused'?'❌ Refusé':'—'}</span></td>
         </tr>`).join('')}
     </tbody>
   </table>
@@ -2215,8 +2228,8 @@ ${_buildHeader(tenant, 'BON DE SORTIE', num, _fmtDate(opts.date || _todayISO()))
             <td>${_esc(it.desc || '—')}</td>
             <td class="td-center">${_esc(it.unit || '—')}</td>
             <td class="td-center td-num">${_fmt(before)}</td>
-            <td class="td-center td-num" style="color:#c0392b;font-weight:900">−${_fmt(out)}</td>
-            <td class="td-center td-num" style="color:${after<5?'#c0392b':'#0a6e3f'};font-weight:700">${_fmt(after)}</td>
+            <td class="td-center td-num" style="color:#a32d3d;font-weight:900">−${_fmt(out)}</td>
+            <td class="td-center td-num" style="color:${after<5?'#a32d3d':'#2a8055'};font-weight:700">${_fmt(after)}</td>
             <td style="font-size:11px">${_esc(it.usage || '—')}</td>
           </tr>`;
         }).join('')}
@@ -2328,7 +2341,7 @@ ${maintenances.length > 0 ? `
     <tbody>
       ${maintenances.map(m => `<tr>
         <td class="td-center">${_fmtDate(m.date)}</td>
-        <td class="td-center"><span style="background:#fff8e1;color:#8a6000;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${_esc(m.type || '—')}</span></td>
+        <td class="td-center"><span style="background:#fff; border-top:1.5px solid #B8902F;color:#B8902F;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${_esc(m.type || '—')}</span></td>
         <td>${_esc(m.desc || '—')}</td>
         <td class="td-right td-num">${_fmt(m.cost || 0)}</td>
         <td class="td-center">${_fmtDate(m.nextDate)}</td>
