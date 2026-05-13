@@ -411,7 +411,7 @@ const ADMIN_CONFIG = {
   maxAttempts: 5,
   lockoutMinutes: 5,
   // مفتاح الأمان الثاني — يجب تغييره من قِبل المسؤول
-  securityKey: 'SSTR-ADMIN-2025',
+  securityKey: 'Saidi@2025',
 };
 
 // ── DB: قراءة بيانات المستخدمين من localStorage (مع Supabase fallback) ──
@@ -446,7 +446,7 @@ function getUsers() {
     return [
       {
         id: 1, tenant_id: null, full_name: 'مسؤول النظام',
-        email: 'admin@smartbtp.dz', password: 'Admin@SmartBTP2025',
+        email: 'ramzisaidi2018@gmail.com', password: 'Ramzi@2025',
         role: 'admin', is_admin: true, is_active: true
       }
     ];
@@ -462,8 +462,8 @@ function ensureDefaultAdmin() {
       const existing = localStorage.getItem('sbtp5_users');
       if (!existing) {
         localStorage.setItem('sbtp5_users', JSON.stringify([
-          { id:1, tenant_id:null, full_name:'مسؤول النظام', email:'admin@smartbtp.dz',
-            password:'Admin@SmartBTP2025', role:'admin', is_admin:true, is_active:true }
+          { id:1, tenant_id:null, full_name:'مسؤول النظام', email:'ramzisaidi2018@gmail.com',
+            password:'Ramzi@2025', role:'admin', is_admin:true, is_active:true }
         ]));
       }
     }
