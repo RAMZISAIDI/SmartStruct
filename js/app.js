@@ -3353,6 +3353,135 @@ function requestPlanUpgrade(companyNameOpt) {
 /* ─── DASHBOARD ─── */
 
 /* ─── SMART HEALTH SCORE ENGINE ─── */
+// ════════════════════════════════════════════════════════════════════
+// 🏗️ مؤشرات BTP الاحترافية للمقاولين — Construction KPIs (EVM)
+// ════════════════════════════════════════════════════════════════════
+function calcBTPMetrics(projects, txs, workers, attendance, invoices, materials, equip, salaryRecs) {
+  const m = {};
+
+  // ── مؤشرات مالية ──
+  const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0);
+  const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+  const totalBudget = projects.reduce((s,p)=>s+Number(p.budget||0),0);
+  const totalSpent  = projects.reduce((s,p)=>s+Number(p.total_spent||0),0);
+  const cashOnHand  = revenue - expense;
+
+  // ① CPI - Cost Performance Index (EVM: EV / AC)
+  // EV (Earned Value) = budget × progress
+  // AC (Actual Cost) = total_spent
+  const ev = projects.reduce((s,p)=>s+(Number(p.budget||0)*Number(p.progress||0)/100), 0);
+  const ac = totalSpent;
+  m.cpi = ac > 0 ? +(ev / ac).toFixed(2) : null;
+  // > 1 = ربح، < 1 = خسارة، = 1 = متعادل
+
+  // ② SPI - Schedule Performance Index (EV / PV)
+  // PV (Planned Value) = budget × planned_progress (based on time)
+  const now = Date.now();
+  let pv = 0;
+  projects.forEach(p => {
+    if (!p.start_date || !p.end_date || !p.budget) return;
+    const start = new Date(p.start_date).getTime();
+    const end = new Date(p.end_date).getTime();
+    if (end <= start) return;
+    const elapsed = Math.max(0, Math.min(1, (now - start) / (end - start)));
+    pv += Number(p.budget) * elapsed;
+  });
+  m.spi = pv > 0 ? +(ev / pv).toFixed(2) : null;
+  // > 1 = متقدم، < 1 = متأخر
+
+  // ③ Burn Rate - معدل الحرق اليومي (آخر 30 يوم)
+  const last30 = new Date(); last30.setDate(last30.getDate() - 30);
+  const recent30Exp = txs.filter(t => t.type==='expense' && new Date(t.date) >= last30)
+                          .reduce((s,t)=>s+Number(t.amount||0),0);
+  m.burnRate = Math.round(recent30Exp / 30);
+
+  // ④ Cash Runway - عدد الأيام قبل نفاد السيولة
+  m.cashRunway = m.burnRate > 0 ? Math.round(cashOnHand / m.burnRate) : null;
+
+  // ⑤ DSO - Days Sales Outstanding (متوسط فترة تحصيل الفواتير)
+  const paidInvoices = invoices.filter(i => i.status === 'paid' && i.date && i.payment_date);
+  if (paidInvoices.length > 0) {
+    const totalDays = paidInvoices.reduce((s,i) => {
+      const issued = new Date(i.date).getTime();
+      const paid = new Date(i.payment_date).getTime();
+      return s + Math.max(0, (paid - issued) / (1000*60*60*24));
+    }, 0);
+    m.dso = Math.round(totalDays / paidInvoices.length);
+  } else {
+    m.dso = null;
+  }
+
+  // ⑥ هامش الربح الإجمالي
+  m.grossMargin = revenue > 0 ? +(((revenue - expense) / revenue) * 100).toFixed(1) : null;
+
+  // ⑦ Productivity per Worker - الإنتاجية اليومية لكل عامل
+  const today = new Date().toISOString().split('T')[0];
+  const presentToday = attendance.filter(a => a.date === today && a.status === 'present').length;
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const totalProgress = activeProjects.reduce((s,p)=>s+Number(p.progress||0),0);
+  m.productivity = presentToday > 0 ? +(totalProgress / presentToday).toFixed(1) : 0;
+
+  // ⑧ Cost per m² - التكلفة لكل متر مربع
+  const projectsWithArea = projects.filter(p => Number(p.surface||p.area||0) > 0);
+  if (projectsWithArea.length > 0) {
+    const totalArea = projectsWithArea.reduce((s,p)=>s+Number(p.surface||p.area||0),0);
+    const totalSpentArea = projectsWithArea.reduce((s,p)=>s+Number(p.total_spent||0),0);
+    m.costPerM2 = totalArea > 0 ? Math.round(totalSpentArea / totalArea) : null;
+  } else {
+    m.costPerM2 = null;
+  }
+
+  // ⑨ Equipment Utilization - معدل استخدام المعدات
+  const activeEquip = equip.filter(e => e.status === 'active' || e.status === 'in_use').length;
+  m.equipUtilization = equip.length > 0 ? Math.round((activeEquip / equip.length) * 100) : 0;
+
+  // ⑩ Stock Coverage - تغطية المخزون بالأيام (للمواد بحد أدنى)
+  const lowStock = materials.filter(mt => Number(mt.quantity||0) < Number(mt.min_quantity||0));
+  m.lowStockCount = lowStock.length;
+  m.lowStockList = lowStock.slice(0, 3).map(mt => mt.name);
+
+  // ⑪ Payroll Ratio - نسبة الأجور
+  const lastMonthSalaries = (salaryRecs || []).filter(s => {
+    const d = new Date(s.payment_date || s.month + '-01');
+    return d >= last30;
+  }).reduce((sum,s) => sum + Number(s.net_amount || s.amount || 0), 0);
+  m.payrollRatio = revenue > 0 ? +((lastMonthSalaries / (revenue||1)) * 100).toFixed(1) : null;
+  m.payrollAmount = lastMonthSalaries;
+
+  // ⑫ Project Completion Forecast - متوسط أيام لإكمال المشاريع النشطة
+  let totalDaysToComplete = 0; let validProjects = 0;
+  activeProjects.forEach(p => {
+    if (!p.progress || p.progress >= 100 || !p.start_date) return;
+    const start = new Date(p.start_date).getTime();
+    const elapsedDays = (now - start) / (1000*60*60*24);
+    if (elapsedDays <= 0 || p.progress <= 0) return;
+    const totalDaysEstimated = elapsedDays / (p.progress / 100);
+    const remaining = totalDaysEstimated - elapsedDays;
+    if (remaining > 0 && remaining < 730) {  // أقل من سنتين منطقي
+      totalDaysToComplete += remaining;
+      validProjects++;
+    }
+  });
+  m.avgDaysToComplete = validProjects > 0 ? Math.round(totalDaysToComplete / validProjects) : null;
+
+  // ⑬ Receivables (الفواتير المعلقة)
+  m.unpaidInvoices = invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled');
+  m.unpaidAmount = m.unpaidInvoices.reduce((s,i)=>s+Number(i.amount||i.total||0),0);
+
+  // ⑭ تقييم صحي ذكي لكل مؤشر
+  m.alerts = [];
+  if (m.cpi !== null && m.cpi < 0.9)        m.alerts.push({ icon:'💸', text:'تجاوز التكلفة المقدرة (CPI<0.9)' });
+  if (m.spi !== null && m.spi < 0.85)       m.alerts.push({ icon:'⏰', text:'تأخر زمني في المشاريع (SPI<0.85)' });
+  if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text:`السيولة ستنفد خلال ${m.cashRunway} يوم` });
+  if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text:`متوسط التحصيل ${m.dso} يوم - بطيء` });
+  if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text:`هامش ربح منخفض (${m.grossMargin}%)` });
+  if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} مادة مخزون منخفض` });
+  if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text:`الأجور ${m.payrollRatio}% من الإيرادات` });
+  if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text:`فواتير غير محصلة: ${fmt(Math.round(m.unpaidAmount))} دج` });
+
+  return m;
+}
+
 function calcHealthScore(projects, txs, workers, attendance) {
   if (!projects.length) return { score: 0, color: '#F04E6A', label: I18N.t('dash.danger'), breakdown: {} };
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
@@ -3520,6 +3649,12 @@ Pages.dashboard = function() {
     monthRev.push(txs.filter(t=>t.type==='revenue' && new Date(t.date).getMonth()===m && new Date(t.date).getFullYear()===y).reduce((s,t)=>s+Number(t.amount),0));
     monthExp.push(txs.filter(t=>t.type==='expense' && new Date(t.date).getMonth()===m && new Date(t.date).getFullYear()===y).reduce((s,t)=>s+Number(t.amount),0));
   }
+
+  // ✅ مؤشرات BTP الاحترافية
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id === tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id === tid);
+  const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id === tid);
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equip, salaryRecsData);
 
   return layoutHTML('dashboard','لوحة التحكم',`
     ${trialBannerHTML}
@@ -3689,6 +3824,187 @@ Pages.dashboard = function() {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         🏗️ مؤشرات BTP الاحترافية — Construction KPIs (EVM)
+         CPI · SPI · Burn Rate · Cash Runway · DSO · Margin · ...
+    ════════════════════════════════════════════════════════════════ -->
+    <div style="background:linear-gradient(135deg,rgba(232,184,75,.06),rgba(232,184,75,.01));border:1px solid rgba(232,184,75,.2);border-radius:16px;padding:1.1rem 1.3rem;margin-bottom:1.1rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.8rem">
+        <div style="display:flex;align-items:center;gap:.7rem">
+          <div style="font-size:1.6rem">🏗️</div>
+          <div>
+            <div style="font-size:1.05rem;font-weight:900;color:var(--gold);letter-spacing:.2px">${L('مؤشرات الأداء الاحترافية','Indicateurs de Performance BTP')}</div>
+            <div style="font-size:.74rem;color:var(--dim);margin-top:.15rem">${L('مؤشرات حقيقية حسب معايير إدارة المشاريع الدولية (EVM)','Selon les standards internationaux de gestion de projet')}</div>
+          </div>
+        </div>
+        ${btp.alerts.length > 0 ? `<div style="display:flex;align-items:center;gap:.4rem;background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.25);border-radius:8px;padding:.4rem .7rem">
+          <span style="font-size:.85rem">⚠️</span>
+          <span style="font-size:.75rem;color:#F79FA9;font-weight:700">${btp.alerts.length} ${L('تنبيه','alerte(s)')}</span>
+        </div>` : `<div style="display:flex;align-items:center;gap:.4rem;background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.25);border-radius:8px;padding:.4rem .7rem">
+          <span style="font-size:.85rem">✅</span>
+          <span style="font-size:.75rem;color:#34C38F;font-weight:700">${L('كل المؤشرات سليمة','Indicateurs sains')}</span>
+        </div>`}
+      </div>
+
+      <!-- شبكة المؤشرات -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.7rem">
+
+        <!-- ① CPI: Cost Performance Index -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.cpi===null?'#777':btp.cpi>=1?'#34C38F':btp.cpi>=0.9?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">CPI</span>
+            <span style="font-size:.95rem">${btp.cpi===null?'⏳':btp.cpi>=1?'✅':btp.cpi>=0.9?'⚠️':'🚨'}</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.cpi===null?'#777':btp.cpi>=1?'#34C38F':btp.cpi>=0.9?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.cpi===null?'—':btp.cpi}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('أداء التكلفة','Performance coût')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.cpi===null?L('بيانات غير كافية','Données insuff.'):btp.cpi>=1?L('ضمن الميزانية','Dans le budget'):L('تجاوز التكلفة','Dépassement')}</div>
+        </div>
+
+        <!-- ② SPI: Schedule Performance Index -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.spi===null?'#777':btp.spi>=1?'#34C38F':btp.spi>=0.85?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">SPI</span>
+            <span style="font-size:.95rem">${btp.spi===null?'⏳':btp.spi>=1?'⚡':btp.spi>=0.85?'⏰':'🐌'}</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.spi===null?'#777':btp.spi>=1?'#34C38F':btp.spi>=0.85?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.spi===null?'—':btp.spi}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('أداء الجدول الزمني','Performance délai')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.spi===null?L('بيانات غير كافية','Données insuff.'):btp.spi>=1?L('متقدم على الجدول','En avance'):L('تأخر زمني','En retard')}</div>
+        </div>
+
+        <!-- ③ Burn Rate -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #E8593C;border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('معدل الحرق','Burn Rate')}</span>
+            <span style="font-size:.95rem">🔥</span>
+          </div>
+          <div style="font-size:1.15rem;font-weight:900;color:#E8593C;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(btp.burnRate)}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('دج / يوم','DA/jour')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('متوسط آخر 30 يوم','Moy. 30 derniers j')}</div>
+        </div>
+
+        <!-- ④ Cash Runway -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.cashRunway===null?'#777':btp.cashRunway>180?'#34C38F':btp.cashRunway>60?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('مدة السيولة','Cash Runway')}</span>
+            <span style="font-size:.95rem">💵</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.cashRunway===null?'#777':btp.cashRunway>180?'#34C38F':btp.cashRunway>60?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.cashRunway===null||btp.cashRunway<0?'∞':btp.cashRunway}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('يوم متبقي','jours restants')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('قبل نفاد السيولة','Avant épuisement')}</div>
+        </div>
+
+        <!-- ⑤ هامش الربح -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.grossMargin===null?'#777':btp.grossMargin>=20?'#34C38F':btp.grossMargin>=10?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('هامش الربح','Marge')}</span>
+            <span style="font-size:.95rem">📊</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.grossMargin===null?'#777':btp.grossMargin>=20?'#34C38F':btp.grossMargin>=10?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.grossMargin===null?'—':btp.grossMargin+'%'}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('من الإيرادات','des revenus')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.grossMargin===null?L('لا توجد إيرادات','Pas de revenus'):btp.grossMargin>=20?L('ممتاز','Excellent'):btp.grossMargin>=10?L('جيد','Bon'):L('منخفض','Faible')}</div>
+        </div>
+
+        <!-- ⑥ DSO - Days Sales Outstanding -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.dso===null?'#777':btp.dso<=30?'#34C38F':btp.dso<=60?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">DSO</span>
+            <span style="font-size:.95rem">⏳</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.dso===null?'#777':btp.dso<=30?'#34C38F':btp.dso<=60?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.dso===null?'—':btp.dso}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('يوم تحصيل','jrs encaiss.')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('متوسط الفواتير المحصلة','Moy. factures payées')}</div>
+        </div>
+
+        <!-- ⑦ التكلفة لكل م² -->
+        ${btp.costPerM2 !== null ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #4A90E2;border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('تكلفة م²','Coût/m²')}</span>
+            <span style="font-size:.95rem">📐</span>
+          </div>
+          <div style="font-size:1.15rem;font-weight:900;color:#4A90E2;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(btp.costPerM2)}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('دج / م²','DA/m²')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('متوسط المشاريع','Moy. projets')}</div>
+        </div>` : ''}
+
+        <!-- ⑧ معدل استخدام المعدات -->
+        ${equip.length > 0 ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.equipUtilization>=70?'#34C38F':btp.equipUtilization>=40?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('استخدام المعدات','Utilisation')}</span>
+            <span style="font-size:.95rem">🚜</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.equipUtilization>=70?'#34C38F':btp.equipUtilization>=40?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.equipUtilization}%</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('من العتاد نشط','équipement actif')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${equip.filter(e=>e.status==='active'||e.status==='in_use').length} / ${equip.length}</div>
+        </div>` : ''}
+
+        <!-- ⑨ المخزون المنخفض -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.lowStockCount===0?'#34C38F':btp.lowStockCount<3?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem;cursor:pointer" onclick="App.navigate('materials')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('مخزون منخفض','Stock bas')}</span>
+            <span style="font-size:.95rem">📦</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.lowStockCount===0?'#34C38F':btp.lowStockCount<3?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.lowStockCount}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('مادة تحت الحد الأدنى','sous le min')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${btp.lowStockList.join(' · ') || L('كل المواد متوفرة','Tout est OK')}</div>
+        </div>
+
+        <!-- ⑩ نسبة الأجور -->
+        ${btp.payrollRatio !== null ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.payrollRatio<=30?'#34C38F':btp.payrollRatio<=40?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('نسبة الأجور','Ratio paie')}</span>
+            <span style="font-size:.95rem">👷</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.payrollRatio<=30?'#34C38F':btp.payrollRatio<=40?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.payrollRatio}%</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('من الإيرادات','des revenus')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${fmt(Math.round(btp.payrollAmount))} ${L('دج','DA')}</div>
+        </div>` : ''}
+
+        <!-- ⑪ التنبؤ بإكمال المشاريع -->
+        ${btp.avgDaysToComplete !== null ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #9B59B6;border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('تنبؤ الإكمال','Achèvement')}</span>
+            <span style="font-size:.95rem">🎯</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:#9B59B6;font-family:'JetBrains Mono',monospace;line-height:1">${btp.avgDaysToComplete}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('يوم متوسط','jours moyen')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('بالوتيرة الحالية','Au rythme actuel')}</div>
+        </div>` : ''}
+
+        <!-- ⑫ الفواتير غير المحصلة -->
+        ${btp.unpaidAmount > 0 ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #FF7043;border-radius:10px;padding:.7rem .8rem;cursor:pointer" onclick="App.navigate('invoices')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('غير محصلة','Impayés')}</span>
+            <span style="font-size:.95rem">💰</span>
+          </div>
+          <div style="font-size:1.15rem;font-weight:900;color:#FF7043;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(Math.round(btp.unpaidAmount))}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('دج معلقة','DA en attente')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.unpaidInvoices.length} ${L('فاتورة','facture(s)')}</div>
+        </div>` : ''}
+      </div>
+
+      ${btp.alerts.length > 0 ? `
+      <!-- تنبيهات ذكية -->
+      <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border)">
+        <div style="font-size:.74rem;font-weight:800;color:var(--gold);margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem">
+          <span>🤖</span>
+          <span>${L('تنبيهات ذكية من المحلل الآلي','Alertes IA intelligentes')}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+          ${btp.alerts.map(a => `
+            <div style="display:flex;align-items:center;gap:.35rem;padding:.35rem .7rem;background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.2);border-radius:7px;font-size:.72rem;color:#F79FA9">
+              <span>${a.icon}</span>
+              <span>${a.text}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
     </div>
 
     <!-- AI RISK PANEL + PROFIT FORECAST + WORKER EFFICIENCY -->
@@ -10863,31 +11179,637 @@ Pages.analytics = function() {
   const workers  = DB.get('workers').filter(w => w.tenant_id===tid);
   const equip    = DB.get('equipment').filter(e => e.tenant_id===tid);
   const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
+  const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id===tid);
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+
+  // ✅ احسب مؤشرات BTP
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equip, salaryRecsData);
+
+  // ✅ احسب الذكاء التحليلي (AI Insights)
+  const aiInsights = generateAIInsights(btp, projects, txs, workers, invoicesData, materialsData);
+
   return layoutHTML('analytics', 'التحليلات', `
     <div class="page-header">
-      <div><div class="page-title">📊 التحليلات والرسوم البيانية</div></div>
-      <div class="page-actions"><button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ PDF</button></div>
-    </div>
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(revenue)}</div><div class="stat-label">الإيرادات (دج)</div></div>
-      <div class="stat-card"><div class="stat-icon">📉</div><div class="stat-value" style="color:var(--red);font-size:1.1rem">${fmt(expense)}</div><div class="stat-label">المصاريف (دج)</div></div>
-      <div class="stat-card"><div class="stat-icon">💹</div><div class="stat-value" style="color:${revenue-expense>=0?'var(--green)':'var(--red)'};font-size:1.1rem">${fmt(revenue-expense)}</div><div class="stat-label">الربح الصافي (دج)</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-      <div class="chart-card"><div class="chart-title">📊 الإيرادات الشهرية</div><canvas id="chartRevenue" height="220"></canvas></div>
-      <div class="chart-card"><div class="chart-title">🍩 توزيع المصاريف</div><canvas id="chartExpense" height="220"></canvas></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-      <div class="chart-card"><div class="chart-title">💹 تطور الربح الصافي</div><canvas id="chartProfit" height="220"></canvas></div>
-      <div class="chart-card"><div class="chart-title">🏗️ تقدم المشاريع</div><canvas id="chartProjects" height="220"></canvas></div>
+      <div>
+        <div class="page-title">📊 ${L('التحليلات الذكية والتقارير','Analyses intelligentes')}</div>
+        <div class="page-sub">${L('مؤشرات الأداء الاحترافية وتوصيات الذكاء الاصطناعي','KPIs professionnels et recommandations IA')}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-blue btn-sm" onclick="openAIAdvisor()" title="${L('استشر المحلل الذكي','Consulter l\'IA')}">🤖 ${L('المحلل الذكي','Conseiller IA')}</button>
+        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ PDF</button>
+      </div>
     </div>
 
-    <!-- ══ التحليلات الذكية ══ -->
+    <!-- ══ AI Advisor Banner — توصيات ذكية ══ -->
+    <div style="background:linear-gradient(135deg,rgba(155,109,255,.08),rgba(74,144,226,.04));border:1px solid rgba(155,109,255,.3);border-radius:16px;padding:1.2rem;margin-bottom:1.2rem;display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap">
+      <div style="font-size:2.2rem;flex-shrink:0">🤖</div>
+      <div style="flex:1;min-width:280px">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <span style="font-size:1rem;font-weight:900;color:#9B6DFF">${L('تحليل ذكي لمؤسستك','Analyse intelligente')}</span>
+          <span style="font-size:.65rem;background:rgba(155,109,255,.15);color:#9B6DFF;padding:2px 8px;border-radius:6px;font-weight:700">AI</span>
+        </div>
+        <div style="font-size:.85rem;color:var(--text);line-height:1.7;margin-bottom:.7rem">
+          ${aiInsights.summary}
+        </div>
+        ${aiInsights.recommendations.length > 0 ? `
+        <div style="display:flex;flex-direction:column;gap:.4rem">
+          ${aiInsights.recommendations.slice(0,3).map((rec,i)=>`
+            <div style="display:flex;align-items:flex-start;gap:.6rem;padding:.6rem .8rem;background:rgba(255,255,255,.03);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${rec.color};border-radius:0 8px 8px 0">
+              <span style="font-size:1.1rem">${rec.icon}</span>
+              <div style="flex:1">
+                <div style="font-size:.78rem;font-weight:700;color:${rec.color}">${rec.title}</div>
+                <div style="font-size:.72rem;color:var(--muted);line-height:1.6;margin-top:.15rem">${rec.text}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>` : ''}
+      </div>
+    </div>
+
+    <!-- ══ مؤشرات BTP الكبيرة ══ -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.8rem;margin-bottom:1.2rem">
+      <!-- الإيرادات -->
+      <div style="background:linear-gradient(135deg,rgba(52,195,143,.08),rgba(52,195,143,.02));border:1px solid rgba(52,195,143,.25);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:#34C38F;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">📈 ${L('الإيرادات الإجمالية','Revenus totaux')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:#34C38F;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(revenue)}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${L('دج','DA')}</div>
+      </div>
+      <!-- المصاريف -->
+      <div style="background:linear-gradient(135deg,rgba(240,78,106,.08),rgba(240,78,106,.02));border:1px solid rgba(240,78,106,.25);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:#F04E6A;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">📉 ${L('المصاريف الإجمالية','Dépenses')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:#F04E6A;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(expense)}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${L('دج','DA')}</div>
+      </div>
+      <!-- الربح -->
+      <div style="background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.3);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">💹 ${L('الربح الصافي','Profit net')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:${revenue-expense>=0?'#34C38F':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${fmt(revenue-expense)}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${btp.grossMargin!==null?L(`هامش ${btp.grossMargin}%`,`Marge ${btp.grossMargin}%`):L('—','—')}</div>
+      </div>
+      <!-- مؤشر الأداء CPI -->
+      <div style="background:linear-gradient(135deg,rgba(74,144,226,.08),rgba(74,144,226,.02));border:1px solid rgba(74,144,226,.25);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:#4A90E2;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">⚖️ CPI — ${L('أداء التكلفة','Performance coût')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:${btp.cpi===null?'#777':btp.cpi>=1?'#34C38F':btp.cpi>=0.9?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.cpi===null?'—':btp.cpi}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${btp.cpi===null?L('بيانات غير كافية','Données insuff.'):btp.cpi>=1?L('ضمن الميزانية','Dans le budget'):L('تجاوز','Dépassement')}</div>
+      </div>
+    </div>
+
+    <!-- ══ الرسوم البيانية ══ -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="chart-card">
+        <div class="chart-title">📊 ${L('الإيرادات الشهرية','Revenus mensuels')}</div>
+        <canvas id="chartRevenue" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🍩 ${L('توزيع المصاريف','Répartition dépenses')}</div>
+        <canvas id="chartExpense" height="220"></canvas>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="chart-card">
+        <div class="chart-title">💹 ${L('تطور الربح الصافي','Évolution du profit')}</div>
+        <canvas id="chartProfit" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🏗️ ${L('تقدم المشاريع','Progrès des projets')}</div>
+        <canvas id="chartProjects" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- ══ تحليل ربحية كل مشروع ══ -->
+    ${projects.length > 0 ? `
+    <div class="chart-card" style="margin-bottom:1rem">
+      <div class="chart-title">📊 ${L('ربحية المشاريع — تحليل تفصيلي','Rentabilité par projet')}</div>
+      <div style="margin-top:1rem;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('المشروع','Projet')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('الميزانية','Budget')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('المنفق','Dépensé')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('التقدم','Progrès')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">CPI</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('الحالة','Statut')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${projects.map(p => {
+              const budget = Number(p.budget||0);
+              const spent  = Number(p.total_spent||0);
+              const progress = Number(p.progress||0);
+              const ev = budget * progress / 100;
+              const cpi = spent > 0 ? +(ev / spent).toFixed(2) : null;
+              const statusColor = cpi === null ? '#777' : cpi >= 1 ? '#34C38F' : cpi >= 0.9 ? '#E8B84B' : '#F04E6A';
+              const statusText = cpi === null ? L('—','—') : cpi >= 1 ? L('ربح','Profit') : cpi >= 0.9 ? L('متوازن','Équilibré') : L('خسارة','Perte');
+              return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+                  <td style="padding:.7rem"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color||'#888'};margin-${I18N.currentLang==='ar'?'left':'right'}:.5rem"></span>${escHtml(p.name)}</td>
+                  <td style="text-align:center;padding:.7rem;font-family:monospace">${fmt(budget)}</td>
+                  <td style="text-align:center;padding:.7rem;font-family:monospace;color:${spent>budget?'#F04E6A':'var(--text)'}">${fmt(spent)}</td>
+                  <td style="text-align:center;padding:.7rem">
+                    <div style="display:inline-flex;align-items:center;gap:.4rem">
+                      <div style="width:60px;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
+                        <div style="height:100%;width:${Math.min(100,progress)}%;background:${progress>=80?'#34C38F':progress>=40?'#E8B84B':'#F04E6A'}"></div>
+                      </div>
+                      <span style="font-size:.78rem;font-weight:700">${progress}%</span>
+                    </div>
+                  </td>
+                  <td style="text-align:center;padding:.7rem;font-family:monospace;font-weight:800;color:${statusColor}">${cpi===null?'—':cpi}</td>
+                  <td style="text-align:center;padding:.7rem"><span style="font-size:.72rem;padding:3px 10px;border-radius:6px;background:${statusColor}22;color:${statusColor};font-weight:700">${statusText}</span></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    <!-- ══ التوصيات الكاملة من AI ══ -->
+    ${aiInsights.recommendations.length > 3 ? `
+    <div class="chart-card" style="margin-bottom:1rem">
+      <div class="chart-title">🤖 ${L('كل التوصيات الذكية','Toutes les recommandations IA')}</div>
+      <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.6rem">
+        ${aiInsights.recommendations.map((rec) => `
+          <div style="display:flex;align-items:flex-start;gap:.7rem;padding:.8rem;background:rgba(255,255,255,.02);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${rec.color};border-radius:0 10px 10px 0">
+            <div style="font-size:1.4rem;flex-shrink:0">${rec.icon}</div>
+            <div style="flex:1">
+              <div style="font-size:.85rem;font-weight:800;color:${rec.color};margin-bottom:.2rem">${rec.title}</div>
+              <div style="font-size:.78rem;color:var(--muted);line-height:1.7">${rec.text}</div>
+              ${rec.action ? `<div style="margin-top:.4rem"><button class="btn btn-ghost btn-sm" style="font-size:.7rem;padding:.3rem .7rem" onclick="${rec.action}">→ ${rec.actionLabel || L('عرض التفاصيل','Voir détails')}</button></div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- ══ التحليلات الذكية الإضافية ══ -->
     ${renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance, tid)}
   `);
 };
+
+// ════════════════════════════════════════════════════════════════════
+// 🤖 AI Insights Generator — مولّد التوصيات الذكية
+// ════════════════════════════════════════════════════════════════════
+function generateAIInsights(btp, projects, txs, workers, invoices, materials) {
+  const recommendations = [];
+
+  // ① تحليل CPI
+  if (btp.cpi !== null) {
+    if (btp.cpi < 0.85) {
+      recommendations.push({
+        icon: '🚨', color: '#F04E6A',
+        title: L('تحذير: تجاوز تكلفة كبير','Alerte: dépassement de coût'),
+        text: L(`مؤشر أداء التكلفة CPI = ${btp.cpi} (أقل من 1) — هذا يعني أنك تنفق أكثر من المخطط بنسبة ${Math.round((1-btp.cpi)*100)}%. راجع المشاريع التي تستهلك ميزانية أكبر من المتوقع وقلّل المصاريف غير الضرورية.`,
+              `CPI = ${btp.cpi} — vous dépensez ${Math.round((1-btp.cpi)*100)}% de plus que prévu. Révisez les projets qui consomment plus que le budget.`),
+        action: "App.navigate('projects')", actionLabel: L('عرض المشاريع','Voir projets')
+      });
+    } else if (btp.cpi >= 1.1) {
+      recommendations.push({
+        icon: '✨', color: '#34C38F',
+        title: L('ممتاز: أداء تكلفة قوي','Excellent: forte performance'),
+        text: L(`CPI = ${btp.cpi} يعني أنك تنجز أعمالاً قيمتها ${Math.round((btp.cpi-1)*100)}% أكثر من المنفق. استمر في هذا الأداء وفكّر في توسيع نشاطك.`,
+              `CPI = ${btp.cpi} — vous livrez ${Math.round((btp.cpi-1)*100)}% de plus que dépensé. Continuez sur cette voie!`),
+      });
+    }
+  }
+
+  // ② تحليل SPI
+  if (btp.spi !== null && btp.spi < 0.85) {
+    const delayedProj = projects.filter(p => p.status === 'delayed' || p.status === 'late');
+    recommendations.push({
+      icon: '⏰', color: '#FF7043',
+      title: L('تأخر زمني في المشاريع','Retards dans les projets'),
+      text: L(`SPI = ${btp.spi} — مشاريعك متأخرة عن الجدول الزمني المخطط بنسبة ${Math.round((1-btp.spi)*100)}%. ${delayedProj.length>0?`يوجد ${delayedProj.length} مشروع متأخر. `:''}راجع المهام وأعد جدولة الأنشطة.`,
+            `SPI = ${btp.spi} — Retard de ${Math.round((1-btp.spi)*100)}%. ${delayedProj.length>0?`${delayedProj.length} projet(s) en retard. `:''}Revoyez la planification.`),
+      action: "App.navigate('gantt')", actionLabel: L('جدول Gantt','Voir Gantt')
+    });
+  }
+
+  // ③ تحليل Cash Runway
+  if (btp.cashRunway !== null) {
+    if (btp.cashRunway > 0 && btp.cashRunway < 30) {
+      recommendations.push({
+        icon: '🚨', color: '#F04E6A',
+        title: L('خطر: نفاد السيولة قريب','Alerte: liquidité critique'),
+        text: L(`السيولة ستنفد خلال ${btp.cashRunway} يوم فقط بالمعدل الحالي. سارع بـ: ① تحصيل الفواتير المعلقة ② تأجيل المصاريف غير الحرجة ③ التفاوض على دفعات مع العملاء.`,
+              `Liquidité épuisée dans ${btp.cashRunway} jours. Urgent: collecter les impayés, reporter les dépenses non critiques.`),
+        action: "App.navigate('invoices')", actionLabel: L('عرض الفواتير المعلقة','Voir impayés')
+      });
+    } else if (btp.cashRunway >= 30 && btp.cashRunway < 90) {
+      recommendations.push({
+        icon: '⚠️', color: '#E8B84B',
+        title: L('احذر: السيولة محدودة','Attention: liquidité limitée'),
+        text: L(`السيولة الحالية تكفي ${btp.cashRunway} يوم. خطّط لتحصيل الفواتير المعلقة ومتابعة العملاء قبل الوصول لمستوى حرج.`,
+              `Liquidité actuelle: ${btp.cashRunway} jours. Planifiez les encaissements.`),
+      });
+    }
+  }
+
+  // ④ تحليل الفواتير المعلقة
+  if (btp.unpaidAmount > 100000 && btp.unpaidInvoices.length > 0) {
+    const oldInvoices = btp.unpaidInvoices.filter(i => {
+      const d = new Date(i.date || i.created_at);
+      const days = (Date.now() - d.getTime()) / (1000*60*60*24);
+      return days > 60;
+    });
+    recommendations.push({
+      icon: '💰', color: '#FF7043',
+      title: L('فواتير معلقة كبيرة','Factures impayées importantes'),
+      text: L(`لديك ${btp.unpaidInvoices.length} فاتورة غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج. ${oldInvoices.length>0?`${oldInvoices.length} منها متأخرة أكثر من 60 يوم. `:''}اتصل بالعملاء وأرسل تذكيرات.`,
+            `${btp.unpaidInvoices.length} factures impayées (${fmt(Math.round(btp.unpaidAmount))} DA). ${oldInvoices.length>0?`${oldInvoices.length} > 60 jours. `:''}Contactez vos clients.`),
+      action: "App.navigate('invoices')", actionLabel: L('متابعة التحصيل','Suivre encaissement')
+    });
+  }
+
+  // ⑤ تحليل المخزون
+  if (btp.lowStockCount > 0) {
+    recommendations.push({
+      icon: '📦', color: '#E8B84B',
+      title: L('مخزون منخفض','Stock bas'),
+      text: L(`${btp.lowStockCount} مادة وصلت للحد الأدنى${btp.lowStockList.length>0?`: ${btp.lowStockList.join('، ')}. `:''}اطلب من الموردين قبل توقف الأشغال.`,
+            `${btp.lowStockCount} matériaux sous le minimum${btp.lowStockList.length>0?`: ${btp.lowStockList.join(', ')}. `:''}Commandez avant rupture.`),
+      action: "App.navigate('materials')", actionLabel: L('عرض المخزون','Voir stock')
+    });
+  }
+
+  // ⑥ تحليل هامش الربح
+  if (btp.grossMargin !== null) {
+    if (btp.grossMargin < 5) {
+      recommendations.push({
+        icon: '📉', color: '#F04E6A',
+        title: L('هامش ربح منخفض جداً','Marge très faible'),
+        text: L(`هامش ربحك ${btp.grossMargin}% — هذا منخفض جداً للقطاع. راجع التسعير، قلّل المصاريف الإدارية، أو ركّز على مشاريع أكثر ربحية. الهدف: 15-20% على الأقل.`,
+              `Marge ${btp.grossMargin}% — très faible. Révisez les prix, réduisez les frais administratifs. Objectif: 15-20%.`),
+      });
+    } else if (btp.grossMargin >= 25) {
+      recommendations.push({
+        icon: '🏆', color: '#34C38F',
+        title: L('هامش ربح ممتاز','Marge excellente'),
+        text: L(`هامش ربحك ${btp.grossMargin}% — ممتاز للقطاع! استثمر هذا الفائض في معدات جديدة، تدريب العمال، أو توسيع النشاط.`,
+              `Marge ${btp.grossMargin}% — excellente! Investissez dans l'expansion.`),
+      });
+    }
+  }
+
+  // ⑦ تحليل DSO
+  if (btp.dso !== null && btp.dso > 75) {
+    recommendations.push({
+      icon: '⏳', color: '#FF7043',
+      title: L('بطء في التحصيل','Encaissement lent'),
+      text: L(`متوسط فترة تحصيل الفواتير ${btp.dso} يوم — أعلى من المعقول. ضع شروط دفع أقصر (30 يوم)، أعطِ خصومات للدفع السريع، أو اطلب دفعة مقدمة.`,
+            `DSO ${btp.dso} jours — trop long. Imposez 30 jours, offrez des remises pour paiement rapide.`),
+    });
+  }
+
+  // ⑧ تحليل نسبة الأجور
+  if (btp.payrollRatio !== null && btp.payrollRatio > 50) {
+    recommendations.push({
+      icon: '👷', color: '#E8B84B',
+      title: L('نسبة أجور مرتفعة','Ratio paie élevé'),
+      text: L(`أجور العمال تستهلك ${btp.payrollRatio}% من إيراداتك — هذا مرتفع. حسّن الإنتاجية، استثمر في معدات أحدث، أو راجع توزيع العمال على المشاريع.`,
+            `La paie représente ${btp.payrollRatio}% des revenus — élevé. Améliorez la productivité.`),
+      action: "App.navigate('workers')", actionLabel: L('عرض العمال','Voir personnel')
+    });
+  }
+
+  // ⑨ تحليل استخدام المعدات
+  const equipCount = projects.length > 0 ? DB.get('equipment').filter(e => e.tenant_id === Auth.getUser().tenant_id).length : 0;
+  if (equipCount > 0 && btp.equipUtilization < 40) {
+    recommendations.push({
+      icon: '🚜', color: '#E8B84B',
+      title: L('معدات غير مستغلة','Équipement sous-utilisé'),
+      text: L(`فقط ${btp.equipUtilization}% من معداتك نشطة. فكّر في تأجير المعدات الراكدة، أو بيع ما لا تحتاجه لتحرير سيولة.`,
+            `Seulement ${btp.equipUtilization}% des équipements actifs. Louez ou vendez le matériel inutilisé.`),
+      action: "App.navigate('equipment')", actionLabel: L('عرض المعدات','Voir équipement')
+    });
+  }
+
+  // ⑩ تحليل المشاريع المتأخرة
+  const delayedProjects = projects.filter(p => p.status === 'delayed' || p.status === 'late');
+  if (delayedProjects.length >= 2) {
+    recommendations.push({
+      icon: '⚠️', color: '#FF7043',
+      title: L('عدة مشاريع متأخرة','Plusieurs projets en retard'),
+      text: L(`${delayedProjects.length} مشاريع متأخرة عن المخطط: ${delayedProjects.slice(0,3).map(p=>escHtml(p.name)).join('، ')}. حدد الأسباب الجذرية: نقص عمالة؟ موارد؟ مشاكل تقنية؟`,
+            `${delayedProjects.length} projets en retard. Identifiez les causes: manque de main d'œuvre, ressources, problèmes techniques?`),
+    });
+  }
+
+  // ━━ التلخيص الذكي العام ━━
+  let summary = '';
+  if (projects.length === 0) {
+    summary = L('🎯 ابدأ بإضافة مشاريعك لنقدم لك تحليلات دقيقة وتوصيات مخصصة.',
+              '🎯 Commencez par ajouter vos projets pour obtenir des analyses précises.');
+  } else if (recommendations.length === 0) {
+    summary = L(`✨ مؤسستك تعمل بأداء ممتاز! ${projects.length} مشروع نشط بإيرادات ${fmt(Math.round((txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0)||0)))} دج وهامش ربح صحي. حافظ على هذا المستوى وفكّر في النمو.`,
+              `✨ Votre entreprise performe excellemment! ${projects.length} projets actifs avec une marge saine.`);
+  } else {
+    const danger = recommendations.filter(r => r.color === '#F04E6A').length;
+    const warning = recommendations.filter(r => r.color === '#E8B84B' || r.color === '#FF7043').length;
+    const success = recommendations.filter(r => r.color === '#34C38F').length;
+    if (danger > 0) {
+      summary = L(`⚡ بناءً على تحليل بياناتك: ${danger} مشكلة حرجة تحتاج تدخلك فوراً، و ${warning} تحذير. ركّز على المشاكل المالية والزمنية أولاً. اضغط على التوصيات أدناه للتنقل مباشرة لحل المشكلة.`,
+                `⚡ Analyse: ${danger} problème(s) critique(s), ${warning} avertissement(s). Priorité aux problèmes financiers.`);
+    } else if (warning > 0) {
+      summary = L(`💡 مؤسستك في حالة جيدة لكن يوجد ${warning} نقطة تحسينية. التوصيات أدناه ستساعدك على رفع الأداء وتحقيق هامش ربح أعلى.`,
+                `💡 État correct, ${warning} amélioration(s) possible(s).`);
+    } else {
+      summary = L(`✨ أداء جيد! ${success} نقطة قوة محددة. استمر على هذه الوتيرة.`,
+                `✨ Bonne performance! ${success} points forts identifiés.`);
+    }
+  }
+
+  return { summary, recommendations };
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 🤖 AI Advisor Modal — بوت تفاعلي
+// ════════════════════════════════════════════════════════════════════
+function openAIAdvisor() {
+  const tid = Auth.getUser().tenant_id;
+  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
+  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
+  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
+  const equipData = DB.get('equipment').filter(e => e.tenant_id===tid);
+  const salaryData = DB.get('salary_records').filter(s => s.tenant_id===tid);
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equipData, salaryData);
+  const insights = generateAIInsights(btp, projects, txs, workers, invoicesData, materialsData);
+  const tenantName = Auth.getTenant()?.name || L('مؤسستك','Votre entreprise');
+
+  // أسئلة جاهزة سريعة
+  const quickQuestions = [
+    { icon: '💰', text: L('كيف أحسّن السيولة؟','Comment améliorer la liquidité?') },
+    { icon: '📈', text: L('ما هي أكثر المصاريف؟','Quelles sont mes plus grosses dépenses?') },
+    { icon: '🏗️', text: L('أي مشاريعي الأكثر ربحاً؟','Quel projet est le plus rentable?') },
+    { icon: '⏰', text: L('لماذا تأخرت مشاريعي؟','Pourquoi mes projets sont en retard?') },
+    { icon: '📊', text: L('كيف أرفع هامش الربح؟','Comment augmenter ma marge?') },
+    { icon: '👷', text: L('هل عمالي ينتجون بكفاءة؟','Mes employés sont-ils productifs?') },
+  ];
+
+  const modalHTML = `
+    <div id="aiAdvisorModal" class="modal-overlay show" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem">
+      <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:16px;max-width:780px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+        <!-- رأس -->
+        <div style="padding:1.2rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(155,109,255,.08),rgba(74,144,226,.04))">
+          <div style="display:flex;align-items:center;gap:.8rem">
+            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#9B6DFF,#4A90E2);display:flex;align-items:center;justify-content:center;font-size:1.6rem">🤖</div>
+            <div>
+              <div style="font-size:1.05rem;font-weight:900;color:var(--text)">${L('المحلل الذكي','Conseiller IA')}</div>
+              <div style="font-size:.74rem;color:var(--muted);margin-top:.15rem">${L('تحليل بيانات','Analyse de')} ${escHtml(tenantName)}</div>
+            </div>
+          </div>
+          <button onclick="document.getElementById('aiAdvisorModal').remove()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;padding:0 .5rem">✕</button>
+        </div>
+
+        <!-- محتوى الشات -->
+        <div id="aiChatBody" style="flex:1;overflow-y:auto;padding:1.2rem;display:flex;flex-direction:column;gap:.8rem">
+          <!-- رسالة ترحيب من البوت -->
+          <div style="display:flex;gap:.6rem;align-items:flex-start">
+            <div style="font-size:1.6rem;flex-shrink:0">🤖</div>
+            <div style="background:rgba(155,109,255,.06);border:1px solid rgba(155,109,255,.2);border-radius:12px;padding:.8rem 1rem;max-width:88%">
+              <div style="font-size:.78rem;color:#9B6DFF;font-weight:700;margin-bottom:.3rem">${L('المحلل','Conseiller')}</div>
+              <div style="font-size:.88rem;color:var(--text);line-height:1.8">
+                ${L(`مرحباً! أنا المحلل الذكي لمؤسستك. حلّلت بياناتك ووجدت:`,`Bonjour! J'ai analysé vos données et trouvé:`)}
+                <div style="margin-top:.7rem;font-size:.82rem">${insights.summary}</div>
+                <div style="margin-top:.7rem;font-size:.82rem;color:var(--muted)">${L('اختر سؤالاً سريعاً أو اطرح سؤالك الخاص:','Choisissez une question rapide ou posez la vôtre:')}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- أسئلة سريعة -->
+        <div id="quickQuestionsBox" style="padding:.8rem 1.4rem;border-top:1px solid var(--border);background:rgba(255,255,255,.01)">
+          <div style="font-size:.72rem;color:var(--dim);font-weight:700;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.4px">⚡ ${L('أسئلة سريعة','Questions rapides')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+            ${quickQuestions.map(q => `
+              <button onclick="askAIAdvisor('${q.text.replace(/'/g,"\'")}')" style="padding:.4rem .8rem;background:rgba(155,109,255,.08);border:1px solid rgba(155,109,255,.25);border-radius:18px;color:var(--text);font-size:.74rem;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit;transition:all .15s">
+                <span>${q.icon}</span> ${q.text}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- مدخل السؤال -->
+        <div style="padding:1rem 1.4rem;border-top:1px solid var(--border);display:flex;gap:.6rem;align-items:center">
+          <input id="aiAdvisorInput" type="text" placeholder="${L('اطرح سؤالك حول مؤسستك...','Posez votre question...')}" style="flex:1;padding:.7rem 1rem;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:.85rem"
+            onkeydown="if(event.key==='Enter'){askAIAdvisor(this.value);this.value='';}">
+          <button onclick="const v=document.getElementById('aiAdvisorInput').value;if(v){askAIAdvisor(v);document.getElementById('aiAdvisorInput').value='';}" style="padding:.7rem 1.2rem;background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-family:inherit;font-size:.85rem">
+            ➤
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// محرك أسئلة وأجوبة محلي ذكي
+function askAIAdvisor(question) {
+  if (!question || !question.trim()) return;
+  const body = document.getElementById('aiChatBody');
+  if (!body) return;
+
+  // إخفاء قسم الأسئلة السريعة بعد أول سؤال
+  const qBox = document.getElementById('quickQuestionsBox');
+  if (qBox) qBox.style.display = 'none';
+
+  // أضف سؤال المستخدم
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText = 'display:flex;gap:.6rem;justify-content:flex-end';
+  userMsg.innerHTML = `
+    <div style="background:rgba(74,144,226,.1);border:1px solid rgba(74,144,226,.3);border-radius:12px;padding:.7rem 1rem;max-width:75%;font-size:.85rem;color:var(--text);line-height:1.7">${escHtml(question)}</div>
+    <div style="font-size:1.4rem;flex-shrink:0">👤</div>
+  `;
+  body.appendChild(userMsg);
+  body.scrollTop = body.scrollHeight;
+
+  // مؤشر التحميل
+  const loading = document.createElement('div');
+  loading.id = 'aiThinking';
+  loading.style.cssText = 'display:flex;gap:.6rem;align-items:center';
+  loading.innerHTML = `<div style="font-size:1.4rem">🤖</div><div style="background:rgba(155,109,255,.06);border-radius:12px;padding:.7rem 1rem;font-size:.82rem;color:var(--muted)">${L('أحلّل بياناتك...','J\'analyse...')} <span class="ai-dots">●●●</span></div>`;
+  body.appendChild(loading);
+  body.scrollTop = body.scrollHeight;
+
+  // محاكاة تفكير
+  setTimeout(() => {
+    const answer = generateAIAnswer(question);
+    loading.remove();
+    const botMsg = document.createElement('div');
+    botMsg.style.cssText = 'display:flex;gap:.6rem;align-items:flex-start';
+    botMsg.innerHTML = `
+      <div style="font-size:1.4rem;flex-shrink:0">🤖</div>
+      <div style="background:rgba(155,109,255,.06);border:1px solid rgba(155,109,255,.2);border-radius:12px;padding:.8rem 1rem;max-width:88%">
+        <div style="font-size:.86rem;color:var(--text);line-height:1.8;white-space:pre-wrap">${answer}</div>
+      </div>
+    `;
+    body.appendChild(botMsg);
+    body.scrollTop = body.scrollHeight;
+  }, 800);
+}
+
+// توليد إجابات ذكية بناءً على البيانات الفعلية
+function generateAIAnswer(question) {
+  const q = question.toLowerCase();
+  const tid = Auth.getUser().tenant_id;
+  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
+  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
+  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
+  const equipData = DB.get('equipment').filter(e => e.tenant_id===tid);
+  const salaryData = DB.get('salary_records').filter(s => s.tenant_id===tid);
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equipData, salaryData);
+
+  // ── أسئلة حول السيولة والمالية ──
+  if (q.includes('سيول') || q.includes('liquid') || q.includes('cash') || q.includes('نقد')) {
+    const cash = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0) - txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+    let ans = `💰 **${L('وضع السيولة','État de la liquidité')}**\n\n`;
+    ans += `• ${L('السيولة الحالية','Liquidité actuelle')}: <strong>${fmt(cash)} ${L('دج','DA')}</strong>\n`;
+    if (btp.cashRunway !== null && btp.cashRunway > 0) ans += `• ${L('مدة التمويل','Durée')}: <strong>${btp.cashRunway} ${L('يوم','jours')}</strong>\n`;
+    if (btp.burnRate > 0) ans += `• ${L('معدل الحرق اليومي','Consommation/jour')}: <strong>${fmt(btp.burnRate)} ${L('دج','DA')}</strong>\n`;
+    ans += `\n🎯 **${L('نصائح لتحسين السيولة','Conseils pour améliorer')}:**\n`;
+    if (btp.unpaidAmount > 0) ans += `1. ${L('حصّل','Encaissez')} <strong>${fmt(Math.round(btp.unpaidAmount))} ${L('دج','DA')}</strong> ${L('من الفواتير المعلقة','de factures impayées')} (${btp.unpaidInvoices.length} ${L('فاتورة','facture(s)')})\n`;
+    ans += `${btp.unpaidAmount > 0 ? '2' : '1'}. ${L('فاوض على دفعات مقدمة 30-50%','Négociez des avances 30-50%')}\n`;
+    ans += `${btp.unpaidAmount > 0 ? '3' : '2'}. ${L('قلّل المصاريف غير الضرورية','Réduisez les dépenses non essentielles')}\n`;
+    ans += `${btp.unpaidAmount > 0 ? '4' : '3'}. ${L('بع المعدات الراكدة','Vendez l\'équipement inutilisé')}`;
+    return ans;
+  }
+
+  // ── أكثر المصاريف ──
+  if (q.includes('مصاريف') || q.includes('مصروف') || q.includes('dépense') || q.includes('expense') || q.includes('cost')) {
+    const expensesByCategory = {};
+    txs.filter(t=>t.type==='expense').forEach(t => {
+      const cat = t.category || L('غير محدد','Non catégorisé');
+      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + Number(t.amount||0);
+    });
+    const sorted = Object.entries(expensesByCategory).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    if (sorted.length === 0) return L('لم تسجّل أي مصاريف بعد. ابدأ بإضافة معاملاتك في صفحة "المعاملات".','Aucune dépense enregistrée. Ajoutez-en dans "Transactions".');
+    let ans = `📊 **${L('أكبر 5 فئات مصاريف','Top 5 catégories')}:**\n\n`;
+    sorted.forEach(([cat, amt], i) => {
+      ans += `${i+1}. **${cat}**: ${fmt(Math.round(amt))} ${L('دج','DA')}\n`;
+    });
+    const total = sorted.reduce((s,[,v])=>s+v,0);
+    const topPct = total > 0 ? Math.round((sorted[0][1] / total) * 100) : 0;
+    ans += `\n💡 ${L('الفئة الأكبر','La plus grosse')} "${sorted[0][0]}" ${L('تمثل','représente')} <strong>${topPct}%</strong> ${L('من المصاريف. راجع هذه الفئة للبحث عن فرص لتقليل التكاليف.','des dépenses. Cherchez des opportunités de réduction.')}`;
+    return ans;
+  }
+
+  // ── أكثر مشروع ربحاً ──
+  if (q.includes('ربح') || q.includes('profit') || q.includes('rent') || q.includes('marge')) {
+    const projectProfit = projects.map(p => {
+      const budget = Number(p.budget||0);
+      const spent = Number(p.total_spent||0);
+      const progress = Number(p.progress||0);
+      const ev = budget * progress / 100;
+      const margin = spent > 0 ? ((ev - spent) / spent) * 100 : 0;
+      return { name: p.name, margin: +margin.toFixed(1), profit: ev - spent, budget, spent, progress };
+    }).filter(p => p.spent > 0).sort((a,b)=>b.margin-a.margin);
+    if (projectProfit.length === 0) return L('لا توجد بيانات كافية. تأكد من إدخال الميزانية والمنفق لكل مشروع.','Données insuffisantes. Assurez-vous d\'avoir saisi le budget et les dépenses.');
+    let ans = `🏆 **${L('ترتيب المشاريع حسب الربحية','Classement par rentabilité')}:**\n\n`;
+    projectProfit.slice(0,5).forEach((p,i) => {
+      const icon = p.margin >= 15 ? '✅' : p.margin >= 0 ? '⚖️' : '❌';
+      ans += `${icon} **${i+1}. ${p.name}**: ${p.margin > 0 ? '+' : ''}${p.margin}% ${L('هامش','marge')} (${fmt(Math.round(p.profit))} ${L('دج','DA')})\n`;
+    });
+    if (projectProfit[0].margin >= 15) {
+      ans += `\n💡 ${L('مشروع "','Le projet "')}${projectProfit[0].name}${L('" هو الأكثر ربحاً — ادرس عوامل نجاحه وكرّرها في المشاريع الأخرى.','" est le plus rentable — étudiez ses facteurs de succès.')}`;
+    }
+    if (projectProfit[projectProfit.length-1].margin < 0) {
+      ans += `\n⚠️ ${L('مشروع "','Projet "')}${projectProfit[projectProfit.length-1].name}${L('" يخسر — راجع الميزانية أو تفاوض مع العميل على تكاليف إضافية.','" perd de l\'argent — révisez le budget.')}`;
+    }
+    return ans;
+  }
+
+  // ── التأخير ──
+  if (q.includes('تأخ') || q.includes('retard') || q.includes('delay') || q.includes('late')) {
+    const delayed = projects.filter(p => p.status === 'delayed' || p.status === 'late');
+    if (delayed.length === 0 && (btp.spi === null || btp.spi >= 1)) {
+      return L('✅ ممتاز! لا توجد مشاريع متأخرة وفقاً للبيانات. كل المشاريع تسير ضمن الجدول الزمني.','✅ Excellent! Aucun projet en retard.');
+    }
+    let ans = `⏰ **${L('تحليل التأخيرات','Analyse des retards')}:**\n\n`;
+    if (btp.spi !== null) ans += `• SPI = <strong>${btp.spi}</strong> ${btp.spi < 1 ? L('(متأخر)','(en retard)') : L('(في الوقت)','(à l\'heure)')}\n`;
+    if (delayed.length > 0) {
+      ans += `\n📋 **${L('المشاريع المتأخرة','Projets en retard')}:**\n`;
+      delayed.forEach(p => { ans += `• ${p.name} — ${L('التقدم','progrès')}: ${p.progress||0}%\n`; });
+    }
+    ans += `\n🎯 **${L('الأسباب الشائعة للتأخير','Causes courantes')}:**\n`;
+    ans += `1. ${L('نقص في العمالة أو غياب متكرر','Manque de main d\'œuvre')}\n`;
+    ans += `2. ${L('تأخر استلام المواد من الموردين','Retard de livraison de matériaux')}\n`;
+    ans += `3. ${L('سوء تقدير الجدول الزمني','Mauvaise estimation des délais')}\n`;
+    ans += `4. ${L('مشاكل تقنية غير متوقعة','Problèmes techniques imprévus')}\n`;
+    ans += `5. ${L('تعديلات من العميل','Modifications du client')}\n`;
+    ans += `\n💡 ${L('استخدم صفحة Gantt لمراجعة الجدول الزمني وأعد تخطيط المهام الحرجة.','Utilisez Gantt pour replanifier les tâches.')}`;
+    return ans;
+  }
+
+  // ── رفع هامش الربح ──
+  if (q.includes('هامش') || q.includes('marge') || q.includes('rentab') || q.includes('ربحية')) {
+    const margin = btp.grossMargin;
+    let ans = `📈 **${L('رفع هامش الربح','Augmenter la marge')}**\n\n`;
+    if (margin !== null) ans += `• ${L('هامشك الحالي','Marge actuelle')}: <strong>${margin}%</strong>\n\n`;
+    ans += `🎯 **${L('استراتيجيات عملية','Stratégies pratiques')}:**\n\n`;
+    ans += `**${L('① تسعير ذكي','① Tarification intelligente')}:**\n`;
+    ans += `• ${L('احسب التكلفة الحقيقية + هامش 20-30%','Calculez coût réel + 20-30%')}\n`;
+    ans += `• ${L('ميّز خدماتك (جودة، سرعة، ضمان)','Différenciez vos services')}\n\n`;
+    ans += `**${L('② تقليل التكاليف','② Réduction des coûts')}:**\n`;
+    ans += `• ${L('فاوض الموردين على خصومات الكميات','Négociez les volumes')}\n`;
+    ans += `• ${L('قلّل الهدر في المواد','Réduisez le gaspillage')}\n`;
+    ans += `• ${L('استثمر في تدريب العمال (إنتاجية أعلى)','Formez vos employés')}\n\n`;
+    ans += `**${L('③ تحسين العمليات','③ Optimisation')}:**\n`;
+    ans += `• ${L('أتمتة المهام الإدارية','Automatisez l\'administratif')}\n`;
+    ans += `• ${L('استخدم معدات أحدث','Modernisez l\'équipement')}\n`;
+    ans += `• ${L('ركّز على المشاريع ذات الربح العالي','Focus projets rentables')}`;
+    return ans;
+  }
+
+  // ── إنتاجية العمال ──
+  if (q.includes('عمال') || q.includes('employ') || q.includes('worker') || q.includes('productiv') || q.includes('إنتاج')) {
+    const today = new Date().toISOString().split('T')[0];
+    const presentToday = attendance.filter(a => a.date === today && a.status === 'present').length;
+    const rate = workers.length > 0 ? Math.round((presentToday / workers.length) * 100) : 0;
+    let ans = `👷 **${L('تحليل العمالة','Analyse personnel')}**\n\n`;
+    ans += `• ${L('عدد العمال','Total employés')}: <strong>${workers.length}</strong>\n`;
+    ans += `• ${L('حضور اليوم','Présents aujourd\'hui')}: <strong>${presentToday}/${workers.length} (${rate}%)</strong>\n`;
+    if (btp.payrollRatio !== null) ans += `• ${L('نسبة الأجور للإيرادات','Ratio paie/revenus')}: <strong>${btp.payrollRatio}%</strong>\n`;
+    ans += `• ${L('الإنتاجية لكل عامل','Productivité/employé')}: <strong>${btp.productivity}%</strong>\n\n`;
+    ans += `💡 **${L('مؤشرات الكفاءة','Indicateurs')}:**\n`;
+    if (rate < 80) ans += `⚠️ ${L('معدل الحضور','Taux présence')} ${rate}% ${L('منخفض. حقّق في أسباب الغياب.','— bas, enquêtez sur les absences.')}\n`;
+    if (btp.payrollRatio !== null && btp.payrollRatio > 40) ans += `⚠️ ${L('نسبة الأجور مرتفعة. حسّن الإنتاجية أو راجع التوظيف.','Ratio paie élevé.')}\n`;
+    if (btp.payrollRatio !== null && btp.payrollRatio <= 30 && rate >= 85) ans += `✅ ${L('أداء عمالتك ممتاز!','Performance excellente!')}\n`;
+    ans += `\n🎯 **${L('لتحسين الإنتاجية','Pour améliorer')}:**\n`;
+    ans += `1. ${L('استثمر في تدريب العمال','Formez régulièrement')}\n`;
+    ans += `2. ${L('وفّر معدات أفضل','Équipement moderne')}\n`;
+    ans += `3. ${L('ربط المكافآت بالإنجاز','Primes selon performance')}\n`;
+    ans += `4. ${L('قياس الإنتاج لكل عامل','Mesurez par employé')}`;
+    return ans;
+  }
+
+  // ── إجابة عامة ذكية ──
+  let ans = `🤔 ${L('سؤال جيد. دعني أحلّل بياناتك:','Bonne question. Voici l\'analyse:')}\n\n`;
+  ans += `**${L('وضع مؤسستك الحالي','État actuel')}:**\n`;
+  ans += `• ${L('مشاريع نشطة','Projets actifs')}: <strong>${projects.filter(p=>p.status==='active').length}</strong>\n`;
+  ans += `• ${L('عمال','Employés')}: <strong>${workers.length}</strong>\n`;
+  if (btp.grossMargin !== null) ans += `• ${L('هامش الربح','Marge')}: <strong>${btp.grossMargin}%</strong>\n`;
+  if (btp.cpi !== null) ans += `• CPI: <strong>${btp.cpi}</strong>\n`;
+  if (btp.spi !== null) ans += `• SPI: <strong>${btp.spi}</strong>\n`;
+  ans += `\n💡 ${L('للحصول على إجابة محددة، جرّب أسئلة مثل:','Pour une réponse précise, essayez:')}\n`;
+  ans += `• ${L('"كيف أحسّن السيولة؟"','"Comment améliorer la liquidité?"')}\n`;
+  ans += `• ${L('"ما هي أكثر المصاريف؟"','"Quelles sont mes plus grosses dépenses?"')}\n`;
+  ans += `• ${L('"أي مشاريعي الأكثر ربحاً؟"','"Quel projet est le plus rentable?"')}`;
+  return ans;
+}
+
+window.openAIAdvisor = openAIAdvisor;
+window.askAIAdvisor = askAIAdvisor;
+window.generateAIAnswer = generateAIAnswer;
+window.generateAIInsights = generateAIInsights;
 
 function initAnalyticsCharts() {
   const tid = Auth.getUser()?.tenant_id;
