@@ -5263,10 +5263,35 @@ Pages.reports = function() {
     <div class="page-header">
       <div class="page-title">📈 التقارير والإحصاء</div>
       <div class="page-actions">
+        <button class="btn" style="background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;font-weight:800" onclick="generateAISmartReport()" title="${L('تقرير شامل مولّد بالذكاء الاصطناعي','Rapport IA complet')}">🤖 ${L('تقرير ذكي بـ AI','Rapport IA')}</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFinancialCSV()">📥 تصدير مالي CSV</button><button class="btn btn-gold btn-sm" onclick="exportReportPDF()">📄 تصدير PDF</button>
         <button class="btn btn-ghost btn-sm" onclick="exportAttendanceMonthly()">📥 تقرير حضور CSV</button>
         <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ طباعة التقرير</button>
       </div>
+    </div>
+
+    <!-- ✨ بطاقة التقرير الذكي الشامل -->
+    <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-30px;${I18N.currentLang==='ar'?'left':'right'}:-30px;width:140px;height:140px;background:radial-gradient(circle,rgba(155,109,255,.15),transparent);border-radius:50%"></div>
+      <div style="font-size:3.2rem;flex-shrink:0;position:relative;z-index:1">🤖</div>
+      <div style="flex:1;min-width:280px;position:relative;z-index:1">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap">
+          <span style="font-size:1.15rem;font-weight:900;color:#9B6DFF;letter-spacing:.3px">${L('التقرير الذكي الشامل','Rapport IA Complet')}</span>
+          <span style="font-size:.62rem;background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;padding:3px 10px;border-radius:8px;font-weight:800">✨ AI POWERED</span>
+        </div>
+        <div style="font-size:.84rem;color:var(--text);line-height:1.75;margin-bottom:.7rem">
+          ${L('تقرير احترافي مولّد بالذكاء الاصطناعي يحلّل بياناتك الحالية ويقدّم: <strong style="color:#9B6DFF">الإيجابيات</strong>، <strong style="color:#9B6DFF">السلبيات</strong>، <strong style="color:#9B6DFF">النواقص</strong>، <strong style="color:#9B6DFF">التحسينات المقترحة</strong>، وتوصيات استراتيجية مخصصة لمؤسستك.','Rapport IA professionnel qui analyse vos données et propose: <strong>points forts</strong>, <strong>points faibles</strong>, <strong>recommandations</strong> et stratégies.')}
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">📊 ${L('تحليل مالي','Analyse financière')}</span>
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">🏗️ ${L('تقييم المشاريع','Projets')}</span>
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">👷 ${L('أداء العمالة','Personnel')}</span>
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">💡 ${L('توصيات ذكية','Recommandations')}</span>
+        </div>
+      </div>
+      <button onclick="generateAISmartReport()" style="background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;padding:1rem 1.6rem;border-radius:12px;font-weight:800;cursor:pointer;font-family:inherit;font-size:.95rem;box-shadow:0 4px 16px rgba(155,109,255,.3);position:relative;z-index:1;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+        ✨ ${L('توليد التقرير الآن','Générer maintenant')}
+      </button>
     </div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:var(--green);font-size:1rem">${fmt(revenue)}</div><div class="stat-label">الإيرادات (دج)</div></div>
@@ -5295,6 +5320,482 @@ Pages.reports = function() {
 };
 
 /* ─── SETTINGS ─── */
+// ════════════════════════════════════════════════════════════════════
+// 🤖 generateAISmartReport — التقرير الذكي الشامل المولّد بالذكاء الاصطناعي
+// ════════════════════════════════════════════════════════════════════
+function generateAISmartReport() {
+  const tenant = Auth.getTenant();
+  if (!tenant) { Toast.error('يجب تسجيل الدخول'); return; }
+  const tid = tenant.id;
+
+  // ═══ جمع كل البيانات ═══
+  const projects   = DB.get('projects').filter(p => p.tenant_id === tid && !p.is_archived);
+  const workers    = DB.get('workers').filter(w => w.tenant_id === tid);
+  const txs        = DB.get('transactions').filter(t => t.tenant_id === tid);
+  const attendance = DB.get('attendance').filter(a => workers.find(w => w.id === a.worker_id));
+  const invoices   = DB.get('invoices').filter(i => i.tenant_id === tid);
+  const materials  = DB.get('materials').filter(m => m.tenant_id === tid);
+  const equipment  = DB.get('equipment').filter(e => e.tenant_id === tid);
+  const salaryRecs = DB.get('salary_records').filter(s => s.tenant_id === tid);
+  const documents  = DB.get('documents').filter(d => d.tenant_id === tid);
+
+  // مؤشرات BTP
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoices, materials, equipment, salaryRecs);
+  const insights = generateAIInsights(btp, projects, txs, workers, invoices, materials);
+  const health = calcHealthScore(projects, txs, workers, attendance);
+
+  // حسابات إضافية
+  const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0);
+  const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+  const totalBudget = projects.reduce((s,p)=>s+Number(p.budget||0),0);
+  const totalSpent  = projects.reduce((s,p)=>s+Number(p.total_spent||0),0);
+  const activeProjects = projects.filter(p => p.status === 'active').length;
+  const completedProjects = projects.filter(p => p.status === 'completed').length;
+  const delayedProjects = projects.filter(p => p.status === 'delayed' || p.status === 'late').length;
+  const today = new Date().toISOString().split('T')[0];
+  const presentToday = attendance.filter(a => a.date === today && a.status === 'present').length;
+  const attendanceRate = workers.length ? Math.round((presentToday / workers.length) * 100) : 0;
+
+  // ━━ تصنيف ذكي للإيجابيات / السلبيات / النواقص ━━
+  const positives = [];
+  const negatives = [];
+  const lacks     = [];
+  const improvements = [];
+  const strategies = [];
+
+  // ① الإيجابيات
+  if (btp.cpi !== null && btp.cpi >= 1) positives.push({ icon:'✅', text:`أداء التكلفة ممتاز (CPI=${btp.cpi}) — تنجز أعمالاً قيمتها أكثر من المنفق` });
+  if (btp.spi !== null && btp.spi >= 1) positives.push({ icon:'⚡', text:`الجدول الزمني متقدم (SPI=${btp.spi}) — مشاريعك تسير حسب أو أسرع من المخطط` });
+  if (btp.grossMargin !== null && btp.grossMargin >= 20) positives.push({ icon:'💰', text:`هامش ربح ممتاز ${btp.grossMargin}% — أعلى من متوسط القطاع` });
+  if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text:`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز` });
+  if (attendanceRate >= 85) positives.push({ icon:'👷', text:`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة` });
+  if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text:`السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات` });
+  if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text:`المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى` });
+  if (completedProjects >= 3) positives.push({ icon:'🏆', text:`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي` });
+  if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text:`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق` });
+  if (documents.length >= 10) positives.push({ icon:'📁', text:`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم` });
+
+  // ② السلبيات
+  if (btp.cpi !== null && btp.cpi < 0.85) negatives.push({ icon:'🚨', text:`تجاوز تكلفة كبير (CPI=${btp.cpi}) — تنفق ${Math.round((1-btp.cpi)*100)}% أكثر من المخطط` });
+  if (btp.spi !== null && btp.spi < 0.85) negatives.push({ icon:'⏰', text:`تأخر زمني كبير (SPI=${btp.spi}) — متأخر ${Math.round((1-btp.spi)*100)}% عن الجدول` });
+  if (btp.grossMargin !== null && btp.grossMargin < 5) negatives.push({ icon:'📉', text:`هامش ربح منخفض جداً (${btp.grossMargin}%) — قد يهدد استمرارية المؤسسة` });
+  if (btp.cashRunway !== null && btp.cashRunway > 0 && btp.cashRunway < 30) negatives.push({ icon:'🚨', text:`خطر السيولة الحاد — ستنفد خلال ${btp.cashRunway} يوم فقط` });
+  if (btp.dso !== null && btp.dso > 90) negatives.push({ icon:'🐌', text:`بطء حاد في التحصيل (${btp.dso} يوم) — تجمد رأس المال` });
+  if (btp.payrollRatio !== null && btp.payrollRatio > 50) negatives.push({ icon:'⚠️', text:`الأجور تستهلك ${btp.payrollRatio}% من الإيرادات — مرتفع جداً` });
+  if (delayedProjects >= 3) negatives.push({ icon:'❌', text:`${delayedProjects} مشاريع متأخرة — مؤشر على مشاكل تنظيمية` });
+  if (btp.unpaidAmount > 500000) negatives.push({ icon:'💸', text:`فواتير غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج — تأثير سلبي على السيولة` });
+  if (attendanceRate < 70 && workers.length > 3) negatives.push({ icon:'👥', text:`نسبة حضور منخفضة (${attendanceRate}%) — تأثير على الإنتاجية` });
+
+  // ③ النواقص
+  if (!tenant.rc_number || !tenant.nif || !tenant.nis) lacks.push({ icon:'📋', text:'البيانات القانونية ناقصة (RC, NIF, NIS) — مطلوبة في الوثائق الرسمية' });
+  if (!tenant.logo_url) lacks.push({ icon:'🎨', text:'لا يوجد شعار للمؤسسة — يضعف الهوية البصرية في الوثائق' });
+  if (!tenant.rib && !tenant.bank_account) lacks.push({ icon:'🏦', text:'لا يوجد رقم حساب بنكي — الفواتير تحتاج RIB للتحصيل' });
+  if (projects.length === 0) lacks.push({ icon:'🏗️', text:'لا توجد مشاريع مُسجَّلة بعد — ابدأ بإضافة مشاريعك' });
+  if (workers.length === 0) lacks.push({ icon:'👷', text:'لا يوجد عمال مُسجَّلون — لا يمكن متابعة الحضور والأجور' });
+  if (equipment.length === 0) lacks.push({ icon:'🚜', text:'لا يوجد معدات مُسجَّلة — لا يمكن تتبع استخداماتها' });
+  if (materials.length === 0) lacks.push({ icon:'📦', text:'لا يوجد مخزون مواد — تتبع المواد يساعد في حساب التكاليف الحقيقية' });
+  if (txs.length < 10) lacks.push({ icon:'💼', text:`عدد المعاملات قليل (${txs.length}) — لمزيد من الدقة، سجّل كل عملية مالية` });
+  if (documents.length === 0) lacks.push({ icon:'📄', text:'لم تُولّد أي وثيقة بعد — استفد من وحدة الوثائق الإدارية' });
+  if (invoices.length === 0) lacks.push({ icon:'🧾', text:'لا توجد فواتير — أداة الفواتير ضرورية لمتابعة المستحقات' });
+
+  // ④ التحسينات
+  if (btp.cpi !== null && btp.cpi < 1) improvements.push({ icon:'💡', priority:'عالية', text:'حسّن إدارة التكاليف: راجع التقدير المسبق، فاوض الموردين، وقلّل الهدر في المواد' });
+  if (btp.spi !== null && btp.spi < 1) improvements.push({ icon:'⏱️', priority:'عالية', text:'استخدم Gantt Chart بانتظام، عيّن قائد أشغال لكل مشروع، وعقد اجتماعات أسبوعية للمتابعة' });
+  if (btp.dso !== null && btp.dso > 60) improvements.push({ icon:'📞', priority:'متوسطة', text:'حسّن التحصيل: شروط دفع أقصر (30 يوم)، خصومات للدفع السريع، تذكيرات تلقائية' });
+  if (btp.grossMargin !== null && btp.grossMargin < 15) improvements.push({ icon:'📊', priority:'عالية', text:'راجع التسعير: احسب التكلفة الحقيقية + هامش ربح 20-25% على الأقل' });
+  if (btp.equipUtilization < 50 && equipment.length > 0) improvements.push({ icon:'🚜', priority:'متوسطة', text:'استثمر المعدات الخاملة: أجّرها لشركات أخرى، أو بعها لتحرير السيولة' });
+  if (btp.lowStockCount > 0) improvements.push({ icon:'📦', priority:'متوسطة', text:`اطلب ${btp.lowStockCount} مادة من المخزون المنخفض قبل توقف الأشغال` });
+  if (attendanceRate < 80) improvements.push({ icon:'👷', priority:'متوسطة', text:'حسّن إدارة الموارد البشرية: نظام مكافآت للحضور، تحفيز، تواصل أفضل' });
+  if (projects.filter(p => !p.start_date || !p.end_date).length > 0) improvements.push({ icon:'📅', priority:'منخفضة', text:'حدد تواريخ البدء والانتهاء لكل المشاريع لحساب SPI بدقة' });
+
+  // ⑤ الاستراتيجيات
+  if (revenue > 0 && btp.grossMargin > 15) strategies.push({ icon:'🚀', text:'التوسّع: مع هامش ربح صحي، يمكنك توسيع نشاطك لمشاريع أكبر أو فتح فرع جديد' });
+  if (workers.length >= 5 && btp.payrollRatio !== null && btp.payrollRatio < 35) strategies.push({ icon:'🏆', text:'الكفاءة العالية في إدارة العمالة فرصة لاستثمار الفائض في التدريب والمعدات' });
+  if (btp.cashRunway === null || btp.cashRunway > 180) strategies.push({ icon:'💼', text:'استثمر السيولة الفائضة: ودائع بنكية، شراء معدات، أو دخول مشاريع أكبر' });
+  if (delayedProjects === 0 && completedProjects >= 2) strategies.push({ icon:'📈', text:'سجلك التنفيذي ممتاز — استغله للتقدّم لصفقات حكومية أو شركاء أكبر' });
+  if (btp.unpaidAmount > 200000) strategies.push({ icon:'💰', text:'تخصيص فريق متابعة التحصيل أو الاستعانة بمحامي مختصّ في التحصيل التجاري' });
+  strategies.push({ icon:'📊', text:'تنفيذ نظام KPIs شهري للمتابعة: عقد اجتماع شهري لمراجعة CPI, SPI, السيولة, وهامش الربح' });
+  strategies.push({ icon:'🎓', text:'الاستثمار في التدريب: العمال المُدرَّبون أكثر إنتاجية بنسبة 20-30% (دراسات BTP الدولية)' });
+  strategies.push({ icon:'🤝', text:'بناء علاقات مع موردين موثوقين بأسعار تنافسية وشروط دفع مرنة' });
+
+  // التقييم العام
+  let overallScore = 50;
+  if (btp.cpi !== null) overallScore += (btp.cpi - 1) * 25;
+  if (btp.spi !== null) overallScore += (btp.spi - 1) * 20;
+  if (btp.grossMargin !== null) overallScore += Math.min(15, btp.grossMargin / 2);
+  if (btp.cashRunway !== null && btp.cashRunway > 0) overallScore += Math.min(10, btp.cashRunway / 20);
+  overallScore = Math.max(0, Math.min(100, Math.round(overallScore)));
+  const scoreLabel = overallScore >= 80 ? 'ممتاز' : overallScore >= 60 ? 'جيد' : overallScore >= 40 ? 'متوسط' : 'يحتاج تحسين';
+  const scoreColor = overallScore >= 80 ? '#2a8055' : overallScore >= 60 ? '#B8902F' : overallScore >= 40 ? '#FF7043' : '#a32d3d';
+
+  // ━━ بناء HTML التقرير ━━
+  const reportDate = new Date().toLocaleDateString('ar-DZ', { day:'2-digit', month:'long', year:'numeric' });
+  const reportTime = new Date().toLocaleTimeString('fr-DZ', { hour:'2-digit', minute:'2-digit' });
+  const reportId = 'AI-RPT-' + Date.now().toString().slice(-8);
+  const logoUrl = tenant.logo_url || '';
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>التقرير الذكي - ${tenant.name}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Cairo', 'Tajawal', Arial, sans-serif; color: #3a3a3a; background: #fafafa; padding: 24px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.no-print { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.btn-print { padding: 10px 22px; background: linear-gradient(135deg,#9B6DFF,#4A90E2); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 800; }
+.btn-secondary { padding: 10px 22px; background: #fff; color: #555; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; }
+.page { background: #fff; max-width: 820px; margin: 0 auto; border: 1px solid #e5e5e5; box-shadow: 0 2px 8px rgba(0,0,0,.04); padding: 0; overflow: hidden; }
+
+/* COVER PAGE */
+.cover { background: linear-gradient(135deg, #9B6DFF 0%, #4A90E2 100%); color: #fff; padding: 50px 40px; text-align: center; position: relative; overflow: hidden; }
+.cover::before { content:''; position:absolute; top:-80px; right:-80px; width:240px; height:240px; background:radial-gradient(circle,rgba(255,255,255,.1),transparent); border-radius:50%; }
+.cover::after { content:''; position:absolute; bottom:-100px; left:-100px; width:300px; height:300px; background:radial-gradient(circle,rgba(255,255,255,.08),transparent); border-radius:50%; }
+.cover-badge { display:inline-block; padding:6px 18px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); border-radius:20px; font-size:11px; font-weight:700; letter-spacing:1.5px; margin-bottom:20px; }
+.cover-title { font-size: 32px; font-weight: 900; letter-spacing: 1px; margin-bottom: 8px; }
+.cover-subtitle { font-size: 15px; opacity: .9; font-weight: 600; margin-bottom: 30px; }
+.cover-tenant { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 14px; padding: 18px; display: inline-flex; align-items: center; gap: 14px; margin-bottom: 24px; max-width: 90%; }
+.cover-tenant-logo { width: 56px; height: 56px; background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 4px; }
+.cover-tenant-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cover-tenant-name { font-size: 19px; font-weight: 900; text-align: right; }
+.cover-tenant-legal { font-size: 10.5px; opacity: .85; margin-top: 3px; text-align: right; }
+.cover-date { font-size: 13px; opacity: .9; }
+.cover-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; opacity: .7; margin-top: 6px; }
+
+/* SCORE GAUGE */
+.score-card { padding: 30px 40px; background: linear-gradient(180deg, #f8f9ff, #fff); border-bottom: 1px solid #eee; text-align: center; }
+.score-title { font-size: 11px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.score-value { font-size: 56px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+.score-max { font-size: 22px; color: #aaa; font-weight: 700; }
+.score-label { font-size: 16px; font-weight: 800; margin-top: 8px; padding: 4px 16px; border-radius: 20px; display: inline-block; }
+.score-bar { width: 80%; height: 8px; background: #eee; border-radius: 4px; margin: 18px auto 0; overflow: hidden; }
+.score-fill { height: 100%; border-radius: 4px; }
+
+/* SECTIONS */
+.section { padding: 24px 40px; border-bottom: 1px solid #f0f0f0; }
+.section-num { display: inline-block; width: 30px; height: 30px; background: #9B6DFF; color: #fff; border-radius: 50%; text-align: center; line-height: 30px; font-weight: 900; font-size: 13px; margin-left: 10px; vertical-align: middle; }
+.section-title { font-size: 18px; font-weight: 900; color: #3a3a3a; margin-bottom: 18px; padding-bottom: 8px; border-bottom: 2px solid #9B6DFF; display: flex; align-items: center; }
+.section-title .icon { font-size: 22px; margin-left: 10px; }
+
+/* EXECUTIVE SUMMARY */
+.summary-box { background: linear-gradient(135deg, #f8f5ff, #fff); border: 1px solid #e5d9ff; border-radius: 12px; padding: 18px; line-height: 1.9; font-size: 14px; color: #444; }
+.summary-box strong { color: #9B6DFF; font-weight: 800; }
+
+/* KPIs GRID */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 4px; }
+.kpi-card { padding: 14px; background: #fff; border: 1px solid #e5e5e5; border-right: 3px solid #B8902F; border-radius: 8px; }
+.kpi-card.good { border-right-color: #2a8055; }
+.kpi-card.warn { border-right-color: #B8902F; }
+.kpi-card.bad  { border-right-color: #a32d3d; }
+.kpi-label { font-size: 10px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.kpi-value { font-size: 22px; font-weight: 900; font-family: 'JetBrains Mono', monospace; margin: 4px 0; color: #3a3a3a; }
+.kpi-card.good .kpi-value { color: #2a8055; }
+.kpi-card.warn .kpi-value { color: #B8902F; }
+.kpi-card.bad  .kpi-value { color: #a32d3d; }
+.kpi-unit { font-size: 11px; color: #999; font-weight: 600; }
+
+/* LISTS (positives, negatives, etc.) */
+.point-list { display: flex; flex-direction: column; gap: 8px; }
+.point-item { display: flex; gap: 12px; padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
+.point-item.pos { background: #f4fbf6; border-right: 3px solid #2a8055; color: #1d5e3d; }
+.point-item.neg { background: #fdf5f6; border-right: 3px solid #a32d3d; color: #6e2530; }
+.point-item.lack { background: #fffaf0; border-right: 3px solid #B8902F; color: #6b541f; }
+.point-item.improvement { background: #f5f8ff; border-right: 3px solid #4A90E2; color: #2c5286; }
+.point-item.strategy { background: #faf5ff; border-right: 3px solid #9B6DFF; color: #4f3b78; }
+.point-icon { font-size: 18px; flex-shrink: 0; }
+.point-priority { display: inline-block; font-size: 9.5px; padding: 2px 8px; border-radius: 10px; font-weight: 800; margin-${I18N.currentLang==='ar'?'right':'left'}: 8px; letter-spacing: .3px; }
+.priority-high { background: #a32d3d; color: #fff; }
+.priority-medium { background: #B8902F; color: #fff; }
+.priority-low { background: #4A90E2; color: #fff; }
+
+/* TABLES */
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+thead th { background: #fafafa; color: #3a3a3a; padding: 8px 10px; text-align: right; font-size: 10.5px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #9B6DFF; }
+tbody td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; color: #444; }
+tbody tr:nth-child(even) td { background: #fcfcfc; }
+
+/* PROJECT BARS */
+.proj-bar { display: flex; align-items: center; gap: 10px; }
+.proj-bar-track { flex: 1; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
+.proj-bar-fill { height: 100%; }
+.proj-pct { font-size: 11px; font-weight: 800; min-width: 40px; }
+
+/* FOOTER */
+.footer { padding: 16px 40px; background: #fafafa; border-top: 1px solid #e5e5e5; text-align: center; font-size: 10px; color: #888; line-height: 1.6; }
+.footer .brand { color: #9B6DFF; font-weight: 800; }
+.disclaimer { font-size: 9.5px; color: #aaa; margin-top: 6px; }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .no-print { display: none !important; }
+  .page { box-shadow: none; border: none; max-width: 100%; }
+  @page { size: A4; margin: 1cm; }
+  .section { page-break-inside: avoid; }
+  .point-item { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="no-print">
+  <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ كـ PDF</button>
+  <button class="btn-print" style="background:#34C38F" onclick="(function(){const h=document.documentElement.outerHTML;const b=new Blob([h],{type:'text/html;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='Rapport_IA_${escHtml(tenant.name.replace(/\s+/g,'_'))}_${reportId}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(u),1000);})()">💾 حفظ على الحاسوب</button>
+  <button class="btn-secondary" onclick="window.close()">✕ إغلاق</button>
+</div>
+
+<div class="page">
+  <!-- صفحة الغلاف -->
+  <div class="cover">
+    <div class="cover-badge">✨ AI POWERED REPORT</div>
+    <div class="cover-title">التقرير الذكي الشامل</div>
+    <div class="cover-subtitle">Rapport d'Analyse IA — تحليل وتوصيات استراتيجية</div>
+    <div class="cover-tenant">
+      <div class="cover-tenant-logo">
+        ${logoUrl ? `<img src="${escHtml(logoUrl)}" alt="logo">` : `<span style="font-size:24px;font-weight:900;color:#9B6DFF">${escHtml(tenant.name.charAt(0))}</span>`}
+      </div>
+      <div>
+        <div class="cover-tenant-name">${escHtml(tenant.name)}</div>
+        <div class="cover-tenant-legal">
+          ${tenant.rc_number ? `RC: ${escHtml(tenant.rc_number)}` : ''}
+          ${tenant.nif ? ` · NIF: ${escHtml(tenant.nif)}` : ''}
+          ${tenant.wilaya ? ` · ${escHtml(tenant.wilaya)}` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="cover-date">📅 ${reportDate} — ${reportTime}</div>
+    <div class="cover-id">N° ${reportId}</div>
+  </div>
+
+  <!-- التقييم العام -->
+  <div class="score-card">
+    <div class="score-title">التقييم العام للمؤسسة</div>
+    <div>
+      <span class="score-value" style="color:${scoreColor}">${overallScore}</span><span class="score-max">/100</span>
+    </div>
+    <div class="score-label" style="background:${scoreColor}22;color:${scoreColor}">${scoreLabel}</div>
+    <div class="score-bar">
+      <div class="score-fill" style="width:${overallScore}%;background:${scoreColor}"></div>
+    </div>
+    <div style="margin-top:14px;font-size:11px;color:#888;line-height:1.7;max-width:600px;margin-${I18N.currentLang==='ar'?'right':'left'}:auto;margin-${I18N.currentLang==='ar'?'left':'right'}:auto">
+      تم حساب التقييم بناءً على مؤشرات الأداء الدولية (EVM) شاملة: CPI, SPI, السيولة، هامش الربح، والإنتاجية
+    </div>
+  </div>
+
+  <!-- ① الملخص التنفيذي -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">1</span><span class="icon">📋</span>الملخص التنفيذي</div>
+    <div class="summary-box">${insights.summary}</div>
+    <div style="margin-top:14px;font-size:12px;color:#666;line-height:1.8">
+      <strong style="color:#3a3a3a">نظرة عامة:</strong> تدير مؤسسة <strong>${escHtml(tenant.name)}</strong> حالياً <strong style="color:#9B6DFF">${projects.length}</strong> مشروع (منها ${activeProjects} نشط، ${completedProjects} مكتمل${delayedProjects>0?'، '+delayedProjects+' متأخر':''})، بفريق من <strong style="color:#9B6DFF">${workers.length}</strong> عامل،
+      و<strong style="color:#9B6DFF">${equipment.length}</strong> معدة، وقد سجّلت <strong style="color:#9B6DFF">${txs.length}</strong> معاملة مالية بإجمالي إيرادات <strong style="color:#2a8055">${fmt(revenue)} دج</strong>
+      ومصاريف <strong style="color:#a32d3d">${fmt(expense)} دج</strong>${revenue-expense >= 0 ? `، محقّقةً ربحاً صافياً قدره <strong style="color:#2a8055">${fmt(revenue-expense)} دج</strong>` : `، وحالياً في حالة عجز قدره <strong style="color:#a32d3d">${fmt(Math.abs(revenue-expense))} دج</strong>`}.
+    </div>
+  </div>
+
+  <!-- ② مؤشرات الأداء الرئيسية -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">2</span><span class="icon">📊</span>مؤشرات الأداء الاحترافية (KPIs)</div>
+    <div class="kpi-grid">
+      <div class="kpi-card ${btp.cpi===null?'':btp.cpi>=1?'good':btp.cpi>=0.9?'warn':'bad'}">
+        <div class="kpi-label">CPI — أداء التكلفة</div>
+        <div class="kpi-value">${btp.cpi===null?'—':btp.cpi}</div>
+        <div class="kpi-unit">${btp.cpi===null?'بيانات غير كافية':btp.cpi>=1?'✓ ضمن الميزانية':'⚠ تجاوز'}</div>
+      </div>
+      <div class="kpi-card ${btp.spi===null?'':btp.spi>=1?'good':btp.spi>=0.85?'warn':'bad'}">
+        <div class="kpi-label">SPI — أداء الجدول</div>
+        <div class="kpi-value">${btp.spi===null?'—':btp.spi}</div>
+        <div class="kpi-unit">${btp.spi===null?'بيانات غير كافية':btp.spi>=1?'✓ في الوقت':'⚠ تأخر'}</div>
+      </div>
+      <div class="kpi-card ${btp.grossMargin===null?'':btp.grossMargin>=20?'good':btp.grossMargin>=10?'warn':'bad'}">
+        <div class="kpi-label">هامش الربح</div>
+        <div class="kpi-value">${btp.grossMargin===null?'—':btp.grossMargin+'%'}</div>
+        <div class="kpi-unit">${btp.grossMargin===null?'لا توجد إيرادات':btp.grossMargin>=20?'✓ ممتاز':'⚠ يحتاج تحسين'}</div>
+      </div>
+      <div class="kpi-card ${btp.cashRunway===null?'':btp.cashRunway<0||btp.cashRunway>=180?'good':btp.cashRunway>=60?'warn':'bad'}">
+        <div class="kpi-label">مدة السيولة</div>
+        <div class="kpi-value">${btp.cashRunway===null||btp.cashRunway<0?'∞':btp.cashRunway}</div>
+        <div class="kpi-unit">يوم متبقي</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">معدل الحرق اليومي</div>
+        <div class="kpi-value">${fmt(btp.burnRate)}</div>
+        <div class="kpi-unit">دج / يوم</div>
+      </div>
+      <div class="kpi-card ${btp.dso===null?'':btp.dso<=30?'good':btp.dso<=60?'warn':'bad'}">
+        <div class="kpi-label">DSO — فترة التحصيل</div>
+        <div class="kpi-value">${btp.dso===null?'—':btp.dso}</div>
+        <div class="kpi-unit">يوم متوسط</div>
+      </div>
+      <div class="kpi-card ${attendanceRate>=85?'good':attendanceRate>=70?'warn':'bad'}">
+        <div class="kpi-label">نسبة الحضور</div>
+        <div class="kpi-value">${attendanceRate}%</div>
+        <div class="kpi-unit">${presentToday}/${workers.length} اليوم</div>
+      </div>
+      <div class="kpi-card ${btp.lowStockCount===0?'good':'warn'}">
+        <div class="kpi-label">المخزون المنخفض</div>
+        <div class="kpi-value">${btp.lowStockCount}</div>
+        <div class="kpi-unit">مادة تحت الحد</div>
+      </div>
+      <div class="kpi-card ${equipment.length===0?'warn':btp.equipUtilization>=70?'good':btp.equipUtilization>=40?'warn':'bad'}">
+        <div class="kpi-label">استخدام المعدات</div>
+        <div class="kpi-value">${equipment.length===0?'—':btp.equipUtilization+'%'}</div>
+        <div class="kpi-unit">${equipment.length===0?'لا توجد':'نشط'}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ الإيجابيات -->
+  ${positives.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">3</span><span class="icon">✅</span>الإيجابيات ونقاط القوة</div>
+    <div class="point-list">
+      ${positives.map(p => `<div class="point-item pos"><span class="point-icon">${p.icon}</span><span>${p.text}</span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ④ السلبيات -->
+  ${negatives.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">4</span><span class="icon">⚠️</span>السلبيات والمخاطر</div>
+    <div class="point-list">
+      ${negatives.map(n => `<div class="point-item neg"><span class="point-icon">${n.icon}</span><span>${n.text}</span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ⑤ النواقص -->
+  ${lacks.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">5</span><span class="icon">📋</span>النواقص والبيانات الناقصة</div>
+    <div class="point-list">
+      ${lacks.map(l => `<div class="point-item lack"><span class="point-icon">${l.icon}</span><span>${l.text}</span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ⑥ التحسينات المقترحة -->
+  ${improvements.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">6</span><span class="icon">💡</span>التحسينات المقترحة</div>
+    <div class="point-list">
+      ${improvements.map(imp => `<div class="point-item improvement"><span class="point-icon">${imp.icon}</span><span>${imp.text}<span class="point-priority priority-${imp.priority==='عالية'?'high':imp.priority==='متوسطة'?'medium':'low'}">${imp.priority}</span></span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ⑦ الاستراتيجيات والتوصيات -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">7</span><span class="icon">🎯</span>الاستراتيجيات والتوصيات الذكية</div>
+    <div class="point-list">
+      ${strategies.map(s => `<div class="point-item strategy"><span class="point-icon">${s.icon}</span><span>${s.text}</span></div>`).join('')}
+    </div>
+  </div>
+
+  <!-- ⑧ تفاصيل المشاريع -->
+  ${projects.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">8</span><span class="icon">🏗️</span>تفاصيل المشاريع وربحيتها</div>
+    <table>
+      <thead>
+        <tr>
+          <th>المشروع</th>
+          <th style="text-align:center">الميزانية</th>
+          <th style="text-align:center">المنفق</th>
+          <th style="text-align:center">التقدم</th>
+          <th style="text-align:center">CPI</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${projects.map(p => {
+          const b = Number(p.budget||0), sp = Number(p.total_spent||0), pr = Number(p.progress||0);
+          const ev = b * pr / 100;
+          const cpi = sp > 0 ? +(ev / sp).toFixed(2) : null;
+          const cpiColor = cpi===null?'#888':cpi>=1?'#2a8055':cpi>=0.9?'#B8902F':'#a32d3d';
+          return `
+          <tr>
+            <td><strong>${escHtml(p.name)}</strong></td>
+            <td style="text-align:center;font-family:monospace">${fmt(b)}</td>
+            <td style="text-align:center;font-family:monospace;color:${sp>b?'#a32d3d':'#444'}">${fmt(sp)}</td>
+            <td style="text-align:center"><div class="proj-bar"><div class="proj-bar-track"><div class="proj-bar-fill" style="width:${Math.min(100,pr)}%;background:${pr>=80?'#2a8055':pr>=40?'#B8902F':'#a32d3d'}"></div></div><span class="proj-pct">${pr}%</span></div></td>
+            <td style="text-align:center;font-family:monospace;font-weight:800;color:${cpiColor}">${cpi===null?'—':cpi}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- الخاتمة -->
+  <div class="section" style="background:linear-gradient(135deg,#f8f5ff,#fff)">
+    <div class="section-title"><span class="icon">🌟</span>الخلاصة والنظرة المستقبلية</div>
+    <div style="font-size:13px;line-height:1.9;color:#444">
+      بناءً على تحليل شامل لبيانات مؤسسة <strong style="color:#9B6DFF">${escHtml(tenant.name)}</strong>، يقدّم هذا التقرير صورة دقيقة عن وضعها الحالي.
+      ${overallScore >= 80 ? `<br><br>📈 <strong>مؤسستك في حالة ممتازة!</strong> استمر في الأداء الحالي وفكّر في التوسّع والاستثمار في فرص جديدة. النقاط الإيجابية تفوق التحديات بكثير.` : ''}
+      ${overallScore >= 60 && overallScore < 80 ? `<br><br>👍 <strong>أداء جيد عموماً</strong>، لكن هناك مجال للتحسين. التركيز على التوصيات في القسم 6 سيرفع أداءك بشكل ملحوظ.` : ''}
+      ${overallScore >= 40 && overallScore < 60 ? `<br><br>⚠️ <strong>مؤسستك في مرحلة حساسة.</strong> هناك سلبيات ونواقص تحتاج معالجة فورية. ابدأ بالأولويات العالية وأعد تقييم استراتيجيتك.` : ''}
+      ${overallScore < 40 ? `<br><br>🚨 <strong>وضع حرج يحتاج تدخلاً عاجلاً.</strong> راجع السلبيات المذكورة فوراً، خصوصاً ما يتعلق بالسيولة والربحية. قد تحتاج لاستشارة خبير محاسبي.` : ''}
+      <br><br>
+      <strong style="color:#3a3a3a">الخطوات الموصى بها:</strong>
+      <ol style="margin-${I18N.currentLang==='ar'?'right':'left'}:20px;margin-top:8px;line-height:2">
+        <li>راجع السلبيات والنواقص أعلاه واتخذ إجراءات فورية للعالية الأولوية</li>
+        <li>طبّق التحسينات المقترحة على مراحل خلال الأشهر الثلاثة القادمة</li>
+        <li>أنشئ نظام KPI شهري لمتابعة CPI, SPI, السيولة، وهامش الربح</li>
+        <li>كرّر توليد هذا التقرير شهرياً لتتبّع التقدم وقياس التحسّن</li>
+      </ol>
+      <br>
+      <em style="color:#9B6DFF">"النجاح في إدارة المقاولات ليس صدفة، بل نتيجة قرارات مدروسة مبنية على بيانات دقيقة."</em>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>تم توليد هذا التقرير بواسطة <span class="brand">SmartStruct AI</span> في ${reportDate} الساعة ${reportTime}</div>
+    <div style="margin-top:4px">رقم التقرير: <strong>${reportId}</strong> · مؤسسة: <strong>${escHtml(tenant.name)}</strong></div>
+    <div class="disclaimer">⚠️ هذا التقرير مولّد آلياً ويعتمد على البيانات المُدخَلة في النظام. للحصول على تحليل أعمق، استشر خبيراً ماليّاً متخصصاً.</div>
+  </div>
+</div>
+</body>
+</html>`;
+
+  // فتح في نافذة جديدة
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+    w.document.title = `Rapport_IA_${tenant.name}_${reportId}`;
+    Toast.success('✨ تم توليد التقرير الذكي بنجاح!');
+
+    // حفظ في الأرشيف
+    try {
+      if (typeof DZArchive !== 'undefined' && DZArchive.save) {
+        const record = {
+          id: Date.now() * 1000 + Math.floor(Math.random() * 1000),
+          tenant_id: tid,
+          name: 'تقرير ذكي شامل - ' + reportId,
+          category: 'analysis',
+          type: 'ai_smart_report',
+          doc_kind: 'ai_smart_report',
+          doc_number: reportId,
+          url: null,
+          size: html.length,
+          date: new Date().toISOString().split('T')[0],
+          uploader_id: Auth.getUser().id,
+          meta_data: { overallScore, positives: positives.length, negatives: negatives.length, lacks: lacks.length, improvements: improvements.length },
+          created_at: new Date().toISOString(),
+        };
+        const docs = DB.get('documents') || [];
+        docs.unshift(record);
+        DB.set('documents', docs);
+      }
+    } catch(e) { console.warn('[AI Report Archive]', e.message); }
+
+    // سجل audit
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(`توليد تقرير ذكي - رقم ${reportId} (تقييم: ${overallScore}/100)`, { icon: '🤖' });
+    }
+  } else {
+    Toast.error('فشل فتح النافذة. تحقق من إعدادات المتصفح.');
+  }
+}
+
+window.generateAISmartReport = generateAISmartReport;
+
+
 /* ── مزامنة شعار الشركة من Supabase إلى localStorage عند كل فتح ── */
 async function syncTenantLogoFromSupabase() {
   const tid = Auth.getTenant()?.id;
