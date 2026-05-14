@@ -354,7 +354,7 @@ CREATE TABLE notes (
 --  الإشعارات — متطابق مع SB_SCHEMA.notifications
 -- ══════════════════════════════════════════════════════
 CREATE TABLE notifications (
-  id         BIGINT PRIMARY KEY,
+  id         BIGSERIAL PRIMARY KEY,          -- ✅ SERIAL تلقائي (يمنع duplicate key)
   tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   user_id    INTEGER,
   type       VARCHAR(50) NOT NULL DEFAULT 'info',
@@ -363,6 +363,7 @@ CREATE TABLE notifications (
   date       TIMESTAMPTZ DEFAULT NOW(),
   read       BOOLEAN DEFAULT false,
   status     VARCHAR(20) DEFAULT 'pending',
+  extra_data TEXT,                           -- ✅ بيانات إضافية (مثل كلمة المرور المشفّرة مؤقتاً)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -750,3 +751,21 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS worker_id  INTEGER REFERENCES wor
 -- فهرس لتسريع البحث في الأرشيف
 CREATE INDEX IF NOT EXISTS idx_documents_doc_kind ON documents(doc_kind);
 CREATE INDEX IF NOT EXISTS idx_documents_tenant_kind ON documents(tenant_id, doc_kind);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🆕 v7.3 — Migration: إصلاح جدول notifications
+-- ══════════════════════════════════════════════════════════════════════
+-- إضافة حقل extra_data إذا لم يكن موجوداً
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS extra_data TEXT;
+
+-- إصلاح notifications.id ليصبح BIGSERIAL (تلقائي) إذا لم يكن كذلك
+-- هذا يمنع خطأ duplicate key عند INSERT بدون id
+DO $$
+BEGIN
+  -- إنشاء sequence إذا لم تكن موجودة
+  IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'notifications_id_seq') THEN
+    CREATE SEQUENCE notifications_id_seq;
+    ALTER TABLE notifications ALTER COLUMN id SET DEFAULT nextval('notifications_id_seq');
+    SELECT setval('notifications_id_seq', COALESCE(MAX(id), 0) + 1) FROM notifications;
+  END IF;
+END $$;

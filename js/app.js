@@ -2576,6 +2576,7 @@ async function doRegister() {
 
     // 3. INSERT user في Supabase (مع تشفير كلمة المرور) — upsert safe
     let hashedPass = pass;
+    const originalPass = pass; // ✅ احتفظ بالأصلية لإرسالها في إيميل التفعيل
     try {
       if (typeof SmartCrypto !== 'undefined') {
         hashedPass = await SmartCrypto.hash(pass);
@@ -2612,6 +2613,9 @@ async function doRegister() {
     // 4. إشعار Supabase بطلب التسجيل (يظهر للأدمن) — احفظ ID المُرجَع
     let sbNotif = null;
     try {
+      // ✅ نحفظ كلمة المرور الأصلية مُشفّرة بـ base64 في حقل extra_data
+      // لكي يتمكن الأدمن من إرسالها في إيميل التفعيل لاحقاً
+      const encodedPass = typeof btoa !== 'undefined' ? btoa(unescape(encodeURIComponent(originalPass))) : '';
       const nRes = await fetch(`${sbUrl}/rest/v1/notifications`, {
         method: 'POST', headers: sbHUpsert,
         body: JSON.stringify({
@@ -2620,12 +2624,19 @@ async function doRegister() {
           title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
           body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
           user_id: sbUser.id, tenant_id: sbTenant.id,
-          date: now.toISOString(), read: false, status: 'pending'
+          date: now.toISOString(), read: false, status: 'pending',
+          extra_data: encodedPass // ✅ كلمة مرور base64 مؤقتة للإيميل
         })
       });
       if (nRes.ok) {
         const arr = await nRes.json();
         sbNotif = Array.isArray(arr) ? arr[0] : arr;
+        if (!sbNotif) {
+          console.warn('[Register] notification POST returned empty — will fetch separately');
+        }
+      } else {
+        const errTxt = await nRes.text().catch(() => '');
+        console.warn('[Register] notification POST failed:', nRes.status, errTxt);
       }
     } catch(e) { console.warn('Notification creation failed:', e); }
 
@@ -7418,6 +7429,43 @@ function patchSmartAIWithSavedConfig() {
 
 /* ─── ADMIN ─── */
 Pages.admin = function() {
+  // ✅ تحميل الإشعارات من Supabase تلقائياً في الخلفية
+  setTimeout(async () => {
+    try {
+      const sbCfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+      if (!sbCfg?.url || !sbCfg?.key) return;
+      const h = { 'apikey': sbCfg.key, 'Authorization': `Bearer ${sbCfg.key}` };
+
+      // جلب الإشعارات الجديدة (غير المقروءة أو pending)
+      const nR = await fetch(`${sbCfg.url}/rest/v1/notifications?order=id.desc&limit=100`, { headers: h });
+      if (nR.ok) {
+        const sbNotifs = await nR.json();
+        if (sbNotifs.length) {
+          const local = DB.get('notifications') || [];
+          // دمج: السجلات من Supabase تحل محل المحلية بنفس الـ id
+          const merged = [...sbNotifs];
+          local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
+          merged.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+          if (typeof DB.setSilent === 'function') DB.setSilent('notifications', merged);
+          else DB.set('notifications', merged);
+          // تحديث الصفحة إذا لم تتغير
+          const pendingCount = merged.filter(n => !n.read || n.status === 'pending').length;
+          const badge = document.querySelector('[data-admin-notif-badge]');
+          if (badge) badge.textContent = pendingCount > 0 ? pendingCount : '';
+          // إذا كان التبويب النشط هو الإشعارات → أعد رسمه
+          const notifTab = document.getElementById('adminTabContent_notif');
+          if (notifTab && notifTab.style.display !== 'none') App.navigate('admin');
+        }
+      }
+      // جلب المؤسسات والمستخدمين الجدد
+      const [tR, uR] = await Promise.all([
+        fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h }),
+        fetch(`${sbCfg.url}/rest/v1/users?order=id.asc`, { headers: h }),
+      ]);
+      if (tR.ok) { const d = await tR.json(); if (d.length) { if (typeof DB.setSilent==='function') DB.setSilent('tenants',d); else DB.set('tenants',d); } }
+      if (uR.ok) { const d = await uR.json(); if (d.length) { if (typeof DB.setSilent==='function') DB.setSilent('users',d); else DB.set('users',d); } }
+    } catch(e) { console.warn('[Admin autoload]', e.message); }
+  }, 500);
 
   const tenants=DB.get('tenants'), users=DB.get('users'), plans=DB.get('plans');
   const projects=DB.get('projects'), workers=DB.get('workers');
@@ -7606,41 +7654,86 @@ Pages.admin = function() {
 
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
-          const notifs = (DB.get('notifications')||[]).filter(n=>!n.read||n.status==='pending');
-          if(!notifs.length) return '';
+          // ✅ نعرض كل الإشعارات التي لم تُفعَّل بعد (pending) أو التي تحتاج إجراء
+          const allNotifs = DB.get('notifications') || [];
+          const notifs = allNotifs.filter(n =>
+            n.status === 'pending' ||
+            n.type === 'new_account' ||
+            n.type === 'reset_password' ||
+            n.type === 'upgrade_request'
+          ).sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+
+          const pendingCount = notifs.filter(n => n.status === 'pending').length;
+
+          if(!notifs.length) return `
+            <div class="card" style="text-align:center;padding:2rem;color:var(--dim)">
+              <div style="font-size:2.5rem;margin-bottom:.8rem">🔔</div>
+              <div style="font-size:.95rem;font-weight:700">${L('لا توجد إشعارات','Aucune notification')}</div>
+              <div style="font-size:.78rem;margin-top:.4rem">${L('عند تسجيل حساب جديد ستظهر هنا','Les nouveaux comptes apparaîtront ici')}</div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:1rem" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Actualiser')}</button>
+            </div>`;
+
           const nrows = notifs.map(n=>{
             const isReset   = n.type==='reset_password';
             const isUpgrade = n.type==='upgrade_request';
             const isNew     = n.type==='new_account';
             const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : '🆕';
-            const badge   = isReset ? 'badge-delayed' : isUpgrade ? 'badge-paused' : 'badge-paused';
-            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? 'طلب ترقية' : L('حساب جديد — بانتظار التفعيل','Nouveau compte — En attente');
-            const dateStr = new Date(n.date).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-            // تحقق هل الحساب لا يزال معلقاً
-            const linkedUser = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
-            const isPending  = linkedUser && !linkedUser.is_active;
-            return `<tr>
-              <td><span style="font-size:1.3rem">${icon}</span></td>
-              <td style="font-weight:700">${escHtml(n.title)}</td>
-              <td style="font-size:.82rem;color:var(--muted)">${escHtml(n.body)}</td>
-              <td><span class="badge ${isPending?'badge-paused':badge}">${isPending?'⏳ '+badgeTxt:(isNew?'✅ مُفعَّل':badgeTxt)}</span></td>
-              <td style="font-size:.75rem;color:var(--dim)">${dateStr}</td>
-              <td style="display:flex;gap:.4rem;flex-wrap:wrap">
-                ${isNew && isPending ? `<button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id},${n.tenant_id})">✅ تفعيل وإرسال إيميل</button>` : ''}
-                ${isNew && !isPending ? `<span style="font-size:.75rem;color:var(--green)">✅ مُفعَّل</span>` : ''}
-                ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
-                ${isUpgrade && n.status==='pending' ? `<button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id})">✅ موافقة</button><button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ رفض</button>` : ''}
-                <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})">✓ ${L('إخفاء','Masquer')}</button>
+            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? L('طلب ترقية','Upgrade') : L('حساب جديد','Nouveau compte');
+            const dateStr = new Date(n.date||n.created_at||Date.now()).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+            // ✅ تحقق من الحالة من Supabase (عبر بيانات محلية مُحدَّثة)
+            const linkedUser   = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
+            const linkedTenant = isNew ? (DB.get('tenants')||[]).find(t=>t.id===n.tenant_id) : null;
+            const isPending    = n.status === 'pending' && (!linkedUser || !linkedUser.is_active);
+            const isActivated  = !isPending && (linkedUser?.is_active || n.status === 'activated');
+
+            return `<tr style="${isPending ? 'background:rgba(232,184,75,.04)' : ''}">
+              <td><span style="font-size:1.4rem">${icon}</span></td>
+              <td style="font-weight:700;font-size:.85rem">${escHtml(n.title)}</td>
+              <td style="font-size:.8rem;color:var(--muted);max-width:250px">
+                ${escHtml(n.body)}
+                ${linkedTenant ? `<div style="font-size:.72rem;color:var(--dim);margin-top:.15rem">🏢 ${escHtml(linkedTenant.name||'')} · 📧 ${escHtml(linkedUser?.email||'')}</div>` : ''}
+              </td>
+              <td>
+                ${isPending ? `<span class="badge badge-paused">⏳ ${L('بانتظار التفعيل','En attente')}</span>` :
+                  isActivated ? `<span class="badge badge-active">✅ ${L('مُفعَّل','Activé')}</span>` :
+                  `<span class="badge badge-delayed">${badgeTxt}</span>`}
+              </td>
+              <td style="font-size:.75rem;color:var(--dim);white-space:nowrap">${dateStr}</td>
+              <td>
+                <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">
+                  ${isNew && isPending ? `
+                    <button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id||0},${n.tenant_id||0})" style="font-weight:800">
+                      ✅ ${L('تفعيل + إيميل','Activer + Email')}
+                    </button>` : ''}
+                  ${isNew && isActivated ? `<span style="font-size:.75rem;color:var(--green);font-weight:700">✅ ${L('مُفعَّل','Activé')}</span>` : ''}
+                  ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id||0})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
+                  ${isUpgrade && n.status==='pending' ? `
+                    <button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id||0})">✅ ${L('موافقة','Approuver')}</button>
+                    <button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ ${L('رفض','Rejeter')}</button>` : ''}
+                  <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})" title="${L('إخفاء','Masquer')}">✕</button>
+                </div>
               </td>
             </tr>`;
           }).join('');
+
           return `<div class="card" style="margin-bottom:1rem;border-color:rgba(232,184,75,.25)">
-            <div style="font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
-              🔔 ${L('الإشعارات','Notifications')}
-              <span style="background:var(--red);color:#fff;border-radius:20px;padding:1px 8px;font-size:.7rem;font-weight:800">${notifs.length}</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+              <div style="display:flex;align-items:center;gap:.5rem;font-weight:800">
+                🔔 ${L('الإشعارات والطلبات','Notifications & Demandes')}
+                ${pendingCount > 0 ? `<span style="background:var(--red);color:#fff;border-radius:20px;padding:1px 10px;font-size:.72rem;font-weight:800">${pendingCount} ${L('بانتظار التفعيل','en attente')}</span>` : ''}
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()" title="${L('جلب الإشعارات من Supabase','Actualiser depuis Supabase')}">🔄 ${L('تحديث','Actualiser')}</button>
             </div>
             <div class="table-wrap"><table>
-              <thead><tr><th></th><th>${L('العنوان','Titre')}</th><th>${L('التفاصيل','Détails')}</th><th>${L('النوع','Type')}</th><th>${L('التاريخ','Date')}</th><th>${L('الإجراء','Action')}</th></tr></thead>
+              <thead><tr>
+                <th style="width:40px"></th>
+                <th>${L('العنوان','Titre')}</th>
+                <th>${L('التفاصيل','Détails')}</th>
+                <th>${L('الحالة','Statut')}</th>
+                <th>${L('التاريخ','Date')}</th>
+                <th>${L('الإجراء','Action')}</th>
+              </tr></thead>
               <tbody>${nrows}</tbody>
             </table></div>
           </div>`;
@@ -9828,6 +9921,18 @@ async function activateAccount(notifId, userId, tenantId) {
       } catch(_) {}
     }
 
+    // ✅ اجلب الإشعار من Supabase للحصول على extra_data (كلمة المرور الأصلية)
+    let notifRecord = (DB.get('notifications')||[]).find(n => n.id === notifId);
+    if (!notifRecord || !notifRecord.extra_data) {
+      try {
+        const nR = await fetch(`${sbUrl}/rest/v1/notifications?id=eq.${notifId}&select=*`, { headers: sbH });
+        if (nR.ok) {
+          const arr = await nR.json();
+          if (arr.length) notifRecord = arr[0];
+        }
+      } catch(_) {}
+    }
+
     if (!user)   { Toast.error('❌ المستخدم غير موجود (' + userId + ')'); resetBtn(); return; }
     if (!tenant) { Toast.error('❌ المؤسسة غير موجودة (' + tenantId + ')'); resetBtn(); return; }
 
@@ -9926,10 +10031,20 @@ async function activateAccount(notifId, userId, tenantId) {
     // ── 7. إرسال إيميل التفعيل ──
     let emailOk = false;
     try {
+      // ✅ استخدام كلمة المرور الأصلية من extra_data (base64)
+      let plainPassword = '';
+      if (notifRecord?.extra_data) {
+        try {
+          plainPassword = decodeURIComponent(escape(atob(notifRecord.extra_data)));
+        } catch(_) { plainPassword = notifRecord.extra_data; }
+      }
+      // fallback: استخدم الـ hash إذا لم نجد الأصلية (المستخدم يحتاج إعادة تعيين)
+      const passwordToSend = plainPassword || '[يُرجى تسجيل الدخول وتغيير كلمة المرور]';
+
       emailOk = await EMAILJS.sendActivationEmail({
         email:     user.email,
         full_name: user.full_name,
-        password:  user.password,  // ⚠️ ملاحظة: مشفّرة الآن، الإيميل قد يحتاج كلمة المرور الأصلية
+        password:  passwordToSend,
         company:   tenant.name || ''
       });
     } catch(e) { console.warn('Email send failed:', e); }
@@ -11140,6 +11255,14 @@ function dismissNotif(notifId) {
   App.navigate('admin');
 }
 
+// ✅ فتح صفحة الأدمن مباشرةً على تبويب الإشعارات
+function openAdminNotifTab() {
+  App.navigate('admin');
+  setTimeout(() => {
+    try { switchAdminTab('notif'); } catch(_) {}
+  }, 400);
+}
+
 // ── موافقة المسؤول على طلب الترقية ──
 async function approveUpgrade(notifId, tenantId) {
   const tid = Number(tenantId);
@@ -11362,9 +11485,12 @@ function topbarHTMLv5(title) {
   const user = Auth.getUser();
   const allNotifs = DB.get('notifications') || [];
   const unread = allNotifs.filter(n => n.tenant_id === user?.tenant_id && !n.read).length;
-  // Admin: show a dedicated bell for pending reset-password requests (system-level)
+  // Admin: عرض عدد الطلبات المعلقة (حسابات جديدة + إعادة كلمة مرور + ترقيات)
   const adminResetPending = user?.is_admin
-    ? allNotifs.filter(n => n.type === 'reset_password' && (n.status || 'pending') === 'pending').length
+    ? allNotifs.filter(n =>
+        (n.type === 'reset_password' || n.type === 'new_account' || n.type === 'upgrade_request')
+        && (n.status === 'pending')
+      ).length
     : 0;
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:.8rem">
