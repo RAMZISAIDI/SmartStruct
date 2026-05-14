@@ -23,7 +23,6 @@ function ssLogo(size=22, dark=false) {
   </svg>`;
 }
 
-// ─── DB يستخدم DBHybrid (Supabase + localStorage fallback) ────
 // DBHybrid معرّف في supabase-db.js ويُحمّل قبل هذا الملف
 const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
   get(key) {
@@ -35,6 +34,31 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
     return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
   }
 };
+
+// ─── ضمان وجود حساب الأدمن دائماً (يُشغَّل بعد تعريف DB) ──────
+(function _ensureAdminAccount() {
+  try {
+    const users = DB.get('users') || [];
+    const adminExists = users.some(u => u.is_admin === true && u.email === 'admin@smartbtp.dz');
+    if (!adminExists) {
+      const adminUser = {
+        id: 1, tenant_id: null, full_name: 'مسؤول النظام',
+        email: 'admin@smartbtp.dz', password: 'Admin@SmartStruct2025',
+        role: 'admin', is_admin: true, is_active: true, account_status: 'active'
+      };
+      users.unshift(adminUser);
+      try { localStorage.setItem('sbtp5_users', JSON.stringify(users)); } catch(_) {}
+      console.log('✅ Admin account restored');
+    }
+    const tenants = DB.get('tenants') || [];
+    if (!tenants.some(t => t.id === 1)) {
+      const t = { id:1, name:'SmartStruct Admin', plan_id:3, wilaya:'الجزائر', subscription_status:'active', is_active:true };
+      tenants.unshift(t);
+      try { localStorage.setItem('sbtp5_tenants', JSON.stringify(tenants)); } catch(_) {}
+    }
+  } catch(e) { console.warn('_ensureAdminAccount:', e.message); }
+})();
+
 // patch init إذا لم يكن موجوداً في DB
 if (!DB.init) DB.init = function() {
     if (this.get('initialized').length) return;
@@ -7535,10 +7559,132 @@ Pages.admin = function() {
           </div>
           <div class="page-actions">
             <button class="btn btn-ghost btn-sm" data-nav="landing">🌐 ${L('الموقع','Site')}</button>
-            <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Sync Supabase')}</button>
-            <button class="btn btn-ghost btn-sm" onclick="cleanupDuplicateTenants()" title="${L('حذف المؤسسات المكررة والمستخدمين اليتامى','Supprimer les doublons')}">🧹 ${L('تنظيف التكرارات','Nettoyer doublons')}</button>
-            <button class="btn btn-ghost btn-sm" onclick="cleanupAccountsWithoutEmail()" title="${L('حذف الحسابات التي ليس لديها بريد إلكتروني','Supprimer les comptes sans email')}" style="color:var(--red)">📧 ${L('حذف بلا إيميل','Sans email')}</button>
-            <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter entreprise')}</button>
+            <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث','Sync')}</button>
+            <!-- زر الأدوات المتقدمة -->
+            <div style="position:relative;display:inline-block">
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('adminToolsMenu').style.display=document.getElementById('adminToolsMenu').style.display==='none'?'block':'none'" style="display:flex;align-items:center;gap:.3rem">
+                🛠️ ${L('أدوات متقدمة','Outils avancés')} <span style="font-size:.7rem">▾</span>
+              </button>
+              <div id="adminToolsMenu" style="display:none;position:absolute;top:110%;${I18N.currentLang==='ar'?'left:0':'right:0'};background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;min-width:260px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5);overflow:hidden" onclick="document.getElementById('adminToolsMenu').style.display='none'">
+                <div style="padding:.5rem .8rem;font-size:.68rem;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">🔧 ${L('أدوات الصيانة','Outils de maintenance')}</div>
+                <button onclick="cleanupDuplicateTenants()" style="width:100%;text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.65rem 1rem;background:none;border:none;color:var(--text);cursor:pointer;font-size:.82rem;font-family:inherit;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='none'">🧹 <span>${L('تنظيف التكرارات والمؤسسات اليتيمة','Nettoyer les doublons')}</span></button>
+                <button onclick="cleanupAccountsWithoutEmail()" style="width:100%;text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.65rem 1rem;background:none;border:none;color:var(--text);cursor:pointer;font-size:.82rem;font-family:inherit;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='none'">📧 <span>${L('حذف الحسابات بلا إيميل','Supprimer comptes sans email')}</span></button>
+                <div style="padding:.5rem .8rem;font-size:.68rem;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:.6px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">⚠️ ${L('منطقة الخطر','Zone dangereuse')}</div>
+                <button onclick="openAdminDangerModal()" style="width:100%;text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.65rem 1rem;background:none;border:none;color:#F04E6A;cursor:pointer;font-size:.82rem;font-family:inherit;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='rgba(240,78,106,.08)'" onmouseout="this.style.background='none'">🗑️ <span style="font-weight:700">${L('مسح البيانات وإدارة الحسابات','Supprimer/Gérer les comptes')}</span></button>
+              </div>
+            </div>
+            <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter')}</button>
+          </div>
+        </div>
+
+        <!-- ══ DANGER MODAL: مركز الإدارة المتقدمة ══ -->
+        <div id="adminDangerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:none;align-items:center;justify-content:center;padding:1rem">
+          <div style="background:var(--card-bg,#0e1720);border:1px solid rgba(240,78,106,.3);border-radius:18px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.7)">
+            <!-- Header -->
+            <div style="padding:1.2rem 1.5rem;border-bottom:1px solid rgba(240,78,106,.2);background:linear-gradient(135deg,rgba(240,78,106,.08),transparent);display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:1.1rem;font-weight:900;color:#F04E6A">⚠️ ${L('مركز الإدارة المتقدمة','Centre d\'administration avancé')}</div>
+                <div style="font-size:.74rem;color:var(--muted);margin-top:.2rem">${L('هذه العمليات لا يمكن التراجع عنها — تأكد قبل التنفيذ','Ces opérations sont irréversibles — confirmez avant d\'exécuter')}</div>
+              </div>
+              <button onclick="document.getElementById('adminDangerModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer">✕</button>
+            </div>
+            <div style="padding:1.2rem 1.5rem">
+
+              <!-- ① حذف الحسابات التجريبية المنتهية -->
+              <div style="background:rgba(255,112,67,.06);border:1px solid rgba(255,112,67,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:800;font-size:.9rem;color:#FF7043">🕐 ${L('حذف الحسابات التجريبية المنتهية','Supprimer essais expirés')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يحذف المؤسسات التي انتهت فترة تجربتها ولم تشترك','Supprime les essais expirés sans abonnement')}</div>
+                  </div>
+                  <button class="btn btn-sm" style="background:rgba(255,112,67,.15);color:#FF7043;border:1px solid rgba(255,112,67,.3);font-weight:700" onclick="adminDeleteExpiredTrials()">
+                    🗑️ ${L('تنفيذ','Exécuter')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ② حذف الحسابات المعلقة (بانتظار التفعيل لأكثر من X يوم) -->
+              <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:800;font-size:.9rem;color:#E8B84B">⏳ ${L('حذف الطلبات المعلقة القديمة','Supprimer demandes en attente anciennes')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يحذف حسابات "بانتظار التفعيل" منذ أكثر من:','Supprime comptes en attente depuis plus de:')}</div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem">
+                      <input type="number" id="dangPendingDays" value="30" min="1" max="365" style="width:70px;padding:.3rem .5rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:.82rem">
+                      <span style="font-size:.8rem;color:var(--muted)">${L('يوم','jour(s)')}</span>
+                    </div>
+                  </div>
+                  <button class="btn btn-sm" style="background:rgba(232,184,75,.15);color:#E8B84B;border:1px solid rgba(232,184,75,.3);font-weight:700" onclick="adminDeletePendingOlderThan()">
+                    🗑️ ${L('تنفيذ','Exécuter')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ③ حذف مؤسسة بعينها -->
+              <div style="background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="font-weight:800;font-size:.9rem;color:#F04E6A;margin-bottom:.5rem">🎯 ${L('حذف مؤسسة محددة','Supprimer une entreprise spécifique')}</div>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                  <select id="dangSelectTenant" style="flex:1;min-width:200px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                    <option value="">${L('اختر المؤسسة للحذف...','Choisir l\'entreprise...')}</option>
+                    ${(()=>{
+                      const safeTenants = DB.get('tenants').filter(t=>t.id!==1);
+                      return safeTenants.map(t=>`<option value="${t.id}">${escHtml(t.name)} (ID:${t.id}${t.is_active?' ✅':' ⏸️'})</option>`).join('');
+                    })()}
+                  </select>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--muted);cursor:pointer">
+                    <input type="checkbox" id="dangDeleteSb" checked style="accent-color:#F04E6A">
+                    ${L('من Supabase أيضاً','Supabase aussi')}
+                  </label>
+                  <button class="btn btn-sm btn-red" onclick="adminDeleteSingleTenant()">
+                    🗑️ ${L('حذف','Supprimer')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ④ مسح كل الحسابات ماعدا التجريبي -->
+              <div style="background:rgba(240,78,106,.08);border:2px solid rgba(240,78,106,.3);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:900;font-size:.92rem;color:#F04E6A">☢️ ${L('مسح جميع الحسابات','Effacer TOUS les comptes')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يحذف كل المؤسسات والمستخدمين والبيانات ماعدا الحساب التجريبي (ID=1)','Supprime tout sauf le compte démo (ID=1)')}</div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;flex-wrap:wrap">
+                      <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--muted);cursor:pointer"><input type="checkbox" id="dangKeepTrial" checked style="accent-color:#E8B84B"> ${L('الإبقاء على الحساب التجريبي','Garder compte démo')}</label>
+                      <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--muted);cursor:pointer"><input type="checkbox" id="dangDeleteSbAll" checked style="accent-color:#F04E6A"> ${L('حذف من Supabase أيضاً','Aussi de Supabase')}</label>
+                    </div>
+                  </div>
+                  <button class="btn btn-red" onclick="adminNukeAllAccounts()" style="font-weight:900;font-size:.85rem">
+                    ☢️ ${L('مسح الكل','Effacer tout')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ⑤ تصدير كل البيانات قبل الحذف -->
+              <div style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:800;font-size:.9rem;color:#34C38F">💾 ${L('تصدير نسخة احتياطية قبل الحذف','Exporter une sauvegarde avant suppression')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يصدّر كل بيانات المؤسسات كملف JSON للحاسوب','Exporte toutes les données en JSON')}</div>
+                  </div>
+                  <button class="btn btn-sm" style="background:rgba(52,195,143,.15);color:#34C38F;border:1px solid rgba(52,195,143,.3);font-weight:700" onclick="adminExportAllData()">
+                    💾 ${L('تصدير JSON','Exporter JSON')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ⑥ إعادة تعيين كلمة مرور مؤسسة -->
+              <div style="background:rgba(74,144,226,.06);border:1px solid rgba(74,144,226,.2);border-radius:12px;padding:1rem">
+                <div style="font-weight:800;font-size:.9rem;color:#4A90E2;margin-bottom:.6rem">🔐 ${L('تعيين كلمة مرور لمؤسسة','Réinitialiser MDP d\'une entreprise')}</div>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                  <select id="dangResetTenant" style="flex:1;min-width:180px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                    <option value="">${L('اختر المؤسسة...','Choisir...')}</option>
+                    ${DB.get('tenants').filter(t=>t.id!==1).map(t=>`<option value="${t.id}">${escHtml(t.name)}</option>`).join('')}
+                  </select>
+                  <input type="text" id="dangNewPass" placeholder="${L('كلمة المرور الجديدة','Nouveau MDP')}" dir="ltr" style="width:160px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                  <button class="btn btn-blue btn-sm" onclick="adminResetTenantPassword()" style="font-weight:700">🔐 ${L('تعيين','Définir')}</button>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
 
@@ -9162,7 +9308,43 @@ async function doLogin() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط');
+    // ── قبل كل شيء: تحقق من حساب الأدمن محلياً (is_admin=true لا يحتاج Supabase) ──
+    const localAllUsers = DB.get('users') || [];
+    const localAdmin = localAllUsers.find(u =>
+      u.email && u.email.toLowerCase() === email && u.is_admin === true
+    );
+    if (localAdmin) {
+      // تحقق من كلمة المرور محلياً
+      let adminPassOk = false;
+      try {
+        if (typeof SmartCrypto !== 'undefined' && SmartCrypto.verify) {
+          adminPassOk = await SmartCrypto.verify(pass, localAdmin.password);
+        } else {
+          adminPassOk = (localAdmin.password === pass);
+        }
+      } catch(_) {
+        adminPassOk = (localAdmin.password === pass);
+      }
+
+      if (adminPassOk) {
+        // ✅ تسجيل دخول ناجح للأدمن بدون Supabase
+        Auth.currentUser = localAdmin;
+        sessionStorage.setItem('sbtp_user', JSON.stringify(localAdmin));
+        sessionStorage.setItem('sbtp_admin_auth', '1');
+        if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); }
+        App.navigate('admin');
+        // مزامنة في الخلفية
+        setTimeout(() => { try { AutoSync?.enable(); SmartRealtime?.start(null); } catch(_) {} }, 1500);
+        return;
+      } else {
+        resetBtn();
+        showErrMsg(L('❌ كلمة المرور غير صحيحة','❌ Mot de passe incorrect'));
+        return;
+      }
+    }
+
+    // ── للمستخدمين العاديين: التحقق من Supabase ──
+    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
 
     const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
 
@@ -10160,6 +10342,256 @@ async function toggleTenant(id) {
 // ════════════════════════════════════════════════════════════════════
 // 🧹 حذف الحسابات التي ليس لديها بريد إلكتروني (admin only)
 // ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+// 🛠️ مركز الإدارة المتقدمة — أدوات الأدمن الخطرة
+// ════════════════════════════════════════════════════════════════════
+
+function openAdminDangerModal() {
+  const modal = document.getElementById('adminDangerModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+// ① حذف الحسابات التجريبية المنتهية
+async function adminDeleteExpiredTrials() {
+  if (!confirm(L(
+    'سيُحذف كل حساب تجريبي انتهت صلاحيته ولم يشترك.\nهل أنت متأكد؟',
+    'Tous les essais expirés sans abonnement seront supprimés.\nConfirmer?'
+  ))) return;
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+  const today = new Date().toISOString().split('T')[0];
+  const tenants = DB.get('tenants');
+  const users   = DB.get('users');
+
+  const expired = tenants.filter(t =>
+    t.id !== 1 &&
+    t.subscription_status === 'trial' &&
+    t.trial_end && t.trial_end < today &&
+    !t.is_active
+  );
+
+  if (!expired.length) { Toast.info(L('لا توجد حسابات تجريبية منتهية','Aucun essai expiré')); return; }
+
+  let deleted = 0;
+  for (const t of expired) {
+    // حذف من Supabase
+    if (sbH) {
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`,  { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    deleted++;
+  }
+
+  // حذف محلي
+  const expiredIds = new Set(expired.map(t => t.id));
+  DB.set('tenants', tenants.filter(t => !expiredIds.has(t.id)));
+  DB.set('users',   users.filter(u => !expiredIds.has(u.tenant_id)));
+  Toast.success(`✅ ${L('تم حذف','Supprimés:')} ${deleted} ${L('حساب تجريبي منتهٍ','essais expirés')}`);
+  document.getElementById('adminDangerModal').style.display = 'none';
+  App.navigate('admin');
+}
+
+// ② حذف الطلبات المعلقة القديمة
+async function adminDeletePendingOlderThan() {
+  const days = parseInt(document.getElementById('dangPendingDays')?.value) || 30;
+  if (!confirm(L(
+    `سيُحذف كل حساب معلّق (بانتظار التفعيل) منذ أكثر من ${days} يوم.\nهل أنت متأكد؟`,
+    `Tous les comptes en attente depuis plus de ${days} jours seront supprimés.\nConfirmer?`
+  ))) return;
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+  const tenants = DB.get('tenants');
+  const users   = DB.get('users');
+
+  const pending = tenants.filter(t =>
+    t.id !== 1 &&
+    !t.is_active &&
+    (t.subscription_status === 'pending' || !t.subscription_status) &&
+    t.created_at && t.created_at < cutoff
+  );
+
+  if (!pending.length) { Toast.info(L('لا توجد طلبات معلقة قديمة','Aucune demande ancienne')); return; }
+
+  let deleted = 0;
+  for (const t of pending) {
+    if (sbH) {
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${t.id}`,  { method:'DELETE', headers:sbH }).catch(()=>{});
+      await fetch(`${cfg.url}/rest/v1/notifications?tenant_id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    deleted++;
+  }
+
+  const pendingIds = new Set(pending.map(t => t.id));
+  DB.set('tenants', tenants.filter(t => !pendingIds.has(t.id)));
+  DB.set('users',   users.filter(u => !pendingIds.has(u.tenant_id)));
+  Toast.success(`✅ ${L('تم حذف','Supprimés:')} ${deleted} ${L('طلب معلق قديم','demandes anciennes')}`);
+  document.getElementById('adminDangerModal').style.display = 'none';
+  App.navigate('admin');
+}
+
+// ③ حذف مؤسسة واحدة محددة
+async function adminDeleteSingleTenant() {
+  const tid = parseInt(document.getElementById('dangSelectTenant')?.value);
+  const delSb = document.getElementById('dangDeleteSb')?.checked;
+  if (!tid) { Toast.error(L('اختر مؤسسة أولاً','Sélectionner une entreprise')); return; }
+  if (tid === 1) { Toast.error(L('لا يمكن حذف المؤسسة التجريبية','Impossible de supprimer la démo')); return; }
+
+  const tenants = DB.get('tenants');
+  const tenant  = tenants.find(t => t.id === tid);
+  if (!tenant) { Toast.error(L('المؤسسة غير موجودة','Entreprise introuvable')); return; }
+
+  if (!confirm(L(
+    `سيُحذف "${tenant.name}" وكل بياناتها (عمال، مشاريع، فواتير...).\nهذا لا يمكن التراجع عنه!\nاكتب "حذف" للتأكيد في المربع القادم.`,
+    `"${tenant.name}" et toutes ses données seront supprimées.\nIrréversible! Confirmez en tapant "supprimer".`
+  ))) return;
+
+  const confirm2 = prompt(L(`اكتب "حذف" للتأكيد:`, `Tapez "supprimer" pour confirmer:`));
+  if (confirm2 !== 'حذف' && confirm2 !== 'supprimer') { Toast.error(L('تم إلغاء العملية','Opération annulée')); return; }
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+
+  if (delSb && sbH) {
+    // حذف كل بيانات المؤسسة من Supabase (يُطبَّق CASCADE تلقائياً)
+    const tables = ['transactions','workers','projects','equipment','materials','invoices','attendance','salary_records','documents','notifications','kanban_tasks'];
+    for (const tbl of tables) {
+      await fetch(`${cfg.url}/rest/v1/${tbl}?tenant_id=eq.${tid}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${tid}`,   { method:'DELETE', headers:sbH }).catch(()=>{});
+    await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tid}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+  }
+
+  // حذف محلي
+  const keys = ['projects','workers','equipment','transactions','attendance','salary_records','materials','invoices','documents','kanban_tasks'];
+  keys.forEach(k => DB.set(k, (DB.get(k)||[]).filter(r => r.tenant_id !== tid)));
+  DB.set('users',   (DB.get('users')||[]).filter(u => u.tenant_id !== tid));
+  DB.set('tenants', tenants.filter(t => t.id !== tid));
+  DB.set('notifications', (DB.get('notifications')||[]).filter(n => n.tenant_id !== tid));
+
+  Toast.success(`✅ ${L('تم حذف مؤسسة','Entreprise supprimée:')} "${tenant.name}"`);
+  document.getElementById('adminDangerModal').style.display = 'none';
+  App.navigate('admin');
+}
+
+// ④ مسح جميع الحسابات (الخيار النووي)
+async function adminNukeAllAccounts() {
+  const keepDemo  = document.getElementById('dangKeepTrial')?.checked !== false;
+  const deleteSb  = document.getElementById('dangDeleteSbAll')?.checked !== false;
+
+  const confirm1 = confirm(L(
+    `⚠️ خطر شديد!\nسيُحذف كل المؤسسات ${keepDemo?'(ماعدا ID=1)':''} وجميع بياناتها من localStorage${deleteSb?' ومن Supabase':''}\n\nهذا لا يمكن التراجع عنه نهائياً!\nهل أنت متأكد 100%؟`,
+    `⚠️ DANGER!\nTous les comptes ${keepDemo?'(sauf ID=1)':''} et données seront supprimés.\n\nConfirmer?`
+  ));
+  if (!confirm1) return;
+
+  const confirm2 = prompt(L('اكتب "امسح كل شيء" للتأكيد النهائي:', 'Tapez "effacer tout" pour confirmer:'));
+  if (confirm2 !== 'امسح كل شيء' && confirm2 !== 'effacer tout') {
+    Toast.error(L('تم إلغاء العملية','Opération annulée'));
+    return;
+  }
+
+  Toast.info(L('⏳ جاري المسح...','⏳ Suppression en cours...'));
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+
+  const tenants = DB.get('tenants');
+  const toDelete = tenants.filter(t => keepDemo ? t.id !== 1 : true);
+
+  if (deleteSb && sbH) {
+    for (const t of toDelete) {
+      const tables = ['transactions','workers','projects','equipment','materials','invoices',
+                      'attendance','salary_records','documents','notifications','kanban_tasks'];
+      for (const tbl of tables) {
+        await fetch(`${cfg.url}/rest/v1/${tbl}?tenant_id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+      }
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${t.id}`,   { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    // حذف المؤسسات
+    const idsToDelete = toDelete.map(t => t.id);
+    for (const tid of idsToDelete) {
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tid}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+  }
+
+  // حذف محلي
+  const keepIds = keepDemo ? new Set([1]) : new Set();
+  const allTables = ['projects','workers','equipment','transactions','attendance','salary_records','materials','invoices','documents','kanban_tasks','notifications'];
+  allTables.forEach(k => {
+    const kept = (DB.get(k)||[]).filter(r => keepIds.has(r.tenant_id));
+    DB.set(k, kept);
+  });
+  DB.set('users',   (DB.get('users')||[]).filter(u => keepIds.has(u.tenant_id) || u.is_admin));
+  DB.set('tenants', (DB.get('tenants')||[]).filter(t => keepIds.has(t.id)));
+
+  Toast.success(`✅ ${L('تم المسح','Effacé')}: ${toDelete.length} ${L('مؤسسة','entreprise(s)')}`);
+  document.getElementById('adminDangerModal').style.display = 'none';
+  setTimeout(() => App.navigate('admin'), 800);
+}
+
+// ⑤ تصدير كل البيانات كـ JSON
+function adminExportAllData() {
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    Toast.error(L('المتصفح لا يدعم التصدير','Export non supporté'));
+    return;
+  }
+  const allKeys = ['tenants','users','projects','workers','equipment','transactions','attendance',
+                   'salary_records','materials','invoices','documents','notifications','kanban_tasks','plans'];
+  const exportData = {};
+  allKeys.forEach(k => { exportData[k] = DB.get(k) || []; });
+  exportData._meta = { exported_at: new Date().toISOString(), app: 'SmartStruct', version: '7.3' };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `SmartStruct_Backup_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  Toast.success(L('✅ تم تصدير النسخة الاحتياطية','✅ Sauvegarde exportée'));
+}
+
+// ⑥ إعادة تعيين كلمة مرور مؤسسة
+async function adminResetTenantPassword() {
+  const tid  = parseInt(document.getElementById('dangResetTenant')?.value);
+  const pass = document.getElementById('dangNewPass')?.value?.trim();
+  if (!tid)  { Toast.error(L('اختر مؤسسة','Sélectionner entreprise')); return; }
+  if (!pass || pass.length < 4) { Toast.error(L('كلمة المرور قصيرة جداً (4 أحرف على الأقل)','MDP trop court (4 car min)')); return; }
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}`,'Prefer':'return=minimal' } : null;
+
+  let hashed = pass;
+  try { if (typeof SmartCrypto !== 'undefined') hashed = await SmartCrypto.hash(pass); } catch(_) {}
+
+  const users = DB.get('users');
+  const idx = users.findIndex(u => u.tenant_id === tid && !u.is_admin);
+  if (idx < 0) { Toast.error(L('لم أجد مستخدم لهذه المؤسسة','Utilisateur introuvable')); return; }
+  users[idx].password = hashed;
+  DB.set('users', users);
+
+  if (sbH) {
+    await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${tid}&is_admin=is.false`, {
+      method: 'PATCH', headers: sbH, body: JSON.stringify({ password: hashed })
+    }).catch(()=>{});
+  }
+
+  const tenantName = DB.get('tenants').find(t => t.id === tid)?.name || '';
+  // إرسال إيميل للمستخدم إذا أمكن
+  try {
+    if (typeof EMAILJS !== 'undefined') {
+      await EMAILJS.sendNewPassword({ email: users[idx].email, full_name: users[idx].full_name }, pass);
+    }
+  } catch(_) {}
+
+  Toast.success(`✅ ${L('تم تعيين كلمة المرور لـ','MDP défini pour')} "${tenantName}"`);
+  if (document.getElementById('dangNewPass')) document.getElementById('dangNewPass').value = '';
+}
+
 async function cleanupAccountsWithoutEmail() {
   const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
   const sbConnected = cfg?.url && cfg?.key;
