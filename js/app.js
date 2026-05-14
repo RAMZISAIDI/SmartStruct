@@ -7474,42 +7474,78 @@ function patchSmartAIWithSavedConfig() {
 /* ─── ADMIN ─── */
 Pages.admin = function() {
   // ✅ تحميل الإشعارات من Supabase تلقائياً في الخلفية
+  // ⚠️ نتجاهل الجلب إذا كانت عملية حذف جارية أو انتهت للتو
+  const _skipCount = parseInt(sessionStorage.getItem('admin_skip_pull') || '0');
+  const _skipPull = _skipCount > 0;
+  if (_skipCount > 0) {
+    sessionStorage.setItem('admin_skip_pull', String(_skipCount - 1));
+  }
+
+  if (!_skipPull) {
   setTimeout(async () => {
     try {
       const sbCfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
       if (!sbCfg?.url || !sbCfg?.key) return;
       const h = { 'apikey': sbCfg.key, 'Authorization': `Bearer ${sbCfg.key}` };
 
-      // جلب الإشعارات الجديدة (غير المقروءة أو pending)
+      // جلب الإشعارات الجديدة فقط (pending)
       const nR = await fetch(`${sbCfg.url}/rest/v1/notifications?order=id.desc&limit=100`, { headers: h });
       if (nR.ok) {
         const sbNotifs = await nR.json();
         if (sbNotifs.length) {
           const local = DB.get('notifications') || [];
-          // دمج: السجلات من Supabase تحل محل المحلية بنفس الـ id
           const merged = [...sbNotifs];
           local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
           merged.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
           if (typeof DB.setSilent === 'function') DB.setSilent('notifications', merged);
           else DB.set('notifications', merged);
-          // تحديث الصفحة إذا لم تتغير
           const pendingCount = merged.filter(n => !n.read || n.status === 'pending').length;
           const badge = document.querySelector('[data-admin-notif-badge]');
           if (badge) badge.textContent = pendingCount > 0 ? pendingCount : '';
-          // إذا كان التبويب النشط هو الإشعارات → أعد رسمه
           const notifTab = document.getElementById('adminTabContent_notif');
           if (notifTab && notifTab.style.display !== 'none') App.navigate('admin');
         }
       }
-      // جلب المؤسسات والمستخدمين الجدد
+
+      // ✅ جلب tenants/users فقط للإضافات الجديدة (merge بدون استبدال المحذوف)
       const [tR, uR] = await Promise.all([
         fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h }),
         fetch(`${sbCfg.url}/rest/v1/users?order=id.asc`, { headers: h }),
       ]);
-      if (tR.ok) { const d = await tR.json(); if (d.length) { if (typeof DB.setSilent==='function') DB.setSilent('tenants',d); else DB.set('tenants',d); } }
-      if (uR.ok) { const d = await uR.json(); if (d.length) { if (typeof DB.setSilent==='function') DB.setSilent('users',d); else DB.set('users',d); } }
+
+      if (tR.ok) {
+        const sbTenants = await tR.json();
+        if (sbTenants.length) {
+          const localTenants = DB.get('tenants') || [];
+          // ✅ فقط أضف ما هو موجود في Supabase لكن غائب محلياً
+          // لا تُعِد الحسابات المحذوفة محلياً
+          const localIds = new Set(localTenants.map(t => t.id));
+          const newFromSb = sbTenants.filter(t => !localIds.has(t.id));
+          if (newFromSb.length) {
+            const merged = [...localTenants, ...newFromSb];
+            if (typeof DB.setSilent === 'function') DB.setSilent('tenants', merged);
+            else DB.set('tenants', merged);
+          }
+        }
+      }
+
+      if (uR.ok) {
+        const sbUsers = await uR.json();
+        if (sbUsers.length) {
+          const localUsers = DB.get('users') || [];
+          const localIds = new Set(localUsers.map(u => u.id));
+          const newFromSb = sbUsers.filter(u => !localIds.has(u.id));
+          if (newFromSb.length) {
+            const merged = [...localUsers, ...newFromSb];
+            if (typeof DB.setSilent === 'function') DB.setSilent('users', merged);
+            else DB.set('users', merged);
+          }
+        }
+      }
+
     } catch(e) { console.warn('[Admin autoload]', e.message); }
   }, 500);
+  } // end !_skipPull
 
   const tenants=DB.get('tenants'), users=DB.get('users'), plans=DB.get('plans');
   const projects=DB.get('projects'), workers=DB.get('workers');
@@ -10410,6 +10446,13 @@ async function adminDeleteExpiredTrials() {
 
   // حذف محلي
   const expiredIds = new Set(expired.map(t => t.id));
+  // ✅ blacklist
+  try {
+    const existing = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    const merged = [...new Set([...existing, ...expired.map(t => Number(t.id))])];
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(merged));
+  } catch(_) {}
+
   DB.set('tenants', tenants.filter(t => !expiredIds.has(t.id)));
   DB.set('users',   users.filter(u => !expiredIds.has(u.tenant_id)));
   Toast.success(`✅ ${L('تم حذف','Supprimés:')} ${deleted} ${L('حساب تجريبي منتهٍ','essais expirés')}`);
@@ -10449,6 +10492,13 @@ async function adminDeletePendingOlderThan() {
     }
     deleted++;
   }
+
+  // ✅ blacklist
+  try {
+    const existing = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    const merged = [...new Set([...existing, ...pending.map(t => Number(t.id))])];
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(merged));
+  } catch(_) {}
 
   const pendingIds = new Set(pending.map(t => t.id));
   DB.set('tenants', tenants.filter(t => !pendingIds.has(t.id)));
@@ -10497,7 +10547,15 @@ async function adminDeleteSingleTenant() {
   DB.set('tenants', tenants.filter(t => t.id !== tid));
   DB.set('notifications', (DB.get('notifications')||[]).filter(n => n.tenant_id !== tid));
 
+  // ✅ حفظ ID المحذوف في blacklist
+  try {
+    const existingDeleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    if (!existingDeleted.includes(Number(tid))) existingDeleted.push(Number(tid));
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(existingDeleted));
+  } catch(_) {}
+
   Toast.success(`✅ ${L('تم حذف مؤسسة','Entreprise supprimée:')} "${tenant.name}"`);
+  sessionStorage.setItem('admin_skip_pull', '3');
   document.getElementById('adminDangerModal').style.display = 'none';
   App.navigate('admin');
 }
@@ -10553,7 +10611,17 @@ async function adminNukeAllAccounts() {
   DB.set('users',   (DB.get('users')||[]).filter(u => keepIds.has(u.tenant_id) || u.is_admin));
   DB.set('tenants', (DB.get('tenants')||[]).filter(t => keepIds.has(t.id)));
 
+  // ✅ حفظ IDs المحذوفة في blacklist لمنع SmartRealtime من إعادتها
+  try {
+    const existingDeleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    const newDeleted = toDelete.map(t => Number(t.id));
+    const mergedDeleted = [...new Set([...existingDeleted, ...newDeleted])];
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(mergedDeleted));
+  } catch(_) {}
+
   Toast.success(`✅ ${L('تم المسح','Effacé')}: ${toDelete.length} ${L('مؤسسة','entreprise(s)')}`);
+  // ✅ منع Pages.admin من إعادة جلب البيانات من Supabase في الـ render القادم
+  sessionStorage.setItem('admin_skip_pull', '3'); // تجاهل 3 renders قادمة
   document.getElementById('adminDangerModal').style.display = 'none';
   setTimeout(() => App.navigate('admin'), 800);
 }
@@ -11251,6 +11319,12 @@ function openSubInvoicesModal(tenantId) {
 // مزامنة لوحة الأدمن من Supabase (تُستدعى يدوياً)
 // ══════════════════════════════════════════════════════
 async function syncAdminFromSupabase() {
+  // ⚠️ إذا كانت عملية حذف انتهت للتو، لا تُزامن (لتجنب رجوع البيانات)
+  const skipCount = parseInt(sessionStorage.getItem('admin_skip_pull') || '0');
+  if (skipCount > 0) {
+    Toast.warn(L('⚠️ تعذّر التحديث — تم حذف بيانات للتو. انتظر قليلاً ثم أعد المحاولة.','⚠️ Synchronisation bloquée après suppression. Réessayez dans un moment.'));
+    return;
+  }
   const btn = document.getElementById('syncAdminBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التحديث...'; }
 

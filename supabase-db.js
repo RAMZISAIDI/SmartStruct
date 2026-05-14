@@ -1575,6 +1575,19 @@ const SmartRealtime = (() => {
 
   /* ─── معالجة حدث Postgres ──────────────────── */
   function _handlePostgresChange(table, eventType, newRecord, oldRecord) {
+    // ✅ تجاهل INSERT/UPDATE للمؤسسات المحذوفة محلياً (blacklist)
+    if (eventType !== 'DELETE') {
+      try {
+        const deletedTenantIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+        if (deletedTenantIds.length) {
+          const recTenantId = newRecord.tenant_id || (table === 'tenants' ? newRecord.id : null);
+          if (recTenantId && deletedTenantIds.includes(Number(recTenantId))) {
+            console.log(`⚡ Realtime: تجاهل ${eventType} على ${table} — tenant محذوف محلياً`);
+            return;
+          }
+        }
+      } catch(_) {}
+    }
     // 1. تحديث localStorage فوراً
     try {
       const lsKey   = `sbtp5_${table}`;
