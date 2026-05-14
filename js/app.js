@@ -2515,18 +2515,31 @@ async function doRegister() {
     };
 
     // 1. تحقق من تكرار البريد مباشرة في Supabase
-    const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
-    if (chkR.ok && (await chkR.json()).length) {
-      return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
+    const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id,tenant_id,account_status`, { headers: sbH });
+    if (chkR.ok) {
+      const existing = await chkR.json();
+      if (existing.length) {
+        // ✅ المستخدم موجود بالفعل — إذا كانت حالته pending أعرض شاشة الانتظار
+        if (existing[0].account_status === 'pending') {
+          if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+          showPendingActivationScreen(name.trim(), email, company.trim());
+          return;
+        }
+        return showErr(L('❌ هذا البريد مستخدم بالفعل — جرّب تسجيل الدخول','❌ Email déjà utilisé — Essayez de vous connecter'));
+      }
     }
 
     const now = new Date();
     const registrationDate = now.toISOString().split('T')[0];
     const trialEndDate = (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })();
 
-    // 2. INSERT tenant في Supabase
+    // 2. INSERT tenant في Supabase — مع ON CONFLICT DO NOTHING (upsert safe)
+    const sbHUpsert = {
+      ...sbH,
+      'Prefer': 'return=representation,resolution=merge-duplicates'
+    };
     const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
-      method: 'POST', headers: sbH,
+      method: 'POST', headers: sbHUpsert,
       body: JSON.stringify({
         name: company.trim(), plan_id: 2, wilaya: wilaya,
         subscription_status: 'trial',
@@ -2535,10 +2548,33 @@ async function doRegister() {
         is_active: false
       })
     });
-    if (!tRes.ok) throw new Error('فشل حفظ بيانات المؤسسة: ' + await tRes.text());
+    if (!tRes.ok) {
+      const errText = await tRes.text();
+      // إذا كان الخطأ duplicate key (23505) للـ tenants، جرّب استرجاع التينانت الموجود
+      let errJson = {};
+      try { errJson = JSON.parse(errText); } catch(_) {}
+      if (errJson.code === '23505') {
+        // Fallback: ابحث عن tenant بنفس الاسم
+        const tChk = await fetch(`${sbUrl}/rest/v1/tenants?name=eq.${encodeURIComponent(company.trim())}&select=*&limit=1`, { headers: sbH });
+        if (tChk.ok) {
+          const existing = await tChk.json();
+          if (existing.length) {
+            // استخدم التينانت الموجود وتابع
+            console.warn('[Register] Tenant already exists, reusing:', existing[0].id);
+            const sbTenant = existing[0];
+            // تابع إنشاء المستخدم فقط
+            await _createUserForTenant(sbUrl, sbH, sbHUpsert, sbTenant, name, email, hashedPass, company, wilaya, now, sbNotif => {
+              DB.setSilent ? DB.setSilent('tenants', [...(DB.get('tenants')||[]).filter(t=>t.id!==sbTenant.id), sbTenant]) : DB.set('tenants', [...(DB.get('tenants')||[]).filter(t=>t.id!==sbTenant.id), sbTenant]);
+            });
+            return;
+          }
+        }
+      }
+      throw new Error('فشل حفظ بيانات المؤسسة: ' + errText);
+    }
     const [sbTenant] = await tRes.json();
 
-    // 3. INSERT user في Supabase (مع تشفير كلمة المرور)
+    // 3. INSERT user في Supabase (مع تشفير كلمة المرور) — upsert safe
     let hashedPass = pass;
     try {
       if (typeof SmartCrypto !== 'undefined') {
@@ -2547,7 +2583,7 @@ async function doRegister() {
     } catch(e) { console.warn('Password hashing failed:', e); }
 
     const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
-      method: 'POST', headers: sbH,
+      method: 'POST', headers: sbHUpsert,
       body: JSON.stringify({
         tenant_id: sbTenant.id,
         full_name: name.trim(),
@@ -2559,16 +2595,27 @@ async function doRegister() {
         account_status: 'pending'
       })
     });
-    if (!uRes.ok) throw new Error('فشل حفظ بيانات المستخدم: ' + await uRes.text());
+    if (!uRes.ok) {
+      const errText = await uRes.text();
+      let errJson = {};
+      try { errJson = JSON.parse(errText); } catch(_) {}
+      if (errJson.code === '23505') {
+        // المستخدم موجود — أعرض شاشة الانتظار
+        if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+        showPendingActivationScreen(name.trim(), email, company.trim());
+        return;
+      }
+      throw new Error('فشل حفظ بيانات المستخدم: ' + errText);
+    }
     const [sbUser] = await uRes.json();
 
     // 4. إشعار Supabase بطلب التسجيل (يظهر للأدمن) — احفظ ID المُرجَع
     let sbNotif = null;
     try {
       const nRes = await fetch(`${sbUrl}/rest/v1/notifications`, {
-        method: 'POST', headers: sbH,
+        method: 'POST', headers: sbHUpsert,
         body: JSON.stringify({
-          id: Date.now(),  // notifications.id هو BIGINT (نولّده بأنفسنا)
+          // ✅ لا نمرر id — Supabase يولّده تلقائياً (SERIAL/BIGSERIAL)
           type: 'new_account',
           title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
           body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
@@ -8490,23 +8537,35 @@ async function sbSync(table, record, method='POST') {
     let url = `${sbUrl}/rest/v1/${table}`;
 
     if (method === 'POST') {
-      // ✅ لا نرسل id أبداً عند الإدراج — Supabase يولده تلقائياً بـ SERIAL
-      // هذا يمنع خطأ "duplicate key value violates unique constraint"
-      const oldId = record && record.id;
+      // ✅ استخدام UPSERT مع ON CONFLICT DO NOTHING لمنع أي duplicate key error
+      // هذا يعني: إذا السجل موجود مسبقاً في Supabase → نتجاهله بدون خطأ
+      const upsertHeaders = {
+        ...headers,
+        'Prefer': 'return=representation,resolution=ignore-duplicates'
+      };
       const postRecord = { ...cleanRecord };
-      delete postRecord.id;
+      // إذا لم يكن السجل يملك id محلي حقيقي (مثل التسجيل)، احذفه ليولّده Supabase
+      const oldId = record && record.id;
+      const isLocalTempId = oldId && oldId > 1000000000000; // milliseconds timestamp → local temp ID
+      if (isLocalTempId) delete postRecord.id;
 
-      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(postRecord) });
+      const res = await fetch(url, { method: 'POST', headers: upsertHeaders, body: JSON.stringify(postRecord) });
       if (!res.ok) {
         const err = await res.text();
+        let errJson = {};
+        try { errJson = JSON.parse(err); } catch(_) {}
+        // إذا كان duplicate key (23505) → تجاهل بدون خطأ (السجل موجود مسبقاً)
+        if (errJson.code === '23505') {
+          console.log(`ℹ️ sbSync [POST ${table}] already exists in Supabase — skipped (OK)`);
+          return;
+        }
         console.warn(`⚠️ sbSync [POST ${table}]:`, err);
-        // عند الفشل: حفظ في Offline Queue للمزامنة لاحقاً
         _saveSbOpToOfflineQueue(table, record, 'POST');
       } else {
         const data = await res.json();
         const newId = Array.isArray(data) ? data[0]?.id : data?.id;
-        console.log(`✅ sbSync [POST ${table}] → Supabase ID=${newId} (local was ${oldId})`);
-        // ✅ مزامنة الـ ID المحلي مع الـ ID الذي ولّده Supabase (لتجنب تكرار)
+        if (newId) console.log(`✅ sbSync [POST ${table}] → Supabase ID=${newId}`);
+        // مزامنة الـ ID المحلي مع الـ ID من Supabase
         if (newId && oldId && newId !== oldId) {
           try {
             const local = DB.get(table) || [];
