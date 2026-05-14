@@ -9334,7 +9334,12 @@ async function doLogin() {
         if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); }
         App.navigate('admin');
         // مزامنة في الخلفية
-        setTimeout(() => { try { AutoSync?.enable(); SmartRealtime?.start(null); } catch(_) {} }, 1500);
+        setTimeout(() => {
+          try {
+            if (typeof AutoSync !== 'undefined' && !AutoSync._enabled) AutoSync.enable();
+            if (typeof SmartRealtime !== 'undefined' && !SmartRealtime.isLive) SmartRealtime.start(null);
+          } catch(_) {}
+        }, 1500);
         return;
       } else {
         resetBtn();
