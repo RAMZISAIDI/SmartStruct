@@ -1196,13 +1196,33 @@ function topbarHTML(breadcrumb) {
 }
 
 function layoutHTML(active, breadcrumb, content) {
+  // ── تحديث عنوان تبويب المتصفح ديناميكياً ──
+  try {
+    const pageNames = {
+      dashboard:'لوحة التحكم', projects:'المشاريع', workers:'العمال',
+      transactions:'المعاملات', attendance:'الحضور', salary:'الرواتب',
+      invoices:'الفواتير', inventory:'المخزون', materials:'المواد',
+      equipment:'المعدات', documents:'الوثائق', analytics:'التحليلات',
+      reports:'التقارير', settings:'الإعدادات', kanban:'كانبان',
+      gantt:'Gantt', calendar:'التقويم', map:'الخريطة',
+      dz_documents:'مركز الوثائق', archive:'الأرشيف',
+      admin:'لوحة الأدمن', team:'الفريق', audit_log:'سجل العمليات',
+      obligations:'الالتزامات', simulator:'المحاكي', bank_report:'البنك',
+      compare:'المقارنة', ai_analysis:'تحليل AI',
+    };
+    const tenant = (typeof Auth !== 'undefined') && Auth.getTenant && Auth.getTenant();
+    const tenantName = tenant?.name || 'SmartStruct';
+    const pageLbl = pageNames[active] || breadcrumb || '';
+    document.title = pageLbl ? `${pageLbl} — ${tenantName}` : tenantName;
+  } catch(_) {}
+
   return `<div class="app-shell"><div class="sidebar-overlay" id="sidebarOverlay" onclick="window.closeSidebar()"></div>${sidebarHTML(active)}
   <div class="main-wrap">
     ${topbarHTML(breadcrumb)}
     <main class="page-content animate-fade">${content}</main>
     <footer style="padding:.8rem 1.8rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
       <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct — منصة إدارة مشاريع المقاولة الجزائرية</span>
-      <span style="font-size:.7rem;color:var(--dim)">v7.0</span>
+      <span style="font-size:.7rem;color:var(--dim)">v7.3</span>
     </footer>
   </div></div>`;
 }
