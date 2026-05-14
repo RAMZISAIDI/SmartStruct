@@ -3567,6 +3567,8 @@ Pages.dashboard = function() {
   const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
   const workers  = DB.get('workers').filter(w => w.tenant_id===tid);
   const equip    = DB.get('equipment').filter(e => e.tenant_id===tid);
+  const invoices = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materials= DB.get('materials').filter(m => m.tenant_id===tid);
   const txs      = DB.get('transactions').filter(t => t.tenant_id===tid);
   const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
   const revenue  = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
@@ -4008,6 +4010,51 @@ Pages.dashboard = function() {
     </div>
 
     <!-- AI RISK PANEL + PROFIT FORECAST + WORKER EFFICIENCY -->
+    <!-- ══ تنبيهات عاجلة ═══════════════════════════════════════ -->
+    ${(()=>{
+      const today = new Date(); today.setHours(0,0,0,0);
+      const week  = new Date(today.getTime() + 7*86400000);
+      const month = new Date(today.getTime() + 30*86400000);
+
+      // فواتير متأخرة أو مستحقة هذا الأسبوع
+      const overdueInv = invoices.filter(i=>i.status!=='paid' && i.due_date && new Date(i.due_date)<today);
+      const soonInv    = invoices.filter(i=>i.status!=='paid' && i.due_date && new Date(i.due_date)>=today && new Date(i.due_date)<=week);
+      // مخزون منخفض
+      const lowStk = materials.filter(m=>Number(m.quantity||0)<=Number(m.min_quantity||0));
+      // معدات تحتاج صيانة
+      const maintEquip = equip.filter(e=>e.next_maintenance && new Date(e.next_maintenance)<=month);
+      // تأمين منتهٍ
+      const insurEquip = equip.filter(e=>e.insurance_expiry && new Date(e.insurance_expiry)<=month);
+      // مشاريع تنتهي خلال 30 يوم
+      const nearEnd = projects.filter(p=>p.status==='active' && p.end_date && new Date(p.end_date)<=month && new Date(p.end_date)>=today);
+
+      const alerts = [
+        ...overdueInv.map(i=>`<div class="dash-alert danger">🔴 <strong>${L('فاتورة متأخرة','Facture en retard')}:</strong> ${escHtml(i.number)} — ${escHtml(i.client)} — ${fmt(i.amount)} ${L('دج','DA')} <button class="btn btn-ghost btn-sm" onclick="App.navigate('invoices')" style="padding:2px 8px;font-size:.7rem;margin-right:.4rem">${L('تحصيل','Encaisser')}</button></div>`),
+        ...soonInv.map(i=>`<div class="dash-alert warning">🟡 <strong>${L('فاتورة تستحق هذا الأسبوع','Facture échéance semaine')}:</strong> ${escHtml(i.number)} — ${fmt(i.amount)} ${L('دج','DA')}</div>`),
+        ...lowStk.map(m=>`<div class="dash-alert warning">📦 <strong>${L('مخزون منخفض','Stock bas')}:</strong> ${escHtml(m.name)} — ${m.quantity} ${m.unit||''}/${m.min_quantity}</div>`),
+        ...maintEquip.map(e=>`<div class="dash-alert info">🔧 <strong>${L('صيانة قادمة','Maintenance prochaine')}:</strong> ${escHtml(e.name)} — ${e.next_maintenance}</div>`),
+        ...insurEquip.map(e=>`<div class="dash-alert danger">⚠️ <strong>${L('تأمين منتهٍ قريباً','Assurance expirante')}:</strong> ${escHtml(e.name)} — ${e.insurance_expiry}</div>`),
+        ...nearEnd.map(p=>`<div class="dash-alert info">⏰ <strong>${L('مشروع ينتهي قريباً','Projet bientôt terminé')}:</strong> ${escHtml(p.name)} — ${p.end_date}</div>`),
+      ];
+
+      if (!alerts.length) return '';
+      return `
+        <style>
+          .dash-alert{display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem;border-radius:8px;font-size:.78rem;margin-bottom:.3rem;line-height:1.5}
+          .dash-alert.danger{background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);color:#F79FA9}
+          .dash-alert.warning{background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.2);color:#E8B84B}
+          .dash-alert.info{background:rgba(74,144,226,.07);border:1px solid rgba(74,144,226,.2);color:#8ab8f0}
+        </style>
+        <div style="background:var(--card-bg);border:1px solid rgba(240,78,106,.2);border-radius:14px;padding:1rem;margin-bottom:1rem">
+          <div style="font-weight:800;font-size:.9rem;margin-bottom:.7rem;display:flex;align-items:center;gap:.4rem">
+            <span style="color:#F04E6A">🔔</span>
+            <span>${L('تنبيهات عاجلة','Alertes urgentes')}</span>
+            <span style="background:rgba(240,78,106,.15);color:#F04E6A;border-radius:20px;padding:1px 8px;font-size:.72rem">${alerts.length}</span>
+          </div>
+          ${alerts.slice(0,6).join('')}
+          ${alerts.length>6 ? `<div style="font-size:.72rem;color:var(--dim);margin-top:.3rem">+ ${alerts.length-6} ${L('تنبيه آخر','alerte(s) de plus')}</div>` : ''}
+        </div>`;
+    })()}
     <div class="dash-grid-top">
       <!-- AI Risk Detection -->
       <div class="risk-panel">
@@ -4303,9 +4350,14 @@ Pages.projects = function() {
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom client')}</label><input class="form-input" id="pClient" placeholder="${L('عبد القادر...','Client...')}"></div>
+          <div class="form-group"><label class="form-label">${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label><input class="form-input" id="pClient" placeholder="${L('بلدية / شركة...','Commune / Société...')}"></div>
           <div class="form-group"><label class="form-label">${L('هاتف العميل','Tél. client')}</label><input class="form-input" id="pPhone" placeholder="0550..."></div>
           <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="pBudget" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('رقم الصفقة / المرجع','N° Marché / Réf.')}</label><input class="form-input" id="pMarket" placeholder="N°/2025/..."></div>
+          <div class="form-group"><label class="form-label">${L('الموقع / عنوان الورشة','Lieu / Adresse chantier')}</label><input class="form-input" id="pLocation" placeholder="${L('حي الورود، بئر مراد رايس...','Cité des roses...')}"></div>
+          <div class="form-group"><label class="form-label">${L('المساحة (م²)','Superficie (m²)')}</label><input class="form-input" id="pSurface" type="number" min="0" placeholder="${L('مثال: 500','Ex: 500')}"></div>
+          <div class="form-group"><label class="form-label">${L('مكتب الدراسات / BET','Bureau d\'études / BET')}</label><input class="form-input" id="pBet" placeholder="${L('اسم المكتب...','Nom BET...')}"></div>
+          <div class="form-group"><label class="form-label">${L('هيئة المراقبة','Organisme de contrôle')}</label><input class="form-input" id="pCtrl" placeholder="CTC..."></div>
           <div class="form-group"><label class="form-label">${L('المرحلة الحالية','Phase actuelle')}</label><select class="form-select" id="pPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('تاريخ البداية','Date début')}</label><input class="form-input" id="pStart" type="date"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الانتهاء','Date fin')}</label><input class="form-input" id="pEnd" type="date"></div>
@@ -4892,23 +4944,28 @@ Pages.workers = function() {
       <thead><tr><th>${L('العامل','Ouvrier')}</th><th>${L('المهنة','Métier')}</th><th>${L('المشروع','Projet')}</th><th>${L('الأجر اليومي','Salaire/j')}</th><th>${L('العقد','Contrat')}</th><th>${L('التعيين','Embauche')}</th><th>${L('إجراءات','Actions')}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="empty-icon">👷</div><div class="empty-title">${L('لا يوجد عمال','Aucun ouvrier')}</div></div>`}
     <div class="modal-overlay" id="addWorkerModal">
-      <div class="modal">
+      <div class="modal modal-lg">
         <div class="modal-title">👷 ${L('إضافة عامل جديد','Ajouter un ouvrier')}</div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label><input class="form-input" id="wName" placeholder="${L('محمد الأمين...','Prénom Nom...')}"></div>
           <div class="form-group"><label class="form-label">${L('المهنة *','Métier *')}</label><input class="form-input" id="wRole" placeholder="${L('بنّاء، حداد...','Maçon, Ferrailleur...')}"></div>
           <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="wPhone" placeholder="0550..."></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهوية','N° identité')}</label><input class="form-input" id="wNid"></div>
-          <div class="form-group"><label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label><input class="form-input" id="wSalary" type="number" placeholder="3000"></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهوية الوطنية','N° CIN')}</label><input class="form-input" id="wNid"></div>
+          <div class="form-group"><label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label><input class="form-input" id="wSalary" type="number" placeholder="3000" oninput="(function(){const v=Number(this.value)||0;const el=document.getElementById('wMonthly');if(el&&!el._manualEdit)el.value=Math.round(v*26);}).call(this)"></div>
+          <div class="form-group"><label class="form-label">${L('الراتب الشهري القاعدي (دج)','Salaire base mensuel (DA)')}</label><input class="form-input" id="wMonthly" type="number" placeholder="${L('يُحسب تلقائياً','Auto-calculé')}" onfocus="this._manualEdit=true"></div>
           <div class="form-group"><label class="form-label">${L('نوع العقد','Type contrat')}</label><select class="form-select" id="wContract">
             <option value="daily">${L('يومي','Journalier')}</option>
             <option value="monthly">${L('شهري','Mensuel')}</option>
             <option value="seasonal">${L('موسمي','Saisonnier')}</option>
             <option value="contract">${L('مقاول','Sous-traitant')}</option>
           </select></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الميلاد','Date de naissance')}</label><input class="form-input" id="wDob" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('رقم CNAS','N° CNAS')}</label><input class="form-input" id="wCnas" placeholder="000-000-000-00"></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="wProject"><option value="">${L('بدون مشروع','Sans projet')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('تاريخ التعيين','Date embauche')}</label><input class="form-input" id="wHire" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ التعيين','Date embauche')}</label><input class="form-input" id="wHire" type="date" value="${todayStr()}"></div>
         </div>
+        <div class="form-group"><label class="form-label">${L('العنوان / الإقامة','Adresse / Résidence')}</label><input class="form-input" id="wAddress" placeholder="${L('حي...، بلدية...','Cité..., Commune...')}"></div>
+        <div class="form-group"><label class="form-label">${L('جهة الاتصال في الطوارئ','Contact urgence')}</label><input class="form-input" id="wEmergency" placeholder="${L('الاسم - الهاتف','Nom - Tél')}"></div>
         <div class="form-group"><label class="form-label">${L('اللون','Couleur')}</label><input type="hidden" id="wColor" value="#4A90E2"><div class="color-options">${COLORS.map((c,i)=>`<div class="color-option${i===0?' selected':''}" style="background:${c}" data-color="${c}" data-target="wColor"></div>`).join('')}</div></div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addWorker()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
@@ -4947,12 +5004,19 @@ Pages.equipment = function() {
     return `<div class="card" style="position:relative">
       <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
         <div style="width:52px;height:52px;border-radius:14px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.8rem">${e.icon||'🚜'}</div>
-        <div><div style="font-weight:800">${escHtml(e.name)}</div><div style="font-size:.75rem;color:var(--dim)">${escHtml(e.model||'')}</div></div>
+        <div style="flex:1">
+          <div style="font-weight:800">${escHtml(e.name)}</div>
+          <div style="font-size:.75rem;color:var(--dim)">${escHtml(e.model||'')}${e.type?' · '+escHtml(e.type):''}</div>
+        </div>
+        ${e.next_maintenance && new Date(e.next_maintenance) <= new Date(Date.now()+30*86400000) ? `<span title="${L('صيانة قادمة','Maintenance prochaine')}" style="font-size:.7rem;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.3);color:#E8B84B;padding:2px 7px;border-radius:8px">🔧 ${L('صيانة قريباً','Maint. proche')}</span>` : ''}
+        ${e.insurance_expiry && new Date(e.insurance_expiry) <= new Date(Date.now()+30*86400000) ? `<span title="${L('تأمين منتهٍ قريباً','Assurance expirante')}" style="font-size:.7rem;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:2px 7px;border-radius:8px">⚠️ ${L('تأمين','Assur.')}</span>` : ''}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.78rem;margin-bottom:.8rem">
         <div><div style="color:var(--dim)">${L('المشروع','Projet')}</div><div style="font-weight:600">${escHtml(proj?.name||'—')}</div></div>
-        <div><div style="color:var(--dim)">${L('رقم اللوحة','N° plaque')}</div><div style="font-weight:600;font-family:monospace;direction:ltr;text-align:right">${escHtml(e.plate_number||'—')}</div></div>
-        <div><div style="color:var(--dim)">${L('قيمة الشراء','Valeur d\'achat')}</div><div style="font-weight:600;font-family:monospace">${fmt(e.purchase_price)} دج</div></div>
+        <div><div style="color:var(--dim)">${L('رقم اللوحة','N° Plaque')}</div><div style="font-weight:600;font-family:monospace;direction:ltr;text-align:right">${escHtml(e.plate_number||'—')}</div></div>
+        ${e.serial ? `<div><div style="color:var(--dim)">${L('الرقم التسلسلي','N° Série')}</div><div style="font-weight:600;font-family:monospace;font-size:.72rem;direction:ltr;text-align:right">${escHtml(e.serial)}</div></div>` : ''}
+        <div><div style="color:var(--dim)">${L('قيمة الشراء','Valeur achat')}</div><div style="font-weight:600;font-family:monospace">${fmt(e.purchase_price)} دج</div></div>
+        ${e.next_maintenance ? `<div><div style="color:var(--dim)">${L('الصيانة القادمة','Proch. maint.')}</div><div style="font-weight:600;color:${new Date(e.next_maintenance)<=new Date()?'#F04E6A':'var(--text)'}">${e.next_maintenance}</div></div>` : ''}
         <div><div style="color:var(--dim)">${L('الحالة','État')}</div>
           <select class="form-select" style="padding:.2rem .5rem;font-size:.75rem;margin-top:2px" onchange="updateEquipStatus(${e.id},this.value)">
             ${Object.entries(statusMap).map(([k,v])=>`<option value="${k}"${e.status===k?' selected':''}>${v.label}</option>`).join('')}
@@ -4978,14 +5042,20 @@ Pages.equipment = function() {
     </div>
     <div class="grid-cards">${cards}</div>
     <div class="modal-overlay" id="addEquipModal">
-      <div class="modal">
+      <div class="modal modal-lg">
         <div class="modal-title">🚜 ${L('إضافة معدة','Ajouter un équipement')}</div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('الاسم *','Nom *')}</label><input class="form-input" id="eName" placeholder="${L('حفارة...','Pelle...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الطراز','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320"></div>
-          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° plaque')}</label><input class="form-input" id="ePlate" dir="ltr"></div>
-          <div class="form-group"><label class="form-label">${L('الأيقونة','Icône')}</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option></select></div>
+          <div class="form-group"><label class="form-label">${L('الطراز / الموديل','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320D"></div>
+          <div class="form-group"><label class="form-label">${L('نوع المعدة','Type')}</label><input class="form-input" id="eType" placeholder="${L('حفارة، شاحنة، رافعة...','Pelleteuse, Camion...')}"></div>
+          <div class="form-group"><label class="form-label">${L('الرقم التسلسلي','N° Série')}</label><input class="form-input" id="eSerial" dir="ltr" placeholder="CAT320-2024-001"></div>
+          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° Plaque')}</label><input class="form-input" id="ePlate" dir="ltr" placeholder="12345-AB-16"></div>
+          <div class="form-group"><label class="form-label">${L('الأيقونة','Icône')}</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option><option>🔧</option><option>🚁</option></select></div>
           <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الشراء','Date d\'achat')}</label><input class="form-input" id="ePurchaseDate" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ آخر صيانة','Dernière maintenance')}</label><input class="form-input" id="eLastMaint" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('موعد الصيانة القادمة','Prochaine maintenance')}</label><input class="form-input" id="eNextMaint" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ انتهاء التأمين','Fin assurance')}</label><input class="form-input" id="eInsurDate" type="date"></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="eProject"><option value="">${L('اختر...','Choisir...')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
         </div>
         <div class="form-group"><label class="form-label">${L('ملاحظات','Notes')}</label><textarea class="form-textarea" id="eNotes" style="min-height:60px"></textarea></div>
@@ -9281,7 +9351,26 @@ function addProject() {
   ])) return;
   const tid = Auth.getUser().tenant_id;
   const projs = DB.get('projects');
-  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false };
+  const newProject = {
+    id: DB.nextId('projects'), tenant_id: tid, name,
+    project_type: document.getElementById('pType')?.value||'',
+    wilaya:       document.getElementById('pWilaya')?.value||'',
+    client_name:  document.getElementById('pClient')?.value||'',
+    phone:        document.getElementById('pPhone')?.value||'',
+    budget:       Number(document.getElementById('pBudget')?.value)||0,
+    market_ref:   document.getElementById('pMarket')?.value||'',
+    location:     document.getElementById('pLocation')?.value||'',
+    surface:      Number(document.getElementById('pSurface')?.value)||0,
+    bet:          document.getElementById('pBet')?.value||'',
+    ctrl:         document.getElementById('pCtrl')?.value||'',
+    total_spent:  0, progress: 0, status: 'active',
+    color:        document.getElementById('pColor')?.value||'#4A90E2',
+    phase:        document.getElementById('pPhase')?.value||'',
+    description:  document.getElementById('pDesc')?.value||'',
+    start_date:   document.getElementById('pStart')?.value||'',
+    end_date:     document.getElementById('pEnd')?.value||'',
+    is_archived:  false
+  };
   projs.push(newProject);
   DB.set('projects', projs);
   sbSync('projects', newProject, 'POST').catch(()=>{});
@@ -9333,8 +9422,25 @@ function addWorker() {
     { val: salary, label: L('الأجر اليومي','Salaire journalier'), type: 'number' },
     { val: phone,  label: L('الهاتف','Téléphone'),         type: 'phone'    },
   ])) return;
+  const dailySal = Number(document.getElementById('wSalary')?.value)||0;
+  const monthlyVal = document.getElementById('wMonthly')?.value;
+  const monthly_base = monthlyVal ? Number(monthlyVal) : Math.round(dailySal * 26);
   const tid=Auth.getUser().tenant_id; const ws=DB.get('workers');
-  const newWorker = { id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' };
+  const newWorker = {
+    id: DB.nextId('workers'), tenant_id: tid, full_name: name, role,
+    phone:        document.getElementById('wPhone')?.value||'',
+    national_id:  document.getElementById('wNid')?.value||'',
+    dob:          document.getElementById('wDob')?.value||'',
+    cnas_number:  document.getElementById('wCnas')?.value||'',
+    address:      document.getElementById('wAddress')?.value||'',
+    emergency_contact: document.getElementById('wEmergency')?.value||'',
+    daily_salary: dailySal,
+    monthly_base,
+    contract_type:document.getElementById('wContract')?.value||'daily',
+    project_id:   Number(document.getElementById('wProject')?.value)||null,
+    hire_date:    document.getElementById('wHire')?.value||'',
+    color:        document.getElementById('wColor')?.value||'#4A90E2'
+  };
   ws.push(newWorker);
   DB.set('workers',ws);
   sbSync('workers', newWorker, 'POST').catch(()=>{});
@@ -9384,7 +9490,22 @@ function addEquip() {
   const name=document.getElementById('eName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المعدة');return;}
   const tid=Auth.getUser().tenant_id; const eq=DB.get('equipment');
-  const newEquip = { id:DB.nextId('equipment'), tenant_id:tid, name, model:document.getElementById('eModel')?.value||'', plate_number:document.getElementById('ePlate')?.value||'', icon:document.getElementById('eIcon')?.value||'🚜', status:'active', purchase_price:Number(document.getElementById('ePrice')?.value)||0, project_id:Number(document.getElementById('eProject')?.value)||null, notes:document.getElementById('eNotes')?.value||'' };
+  const newEquip = {
+    id: DB.nextId('equipment'), tenant_id: tid, name,
+    model:          document.getElementById('eModel')?.value||'',
+    type:           document.getElementById('eType')?.value||'',
+    serial:         document.getElementById('eSerial')?.value||'',
+    plate_number:   document.getElementById('ePlate')?.value||'',
+    icon:           document.getElementById('eIcon')?.value||'🚜',
+    status:         'active',
+    purchase_price: Number(document.getElementById('ePrice')?.value)||0,
+    purchase_date:  document.getElementById('ePurchaseDate')?.value||'',
+    last_maintenance: document.getElementById('eLastMaint')?.value||'',
+    next_maintenance: document.getElementById('eNextMaint')?.value||'',
+    insurance_expiry: document.getElementById('eInsurDate')?.value||'',
+    project_id:     Number(document.getElementById('eProject')?.value)||null,
+    notes:          document.getElementById('eNotes')?.value||''
+  };
   eq.push(newEquip);
   DB.set('equipment',eq);
   sbSync('equipment', newEquip, 'POST').catch(()=>{});
@@ -9452,10 +9573,25 @@ function addTx() {
 
 function deleteTx(id) {
   if (!canDo('write_transactions')) { Toast.error(L('ليس لديك صلاحية لحذف المعاملة','Permission refusée : transaction')); return; }
-  if(!confirm('حذف هذه المعاملة؟')) return;
+  if(!confirm(L('حذف هذه المعاملة؟','Supprimer cette transaction ?'))) return;
+  const txToDelete = DB.get('transactions').find(t=>t.id===id);
   DB.set('transactions', DB.get('transactions').filter(t=>t.id!==id));
   sbSyncDelete('transactions', id).catch(()=>{});
-  Toast.success('تم حذف المعاملة'); App.navigate('transactions');
+  // ✅ إعادة حساب total_spent للمشروع إذا كانت المعاملة مصروفاً
+  if (txToDelete && txToDelete.type==='expense' && txToDelete.project_id) {
+    const pid = txToDelete.project_id;
+    const projs = DB.get('projects');
+    const pidx = projs.findIndex(p=>p.id===pid);
+    if (pidx>=0) {
+      projs[pidx].total_spent = DB.get('transactions')
+        .filter(t=>t.project_id===pid && t.type==='expense')
+        .reduce((s,t)=>s+Number(t.amount||0),0);
+      DB.set('projects', projs);
+      sbSync('projects', projs[pidx], 'PATCH').catch(()=>{});
+    }
+  }
+  Toast.success(L('تم حذف المعاملة','Transaction supprimée'));
+  App.navigate('transactions');
 }
 
 function saveAtt(wid, date, status) {
@@ -12616,6 +12752,10 @@ Pages.invoices = function() {
             <input class="form-input" id="invClient" placeholder="${L('اسم العميل أو الشركة','Nom client ou société')}">
           </div>
           <div class="form-group">
+            <label class="form-label">NIF ${L('العميل','Client')}</label>
+            <input class="form-input" id="invClientNif" placeholder="000 111 222 333 444" dir="ltr">
+          </div>
+          <div class="form-group">
             <label class="form-label">${L('المشروع','Projet')}</label>
             <select class="form-select" id="invProj">
               <option value="">—</option>
@@ -12644,6 +12784,14 @@ Pages.invoices = function() {
               <option value="bank">${L('تحويل بنكي','Virement bancaire')}</option>
               <option value="check">${L('شيك','Chèque')}</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('رقم الشيك / مرجع التحويل','N° Chèque / Réf. virement')}</label>
+            <input class="form-input" id="invPayRef" placeholder="${L('اختياري','Optionnel')}" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ الدفع الفعلي','Date paiement réel')}</label>
+            <input class="form-input" id="invPaidDate" type="date">
           </div>
           <div class="form-group">
             <label class="form-label">${L('نسبة TVA (%)','Taux TVA (%)')}</label>
@@ -12867,11 +13015,14 @@ function addInvoiceItem() {
   const amount = ttc>0 ? ttc : 0;
 
   const invs=DB.get('invoices');
+  const st  = document.getElementById('invSt')?.value||'pending';
+  const paidDate = document.getElementById('invPaidDate')?.value||'';
   invs.push({
     id:DB.nextId('invoices'),
     tenant_id:Auth.getUser().tenant_id,
     number:num,
     client,
+    client_nif: document.getElementById('invClientNif')?.value||'',
     project_id:Number(document.getElementById('invProj')?.value)||null,
     amount,
     amount_ht:totalHT,
@@ -12879,8 +13030,10 @@ function addInvoiceItem() {
     tva_amount:tva,
     date:document.getElementById('invDt')?.value||todayStr(),
     due_date:document.getElementById('invDue')?.value||'',
-    status:document.getElementById('invSt')?.value||'pending',
+    paid_date: st==='paid' ? (paidDate||todayStr()) : paidDate,
+    status: st,
     payment_method:document.getElementById('invPayMethod')?.value||'cash',
+    payment_ref:   document.getElementById('invPayRef')?.value||'',
     description:document.getElementById('invDesc')?.value||'',
     items
   });
@@ -12904,8 +13057,15 @@ function markInvoicePaid(id) {
   const invs=DB.get('invoices');
   const idx=invs.findIndex(i=>i.id===id);
   if(idx<0)return;
+  // نطلب طريقة الدفع ومرجع الدفع بسرعة
+  const method = prompt(L('طريقة الدفع؟\n1=نقداً  2=تحويل بنكي  3=شيك','Mode de paiement?\n1=Espèces  2=Virement  3=Chèque'),'1');
+  if (method === null) return; // إلغاء
+  const methodMap = {'1':'cash','2':'bank','3':'check'};
+  const payRef = prompt(L('رقم الشيك / مرجع التحويل (اتركه فارغاً إن لم يكن متاحاً)','N° Chèque / Réf. virement (laisser vide si N/A)'),'') || '';
   invs[idx].status='paid';
   invs[idx].paid_date=todayStr();
+  invs[idx].payment_method = methodMap[method] || invs[idx].payment_method || 'cash';
+  if (payRef) invs[idx].payment_ref = payRef;
   DB.set('invoices',invs);
   sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تأشير الفاتورة كمدفوعة','✅ Facture marquée comme payée'));
