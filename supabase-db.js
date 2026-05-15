@@ -638,12 +638,12 @@ const DBHybrid = {
         }
       } catch (_) {}
 
-      // جلب المستخدمين والمؤسسات الجديدة
+    // جلب المستخدمين والمؤسسات الجديدة (مع احترام blacklist المحذوفات)
       try {
         await this._pullRemoteTable('tenants', 'sbtp5_tenants');
         await this._pullRemoteTable('users',   'sbtp5_users');
         await this._pullRemoteTable('notifications','sbtp5_notifications');
-} catch (_) {}
+      } catch (_) {}
     }, 1500);
 
     if (typeof Toast !== 'undefined')
@@ -651,15 +651,30 @@ const DBHybrid = {
     this._emitSyncEvent('syncing');
   },
 
-  /** سحب جدول من Supabase — Supabase هو مصدر الحقيقة (لا دمج) */
+  /** سحب جدول من Supabase مع احترام blacklist المحذوفات */
   async _pullRemoteTable(table, lsKey) {
     const remote = await this._sb.select(table).catch(() => null);
-    // إذا فشل الجلب أو كان فارغاً تماماً نتجاهل (لا نمسح المحلي)
     if (!remote || !Array.isArray(remote)) return;
     try {
-      // ✅ استبدل المحلي بالبيانات من Supabase مباشرةً
-      // هذا يمنع عودة الحسابات المحذوفة من Supabase
-      localStorage.setItem(lsKey, JSON.stringify(remote));
+      // ✅ احترم blacklist المؤسسات المحذوفة محلياً
+      let filtered = remote;
+      if (table === 'tenants' || table === 'users') {
+        try {
+          const deletedIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+          if (deletedIds.length) {
+            if (table === 'tenants') {
+              filtered = remote.filter(r => !deletedIds.includes(Number(r.id)));
+            } else if (table === 'users') {
+              filtered = remote.filter(r => !deletedIds.includes(Number(r.tenant_id)));
+            }
+            const removed = remote.length - filtered.length;
+            if (removed > 0) {
+              console.log(`🛡️ _pullRemoteTable[${table}]: تجاهل ${removed} سجل محذوف محلياً`);
+            }
+          }
+        } catch(_) {}
+      }
+      localStorage.setItem(lsKey, JSON.stringify(filtered));
     } catch (_) {}
   },
 
@@ -1010,12 +1025,22 @@ if (!navigator.onLine || !this._useSupabase) {
 
   /** حفظ عملية في قائمة الانتظار الدائمة (localStorage) */
   _saveToOfflineQueue(table, record, method) {
-    // أي عملية تنتظر الرفع تعني أن هناك رفع/مزامنة مطلوبة قبل الخروج
+    // ✅ لا نضع عمليات للمؤسسات المحذوفة في الـ queue
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+      if (deletedIds.length && record) {
+        const tenantId = record.tenant_id || (table === 'tenants' ? record.id : null);
+        if (tenantId && deletedIds.includes(Number(tenantId))) {
+          console.log(`🛡️ saveToOfflineQueue: تجاهل ${method} على ${table} للمؤسسة المحذوفة`);
+          return;
+        }
+      }
+    } catch(_) {}
+
     this._markUploadRequired();
     try {
       const q = JSON.parse(localStorage.getItem(this._OFFLINE_QUEUE_KEY) || '[]');
       q.push({ table, record, method, time: Date.now() });
-      // احتفظ بأحدث 500 عملية فقط
       if (q.length > 500) q.splice(0, q.length - 500);
       localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
       this._updateAdminSyncUI();
@@ -1030,6 +1055,30 @@ if (!navigator.onLine || !this._useSupabase) {
     } catch { return; }
     if (!q.length) return;
 
+    // ✅ تصفية عمليات المؤسسات المحذوفة من الـ queue قبل الرفع
+    let deletedTenantIds = [];
+    try {
+      deletedTenantIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+    } catch(_) {}
+
+    if (deletedTenantIds.length) {
+      const originalLen = q.length;
+      q = q.filter(op => {
+        const recTenantId = op.record?.tenant_id || (op.table === 'tenants' ? op.record?.id : null);
+        if (recTenantId && deletedTenantIds.includes(Number(recTenantId))) {
+          console.log(`🛡️ OfflineQueue: تجاهل ${op.method} على ${op.table} للمؤسسة المحذوفة #${recTenantId}`);
+          return false;
+        }
+        return true;
+      });
+      if (q.length < originalLen) {
+        console.log(`🛡️ OfflineQueue: تم حذف ${originalLen - q.length} عملية لمؤسسات محذوفة`);
+        localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
+      }
+    }
+
+    if (!q.length) return;
+
     console.log(`⏫ Flushing ${q.length} offline operations to Supabase...`);
     const failed = [];
     for (const op of q) {
@@ -1039,7 +1088,6 @@ if (!navigator.onLine || !this._useSupabase) {
         failed.push(op);
       }
     }
-    // احتفظ بالفاشلة فقط
     localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(failed));
     this._updateAdminSyncUI();
     if (failed.length === 0) {

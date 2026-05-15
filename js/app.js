@@ -9619,6 +9619,18 @@ async function pullAllTenantDataFromSupabase(tenantId) {
     'Authorization': `Bearer ${cfg.key}`
   };
 
+  // ✅ قرأ blacklist مرة واحدة
+  let deletedTenantIds = [];
+  try {
+    deletedTenantIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+  } catch(_) {}
+
+  // تجاهل جلب بيانات مؤسسة في الـ blacklist
+  if (deletedTenantIds.includes(Number(tenantId))) {
+    console.warn(`pullAllTenantData: تجاهل tenant_id=${tenantId} (في blacklist المحذوفات)`);
+    return;
+  }
+
   const TABLES = [
     'projects','workers','equipment','transactions','attendance',
     'materials','stock_movements','invoices','salary_records',
@@ -9635,13 +9647,12 @@ async function pullAllTenantDataFromSupabase(tenantId) {
       const remote = await r.json();
       if (!Array.isArray(remote)) continue;
 
-      // دمج: نفضّل بيانات Supabase (أحدث) لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
+      // دمج: نفضّل بيانات Supabase لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
       const local = DB.get(table) || [];
       const remoteIds = new Set(remote.map(r => r.id));
       const localOnly = local.filter(l => !remoteIds.has(l.id));
       const merged = [...remote, ...localOnly];
 
-      // حفظ مباشر في localStorage بدون استدعاء _smartSync (لأننا نسحب من السحابة)
       localStorage.setItem('sbtp5_' + table, JSON.stringify(merged));
       console.log(`📥 Pulled ${table}: ${remote.length} remote + ${localOnly.length} local-only`);
     } catch(e) {
@@ -9649,7 +9660,6 @@ async function pullAllTenantDataFromSupabase(tenantId) {
     }
   }
 
-  // إعادة رسم الصفحة الحالية بعد الجلب
   try {
     if (typeof App !== 'undefined' && App.render && App.currentPage &&
         !['landing','login','admin'].includes(App.currentPage)) {
@@ -10610,6 +10620,23 @@ async function adminNukeAllAccounts() {
   });
   DB.set('users',   (DB.get('users')||[]).filter(u => keepIds.has(u.tenant_id) || u.is_admin));
   DB.set('tenants', (DB.get('tenants')||[]).filter(t => keepIds.has(t.id)));
+
+  // ✅ تنظيف offline queue من عمليات المؤسسة المحذوفة
+  function _cleanQueueForTenant(tenantIds) {
+    try {
+      const QUEUE_KEY = 'sbtp5_offline_queue';
+      const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+      const ids = tenantIds.map(Number);
+      const cleaned = q.filter(op => {
+        const tid = op.record?.tenant_id || (op.table === 'tenants' ? op.record?.id : null);
+        return !tid || !ids.includes(Number(tid));
+      });
+      if (cleaned.length < q.length) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(cleaned));
+        console.log(`🛡️ cleanQueue: حُذفت ${q.length - cleaned.length} عملية معلقة`);
+      }
+    } catch(_) {}
+  }
 
   // ✅ حفظ IDs المحذوفة في blacklist لمنع SmartRealtime من إعادتها
   try {
