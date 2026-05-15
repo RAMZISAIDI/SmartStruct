@@ -1273,12 +1273,12 @@ Pages.contact = function() {
 
   /* ─── بيانات المصمم / المطور ─── */
   const designer = {
-    name:       'يونس بن عمر',
-    name_fr:    'Younes Ben Omar',
+    name:       'رمزي سعيدي',
+    name_fr:    'Ramzi Saidi',
     role:       L('مطوّر ومصمم SmartStruct','Développeur & Designer SmartStruct'),
     bio:        L(
-      'مطوّر ويب جزائري متخصص في بناء تطبيقات إدارة المشاريع والحلول البرمجية لقطاع البناء والمقاولات. صاحب فكرة SmartStruct ومهندسها الرئيسي.',
-      'Développeur web algérien spécialisé dans les applications de gestion de projets et solutions logicielles pour le secteur du BTP. Créateur et architecte principal de SmartStruct.'
+      'مطوّر ويب جزائري متخصص في بناء تطبيقات إدارة المشاريع وحلول رقمية لقطاع البناء والمقاولات. صاحب فكرة SmartStruct ومهندسها الرئيسي — يؤمن بأن التكنولوجيا يجب أن تخدم المقاول الجزائري بلغته وبيئته.',
+      'Développeur web algérien spécialisé dans les applications de gestion de projets et solutions numériques pour le secteur du BTP. Créateur et architecte principal de SmartStruct — convaincu que la technologie doit servir l\'entrepreneur algérien dans sa langue et son environnement.'
     ),
     avatar:     '👨‍💻',
     location:   L('الجزائر العاصمة، الجزائر','Alger, Algérie'),
@@ -1287,47 +1287,47 @@ Pages.contact = function() {
       {
         id:    'facebook',
         label: 'Facebook',
-        url:   'https://www.facebook.com/',   /* ← ضع رابطك هنا */
+        url:   'https://www.facebook.com/ramzi.saidi.dz',
         icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`,
         color: '#1877F2',
-        bg:    'rgba(24,119,242,.08)',
-        border:'rgba(24,119,242,.25)',
+        bg:    'rgba(24,119,242,.1)',
+        border:'rgba(24,119,242,.3)',
       },
       {
         id:    'whatsapp',
         label: 'WhatsApp',
-        url:   'https://wa.me/213XXXXXXXXX',  /* ← ضع رقمك هنا */
+        url:   'https://wa.me/213770000000',
         icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`,
         color: '#25D366',
-        bg:    'rgba(37,211,102,.08)',
-        border:'rgba(37,211,102,.25)',
+        bg:    'rgba(37,211,102,.1)',
+        border:'rgba(37,211,102,.3)',
       },
       {
         id:    'instagram',
         label: 'Instagram',
-        url:   'https://www.instagram.com/', /* ← ضع رابطك هنا */
+        url:   'https://www.instagram.com/ramzi.saidi.dev',
         icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`,
         color: '#E1306C',
-        bg:    'rgba(225,48,108,.08)',
-        border:'rgba(225,48,108,.25)',
+        bg:    'rgba(225,48,108,.1)',
+        border:'rgba(225,48,108,.3)',
       },
       {
         id:    'linkedin',
         label: 'LinkedIn',
-        url:   'https://www.linkedin.com/', /* ← ضع رابطك هنا */
+        url:   'https://www.linkedin.com/in/ramzi-saidi-dz',
         icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`,
         color: '#0A66C2',
-        bg:    'rgba(10,102,194,.08)',
-        border:'rgba(10,102,194,.25)',
+        bg:    'rgba(10,102,194,.1)',
+        border:'rgba(10,102,194,.3)',
       },
       {
         id:    'github',
         label: 'GitHub',
-        url:   'https://github.com/',      /* ← ضع رابطك هنا */
+        url:   'https://github.com/ramzi-saidi',
         icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`,
-        color: '#e0e6f0',
-        bg:    'rgba(255,255,255,.06)',
-        border:'rgba(255,255,255,.15)',
+        color: '#c9d1d9',
+        bg:    'rgba(255,255,255,.07)',
+        border:'rgba(255,255,255,.18)',
       },
     ]
   };
@@ -1426,21 +1426,30 @@ Pages.contact = function() {
       <h2 class="ll-reveal" style="font-size:1.1rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:2rem">
         ${L('تواصل معي على','Retrouvez-moi sur')}
       </h2>
-      <div style="display:flex;justify-content:center;gap:1.2rem;flex-wrap:wrap" class="ll-reveal">
+      <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap" class="ll-reveal">
         ${designer.socials.map(s => `
-          <a href="${s.url}" target="_blank" rel="noopener noreferrer"
-            style="display:flex;flex-direction:column;align-items:center;gap:.55rem;text-decoration:none;transition:transform .2s"
-            onmouseover="this.style.transform='translateY(-6px)'"
+          <button
+            onclick="window.open('${s.url}','_blank','noopener,noreferrer')"
+            title="${s.label}"
+            style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.6rem;padding:.5rem;transition:transform .2s"
+            onmouseover="this.style.transform='translateY(-7px)'"
             onmouseout="this.style.transform=''">
-            <!-- دائرة الأيقونة -->
-            <div style="width:64px;height:64px;border-radius:50%;background:${s.bg};border:1px solid ${s.border};display:flex;align-items:center;justify-content:center;color:${s.color};transition:box-shadow .2s;box-shadow:0 0 0 0 ${s.color}33"
-              onmouseover="this.style.boxShadow='0 0 0 6px ${s.color}22'"
-              onmouseout="this.style.boxShadow='0 0 0 0 ${s.color}33'">
+            <!-- الدائرة -->
+            <div style="
+              width:68px;height:68px;border-radius:50%;
+              background:${s.bg};
+              border:1.5px solid ${s.border};
+              display:flex;align-items:center;justify-content:center;
+              color:${s.color};
+              transition:box-shadow .25s, transform .25s;
+              box-shadow:0 4px 16px ${s.color}22"
+              onmouseover="this.style.boxShadow='0 6px 28px ${s.color}55';this.style.transform='scale(1.08)'"
+              onmouseout="this.style.boxShadow='0 4px 16px ${s.color}22';this.style.transform='scale(1)'">
               ${s.icon}
             </div>
-            <!-- اسم المنصة -->
-            <span style="font-size:.72rem;color:var(--muted);font-weight:600">${s.label}</span>
-          </a>
+            <!-- الاسم -->
+            <span style="font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.3px">${s.label}</span>
+          </button>
         `).join('')}
       </div>
     </section>
@@ -1455,14 +1464,15 @@ Pages.contact = function() {
           { icon:'📧', title:L('البريد الإلكتروني','Email'), value:'contact@smartstruct.dz', href:'mailto:contact@smartstruct.dz', color:'#E8B84B', desc:L('للاستفسارات العامة','Renseignements généraux') },
           { icon:'🛠️', title:L('الدعم التقني','Support technique'), value:'support@smartstruct.dz', href:'mailto:support@smartstruct.dz', color:'#4A90E2', desc:L('للمشاكل التقنية','Problèmes techniques') },
         ].map(c => `
-          <a href="${c.href}" style="background:rgba(255,255,255,.03);border:1px solid ${c.color}33;border-radius:16px;padding:1.6rem;text-decoration:none;color:var(--text);transition:all .2s;display:flex;flex-direction:column;gap:.6rem"
+          <button onclick="window.open('${c.href}')"
+            style="background:rgba(255,255,255,.03);border:1px solid ${c.color}33;border-radius:16px;padding:1.6rem;cursor:pointer;color:var(--text);text-align:${isAr?'right':'left'};font-family:inherit;transition:all .2s;display:flex;flex-direction:column;gap:.6rem;width:100%"
             onmouseover="this.style.background='${c.color}0d';this.style.borderColor='${c.color}55';this.style.transform='translateY(-3px)'"
             onmouseout="this.style.background='rgba(255,255,255,.03)';this.style.borderColor='${c.color}33';this.style.transform=''">
             <div style="font-size:1.6rem">${c.icon}</div>
             <div style="font-size:.85rem;font-weight:800;color:${c.color}">${c.title}</div>
             <div style="font-size:.72rem;color:var(--muted)">${c.desc}</div>
             <div style="font-size:.75rem;font-family:monospace;color:var(--text);word-break:break-all">${c.value}</div>
-          </a>
+          </button>
         `).join('')}
       </div>
     </section>
@@ -1749,8 +1759,9 @@ Pages.landing = function() {
       <div class="ll-nav-links">
         <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
         <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
-        <a class="ll-nav-link" href="#ll-benefits">${L('الفوائد','Avantages')}</a>
         <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
       </div>
 
       <div class="ll-nav-cta">
@@ -1774,8 +1785,9 @@ Pages.landing = function() {
       <button style="position:absolute;top:1.2rem;${isAr?'left':'right'}:1.2rem;background:none;border:none;color:var(--text,#fff);font-size:1.6rem;cursor:pointer" onclick="document.getElementById('llMobileMenu').style.display='none'">✕</button>
       <a class="ll-nav-link" href="#ll-features" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('المزايا','Fonctionnalités')}</a>
       <a class="ll-nav-link" href="#ll-showcase" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('عرض الواجهة','Aperçu')}</a>
-      <a class="ll-nav-link" href="#ll-benefits" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الفوائد','Avantages')}</a>
       <a class="ll-nav-link" href="#ll-pricing" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الأسعار','Tarifs')}</a>
+      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('about')" style="font-size:1.4rem;cursor:pointer">${L('من نحن','À propos')}</a>
+      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('contact')" style="font-size:1.4rem;cursor:pointer">${L('تواصل معنا','Contact')}</a>
       <div style="display:flex;flex-direction:column;gap:.7rem;width:200px;margin-top:1rem">
         ${user
           ? `<button class="ll-btn ll-btn-gold" data-nav="${user.is_admin?'admin':'dashboard'}" onclick="document.getElementById('llMobileMenu').style.display='none'" style="justify-content:center">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
@@ -2537,15 +2549,16 @@ Pages.landing = function() {
         <div class="ll-footer-col">
           <h4>${L('الشركة','Entreprise')}</h4>
           <ul>
-            <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
             <li><a href="#" onclick="event.preventDefault();App.navigate('about')">${L('من نحن','À propos')}</a></li>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('تواصل معنا','Contact')}</a></li>
           </ul>
         </div>
         <div class="ll-footer-col">
           <h4>${L('الدعم','Support')}</h4>
           <ul>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('مركز التواصل','Centre contact')}</a></li>
             <li><a href="mailto:support@smartstruct.dz">${L('الدعم التقني','Support technique')}</a></li>
-            <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
+            <li><a href="mailto:contact@smartstruct.dz">${L('البريد الإلكتروني','Email')}</a></li>
           </ul>
         </div>
       </div>
@@ -12515,10 +12528,21 @@ async function testEmailJS(event) {
 
 /* ══════════════════════════════════════════════════════
    SMOOTH SCROLL FOR LANDING ANCHORS
+   ملاحظة مهمة: هذا الكود يعمل فقط على الروابط التي تحتوي على href يبدأ بـ #
+   ولا تحتوي على onclick أو data-nav، لكي لا يتدخل في روابط التنقل بين الصفحات
 ══════════════════════════════════════════════════════ */
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href^="#"]');
-  if (a) { e.preventDefault(); const el = document.querySelector(a.getAttribute('href')); if(el) el.scrollIntoView({behavior:'smooth'}); }
+  if (!a) return;
+  // تجاهل الروابط التي تستخدم onclick للتنقل أو لها data-nav
+  if (a.hasAttribute('onclick') || a.hasAttribute('data-nav')) return;
+  // تجاهل href يساوي "#" فقط (روابط placeholder)
+  const href = a.getAttribute('href');
+  if (!href || href === '#' || href.length < 2) return;
+  // smooth scroll للرابط الداخلي الفعلي
+  e.preventDefault();
+  const el = document.querySelector(href);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
 });
 
 document.addEventListener('keydown', e => {
