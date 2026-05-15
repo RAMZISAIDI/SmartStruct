@@ -1073,7 +1073,7 @@ const App = {
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
       audit_log:Pages.auditLog, obligations:Pages.obligations,
-      dz_documents:Pages.dz_documents, archive:Pages.archive };
+      dz_documents:Pages.dz_documents, archive:Pages.archive, about:Pages.about, contact:Pages.contact };
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -1081,7 +1081,7 @@ const App = {
       this.animateBars();
       if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
-      if (this.currentPage === 'landing' && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
+      if (['landing','about','contact'].includes(this.currentPage) && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
       if (this.currentPage === 'login' && typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
       applyDOMTranslation(); // ← RADICAL FIX: translate every text node after render
 
@@ -1264,6 +1264,469 @@ function attTodayWidget(workers) {
 const Pages = {};
 
 /* ─── LANDING PAGE — v7.2 PRO 3D ─── */
+// ════════════════════════════════════════════════════════════════════
+//  📱 Pages.contact — تواصل معنا + بطاقة المصمم
+// ════════════════════════════════════════════════════════════════════
+Pages.contact = function() {
+  const isAr = I18N.currentLang === 'ar';
+  const user  = Auth.getUser && Auth.getUser();
+
+  /* ─── بيانات المصمم / المطور ─── */
+  const designer = {
+    name:       'يونس بن عمر',
+    name_fr:    'Younes Ben Omar',
+    role:       L('مطوّر ومصمم SmartStruct','Développeur & Designer SmartStruct'),
+    bio:        L(
+      'مطوّر ويب جزائري متخصص في بناء تطبيقات إدارة المشاريع والحلول البرمجية لقطاع البناء والمقاولات. صاحب فكرة SmartStruct ومهندسها الرئيسي.',
+      'Développeur web algérien spécialisé dans les applications de gestion de projets et solutions logicielles pour le secteur du BTP. Créateur et architecte principal de SmartStruct.'
+    ),
+    avatar:     '👨‍💻',
+    location:   L('الجزائر العاصمة، الجزائر','Alger, Algérie'),
+    experience: L('5+ سنوات تجربة','5+ ans d\'expérience'),
+    socials: [
+      {
+        id:    'facebook',
+        label: 'Facebook',
+        url:   'https://www.facebook.com/',   /* ← ضع رابطك هنا */
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`,
+        color: '#1877F2',
+        bg:    'rgba(24,119,242,.08)',
+        border:'rgba(24,119,242,.25)',
+      },
+      {
+        id:    'whatsapp',
+        label: 'WhatsApp',
+        url:   'https://wa.me/213XXXXXXXXX',  /* ← ضع رقمك هنا */
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`,
+        color: '#25D366',
+        bg:    'rgba(37,211,102,.08)',
+        border:'rgba(37,211,102,.25)',
+      },
+      {
+        id:    'instagram',
+        label: 'Instagram',
+        url:   'https://www.instagram.com/', /* ← ضع رابطك هنا */
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`,
+        color: '#E1306C',
+        bg:    'rgba(225,48,108,.08)',
+        border:'rgba(225,48,108,.25)',
+      },
+      {
+        id:    'linkedin',
+        label: 'LinkedIn',
+        url:   'https://www.linkedin.com/', /* ← ضع رابطك هنا */
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`,
+        color: '#0A66C2',
+        bg:    'rgba(10,102,194,.08)',
+        border:'rgba(10,102,194,.25)',
+      },
+      {
+        id:    'github',
+        label: 'GitHub',
+        url:   'https://github.com/',      /* ← ضع رابطك هنا */
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`,
+        color: '#e0e6f0',
+        bg:    'rgba(255,255,255,.06)',
+        border:'rgba(255,255,255,.15)',
+      },
+    ]
+  };
+
+  return `<div class="landing-page" id="contactRoot" style="min-height:100vh">
+    <div class="ll-atmosphere"></div>
+
+    <!-- ═══ NAVBAR ═══ -->
+    <nav class="ll-nav ll-scrolled">
+      <a class="ll-nav-logo" onclick="App.navigate('landing')" style="cursor:pointer">
+        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+        <div class="ll-nav-logo-text">
+          <div class="ll-nav-logo-name">SmartStruct</div>
+          <div class="ll-nav-logo-sub">v7.3 PRO</div>
+        </div>
+      </a>
+      <div class="ll-nav-links">
+        <a class="ll-nav-link" onclick="App.navigate('landing')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" style="color:var(--gold)">${L('تواصل معنا','Contact')}</a>
+      </div>
+      <div class="ll-nav-cta">
+        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+        </button>
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
+          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
+             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب','Essai')}</button>`
+        }
+      </div>
+    </nav>
+
+    <!-- ═══ HERO ═══ -->
+    <section style="padding:120px 5% 60px;text-align:center;position:relative">
+      <div style="max-width:600px;margin:0 auto;position:relative;z-index:1">
+        <div class="ll-hero-badge" style="margin-bottom:1.2rem">
+          <span class="ll-hero-badge-dot"></span>
+          ${L('نرحّب بكل استفساراتك','Toutes vos questions sont les bienvenues')}
+        </div>
+        <h1 class="ll-hero-title" style="font-size:clamp(1.8rem,4vw,2.8rem);margin-bottom:1rem">
+          ${L('تحدّث معنا','Parlez-nous')}
+          <span class="ll-word-gold"> ${L('مباشرةً','directement')}</span>
+        </h1>
+        <p style="font-size:.95rem;color:var(--muted);line-height:1.8">
+          ${L('سواء كان لديك سؤال تقني، اقتراح، أو تريد معرفة المزيد — فريقنا جاهز للرد خلال 24 ساعة.','Que vous ayez une question technique, une suggestion, ou souhaitez en savoir plus — notre équipe répond sous 24h.')}
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══ DESIGNER CARD ═══ -->
+    <section style="padding:20px 5% 60px;max-width:900px;margin:0 auto">
+      <div class="ll-reveal" style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.25);border-radius:24px;padding:2.5rem;display:flex;gap:2.5rem;align-items:flex-start;flex-wrap:wrap;position:relative;overflow:hidden">
+        <!-- decoration circle -->
+        <div style="position:absolute;top:-60px;${isAr?'left':'right'}:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(232,184,75,.1),transparent);pointer-events:none"></div>
+
+        <!-- Avatar -->
+        <div style="flex-shrink:0;text-align:center">
+          <div style="width:110px;height:110px;border-radius:24px;background:linear-gradient(135deg,rgba(232,184,75,.15),rgba(232,184,75,.05));border:2px solid rgba(232,184,75,.3);display:flex;align-items:center;justify-content:center;font-size:3rem;margin:0 auto 1rem">
+            ${designer.avatar}
+          </div>
+          <!-- زر وقت الاستجابة -->
+          <div style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:20px;padding:4px 12px;font-size:.68rem;font-weight:700;color:#34C38F;white-space:nowrap">
+            ⚡ ${L('متاح — رد < 24 ساعة','Disponible — Réponse < 24h')}
+          </div>
+        </div>
+
+        <!-- Info -->
+        <div style="flex:1;min-width:260px">
+          <div style="font-size:1.5rem;font-weight:900;color:var(--text);margin-bottom:.2rem">${isAr ? designer.name : designer.name_fr}</div>
+          <div style="font-size:.82rem;color:var(--gold);font-weight:700;margin-bottom:.8rem">${designer.role}</div>
+          <p style="font-size:.83rem;color:var(--muted);line-height:1.8;margin-bottom:1rem">${designer.bio}</p>
+
+          <!-- Tags -->
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.2rem">
+            ${[
+              { text: L('BTP Software','BTP Software'), color: '#E8B84B' },
+              { text: L('Supabase','Supabase'),           color: '#3ECF8E' },
+              { text: L('JavaScript','JavaScript'),       color: '#F7DF1E' },
+              { text: L('AI Integration','AI Integration'), color: '#9B6DFF' },
+              { text: L('الجزائر 🇩🇿','Algérie 🇩🇿'),      color: '#E8593C' },
+            ].map(t => `<span style="font-size:.68rem;padding:3px 10px;border-radius:20px;background:${t.color}18;border:1px solid ${t.color}44;color:${t.color};font-weight:700">${t.text}</span>`).join('')}
+          </div>
+
+          <!-- Location + Experience -->
+          <div style="display:flex;gap:1.5rem;font-size:.78rem;color:var(--muted)">
+            <span>📍 ${designer.location}</span>
+            <span>💼 ${designer.experience}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SOCIAL CIRCLES ═══ -->
+    <section style="padding:0 5% 60px;max-width:900px;margin:0 auto">
+      <h2 class="ll-reveal" style="font-size:1.1rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:2rem">
+        ${L('تواصل معي على','Retrouvez-moi sur')}
+      </h2>
+      <div style="display:flex;justify-content:center;gap:1.2rem;flex-wrap:wrap" class="ll-reveal">
+        ${designer.socials.map(s => `
+          <a href="${s.url}" target="_blank" rel="noopener noreferrer"
+            style="display:flex;flex-direction:column;align-items:center;gap:.55rem;text-decoration:none;transition:transform .2s"
+            onmouseover="this.style.transform='translateY(-6px)'"
+            onmouseout="this.style.transform=''">
+            <!-- دائرة الأيقونة -->
+            <div style="width:64px;height:64px;border-radius:50%;background:${s.bg};border:1px solid ${s.border};display:flex;align-items:center;justify-content:center;color:${s.color};transition:box-shadow .2s;box-shadow:0 0 0 0 ${s.color}33"
+              onmouseover="this.style.boxShadow='0 0 0 6px ${s.color}22'"
+              onmouseout="this.style.boxShadow='0 0 0 0 ${s.color}33'">
+              ${s.icon}
+            </div>
+            <!-- اسم المنصة -->
+            <span style="font-size:.72rem;color:var(--muted);font-weight:600">${s.label}</span>
+          </a>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ CONTACT CARDS ═══ -->
+    <section style="padding:0 5% 80px;max-width:900px;margin:0 auto">
+      <h2 class="ll-reveal" style="font-size:1.1rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:1.5rem">
+        ${L('أو راسلنا مباشرةً','Ou écrivez-nous directement')}
+      </h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem" class="ll-reveal">
+        ${[
+          { icon:'📧', title:L('البريد الإلكتروني','Email'), value:'contact@smartstruct.dz', href:'mailto:contact@smartstruct.dz', color:'#E8B84B', desc:L('للاستفسارات العامة','Renseignements généraux') },
+          { icon:'🛠️', title:L('الدعم التقني','Support technique'), value:'support@smartstruct.dz', href:'mailto:support@smartstruct.dz', color:'#4A90E2', desc:L('للمشاكل التقنية','Problèmes techniques') },
+        ].map(c => `
+          <a href="${c.href}" style="background:rgba(255,255,255,.03);border:1px solid ${c.color}33;border-radius:16px;padding:1.6rem;text-decoration:none;color:var(--text);transition:all .2s;display:flex;flex-direction:column;gap:.6rem"
+            onmouseover="this.style.background='${c.color}0d';this.style.borderColor='${c.color}55';this.style.transform='translateY(-3px)'"
+            onmouseout="this.style.background='rgba(255,255,255,.03)';this.style.borderColor='${c.color}33';this.style.transform=''">
+            <div style="font-size:1.6rem">${c.icon}</div>
+            <div style="font-size:.85rem;font-weight:800;color:${c.color}">${c.title}</div>
+            <div style="font-size:.72rem;color:var(--muted)">${c.desc}</div>
+            <div style="font-size:.75rem;font-family:monospace;color:var(--text);word-break:break-all">${c.value}</div>
+          </a>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ CTA ═══ -->
+    <section style="padding:0 5% 100px;max-width:680px;margin:0 auto;text-align:center" class="ll-reveal">
+      <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.2);border-radius:20px;padding:2.5rem">
+        <div style="font-size:1.4rem;font-weight:900;color:var(--text);margin-bottom:.6rem">🚀 ${L('جاهز للبداية؟','Prêt à commencer?')}</div>
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.7">${L('جرّب SmartStruct مجاناً 14 يوماً — لا بطاقة بنكية مطلوبة.','Essayez SmartStruct gratuitement 14 jours — sans carte bancaire.')}</p>
+        <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+          <button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()" style="font-size:.88rem">${L('ابدأ التجربة المجانية','Commencer l\'essai')}</button>
+          <button class="ll-btn ll-btn-ghost" onclick="App.navigate('about')" style="font-size:.88rem">${L('تعرّف علينا أكثر','En savoir plus')}</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="ll-footer">
+      <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
+        <button class="ll-nav-link" onclick="App.navigate('landing')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <button class="ll-nav-link" onclick="App.navigate('about')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('من نحن','À propos')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <button class="ll-nav-link" style="background:none;border:none;cursor:pointer;font-family:inherit;color:var(--gold)">${L('تواصل معنا','Contact')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <div>© 2026 SmartStruct</div>
+      </div>
+    </footer>
+  </div>`;
+};
+
+// ════════════════════════════════════════════════════════════════════
+//  📄 Pages.about — من نحن
+// ════════════════════════════════════════════════════════════════════
+Pages.about = function() {
+  const isAr = I18N.currentLang === 'ar';
+  const user  = Auth.getUser && Auth.getUser();
+
+  return `<div class="landing-page" id="aboutRoot" style="min-height:100vh">
+    <!-- نفس جو الـ landing -->
+    <div class="ll-atmosphere"></div>
+
+    <!-- ═══ NAVBAR ═══ -->
+    <nav class="ll-nav ll-scrolled" id="aboutNav">
+      <a class="ll-nav-logo" onclick="App.navigate('landing')" style="cursor:pointer">
+        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+        <div class="ll-nav-logo-text">
+          <div class="ll-nav-logo-name">SmartStruct</div>
+          <div class="ll-nav-logo-sub">v7.3 PRO</div>
+        </div>
+      </a>
+      <div class="ll-nav-links">
+        <a class="ll-nav-link" onclick="App.navigate('landing')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link ll-active" style="color:var(--gold)">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
+      </div>
+      <div class="ll-nav-cta">
+        <button class="ll-lang-btn" onclick="I18N.setLang(isAr?'fr':'ar')">
+          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+        </button>
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
+          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
+             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
+        }
+      </div>
+    </nav>
+
+    <!-- ═══ HERO ═══ -->
+    <section style="padding:140px 5% 80px;text-align:center;position:relative;overflow:hidden">
+      <!-- خلفية هندسية خفيفة -->
+      <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 1440 600" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <pattern id="abGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.06)" stroke-width="0.8"/>
+          </pattern>
+        </defs>
+        <rect width="1440" height="600" fill="url(#abGrid)"/>
+        <ellipse cx="720" cy="300" rx="500" ry="250" fill="rgba(232,184,75,0.03)"/>
+      </svg>
+
+      <div style="position:relative;z-index:1;max-width:720px;margin:0 auto">
+        <div class="ll-hero-badge" style="margin-bottom:1.5rem">
+          <span class="ll-hero-badge-dot"></span>
+          ${L('صُنع في الجزائر ❤️ للمقاولين الجزائريين','Fait en Algérie ❤️ pour les entrepreneurs algériens')}
+        </div>
+        <h1 class="ll-hero-title" style="font-size:clamp(2rem,5vw,3.2rem);margin-bottom:1.2rem">
+          ${L('نحن نبني','Nous construisons')} <span class="ll-word-gold">${L('أدوات تبني','des outils qui')}</span><br>
+          ${L('معك','construisent avec vous')}
+        </h1>
+        <p style="font-size:1.05rem;color:var(--muted);line-height:1.8;max-width:580px;margin:0 auto">
+          ${L(
+            'SmartStruct وُلد من ألم حقيقي: مقاولون جزائريون يتعاملون مع أعمال ورقية معقدة، فواتير متناثرة، وبيانات عمال مبعثرة. قررنا أن نصنع الحل الذي كنا نتمناه.',
+            'SmartStruct est né d\'une vraie douleur : des entrepreneurs algériens qui jonglaient avec de la paperasse complexe, des factures éparpillées, des données fragmentées. Nous avons décidé de créer la solution que nous aurions voulu avoir.'
+          )}
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══ STORY ═══ -->
+    <section style="padding:80px 5%;max-width:1100px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center" class="ll-reveal">
+        <!-- النص -->
+        <div>
+          <span class="ll-eyebrow">${L('القصة','Notre histoire')}</span>
+          <h2 style="font-size:1.9rem;font-weight:800;color:var(--text);margin:1rem 0 1.2rem;line-height:1.3">
+            ${L('من ورشة البناء','Du chantier')} <span class="ll-word-gold">${L('إلى السحابة','au cloud')}</span>
+          </h2>
+          <div style="color:var(--muted);line-height:1.9;font-size:.93rem">
+            <p style="margin-bottom:1rem">
+              ${L(
+                'في 2023، كان فريقنا يعمل مع شركات مقاولة جزائرية متعددة، ولاحظنا نمطاً متكرراً: كل مقاول لديه دفتر ورقي للعمال، Excel بدائي للفواتير، ورسائل WhatsApp لمتابعة المواد.',
+                'En 2023, notre équipe travaillait avec plusieurs entreprises de BTP algériennes, et nous avons observé un schéma récurrent : chaque entrepreneur avait un carnet papier pour les ouvriers, un Excel basique pour les factures, et des messages WhatsApp pour le suivi des matériaux.'
+              )}
+            </p>
+            <p style="margin-bottom:1rem">
+              ${L(
+                'الحلول الدولية الموجودة مثل Procore أو Sage Construction إما غير متوافقة مع القانون الجزائري (NIF/NIS/TVA 19%)، أو مُكلفة للغاية، أو بالإنجليزية فقط.',
+                'Les solutions internationales existantes comme Procore ou Sage Construction étaient soit non conformes à la loi algérienne (NIF/NIS/TVA 19%), soit trop coûteuses, soit disponibles en anglais seulement.'
+              )}
+            </p>
+            <p>
+              ${L(
+                'فقررنا بناء SmartStruct — منصة مصممة من الصفر للسوق الجزائري، بالعربية والفرنسية، ومتوافقة مع كل المتطلبات القانونية المحلية.',
+                'Nous avons donc décidé de créer SmartStruct — une plateforme conçue de zéro pour le marché algérien, en arabe et en français, conforme à toutes les exigences légales locales.'
+              )}
+            </p>
+          </div>
+        </div>
+        <!-- بطاقة بصرية -->
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(232,184,75,.15);border-radius:20px;padding:2rem;display:flex;flex-direction:column;gap:1.2rem">
+          ${[
+            { year: '2023', icon: '💡', event: L('الفكرة — إدراك المشكلة','Idée — identification du problème') },
+            { year: '2024', icon: '🔨', event: L('بناء أول نسخة مع 3 شركات تجريبية','Construction v1 avec 3 entreprises pilotes') },
+            { year: '2024', icon: '🚀', event: L('إطلاق الإصدار 7 مع Supabase Realtime','Lancement v7 avec Supabase Realtime') },
+            { year: '2025', icon: '🤖', event: L('دمج الذكاء الاصطناعي SmartAI','Intégration de SmartAI') },
+            { year: '2026', icon: '🏆', event: L('v7.3 Pro — المنصة الأكثر اكتمالاً','v7.3 Pro — la plateforme la plus complète') },
+          ].map((item, i) => `
+            <div style="display:flex;gap:1rem;align-items:flex-start">
+              <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.1rem">${item.icon}</div>
+                ${i < 4 ? `<div style="width:1px;height:18px;background:rgba(232,184,75,.2);margin:4px 0"></div>` : ''}
+              </div>
+              <div>
+                <div style="font-size:.68rem;color:var(--gold);font-weight:700;letter-spacing:.5px">${item.year}</div>
+                <div style="font-size:.82rem;color:var(--text);font-weight:600;margin-top:.15rem">${item.event}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ MISSION + VALUES ═══ -->
+    <section style="padding:80px 5%;background:rgba(232,184,75,.03);border-top:1px solid rgba(232,184,75,.08);border-bottom:1px solid rgba(232,184,75,.08)">
+      <div style="max-width:1100px;margin:0 auto">
+        <div class="ll-section-head ll-reveal">
+          <span class="ll-eyebrow">${L('قيمنا','Nos valeurs')}</span>
+          <h2 class="ll-section-title">${L('ما يحرّكنا','Ce qui nous motive')} <span class="ll-word-gold">${L('كل يوم','chaque jour')}</span></h2>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.2rem;margin-top:2.5rem">
+          ${[
+            { icon: '🇩🇿', color: '#E8B84B', title: L('جزائريون بالكامل','100% algérien'), desc: L('كل سطر كود كُتب مع مراعاة الواقع الجزائري — القانون، العملة، اللغة.','Chaque ligne de code tient compte de la réalité algérienne — loi, monnaie, langue.') },
+            { icon: '🤝', color: '#34C38F', title: L('شراكة حقيقية','Vrai partenariat'), desc: L('لسنا بائعي برنامج — نحن شركاء نجاح للمقاولين. نستمع ونبني ما تحتاج.','Nous ne sommes pas des vendeurs de logiciel — nous sommes des partenaires de succès.') },
+            { icon: '🔒', color: '#4A90E2', title: L('أمان لا تنازل عنه','Sécurité absolue'), desc: L('RLS + PBKDF2 + تشفير كامل. بياناتك لك فقط — لا أحد يصل لمعلومات مؤسستك.','RLS + PBKDF2 + chiffrement complet. Vos données vous appartiennent.') },
+            { icon: '⚡', color: '#9B6DFF', title: L('بساطة في الاستخدام','Simplicité d\'usage'), desc: L('مقاول متوسط يتقن المنصة كاملاً في يوم واحد — بدون تدريب طويل.','Un entrepreneur moyen maîtrise la plateforme en une journée — sans longue formation.') },
+            { icon: '🌱', color: '#27AE60', title: L('نمو مستمر','Amélioration continue'), desc: L('كل أسبوعين نُصدر تحديثاً جديداً بناءً على ملاحظات المستخدمين الحقيقيين.','Toutes les deux semaines, une mise à jour basée sur les retours réels des utilisateurs.') },
+            { icon: '💡', color: '#E8593C', title: L('ابتكار محلي','Innovation locale'), desc: L('ذكاء اصطناعي يفهم سياق البناء الجزائري ويقدم توصيات بالعربية والفرنسية.','Une IA qui comprend le contexte algérien du BTP et donne des recommandations pertinentes.') },
+          ].map(v => `
+            <div class="ll-reveal" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1.5rem;transition:border-color .2s" onmouseover="this.style.borderColor='rgba(232,184,75,.25)'" onmouseout="this.style.borderColor='rgba(255,255,255,.07)'">
+              <div style="font-size:1.8rem;margin-bottom:.8rem">${v.icon}</div>
+              <h3 style="font-size:.95rem;font-weight:800;color:${v.color};margin-bottom:.5rem">${v.title}</h3>
+              <p style="font-size:.8rem;color:var(--muted);line-height:1.7">${v.desc}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ NUMBERS ═══ -->
+    <section style="padding:80px 5%;max-width:1100px;margin:0 auto">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('بالأرقام','En chiffres')}</span>
+        <h2 class="ll-section-title">${L('نتائج','Des résultats')} <span class="ll-word-gold">${L('ملموسة','concrets')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-top:2.5rem">
+        ${[
+          { num: '27', unit: '', label: L('جدول في قاعدة البيانات','Tables en BDD'), icon: '🗄️' },
+          { num: '23', unit: '', label: L('نوع وثيقة قابلة للطباعة','Types de documents imprimables'), icon: '📄' },
+          { num: '14', unit: L('يوم','j'), label: L('تجربة مجانية كاملة','Essai complet gratuit'), icon: '🎁' },
+          { num: '19', unit: '%', label: L('TVA مدعومة تلقائياً','TVA supportée auto.'), icon: '🧾' },
+          { num: '99', unit: '%', label: L('وقت تشغيل مستهدف','Uptime cible'), icon: '⚡' },
+          { num: '2', unit: '', label: L('لغات مدعومة عربي/فرنسي','Langues arabe/français'), icon: '🌐' },
+        ].map(s => `
+          <div class="ll-reveal" style="background:rgba(232,184,75,.05);border:1px solid rgba(232,184,75,.15);border-radius:14px;padding:1.5rem;text-align:center">
+            <div style="font-size:1.8rem;margin-bottom:.5rem">${s.icon}</div>
+            <div style="font-size:2.4rem;font-weight:900;color:var(--gold);font-family:'JetBrains Mono',monospace;line-height:1">${s.num}<span style="font-size:1.2rem">${s.unit}</span></div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem;line-height:1.5">${s.label}</div>
+          </div>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ TEAM ═══ -->
+    <section style="padding:80px 5%;background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05)">
+      <div style="max-width:1100px;margin:0 auto">
+        <div class="ll-section-head ll-reveal">
+          <span class="ll-eyebrow">${L('الفريق','L\'équipe')}</span>
+          <h2 class="ll-section-title">${L('البشر خلف','Les personnes derrière')} <span class="ll-word-gold">SmartStruct</span></h2>
+          <p class="ll-section-desc">${L('فريق جزائري متخصص في تقنيات البناء الرقمي وإدارة المشاريع.','Une équipe algérienne spécialisée dans les technologies numériques du BTP et la gestion de projets.')}</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;margin-top:2.5rem">
+          ${[
+            { name: L('فريق التطوير','Équipe Développement'), role: L('هندسة البرمجيات والـ Backend','Ingénierie logicielle & Backend'), icon: '💻', color: '#4A90E2' },
+            { name: L('فريق UX/UI','Équipe UX/UI'), role: L('تصميم الواجهات وتجربة المستخدم','Design d\'interfaces & UX'), icon: '🎨', color: '#9B6DFF' },
+            { name: L('فريق BTP','Équipe BTP'), role: L('خبراء في قطاع البناء والمقاولات','Experts en BTP et gestion de chantier'), icon: '🏗️', color: '#E8B84B' },
+            { name: L('فريق الدعم','Équipe Support'), role: L('خدمة العملاء والتدريب','Support client & formation'), icon: '🤝', color: '#34C38F' },
+          ].map(m => `
+            <div class="ll-reveal" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:1.8rem;text-align:center;transition:transform .2s,border-color .2s" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(232,184,75,.25)'" onmouseout="this.style.transform='';this.style.borderColor='rgba(255,255,255,.08)'">
+              <div style="width:64px;height:64px;border-radius:18px;background:${m.color}22;border:1px solid ${m.color}44;display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 1rem">${m.icon}</div>
+              <div style="font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:.3rem">${m.name}</div>
+              <div style="font-size:.78rem;color:var(--muted);line-height:1.5">${m.role}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ CONTACT CTA ═══ -->
+    <section id="about-contact" style="padding:80px 5%">
+      <div style="max-width:680px;margin:0 auto;text-align:center">
+        <div class="ll-section-head ll-reveal">
+          <span class="ll-eyebrow">${L('تواصل معنا','Contactez-nous')}</span>
+          <h2 class="ll-section-title">${L('لديك سؤال أو','Vous avez une question')} <span class="ll-word-gold">${L('اقتراح؟','ou une idée?')}</span></h2>
+          <p class="ll-section-desc">${L('زر صفحة التواصل لتجد كل طرق الوصول إلينا — بريد إلكتروني وشبكات التواصل الاجتماعي.','Visitez la page contact pour toutes nos coordonnées.')}</p>
+        </div>
+        <div class="ll-reveal" style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.03));border:1px solid rgba(232,184,75,.2);border-radius:20px;padding:2.5rem;margin-top:1.5rem">
+          <div style="font-size:3rem;margin-bottom:1rem">📬</div>
+          <div style="font-size:1.1rem;font-weight:800;color:var(--text);margin-bottom:.5rem">${L('فريقنا يرد خلال 24 ساعة','Notre équipe répond sous 24h')}</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.7">${L('تجد في صفحة التواصل: البريد الإلكتروني، WhatsApp، Facebook، Instagram وLinkedIn.','Sur la page contact : email, WhatsApp, Facebook, Instagram et LinkedIn.')}</p>
+          <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+            <button class="ll-btn ll-btn-gold ll-btn-lg" onclick="App.navigate('contact')">${L('📱 صفحة التواصل','📱 Page contact')}</button>
+            <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showRegisterPanel()">${L('ابدأ مجاناً','Commencer')}</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="ll-footer" style="border-top:1px solid rgba(255,255,255,.07)">
+      <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
+        <button class="ll-nav-link" onclick="App.navigate('landing')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <button class="ll-nav-link ll-active" style="background:none;border:none;cursor:pointer;font-family:inherit;color:var(--gold)">${L('من نحن','À propos')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <a href="mailto:contact@smartstruct.dz" class="ll-nav-link">contact@smartstruct.dz</a>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <div>© 2026 SmartStruct</div>
+      </div>
+    </footer>
+  </div>`;
+};
+
+// ═══ Pages.landing ═══
 Pages.landing = function() {
   const user = Auth.getUser();
   const isAr = I18N.currentLang === 'ar';
@@ -1279,7 +1742,7 @@ Pages.landing = function() {
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
-          <div class="ll-nav-logo-sub">v7.2 PRO</div>
+          <div class="ll-nav-logo-sub">v7.3 PRO</div>
         </div>
       </a>
 
@@ -1299,8 +1762,28 @@ Pages.landing = function() {
           : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
              <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
         }
+        <!-- Hamburger للموبايل -->
+        <button class="ll-hamburger" id="llHamburger" aria-label="${L('القائمة','Menu')}" onclick="(function(){const m=document.getElementById('llMobileMenu');m.style.display=m.style.display==='flex'?'none':'flex';})()">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </nav>
+
+    <!-- Mobile Menu -->
+    <div id="llMobileMenu" style="display:none;position:fixed;inset:0;background:var(--bg,#09120A);z-index:9998;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem">
+      <button style="position:absolute;top:1.2rem;${isAr?'left':'right'}:1.2rem;background:none;border:none;color:var(--text,#fff);font-size:1.6rem;cursor:pointer" onclick="document.getElementById('llMobileMenu').style.display='none'">✕</button>
+      <a class="ll-nav-link" href="#ll-features" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('المزايا','Fonctionnalités')}</a>
+      <a class="ll-nav-link" href="#ll-showcase" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('عرض الواجهة','Aperçu')}</a>
+      <a class="ll-nav-link" href="#ll-benefits" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الفوائد','Avantages')}</a>
+      <a class="ll-nav-link" href="#ll-pricing" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الأسعار','Tarifs')}</a>
+      <div style="display:flex;flex-direction:column;gap:.7rem;width:200px;margin-top:1rem">
+        ${user
+          ? `<button class="ll-btn ll-btn-gold" data-nav="${user.is_admin?'admin':'dashboard'}" onclick="document.getElementById('llMobileMenu').style.display='none'" style="justify-content:center">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          : `<button class="ll-btn ll-btn-gold" onclick="document.getElementById('llMobileMenu').style.display='none';showRegisterPanel()" style="justify-content:center">${L('جرّب مجاناً','Essai gratuit')}</button>
+             <button class="ll-btn ll-btn-ghost" onclick="document.getElementById('llMobileMenu').style.display='none';showLoginPanel()" style="justify-content:center">${L('دخول','Connexion')}</button>`
+        }
+      </div>
+    </div>
 
     <!-- ═══ HERO ═══ -->
     <section class="ll-hero">
@@ -1953,6 +2436,61 @@ Pages.landing = function() {
       </div>
     </section>
 
+    <!-- ═══ PRICING ═══ -->
+    <section class="ll-section" id="ll-pricing">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('شفافية تامة','Tarification claire')}</span>
+        <h2 class="ll-section-title">${L('خطط تناسب','Des formules adaptées à')}<span class="ll-gold"> ${L('كل مقاول','chaque entrepreneur')}</span></h2>
+        <p class="ll-section-desc">${L('ابدأ مجاناً 14 يوماً — لا بطاقة بنكية مطلوبة.','Commencez gratuitement 14 jours — sans carte bancaire.')}</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.2rem;max-width:880px;margin:0 auto">
+
+        <!-- خطة مجانية -->
+        <div class="ll-reveal" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem">
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">🆓 ${L('تجريبي','Essai')}</div>
+          <div style="font-size:2rem;font-weight:900;color:var(--text)">${L('مجاني','Gratuit')} <span style="font-size:.8rem;color:var(--muted);font-weight:500">/ 14 ${L('يوم','jours')}</span></div>
+          <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted);flex:1">
+            <li>✓ ${L('مشروعان نشطان','2 projets actifs')}</li>
+            <li>✓ ${L('10 عمال','10 ouvriers')}</li>
+            <li>✓ ${L('كل الوثائق الإدارية','Tous les documents admin')}</li>
+            <li>✓ ${L('تقارير أساسية','Rapports de base')}</li>
+          </ul>
+          <button class="ll-btn ll-btn-ghost" onclick="showRegisterPanel()" style="width:100%;justify-content:center">${L('ابدأ مجاناً','Commencer')}</button>
+        </div>
+
+        <!-- خطة أساسية -->
+        <div class="ll-reveal" style="background:rgba(232,184,75,.05);border:1px solid rgba(232,184,75,.3);border-radius:16px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem;position:relative">
+          <div style="position:absolute;top:-12px;${isAr?'right':'left'}:1.5rem;background:var(--gold);color:#09120A;font-size:.65rem;font-weight:900;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px">${L('الأكثر طلباً','Le plus populaire')}</div>
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">⭐ ${L('أساسي','Essentiel')}</div>
+          <div style="font-size:2rem;font-weight:900;color:var(--text)">2,500 <span style="font-size:.8rem;color:var(--muted);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
+          <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted);flex:1">
+            <li style="color:var(--text)">✓ ${L('10 مشاريع','10 projets')}</li>
+            <li style="color:var(--text)">✓ ${L('50 عامل','50 ouvriers')}</li>
+            <li style="color:var(--text)">✓ ${L('ذكاء اصطناعي SmartAI','SmartAI intégré')}</li>
+            <li style="color:var(--text)">✓ ${L('تقارير متقدمة + تصدير','Rapports avancés + export')}</li>
+            <li>✓ ${L('Realtime sync','Sync temps réel')}</li>
+          </ul>
+          <button class="ll-btn ll-btn-gold" onclick="showRegisterPanel()" style="width:100%;justify-content:center">${L('ابدأ الآن','Commencer')}</button>
+        </div>
+
+        <!-- خطة احترافية -->
+        <div class="ll-reveal" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem">
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">🏆 ${L('احترافي','Pro')}</div>
+          <div style="font-size:2rem;font-weight:900;color:var(--text)">7,500 <span style="font-size:.8rem;color:var(--muted);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
+          <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted);flex:1">
+            <li>✓ ${L('مشاريع غير محدودة','Projets illimités')}</li>
+            <li>✓ ${L('عمال غير محدودين','Ouvriers illimités')}</li>
+            <li>✓ ${L('كل مزايا الأساسي','Tout Essentiel')}</li>
+            <li>✓ ${L('دعم ذو أولوية','Support prioritaire')}</li>
+            <li>✓ ${L('تقرير AI شهري','Rapport IA mensuel')}</li>
+          </ul>
+          <button class="ll-btn ll-btn-ghost" onclick="showRegisterPanel()" style="width:100%;justify-content:center">${L('تواصل معنا','Nous contacter')}</button>
+        </div>
+
+      </div>
+    </section>
+
     <!-- ═══ CTA ═══ -->
     <div class="ll-cta ll-reveal">
       <div class="ll-cta-content">
@@ -1982,7 +2520,7 @@ Pages.landing = function() {
             <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
             <div class="ll-nav-logo-text">
               <div class="ll-nav-logo-name">SmartStruct</div>
-              <div class="ll-nav-logo-sub">v7.2 PRO</div>
+              <div class="ll-nav-logo-sub">v7.3 PRO</div>
             </div>
           </div>
           <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
@@ -1993,22 +2531,21 @@ Pages.landing = function() {
             <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
             <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
             <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
+            <li><a href="#ll-benefits">${L('الفوائد','Avantages')}</a></li>
           </ul>
         </div>
         <div class="ll-footer-col">
           <h4>${L('الشركة','Entreprise')}</h4>
           <ul>
             <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
-            <li><a href="#">${L('من نحن','À propos')}</a></li>
-            <li><a href="#">${L('الوظائف','Carrières')}</a></li>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('about')">${L('من نحن','À propos')}</a></li>
           </ul>
         </div>
         <div class="ll-footer-col">
           <h4>${L('الدعم','Support')}</h4>
           <ul>
-            <li><a href="#">${L('مركز المساعدة','Aide')}</a></li>
-            <li><a href="#">${L('التوثيق','Documentation')}</a></li>
-            <li><a href="#">${L('حالة الخدمة','Statut')}</a></li>
+            <li><a href="mailto:support@smartstruct.dz">${L('الدعم التقني','Support technique')}</a></li>
+            <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
           </ul>
         </div>
       </div>
@@ -2022,7 +2559,7 @@ Pages.landing = function() {
 
 /* ─── Init dynamic effects after landing renders ─── */
 function initLandingEffects() {
-  const root = document.getElementById('landingRoot');
+  const root = document.getElementById('landingRoot') || document.getElementById('aboutRoot') || document.getElementById('contactRoot');
   if (!root) return;
 
   // Particles
@@ -17022,7 +17559,7 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis','dz_documents','archive'];
+    'audit_log','obligations','team','ai_analysis','dz_documents','archive','about','contact'];
   if (hash && validPages.includes(hash)) {
     App.currentPage = hash;
   }

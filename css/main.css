@@ -2762,3 +2762,28 @@ svg circle:hover { opacity: 1 !important; transform-box: fill-box; transform-ori
 @keyframes rtPulse{0%,100%{opacity:1}50%{opacity:.5}}
 .rt-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#34C38F;animation:rtPulse 1.5s ease-in-out infinite;margin-left:4px;}
 
+
+/* ═══ Hamburger Menu ═══ */
+.ll-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+}
+.ll-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text, #e0d4a8);
+  border-radius: 2px;
+  transition: all .25s;
+}
+@media (max-width: 768px) {
+  .ll-hamburger { display: flex; }
+  .ll-nav-links  { display: none !important; }
+  .ll-nav-cta .ll-btn { display: none; }
+  .ll-nav-cta .ll-lang-btn { display: flex; }
+}
