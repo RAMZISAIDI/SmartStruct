@@ -341,7 +341,7 @@ function _L(fr, ar) {
 }
 
 const _TERMS = {
-  'PROFORMA':      { fr:_T('PROFORMA'),                     ar:'فاتورة شكلية' },
+  'PROFORMA':      { fr:'FACTURE PROFORMA',                     ar:'فاتورة شكلية' },
   'DEVIS':         { fr:'DEVIS ESTIMATIF',                      ar:'كشف تقديري' },
   'BPU':           { fr:'BORDEREAU DES PRIX UNITAIRES',         ar:'جدول الأسعار الوحدوية' },
   'OFFRE':         { fr:'OFFRE DE SERVICE',                     ar:'عرض خدمة' },
@@ -356,10 +356,10 @@ const _TERMS = {
   'QUITTANCE':     { fr:'QUITTANCE DE PAIEMENT',                ar:'وصل التسديد' },
   'FICHE_PAIE':    { fr:'BULLETIN DE PAIE',                     ar:'كشف الراتب' },
   'CONTRAT':       { fr:'CONTRAT DE TRAVAIL',                   ar:'عقد عمل' },
-  'POINTAGE':      { fr:_T('POINTAGE'),                    ar:'بطاقة الحضور' },
-  'ATTESTATION':   { fr:_T('ATTESTATION'),               ar:'شهادة عمل' },
+  'POINTAGE':      { fr:'FICHE DE POINTAGE',                    ar:'بطاقة الحضور' },
+  'ATTESTATION':   { fr:'ATTESTATION DE TRAVAIL',               ar:'شهادة عمل' },
   'BON_CMD':       { fr:'BON DE COMMANDE',                      ar:'وصل الطلب' },
-  'BON_REC':       { fr:_T('BON_REC'),                     ar:'وصل الاستلام' },
+  'BON_REC':       { fr:'BON DE RÉCEPTION',                     ar:'وصل الاستلام' },
   'BON_SORTIE':    { fr:'BON DE SORTIE',                        ar:'وصل الخروج' },
   'FICHE_SUIVI':   { fr:'FICHE DE SUIVI ÉQUIPEMENT',            ar:'بطاقة تتبع المعدة' },
   'client':        { fr:'Client',             ar:'العميل' },
@@ -369,9 +369,9 @@ const _TERMS = {
   'unit':          { fr:'Unité',              ar:'الوحدة' },
   'pu':            { fr:'P.U. (DA)',           ar:'س.و. (دج)' },
   'total_col':     { fr:'Total (DA)',          ar:'المجموع (دج)' },
-  'total_ht':      { fr:_T('total_ht'),      ar:'المجموع ق.ض.' },
+  'total_ht':      { fr:'Sous-total HT',      ar:'المجموع ق.ض.' },
   'tva':           { fr:'TVA',                ar:'TVA' },
-  'total_ttc':     { fr:_T('total_ttc'),          ar:'المجموع الإجمالي' },
+  'total_ttc':     { fr:'TOTAL TTC',          ar:'المجموع الإجمالي' },
   'signature':     { fr:'Signature',          ar:'التوقيع' },
   'stamp':         { fr:'Cachet',             ar:'الختم' },
   'maitre':        { fr:"Maître d'ouvrage",   ar:'صاحب المشروع' },
@@ -1659,30 +1659,70 @@ ${_buildFooter(num)}`;
     const tenant = Auth.getTenant() || {};
     const num    = opts.number || `PAIE-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
     const worker = opts.worker || {};
+    const isAr   = _docLang === 'ar';
 
-    const baseSalary = Number(opts.baseSalary || worker.monthly_base || (worker.daily_salary || 0) * 26);
-    const daysWorked = Number(opts.daysWorked || 26);
-    const overtime   = Number(opts.overtime || 0);
-    const bonuses    = Number(opts.bonuses || 0);
-    const transport  = Number(opts.transport || 0);
+    const daysWorked   = Number(opts.daysWorked || 26);
+    const contractType = worker.contract_type || opts.contractType || 'monthly';
+    const dailySal     = Number(worker.daily_salary || 0);
+    const monthlySal   = Number(worker.monthly_base || dailySal * 26);
 
-    const grossSalary = baseSalary + overtime + bonuses + transport;
-    // Algerian rates: CNAS employee 9% (cotis salariales)
-    const cnas = Math.round(grossSalary * 0.09);
-    const taxableBase = grossSalary - cnas;
-    // IRG (simplified bracket — most workers fall in low bracket)
-    let irg = 0;
-    if (taxableBase > 30000) {
-      if (taxableBase <= 35000) irg = (taxableBase - 30000) * 0.20;
-      else if (taxableBase <= 40000) irg = 1000 + (taxableBase - 35000) * 0.23;
-      else if (taxableBase <= 80000) irg = 2150 + (taxableBase - 40000) * 0.27;
-      else if (taxableBase <= 160000) irg = 12950 + (taxableBase - 80000) * 0.30;
-      else if (taxableBase <= 320000) irg = 36950 + (taxableBase - 160000) * 0.33;
-      else irg = 89750 + (taxableBase - 320000) * 0.35;
-      irg = Math.round(irg);
+    // ✅ الحساب الصحيح: العامل اليومي = daily × days / العامل الشهري = monthly_base ثابت
+    let baseSalary;
+    if (opts.baseSalary !== undefined) {
+      // إذا مُرِّر مباشرة (من صفحة الرواتب — يكون محسوباً بالفعل)
+      baseSalary = Number(opts.baseSalary);
+    } else if (contractType === 'daily' || contractType === 'seasonal') {
+      baseSalary = Math.round(dailySal * daysWorked);
+    } else {
+      // monthly / contract — الراتب ثابت لا يتغير بعدد الأيام
+      baseSalary = monthlySal;
     }
-    const otherDeductions = Number(opts.otherDeductions || 0);
-    const netSalary = grossSalary - cnas - irg - otherDeductions;
+
+    const overtime    = Number(opts.overtime || 0);
+    const bonuses     = Number(opts.bonuses || 0);
+    const transport   = Number(opts.transport || 0);
+    const grossSalary = baseSalary + overtime + bonuses + transport;
+
+    // ── حساب صافي الراتب بالقانون الجزائري 2026 ──
+    // نستخدم البيانات الممرّرة إذا كانت محسوبة مسبقاً، وإلا نعيد الحساب
+    let cnas, taxableBase, irg_raw, abattement, irg_net, allocations, netSalary;
+
+    if (opts.cnas !== undefined) {
+      // ✅ البيانات جاهزة محسوبة مسبقاً من صفحة الرواتب — استخدمها كما هي
+      cnas         = Number(opts.cnas);
+      irg_net      = Number(opts.irg || 0);
+      allocations  = Number(opts.allocations || 0);
+      taxableBase  = Number(opts.taxableBase || (grossSalary - cnas));
+      irg_raw      = irg_net;
+      abattement   = 0;
+      netSalary    = Number(opts.netSalary || Math.max(0, taxableBase - irg_net + allocations));
+    } else {
+      // احسب من صفر باستخدام دالة الحساب الجزائري
+      cnas         = Math.round(grossSalary * 0.09);
+      taxableBase  = grossSalary - cnas;
+      // باريم IRG 2026 الصحيح
+      if      (taxableBase <= 30000)  irg_raw = 0;
+      else if (taxableBase <= 40000)  irg_raw = (taxableBase - 30000) * 0.23;
+      else if (taxableBase <= 80000)  irg_raw = 2300 + (taxableBase - 40000) * 0.27;
+      else if (taxableBase <= 160000) irg_raw = 2300 + 10800 + (taxableBase - 80000) * 0.30;
+      else if (taxableBase <= 320000) irg_raw = 2300 + 10800 + 24000 + (taxableBase - 160000) * 0.33;
+      else                            irg_raw = 2300 + 10800 + 24000 + 52800 + (taxableBase - 320000) * 0.35;
+      irg_raw = Math.round(irg_raw);
+      // Abattement 40% (min 1000, max 1500)
+      abattement = irg_raw > 0 ? Math.min(Math.max(Math.round(irg_raw * 0.40), 1000), 1500) : 0;
+      irg_net    = Math.max(0, irg_raw - abattement);
+      // Allocations familiales
+      const married  = (worker.marital_status || opts.marital_status) === 'married';
+      const children = Number(worker.children_count || opts.children || 0);
+      const spouseWorks = Number(worker.spouse_works || 0) === 1;
+      allocations = children * 300 + (married && !spouseWorks ? 800 : 0);
+      netSalary   = Math.max(0, taxableBase - irg_net + allocations);
+    }
+
+    const maritalStatus = worker.marital_status || opts.marital_status || 'single';
+    const maritalLabel  = isAr
+      ? (maritalStatus==='married'?'متزوج/ة':maritalStatus==='divorced'?'مطلق/ة':maritalStatus==='widowed'?'أرمل/ة':'أعزب/عزباء')
+      : (maritalStatus==='married'?'Marié(e)':maritalStatus==='divorced'?'Divorcé(e)':maritalStatus==='widowed'?'Veuf/Veuve':'Célibataire');
 
     const body = `
 ${_buildHeader(tenant, _T('FICHE_PAIE'), num, _fmtDate(opts.date || _todayISO()))}
@@ -1690,118 +1730,131 @@ ${_buildHeader(tenant, _T('FICHE_PAIE'), num, _fmtDate(opts.date || _todayISO())
 <div class="section">
   <div class="info-grid">
     <div class="info-block">
-      <h4>👤 Employé / العامل</h4>
+      <h4>👤 ${_L('Employé','العامل')}</h4>
       <p><strong>${_esc(worker.full_name || opts.workerName || '—')}</strong></p>
-      ${worker.role ? `<p><strong>Fonction:</strong> ${_esc(worker.role)}</p>` : ''}
-      ${worker.national_id ? `<p><strong>N° CNI:</strong> ${_esc(worker.national_id)}</p>` : ''}
-      ${worker.hire_date ? `<p><strong>Embauché(e) le:</strong> ${_fmtDate(worker.hire_date)}</p>` : ''}
+      ${worker.role ? `<p><strong>${_L('Poste','المنصب')}:</strong> ${_esc(worker.role)}</p>` : ''}
+      ${worker.national_id ? `<p><strong>${_L('N° CIN','رقم البطاقة الوطنية')}:</strong> ${_esc(worker.national_id)}</p>` : ''}
+      ${worker.cnas_number ? `<p><strong>N° CNAS:</strong> ${_esc(worker.cnas_number)}</p>` : ''}
+      <p><strong>${_L('Sit. Familiale','الحالة العائلية')}:</strong> ${maritalLabel}</p>
+      ${(Number(worker.children_count||0)>0)?`<p><strong>${_L('Enfants','الأطفال')}:</strong> ${worker.children_count||0}</p>`:''}
     </div>
     <div class="info-block">
-      <h4>📅 Période / الفترة</h4>
-      <p><strong>Mois:</strong> ${_esc(opts.month || new Date().toLocaleString('fr-DZ', { month:'long', year:'numeric' }))}</p>
-      <p><strong>Jours travaillés:</strong> ${daysWorked}</p>
-      <p><strong>Type contrat:</strong> ${_esc(worker.contract_type === 'monthly' ? 'CDI / Mensuel' : (worker.contract_type === 'daily' ? 'Journalier' : '—'))}</p>
+      <h4>📅 ${_L('Période','الفترة')}</h4>
+      <p><strong>${_L('Mois','الشهر')}:</strong> ${_esc(opts.month || new Date().toLocaleString(isAr?'ar-DZ':'fr-DZ', { month:'long', year:'numeric' }))}</p>
+      <p><strong>${_L('Jours travaillés','أيام العمل')}:</strong> ${daysWorked}</p>
+      <p><strong>${_L('Type contrat','نوع العقد')}:</strong> ${_esc(worker.contract_type==='monthly'?_L('CDI / Mensuel','شهري CDI'):worker.contract_type==='daily'?_L('Journalier','يومي'):'—')}</p>
+      ${worker.hire_date?`<p><strong>${_L('Embauché(e) le','تاريخ التعيين')}:</strong> ${_fmtDate(worker.hire_date)}</p>`:''}
     </div>
   </div>
 </div>
 
 <div class="section">
-  <div class="section-title">💰 Gains / المكتسبات</div>
+  <div class="section-title">💰 ${_L('Gains / Éléments de Rémunération','المكتسبات والعناصر التعويضية')}</div>
   <table>
     <thead><tr>
-      <th>Désignation</th>
-      <th class="td-center" style="width:90px">Base</th>
-      <th class="td-center" style="width:80px">Taux</th>
-      <th class="td-right" style="width:140px">Montant (DA)</th>
+      <th>${_L('Désignation','التعيين')}</th>
+      <th class="td-center" style="width:90px">${_L('Base','القاعدة')}</th>
+      <th class="td-center" style="width:80px">${_L('Taux','المعدل')}</th>
+      <th class="td-right" style="width:140px">${_L('Montant (DA)','المبلغ (دج)')}</th>
     </tr></thead>
     <tbody>
       <tr>
-        <td>Salaire de base</td>
-        <td class="td-center td-num">${daysWorked} j</td>
+        <td>${_L('Salaire de base','الراتب القاعدي')}</td>
+        <td class="td-center td-num">${daysWorked} ${_L('j','ي')}</td>
         <td class="td-center">—</td>
-        <td class="td-right td-num"><strong>${_fmt(baseSalary)}</strong></td>
+        <td class="td-right td-num">${_fmt(baseSalary)}</td>
       </tr>
-      ${overtime > 0 ? `<tr>
-        <td>Heures supplémentaires</td>
-        <td class="td-center">—</td>
-        <td class="td-center">+50%</td>
-        <td class="td-right td-num">${_fmt(overtime)}</td>
-      </tr>` : ''}
-      ${bonuses > 0 ? `<tr>
-        <td>Primes / Indemnités</td>
-        <td class="td-center">—</td>
-        <td class="td-center">—</td>
-        <td class="td-right td-num">${_fmt(bonuses)}</td>
-      </tr>` : ''}
-      ${transport > 0 ? `<tr>
-        <td>Indemnité de transport</td>
-        <td class="td-center">—</td>
-        <td class="td-center">—</td>
-        <td class="td-right td-num">${_fmt(transport)}</td>
-      </tr>` : ''}
-      <tr style="background:#fff !important; border-top:1.5px solid #B8902F !important">
-        <td colspan="3" style="font-weight:900;color:#B8902F">SALAIRE BRUT</td>
-        <td class="td-right td-num" style="font-weight:900;color:#B8902F">${_fmt(grossSalary)}</td>
+      ${overtime>0?`<tr><td>${_L('Heures supplémentaires','الساعات الإضافية')}</td><td class="td-center">—</td><td class="td-center">—</td><td class="td-right td-num">${_fmt(overtime)}</td></tr>`:''}
+      ${bonuses>0?`<tr><td>${_L('Primes & Indemnités','العلاوات والتعويضات')}</td><td class="td-center">—</td><td class="td-center">—</td><td class="td-right td-num">${_fmt(bonuses)}</td></tr>`:''}
+      ${transport>0?`<tr><td>${_L('Indemnité Transport (non imposable)','تعويض النقل (معفى)')}</td><td class="td-center">—</td><td class="td-center">—</td><td class="td-right td-num">${_fmt(transport)}</td></tr>`:''}
+      <tr style="font-weight:700;background:#f8f3e8">
+        <td colspan="3">${_L('SALAIRE BRUT IMPOSABLE','الراتب الإجمالي الخاضع للضريبة')}</td>
+        <td class="td-right td-num" style="color:#B8902F">${_fmt(grossSalary)}</td>
       </tr>
     </tbody>
   </table>
 </div>
 
 <div class="section">
-  <div class="section-title">📉 Retenues / الاقتطاعات</div>
+  <div class="section-title">➖ ${_L('Retenues Obligatoires','الاقتطاعات الإلزامية')}</div>
   <table>
     <thead><tr>
-      <th>Désignation</th>
-      <th class="td-center" style="width:120px">Base imposable</th>
-      <th class="td-center" style="width:80px">Taux</th>
-      <th class="td-right" style="width:140px">Montant (DA)</th>
+      <th>${_L('Désignation','التعيين')}</th>
+      <th class="td-center" style="width:120px">${_L('Base de calcul','أساس الحساب')}</th>
+      <th class="td-center" style="width:80px">${_L('Taux','المعدل')}</th>
+      <th class="td-right" style="width:140px">${_L('Montant (DA)','المبلغ (دج)')}</th>
     </tr></thead>
     <tbody>
       <tr>
-        <td>CNAS — Cotisation sécurité sociale (part salariale)</td>
+        <td>${_L('Cotisation CNAS — Sécurité Sociale (part salariale)','اشتراك الضمان الاجتماعي CNAS — حصة العامل')}</td>
         <td class="td-center td-num">${_fmt(grossSalary)}</td>
-        <td class="td-center">9.00%</td>
-        <td class="td-right td-num" style="color:#a32d3d">−${_fmt(cnas)}</td>
+        <td class="td-center" style="color:#c0392b">9%</td>
+        <td class="td-right td-num" style="color:#c0392b">−${_fmt(cnas)}</td>
       </tr>
       <tr>
-        <td>IRG — Impôt sur le revenu global</td>
+        <td>${_L('Base Imposable IRG (Brut − CNAS)','الوعاء الضريبي للـ IRG')}</td>
         <td class="td-center td-num">${_fmt(taxableBase)}</td>
-        <td class="td-center">Barème</td>
-        <td class="td-right td-num" style="color:#a32d3d">−${_fmt(irg)}</td>
+        <td class="td-center">—</td>
+        <td class="td-right td-num">${_fmt(taxableBase)}</td>
       </tr>
-      ${otherDeductions > 0 ? `<tr>
-        <td>Autres retenues (avances, prêts...)</td>
-        <td class="td-center">—</td>
-        <td class="td-center">—</td>
-        <td class="td-right td-num" style="color:#a32d3d">−${_fmt(otherDeductions)}</td>
-      </tr>` : ''}
-      <tr style="background:#fff !important; border-top:1.5px solid #a32d3d !important">
-        <td colspan="3" style="font-weight:900;color:#a32d3d">TOTAL RETENUES</td>
-        <td class="td-right td-num" style="font-weight:900;color:#a32d3d">−${_fmt(cnas + irg + otherDeductions)}</td>
+      <tr>
+        <td>${_L('IRG — Impôt sur le Revenu Global (barème 2026)','IRG — الضريبة على الدخل الإجمالي (جدول 2026)')}</td>
+        <td class="td-center td-num">${_fmt(taxableBase)}</td>
+        <td class="td-center" style="color:#c0392b">${_L('Progressif','تصاعدي')}</td>
+        <td class="td-right td-num" style="color:#c0392b">${_fmt(irg_raw > 0 ? irg_raw : 0)}</td>
+      </tr>
+      ${(abattement>0)?`<tr style="font-size:.85em;color:#2e7d32">
+        <td>  ↳ ${_L('Abattement forfaitaire 40%','تخفيض 40%')} (${_L('min','أدنى')} 1 000 / ${_L('max','أقصى')} 1 500 DA)</td>
+        <td class="td-center td-num">${_fmt(irg_raw)}</td>
+        <td class="td-center">40%</td>
+        <td class="td-right td-num" style="color:#2e7d32">−${_fmt(abattement)}</td>
+      </tr>`:''}
+      <tr style="font-weight:700;background:#fdecea">
+        <td colspan="3">IRG ${_L('Net à retenir','الصافي المُحجوز')}</td>
+        <td class="td-right td-num" style="color:#c0392b">−${_fmt(irg_net)}</td>
       </tr>
     </tbody>
   </table>
 </div>
 
-<div class="big-amount">
-  NET À PAYER : ${_fmt(netSalary)} DA
+${allocations>0?`
+<div class="section">
+  <div class="section-title">➕ ${_L('Allocations Familiales (non imposables)','المنح العائلية (معفاة من الضريبة)')}</div>
+  <table>
+    <thead><tr><th>${_L('Désignation','التعيين')}</th><th class="td-right" style="width:140px">${_L('Montant (DA)','المبلغ (دج)')}</th></tr></thead>
+    <tbody>
+      ${Number(worker.children_count||opts.children||0)>0?`<tr><td>${_L('Allocations Enfants','منح الأطفال')} (${Number(worker.children_count||opts.children||0)} × 300 DA)</td><td class="td-right td-num" style="color:#2e7d32">+${_fmt(Number(worker.children_count||opts.children||0)*300)}</td></tr>`:''}
+      ${(maritalStatus==='married'&&Number(worker.spouse_works||0)===0)?`<tr><td>${_L('Salaire Unique (conjoint sans activité)','تعويض الزوجة غير العاملة')}</td><td class="td-right td-num" style="color:#2e7d32">+800</td></tr>`:''}
+      <tr style="font-weight:700"><td>${_L('Total Allocations Familiales','مجموع المنح العائلية')}</td><td class="td-right td-num" style="color:#2e7d32">+${_fmt(allocations)}</td></tr>
+    </tbody>
+  </table>
+</div>`:''}
+
+<div class="section">
+  <table style="border:2px solid #B8902F">
+    <tbody>
+      <tr style="background:#f8f3e8">
+        <td style="font-size:1rem;font-weight:900;padding:.8rem">${_L('NET À PAYER','صافي الراتب للصرف')}</td>
+        <td class="td-right" style="font-size:1.3rem;font-weight:900;color:#0a5c2f;padding:.8rem;font-family:monospace">${_fmt(netSalary)} DA</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:.5rem;font-size:.75em;color:#666;text-align:center">
+    ${_L(`Barème IRG 2026 — Exonération ≤ 30 000 DA | Tranches: 23% / 27% / 30% / 33% / 35% | Abattement 40% (max 1 500 DA) | CNAS 9%`,
+         `جدول IRG 2026 — إعفاء ≤ 30,000 دج | شرائح: 23% / 27% / 30% / 33% / 35% | تخفيض 40% (أقصى 1,500 دج) | CNAS 9%`)}
+  </div>
 </div>
 
-<div class="notes-block">
-  <strong>ℹ️ Cotisations patronales (à la charge de l'employeur, non déduites du salaire) :</strong>
-  CNAS 26% sur salaire brut = ${_fmt(Math.round(grossSalary * 0.26))} DA<br>
-  <strong>ℹ️ كشف الراتب وفقاً للقانون رقم 90-11 المتعلق بعلاقات العمل والقانون رقم 11-13 المعدل لقانون الضرائب.</strong>
+<div class="sig-row">
+  <div class="sig-block"><div class="sig-title">${_L('L\'Employeur / Le Responsable RH','صاحب العمل / مسؤول الموارد البشرية')}</div><div class="sig-space"></div><div class="sig-label">${_T('signature')} & ${_T('stamp')}</div></div>
+  <div class="sig-block"><div class="sig-title">${_L('L\'Employé(e)','العامل / العاملة')}</div><div class="sig-space"></div><div class="sig-label">${_T('signature')}</div></div>
 </div>
 
-<div class="signatures">
-  <div class="sig-block">
-    <div class="role">L'Employé(e) / العامل</div>
-    <div class="line">Signature pour réception</div>
-  </div>
-  <div class="sig-block">
-    <div class="role">L'Employeur / صاحب العمل</div>
-    <div class="stamp-zone">CACHET ET SIGNATURE</div>
-  </div>
+<div class="section" style="margin-top:.5rem;font-size:.75em;color:#666;border-top:1px solid #eee;padding-top:.5rem">
+  <strong>${_L('Note','ملاحظة')}:</strong> ${_L(
+    `Cotisations patronales CNAS (26%) à la charge de l'employeur : ${_fmt(Math.round(grossSalary*0.26))} DA — non déduit du salaire salarié.`,
+    `اشتراكات صاحب العمل في الضمان الاجتماعي (CNAS 26%): ${_fmt(Math.round(grossSalary*0.26))} دج — لا تُقتطع من راتب العامل.`
+  )}
 </div>
 
 ${_buildFooter(num)}`;
@@ -2811,14 +2864,12 @@ window.DZArchive = {
 })();
 
 // ── تحميل اللغة المحفوظة عند الإقلاع ──
-(function _initDocLang() {
-  try {
-    const saved = localStorage.getItem('sbtp_doc_lang');
-    if (saved === 'ar' || saved === 'fr') {
-      _docLang = saved;
-      console.log('[DZDocs] لغة الوثيقة المحفوظة:', saved);
-    }
-  } catch(_) {}
-})();
+try {
+  const _savedDocLang = localStorage.getItem('sbtp_doc_lang');
+  if (_savedDocLang === 'ar' || _savedDocLang === 'fr') {
+    _docLang = _savedDocLang;
+    console.log('[DZDocs] لغة الوثيقة المحفوظة:', _savedDocLang);
+  }
+} catch(_) {}
 
 })();

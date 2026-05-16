@@ -5097,7 +5097,7 @@ Pages.projects = function() {
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label><input class="form-input" id="pClient" placeholder="${L('بلدية / شركة...','Commune / Société...')}"></div>
-          <div class="form-group"><label class="form-label">${L('هاتف العميل','Tél. client')}</label><input class="form-input" id="pPhone" placeholder="0550..."></div>
+          <div class="form-group"><label class="form-label">${L('هاتف العميل','Tél. client')}</label><input class="form-input" id="pPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="pBudget" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('رقم الصفقة / المرجع','N° Marché / Réf.')}</label><input class="form-input" id="pMarket" placeholder="N°/2025/..."></div>
           <div class="form-group"><label class="form-label">${L('الموقع / عنوان الورشة','Lieu / Adresse chantier')}</label><input class="form-input" id="pLocation" placeholder="${L('حي الورود، بئر مراد رايس...','Cité des roses...')}"></div>
@@ -5126,10 +5126,10 @@ Pages.projects = function() {
             <option value="delayed">${L('متأخر','En retard')}</option>
             <option value="paused">${L('متوقف','Pausé')}</option>
           </select></div>
-          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100"></div>
-          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('المرحلة','Phase')}</label><select class="form-select" id="epPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom client')}</label><input class="form-input" id="epClient"></div>
+          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom client')}</label><input class="form-input" id="epClient" type="text" placeholder="${L('اسم العميل','Nom client')}"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الانتهاء','Date fin')}</label><input class="form-input" id="epEnd" type="date"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="saveProject()">💾 ${L('حفظ التعديلات','Enregistrer')}</button></div>
@@ -5695,9 +5695,9 @@ Pages.workers = function() {
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label><input class="form-input" id="wName" placeholder="${L('محمد الأمين...','Prénom Nom...')}"></div>
           <div class="form-group"><label class="form-label">${L('المهنة *','Métier *')}</label><input class="form-input" id="wRole" placeholder="${L('بنّاء، حداد...','Maçon, Ferrailleur...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="wPhone" placeholder="0550..."></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهوية الوطنية','N° CIN')}</label><input class="form-input" id="wNid"></div>
-          <div class="form-group"><label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label><input class="form-input" id="wSalary" type="number" placeholder="3000" oninput="(function(){const v=Number(this.value)||0;const el=document.getElementById('wMonthly');if(el&&!el._manualEdit)el.value=Math.round(v*26);}).call(this)"></div>
+          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="wPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهوية الوطنية','N° CIN')}</label><input class="form-input" id="wNid" type="text" placeholder="00 123 45678 90 12" pattern="[0-9 ]{10,20}" inputmode="numeric" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label><input class="form-input" id="wSalary" type="number" placeholder="3000" min="0" step="1" inputmode="numeric" oninput="(function(){const v=Number(this.value)||0;const el=document.getElementById('wMonthly');if(el&&!el._manualEdit)el.value=Math.round(v*26);}).call(this)"></div>
           <div class="form-group"><label class="form-label">${L('الراتب الشهري القاعدي (دج)','Salaire base mensuel (DA)')}</label><input class="form-input" id="wMonthly" type="number" placeholder="${L('يُحسب تلقائياً','Auto-calculé')}" onfocus="this._manualEdit=true"></div>
           <div class="form-group"><label class="form-label">${L('نوع العقد','Type contrat')}</label><select class="form-select" id="wContract">
             <option value="daily">${L('يومي','Journalier')}</option>
@@ -5706,7 +5706,22 @@ Pages.workers = function() {
             <option value="contract">${L('مقاول','Sous-traitant')}</option>
           </select></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الميلاد','Date de naissance')}</label><input class="form-input" id="wDob" type="date"></div>
-          <div class="form-group"><label class="form-label">${L('رقم CNAS','N° CNAS')}</label><input class="form-input" id="wCnas" placeholder="000-000-000-00"></div>
+          <div class="form-group"><label class="form-label">${L('رقم CNAS','N° CNAS')}</label><input class="form-input" id="wCnas" type="text" placeholder="000-000-000-00" pattern="[0-9]{3}-[0-9]{3}-[0-9]{3}-[0-9]{2}" inputmode="numeric" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">💍 ${L('الحالة العائلية','Situation familiale')}</label><select class="form-select" id="wMarital">
+            <option value="single">${L('أعزب / عزباء','Célibataire')}</option>
+            <option value="married">${L('متزوج / متزوجة','Marié(e)')}</option>
+            <option value="divorced">${L('مطلق / مطلقة','Divorcé(e)')}</option>
+            <option value="widowed">${L('أرمل / أرملة','Veuf / Veuve')}</option>
+          </select></div>
+          <div class="form-group"><label class="form-label">👶 ${L('عدد الأطفال المعالين','Enfants à charge')}</label><input class="form-input" id="wChildren" type="number" min="0" max="20" step="1" inputmode="numeric" value="0"></div>
+          <div class="form-group"><label class="form-label">👫 ${L('هل الزوج/ة يعمل؟','Conjoint(e) travaille ?')}</label><select class="form-select" id="wSpouseWorks">
+            <option value="0">${L('لا — يُمنح Salaire Unique','Non — Salaire Unique accordé')}</option>
+            <option value="1">${L('نعم','Oui')}</option>
+          </select></div>
+          <div class="form-group"><label class="form-label">♿ ${L('معاق / متقاعد','Handicapé / Retraité')}</label><select class="form-select" id="wHandicap">
+            <option value="0">${L('لا','Non')}</option>
+            <option value="1">${L('نعم — تخفيض IRG 10%','Oui — Réduction IRG 10%')}</option>
+          </select></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="wProject"><option value="">${L('بدون مشروع','Sans projet')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('تاريخ التعيين','Date embauche')}</label><input class="form-input" id="wHire" type="date" value="${todayStr()}"></div>
         </div>
@@ -5720,10 +5735,10 @@ Pages.workers = function() {
       <div class="modal">
         <div class="modal-title">✏️ ${L('تعديل بيانات العامل','Modifier l\'ouvrier')}</div><input type="hidden" id="ewId">
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">${L('الاسم','Nom')}</label><input class="form-input" id="ewName"></div>
-          <div class="form-group"><label class="form-label">${L('المهنة','Métier')}</label><input class="form-input" id="ewRole"></div>
-          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="ewPhone"></div>
-          <div class="form-group"><label class="form-label">${L('الأجر اليومي','Salaire/j')}</label><input class="form-input" id="ewSalary" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('الاسم','Nom')}</label><input class="form-input" id="ewName" type="text" autocomplete="name"></div>
+          <div class="form-group"><label class="form-label">${L('المهنة','Métier')}</label><input class="form-input" id="ewRole" type="text" placeholder="${L('بنّاء، حداد...','Maçon, Ferrailleur...')}"></div>
+          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="ewPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
+          <div class="form-group"><label class="form-label">${L('الأجر اليومي','Salaire/j')}</label><input class="form-input" id="ewSalary" type="number" min="0" step="1" inputmode="numeric"></div>
           <div class="form-group"><label class="form-label">${L('نوع العقد','Type contrat')}</label><select class="form-select" id="ewContract">
             <option value="daily">${L('يومي','Journalier')}</option>
             <option value="monthly">${L('شهري','Mensuel')}</option>
@@ -5797,7 +5812,7 @@ Pages.equipment = function() {
           <div class="form-group"><label class="form-label">${L('الرقم التسلسلي','N° Série')}</label><input class="form-input" id="eSerial" dir="ltr" placeholder="CAT320-2024-001"></div>
           <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° Plaque')}</label><input class="form-input" id="ePlate" dir="ltr" placeholder="12345-AB-16"></div>
           <div class="form-group"><label class="form-label">${L('الأيقونة','Icône')}</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option><option>🔧</option><option>🚁</option></select></div>
-          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number" min="0" step="1" inputmode="numeric"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الشراء','Date d\'achat')}</label><input class="form-input" id="ePurchaseDate" type="date"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ آخر صيانة','Dernière maintenance')}</label><input class="form-input" id="eLastMaint" type="date"></div>
           <div class="form-group"><label class="form-label">${L('موعد الصيانة القادمة','Prochaine maintenance')}</label><input class="form-input" id="eNextMaint" type="date"></div>
@@ -5872,7 +5887,7 @@ Pages.transactions = function() {
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('النوع','Type')}</label><select class="form-select" id="txType" onchange="updateTxCats()"><option value="revenue">${L('إيراد','Revenu')}</option><option value="expense">${L('مصروف','Dépense')}</option></select></div>
           <div class="form-group"><label class="form-label">${L('الفئة','Catégorie')}</label><select class="form-select" id="txCat">${RCATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('المبلغ (دج) *','Montant (DA) *')}</label><input class="form-input" id="txAmount" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('المبلغ (دج) *','Montant (DA) *')}</label><input class="form-input" id="txAmount" type="number" placeholder="0" min="0" step="1" inputmode="numeric"></div>
           <div class="form-group"><label class="form-label">${L('التاريخ','Date')}</label><input class="form-input" id="txDate" type="date" value="${todayStr()}"></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="txProject"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('طريقة الدفع','Mode paiement')}</label><select class="form-select" id="txPayment">
@@ -6667,7 +6682,7 @@ Pages.settings = function() {
           <div style="font-weight:800;margin-bottom:1rem">🏢 ${L('معلومات الشركة','Infos de l\'entreprise')}</div>
           <div class="form-group"><label class="form-label">${L('اسم الشركة','Nom de la société')}</label><input class="form-input" id="setName" value="${escHtml(tenant?.name||'')}"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" value="${escHtml(tenant?.phone||'')}" placeholder="0550..."></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <button class="btn btn-gold" onclick="saveTenantSettings()">💾 ${L('حفظ التغييرات','Sauvegarder')}</button>
         </div>
 
@@ -6709,31 +6724,31 @@ Pages.settings = function() {
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">${L('رقم السجل التجاري (RC)','Registre de commerce (RC)')}</label>
-              <input class="form-input" id="setRc" value="${escHtml(tenant?.rc_number||'')}" placeholder="00/00-0000000">
+              <input class="form-input" id="setRc" type="text" value="${escHtml(tenant?.rc_number||'')}" placeholder="00/00-0000000" dir="ltr" inputmode="text">
             </div>
             <div class="form-group">
               <label class="form-label">${L('الرقم الجبائي (NIF)','N° identification fiscale (NIF)')}</label>
-              <input class="form-input" id="setNif" value="${escHtml(tenant?.nif||'')}" placeholder="000000000000000">
+              <input class="form-input" id="setNif" type="text" value="${escHtml(tenant?.nif||'')}" placeholder="000000000000000" dir="ltr" inputmode="numeric" maxlength="15">
             </div>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">${L('الرقم الإحصائي (NIS)','N° statistique (NIS)')}</label>
-              <input class="form-input" id="setNis" value="${escHtml(tenant?.nis||'')}" placeholder="000000000000000">
+              <input class="form-input" id="setNis" type="text" value="${escHtml(tenant?.nis||'')}" placeholder="000000000000000" dir="ltr" inputmode="numeric" maxlength="15">
             </div>
             <div class="form-group">
               <label class="form-label">${L('رقم المادة الجبائية','Article d\'imposition')}</label>
-              <input class="form-input" id="setArticleImp" value="${escHtml(tenant?.article_imp||'')}" placeholder="0000000000">
+              <input class="form-input" id="setArticleImp" type="text" value="${escHtml(tenant?.article_imp||'')}" placeholder="0000000000" dir="ltr" inputmode="numeric" maxlength="10">
             </div>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">${L('رقم الحساب البنكي (RIB)','Compte bancaire (RIB)')}</label>
-              <input class="form-input" id="setRib" value="${escHtml(tenant?.rib||'')}" placeholder="00000 00000 00000000 00">
+              <input class="form-input" id="setRib" type="text" value="${escHtml(tenant?.rib||'')}" placeholder="00000 00000 00000000 00" dir="ltr" inputmode="numeric" maxlength="23">
             </div>
             <div class="form-group">
               <label class="form-label">${L('نسبة TVA (%)','Taux TVA (%)')}</label>
-              <input class="form-input" id="setTva" type="number" value="${escHtml(String(tenant?.tva_rate||19))}" placeholder="19">
+              <input class="form-input" id="setTva" type="number" value="${escHtml(String(tenant?.tva_rate||19))}" placeholder="19" min="0" max="100" step="0.01" inputmode="decimal">
             </div>
           </div>
           <div class="form-group">
@@ -8422,7 +8437,7 @@ Pages.admin = function() {
                     <option value="">${L('اختر المؤسسة...','Choisir...')}</option>
                     ${DB.get('tenants').filter(t=>t.id!==1).map(t=>`<option value="${t.id}">${escHtml(t.name)}</option>`).join('')}
                   </select>
-                  <input type="text" id="dangNewPass" placeholder="${L('كلمة المرور الجديدة','Nouveau MDP')}" dir="ltr" style="width:160px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                  <input type="text" id="dangNewPass" type="password" placeholder="${L('كلمة المرور الجديدة','Nouveau MDP')}" dir="ltr" autocomplete="new-password" style="width:160px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
                   <button class="btn btn-blue btn-sm" onclick="adminResetTenantPassword()" style="font-weight:700">🔐 ${L('تعيين','Définir')}</button>
                 </div>
               </div>
@@ -9170,10 +9185,10 @@ Pages.project_detail = function() {
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus"><option value="active">${L('نشط','Actif')}</option><option value="completed">${L('مكتمل','Terminé')}</option><option value="delayed">${L('متأخر','En retard')}</option><option value="paused">${L('متوقف','Pausé')}</option></select></div>
-          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100"></div>
-          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('المرحلة','Phase')}</label><select class="form-select" id="epPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom du client')}</label><input class="form-input" id="epClient"></div>
+          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom du client')}</label><input class="form-input" id="epClient" type="text" placeholder="${L('اسم العميل','Nom client')}"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الانتهاء','Date de fin')}</label><input class="form-input" id="epEnd" type="date"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="saveProject()">💾 ${L('حفظ التعديلات','Enregistrer')}</button></div>
@@ -10362,11 +10377,12 @@ async function pullAllTenantDataFromSupabase(tenantId) {
    يتأكد أن كل حقل متوافق مع قاعدة البيانات قبل الحفظ
 ══════════════════════════════════════════════════════ */
 function validateForm(fields) {
-  // fields = [{ val, label, type }]
-  // type: 'required' | 'number' | 'email' | 'date' | 'phone'
+  // fields = [{ val, label, type, min, max }]
+  // type: 'required'|'number'|'email'|'date'|'phone'|'nif'|'nis'|'password'|'positive'
   for (const f of fields) {
     const v = (f.val === null || f.val === undefined) ? '' : String(f.val).trim();
 
+    // ─── مطلوب ───
     if (f.type === 'required' || !f.type) {
       if (!v) {
         Toast.error(L(`⚠️ الحقل "${f.label}" مطلوب`, `⚠️ Le champ "${f.label}" est requis`));
@@ -10374,36 +10390,76 @@ function validateForm(fields) {
       }
     }
 
-    if (f.type === 'number') {
+    // ─── رقم ───
+    if (f.type === 'number' || f.type === 'positive') {
       if (!v) {
         Toast.error(L(`⚠️ الحقل "${f.label}" مطلوب`, `⚠️ Le champ "${f.label}" est requis`));
         return false;
       }
       const n = Number(v.replace(/\s/g,'').replace(',','.'));
-      if (isNaN(n) || n < 0) {
-        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون رقماً صحيحاً`, `⚠️ "${f.label}" doit être un nombre valide`));
+      if (isNaN(n)) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون رقماً`, `⚠️ "${f.label}" doit être un nombre`));
+        return false;
+      }
+      if (f.type === 'positive' && n <= 0) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون أكبر من صفر`, `⚠️ "${f.label}" doit être > 0`));
+        return false;
+      }
+      if (f.min !== undefined && n < f.min) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون ≥ ${f.min}`, `⚠️ "${f.label}" doit être ≥ ${f.min}`));
+        return false;
+      }
+      if (f.max !== undefined && n > f.max) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون ≤ ${f.max}`, `⚠️ "${f.label}" doit être ≤ ${f.max}`));
         return false;
       }
     }
 
+    // ─── بريد إلكتروني ───
     if (f.type === 'email' && v) {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) {
-        Toast.error(L(`⚠️ البريد الإلكتروني "${f.label}" غير صالح`, `⚠️ Email "${f.label}" invalide`));
+        Toast.error(L(`⚠️ البريد "${f.label}" غير صالح (مثال: nom@société.dz)`, `⚠️ Email "${f.label}" invalide`));
         return false;
       }
     }
 
+    // ─── تاريخ ───
     if (f.type === 'date' && v) {
-      // يجب أن يكون بصيغة YYYY-MM-DD
       if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-        Toast.error(L(`⚠️ تاريخ "${f.label}" غير صالح (أدخل بصيغة يوم/شهر/سنة)`, `⚠️ Date "${f.label}" invalide`));
+        Toast.error(L(`⚠️ تاريخ "${f.label}" غير صالح — استخدم منتقي التاريخ`, `⚠️ Date "${f.label}" invalide — utilisez le sélecteur`));
         return false;
       }
     }
 
+    // ─── هاتف جزائري ───
     if (f.type === 'phone' && v) {
-      if (!/^[\d\s\+\-\(\)]{7,20}$/.test(v)) {
-        Toast.error(L(`⚠️ رقم هاتف "${f.label}" غير صالح`, `⚠️ Téléphone "${f.label}" invalide`));
+      const digits = v.replace(/[\s\-\(\)\+]/g, '');
+      if (!/^\d{9,10}$/.test(digits)) {
+        Toast.error(L(`⚠️ رقم هاتف "${f.label}" غير صالح — أدخل 9 أو 10 أرقام (مثال: 0550 XX XX XX)`, `⚠️ Téléphone "${f.label}" invalide — 9 ou 10 chiffres requis`));
+        return false;
+      }
+    }
+
+    // ─── NIF الجزائري (15 رقم) ───
+    if (f.type === 'nif' && v) {
+      if (!/^\d{15}$/.test(v.replace(/\s/g,''))) {
+        Toast.error(L(`⚠️ NIF "${f.label}" غير صالح — يجب أن يكون 15 رقماً`, `⚠️ NIF "${f.label}" invalide — 15 chiffres requis`));
+        return false;
+      }
+    }
+
+    // ─── NIS الجزائري (15 رقم) ───
+    if (f.type === 'nis' && v) {
+      if (!/^\d{15}$/.test(v.replace(/\s/g,''))) {
+        Toast.error(L(`⚠️ NIS "${f.label}" غير صالح — يجب أن يكون 15 رقماً`, `⚠️ NIS "${f.label}" invalide — 15 chiffres requis`));
+        return false;
+      }
+    }
+
+    // ─── كلمة المرور (6 أحرف على الأقل) ───
+    if (f.type === 'password' && v) {
+      if (v.length < 6) {
+        Toast.error(L(`⚠️ كلمة المرور "${f.label}" قصيرة جداً — 6 أحرف على الأقل`, `⚠️ Mot de passe "${f.label}" trop court — 6 caractères minimum`));
         return false;
       }
     }
@@ -10503,16 +10559,106 @@ function deleteProject(id,name) {
   Toast.success('تم حذف المشروع'); App.navigate('projects');
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  حساب الراتب الجزائري 2026 — IRG + CNAS + Allocations Familiales
+//  المرجع: باريم IRG لـ LF 2022 المطبّق في 2026
+// ════════════════════════════════════════════════════════════════════
+function calcAlgerianSalary(opts) {
+  /*
+   * opts: {
+   *   gross:           الراتب الإجمالي (brut imposable)
+   *   marital_status:  'single'|'married'|'divorced'|'widowed'
+   *   children_count:  عدد الأطفال المعالين
+   *   spouse_works:    0/1 — هل الزوج/ة يعمل؟
+   *   is_handicap:     0/1 — معاق/متقاعد → تخفيض IRG 10%
+   *   transport:       إضافات غير خاضعة للضريبة (transport, panier...)
+   * }
+   * يُرجع: { gross, cnas, taxableBase, irg_raw, abattement, irg_net, allocations, transport_net, net }
+   */
+  const gross          = Number(opts.gross || 0);
+  const married        = opts.marital_status === 'married';
+  const children       = Number(opts.children_count || 0);
+  const spouseWorks    = Number(opts.spouse_works || 0) === 1;
+  const handicap       = Number(opts.is_handicap || 0) === 1;
+  const transportBonus = Number(opts.transport || 0); // غير خاضع للضريبة
+
+  // ── 1. CNAS سالارية: 9% من الراتب الإجمالي ──
+  const cnas = Math.round(gross * 0.09);
+
+  // ── 2. الراتب الخاضع للضريبة ──
+  const taxableBase = gross - cnas;
+
+  // ── 3. IRG الخام — باريم 2026 (LF 2022) ──
+  let irg_raw = 0;
+  if (taxableBase <= 30000) {
+    irg_raw = 0;                                                    // 0% ← EXONÉRÉ
+  } else if (taxableBase <= 40000) {
+    irg_raw = (taxableBase - 30000) * 0.23;                        // 23%
+  } else if (taxableBase <= 80000) {
+    irg_raw = 2300 + (taxableBase - 40000) * 0.27;                 // 27%
+  } else if (taxableBase <= 160000) {
+    irg_raw = 2300 + 10800 + (taxableBase - 80000) * 0.30;         // 30%
+  } else if (taxableBase <= 320000) {
+    irg_raw = 2300 + 10800 + 24000 + (taxableBase - 160000) * 0.33;// 33%
+  } else {
+    irg_raw = 2300 + 10800 + 24000 + 52800 + (taxableBase - 320000) * 0.35; // 35%
+  }
+  irg_raw = Math.round(irg_raw);
+
+  // ── 4. Abattement 40% (حد أدنى 1000 دج، أقصى 1500 دج) ──
+  let abattement = Math.round(irg_raw * 0.40);
+  abattement = Math.min(Math.max(abattement, 1000), 1500);
+  if (irg_raw === 0) abattement = 0; // لا abattement إذا كان IRG = 0
+
+  // ── 5. IRG الصافي بعد الabattement ──
+  let irg_net = Math.max(0, irg_raw - abattement);
+
+  // ── 6. تخفيض المعاقين والمتقاعدين (10% من IRG) ──
+  if (handicap && irg_net > 0) {
+    irg_net = Math.round(irg_net * 0.90);
+  }
+
+  // ── 7. Allocations familiales (غير خاضعة للضريبة) ──
+  let allocations = 0;
+  if (married || opts.marital_status === 'widowed') {
+    // Allocation par enfant: 300 دج/شهر
+    allocations += children * 300;
+    // Salaire unique: 800 دج إذا الزوج/ة لا يعمل
+    if (married && !spouseWorks) allocations += 800;
+  } else if (opts.marital_status === 'divorced') {
+    // المطلق يستفيد من منح الأطفال إذا كان حاضنهم
+    allocations += children * 300;
+  }
+
+  // ── 8. الراتب الصافي النهائي ──
+  const net = Math.max(0, taxableBase - irg_net + allocations + transportBonus);
+
+  return {
+    gross,
+    cnas,
+    taxableBase,
+    irg_raw,
+    abattement,
+    irg_net,
+    allocations,
+    transport_net: transportBonus,
+    net,
+    // تفاصيل للعرض
+    deductions: cnas + irg_net,
+    effective_rate: gross > 0 ? ((cnas + irg_net) / gross * 100).toFixed(1) : 0,
+  };
+}
+
 function addWorker() {
   if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لإضافة عامل','Permission refusée : ouvrier')); return; }
   const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
   const phone=document.getElementById('wPhone')?.value?.trim();
   const salary=document.getElementById('wSalary')?.value;
   if (!validateForm([
-    { val: name,   label: L('الاسم الكامل','Nom complet'), type: 'required' },
-    { val: role,   label: L('المهنة','Métier'),             type: 'required' },
-    { val: salary, label: L('الأجر اليومي','Salaire journalier'), type: 'number' },
-    { val: phone,  label: L('الهاتف','Téléphone'),         type: 'phone'    },
+    { val: name,   label: L('الاسم الكامل','Nom complet'),         type: 'required' },
+    { val: role,   label: L('المهنة','Métier'),                      type: 'required' },
+    { val: salary, label: L('الأجر اليومي','Salaire journalier'),    type: 'number', min: 0 },
+    { val: phone,  label: L('الهاتف','Téléphone'),                   type: 'phone'    },
   ])) return;
   const dailySal = Number(document.getElementById('wSalary')?.value)||0;
   const monthlyVal = document.getElementById('wMonthly')?.value;
@@ -10531,7 +10677,11 @@ function addWorker() {
     contract_type:document.getElementById('wContract')?.value||'daily',
     project_id:   Number(document.getElementById('wProject')?.value)||null,
     hire_date:    document.getElementById('wHire')?.value||'',
-    color:        document.getElementById('wColor')?.value||'#4A90E2'
+    color:        document.getElementById('wColor')?.value||'#4A90E2',
+    marital_status:  document.getElementById('wMarital')?.value||'single',
+    children_count:  Number(document.getElementById('wChildren')?.value)||0,
+    spouse_works:    Number(document.getElementById('wSpouseWorks')?.value)||0,
+    is_handicap:     Number(document.getElementById('wHandicap')?.value)||0,
   };
   ws.push(newWorker);
   DB.set('workers',ws);
@@ -11992,7 +12142,7 @@ function openSubInvoicesModal(tenantId) {
           </div>
           <div class="form-group">
             <label class="form-label">${L('المبلغ (دج)','Montant (DA)')}</label>
-            <input class="form-input" id="subInvAmount" type="number" min="0" placeholder="7900" value="">
+            <input class="form-input" id="subInvAmount" type="number" min="0" step="1" inputmode="numeric" placeholder="7900" value="">
           </div>
           <div class="form-group">
             <label class="form-label">${L('بداية الفترة','Début période')}</label>
@@ -13960,11 +14110,25 @@ Pages.salary = function() {
   const monthLabel = MONTHS_AR[sm-1] + ' ' + sy;
   const monthAtt = att.filter(a => (a.date||'').startsWith(selectedMonthKey));
   const calcSalary = w => {
-    const wAtt = monthAtt.filter(a => a.worker_id===w.id);
-    const pDays = wAtt.filter(a=>a.status==='present').length;
-    const hDays = wAtt.filter(a=>a.status==='halfday').length;
-    if (w.contract_type==='monthly') return {base:Number(w.monthly_base||w.daily_salary*26), present:pDays, half:hDays, total:Number(w.monthly_base||w.daily_salary*26)};
-    return {base:Number(w.monthly_base||w.daily_salary*26), present:pDays, half:hDays, total:Math.round((pDays+hDays*0.5)*Number(w.daily_salary))};
+    const wAtt   = monthAtt.filter(a => a.worker_id === w.id);
+    const pDays  = wAtt.filter(a => a.status === 'present').length;
+    const hDays  = wAtt.filter(a => a.status === 'halfday').length;
+    // الراتب الإجمالي الخام
+    let gross;
+    if (w.contract_type === 'monthly') {
+      gross = Number(w.monthly_base || w.daily_salary * 26);
+    } else {
+      gross = Math.round((pDays + hDays * 0.5) * Number(w.daily_salary));
+    }
+    // حساب صافي الراتب بالقانون الجزائري 2026
+    const alg = calcAlgerianSalary({
+      gross,
+      marital_status:  w.marital_status  || 'single',
+      children_count:  w.children_count  || 0,
+      spouse_works:    w.spouse_works     || 0,
+      is_handicap:     w.is_handicap      || 0,
+    });
+    return { ...alg, present: pDays, half: hDays, base: gross, total: alg.net };
   };
   const total = workers.reduce((s,w)=>s+calcSalary(w).total, 0);
   // build month options
@@ -13991,33 +14155,274 @@ Pages.salary = function() {
       ${workers.map(w => {
         const calc = calcSalary(w);
         const paid = records.find(r=>r.worker_id===w.id&&r.month_key===selectedMonthKey);
+        const maritalLabel = w.marital_status==='married'?'💍 '+L('متزوج','Marié(e)'):
+          w.marital_status==='divorced'?L('مطلق','Divorcé(e)'):
+          w.marital_status==='widowed'?L('أرمل','Veuf/Veuve'):
+          L('أعزب','Célibataire');
         return `<div class="salary-card">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
             <div style="display:flex;align-items:center;gap:.8rem">
               ${avatarHtml(w.full_name, w.color, 44)}
               <div>
                 <div style="font-weight:800;font-size:.9rem">${escHtml(w.full_name)}</div>
-                <div style="font-size:.74rem;color:var(--dim)">${escHtml(w.role)} • ${w.contract_type==='monthly'?L('عقد شهري','Contrat mensuel'):L('أجر يومي','Journalier')}</div>
+                <div style="font-size:.74rem;color:var(--dim)">${escHtml(w.role)} • ${w.contract_type==='monthly'?L('شهري','Mensuel'):L('يومي','Journalier')} • ${maritalLabel}${(w.children_count||0)>0?' • 👶×'+w.children_count:''}</div>
               </div>
             </div>
-            <div style="text-align:left">
-              <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(calc.total)} دج</div>
-              <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.3rem">
-                <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.total},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}'})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 ${L('كشف PDF','Bulletin PDF')}</button>
-                ${paid?`<span class="badge badge-active">✅ تم الصرف</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${calc.total})">💳 صرف</button>`:'<span class="badge">معلق</span>'}
+            <div style="text-align:${L('left','right')}">
+              <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(calc.net)} دج <span style="font-size:.7rem;font-weight:500;color:var(--dim)">${L('صافي','NET')}</span></div>
+              <div style="font-size:.7rem;color:var(--dim);font-family:monospace;margin-top:2px">${L('إجمالي','Brut')}: ${fmt(calc.gross)} | CNAS: −${fmt(calc.cnas)} | IRG: −${fmt(calc.irg_net)}${calc.allocations>0?' | '+L('منح','Alloc.')+': +'+fmt(calc.allocations):''}</div>
+              <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.4rem">
+                <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.gross},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}',cnas:${calc.cnas},irg:${calc.irg_net},allocations:${calc.allocations},netSalary:${calc.net}})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 ${L('كشف PDF','Bulletin PDF')}</button>
+                <button class="btn btn-ghost btn-sm" onclick="printWorkerHistory(${w.id})" title="${L('كشف حساب كل الأشهر','Relevé annuel de salaires')}">📊 ${L('الأشهر','Historique')}</button>
+                ${paid?`<span class="badge badge-active">✅ ${L('تم الصرف','Payé')}</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${calc.net})">💳 ${L('صرف','Payer')}</button>`:`<span class="badge">${L('معلق','En attente')}</span>`}
               </div>
             </div>
           </div>
           <div class="salary-breakdown">
-            <div class="salary-line"><span>أيام الحضور</span><span>${calc.present} يوم${calc.half?` + ${calc.half} نصف يوم`:''}</span></div>
-            <div class="salary-line"><span>الأجر اليومي</span><span>${fmt(w.daily_salary)} دج/يوم</span></div>
-            <div class="salary-line total-line"><span>الراتب المستحق</span><span>${fmt(calc.total)} دج</span></div>
+            <div class="salary-line"><span>${L('أيام الحضور','Jours présence')}</span><span>${calc.present} ${L('يوم','j')}${calc.half?' + '+calc.half+' '+L('نصف','demi'):''}</span></div>
+            <div class="salary-line"><span>${L('الأجر الإجمالي (Brut)','Salaire brut')}</span><span>${fmt(calc.gross)} ${L('دج','DA')}</span></div>
+            <div class="salary-line" style="color:var(--red)"><span>− CNAS 9%</span><span>${fmt(calc.cnas)} ${L('دج','DA')}</span></div>
+            <div class="salary-line"><span>${L('الوعاء الخاضع (Imposable)','Base imposable')}</span><span>${fmt(calc.taxableBase)} ${L('دج','DA')}</span></div>
+            ${calc.irg_raw>0?`<div class="salary-line" style="font-size:.75rem;color:var(--dim)"><span>IRG ${L('خام','brut')}</span><span>${fmt(calc.irg_raw)} ${L('دج','DA')}</span></div>
+            <div class="salary-line" style="font-size:.75rem;color:var(--green)"><span>${L('تخفيض 40%','Abattement 40%')} (${L('حد أقصى','max')} 1500)</span><span>− ${fmt(calc.abattement)} ${L('دج','DA')}</span></div>`:''}
+            <div class="salary-line" style="color:var(--red)"><span>− IRG ${L('صافي','net')}</span><span>${fmt(calc.irg_net)} ${L('دج','DA')}</span></div>
+            ${calc.allocations>0?`<div class="salary-line" style="color:var(--green)"><span>+ ${L('منح عائلية','Allocations familiales')}</span><span>${fmt(calc.allocations)} ${L('دج','DA')}</span></div>`:''}
+            <div class="salary-line total-line"><span>${L('الراتب الصافي للدفع','Net à payer')}</span><span>${fmt(calc.net)} ${L('دج','DA')}</span></div>
           </div>
         </div>`;
       }).join('')}
     </div>
   `);
 };
+
+// ════════════════════════════════════════════════════════════════════
+//  كشف حساب العامل — كل الأشهر التي عمل فيها
+// ════════════════════════════════════════════════════════════════════
+function printWorkerHistory(wid) {
+  const tid     = Auth.getUser().tenant_id;
+  const worker  = (DB.get('workers')||[]).find(w => w.id === wid);
+  const tenant  = Auth.getTenant() || {};
+  if (!worker) { Toast.error(L('العامل غير موجود','Employé introuvable')); return; }
+
+  const allAtt     = (DB.get('attendance')||[]).filter(a => a.worker_id === wid);
+  const allRecords = (DB.get('salary_records')||[]).filter(r => r.worker_id === wid);
+
+  // جمع كل الأشهر التي يوجد فيها حضور أو سجل دفع
+  const monthsSet = new Set();
+  allAtt.forEach(a => { if (a.date) monthsSet.add(a.date.slice(0,7)); });
+  allRecords.forEach(r => { if (r.month_key) monthsSet.add(r.month_key); });
+
+  if (!monthsSet.size) {
+    Toast.warn(L('لا توجد بيانات أشهر لهذا العامل','Aucune donnée de mois pour cet employé'));
+    return;
+  }
+
+  // ترتيب الأشهر تصاعدياً
+  const months = [...monthsSet].sort();
+
+  // بناء سجل كل شهر مع الحساب الكامل
+  const rows = months.map(mk => {
+    const [y, m]   = mk.split('-').map(Number);
+    const mAtt     = allAtt.filter(a => (a.date||'').startsWith(mk));
+    const pDays    = mAtt.filter(a => a.status === 'present').length;
+    const hDays    = mAtt.filter(a => a.status === 'halfday').length;
+    const totalDays = pDays + hDays * 0.5;
+    const paid     = allRecords.find(r => r.month_key === mk);
+
+    let gross;
+    if (worker.contract_type === 'monthly') {
+      gross = Number(worker.monthly_base || worker.daily_salary * 26);
+    } else {
+      gross = Math.round(totalDays * Number(worker.daily_salary || 0));
+    }
+
+    const alg = typeof calcAlgerianSalary === 'function'
+      ? calcAlgerianSalary({ gross, marital_status: worker.marital_status||'single', children_count: worker.children_count||0, spouse_works: worker.spouse_works||0, is_handicap: worker.is_handicap||0 })
+      : { gross, cnas: Math.round(gross*0.09), irg_net: 0, allocations: 0, net: gross - Math.round(gross*0.09) };
+
+    return { mk, y, m, pDays, hDays, totalDays, gross, ...alg, paid };
+  });
+
+  // حساب الإجماليات
+  const totals = rows.reduce((s, r) => ({
+    gross:       s.gross       + r.gross,
+    cnas:        s.cnas        + r.cnas,
+    irg_net:     s.irg_net     + r.irg_net,
+    allocations: s.allocations + r.allocations,
+    net:         s.net         + r.net,
+    days:        s.days        + r.totalDays,
+  }), { gross:0, cnas:0, irg_net:0, allocations:0, net:0, days:0 });
+
+  const isAr    = I18N.currentLang === 'ar';
+  const fmtNum  = n => Number(n||0).toLocaleString('fr-DZ');
+  const MOIS    = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MOIS_AR = ['جانفي','فيفري','مارس','أفريل','ماي','جوان','جويلية','أوت','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const mLabel  = (m, y) => (isAr ? MOIS_AR[m-1] : MOIS[m-1]) + ' ' + y;
+
+  const maritalLabel = {
+    single: isAr ? 'أعزب' : 'Célibataire',
+    married: isAr ? 'متزوج' : 'Marié(e)',
+    divorced: isAr ? 'مطلق' : 'Divorcé(e)',
+    widowed: isAr ? 'أرمل' : 'Veuf/Veuve',
+  }[worker.marital_status||'single'] || (isAr?'أعزب':'Célibataire');
+
+  // ── بناء HTML للوثيقة ──
+  const tableRows = rows.map((r, i) => `
+    <tr style="background:${i%2===0?'#fafaf8':'#fff'}">
+      <td style="font-weight:600;white-space:nowrap">${mLabel(r.m, r.y)}</td>
+      <td style="text-align:center">${r.totalDays}</td>
+      <td style="text-align:right;font-family:monospace">${fmtNum(r.gross)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(r.cnas)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(r.irg_net)}</td>
+      ${r.allocations>0?`<td style="text-align:right;font-family:monospace;color:#27ae60">+${fmtNum(r.allocations)}</td>`:`<td style="text-align:center;color:#aaa">—</td>`}
+      <td style="text-align:right;font-family:monospace;font-weight:900;color:#0a5c2f">${fmtNum(r.net)}</td>
+      <td style="text-align:center">
+        ${r.paid
+          ? `<span style="background:#e8f8ee;color:#27ae60;border:1px solid #a8d5b5;border-radius:12px;padding:2px 10px;font-size:.8em;font-weight:700">✅ ${isAr?'مُصرَف':'Payé'}</span>`
+          : `<span style="background:#fff8e6;color:#b8902f;border:1px solid #e8c87a;border-radius:12px;padding:2px 10px;font-size:.8em;font-weight:700">⏳ ${isAr?'معلق':'En attente'}</span>`
+        }
+      </td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr?'كشف حساب':'Relevé de salaires'} — ${worker.full_name}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family: 'Segoe UI', 'Arial', sans-serif; font-size:13px; color:#1a1a1a; background:#fff; direction:${isAr?'rtl':'ltr'}; }
+  @page { size:A4 landscape; margin:15mm; }
+  @media print { .no-print { display:none!important; } }
+  .no-print { position:fixed; top:12px; ${isAr?'left':'right'}:12px; display:flex; gap:8px; z-index:999; }
+  .btn-p { padding:9px 18px; background:#B8902F; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700; }
+  .btn-close { padding:9px 16px; background:#eee; color:#333; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700; }
+  /* Entête */
+  .header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:12px; border-bottom:3px solid #B8902F; margin-bottom:16px; }
+  .brand-name { font-size:1.3rem; font-weight:900; color:#0a1a0a; }
+  .brand-sub  { font-size:.78rem; color:#666; margin-top:2px; }
+  .doc-title  { font-size:1.4rem; font-weight:900; color:#B8902F; text-align:${isAr?'left':'right'}; }
+  .doc-sub    { font-size:.78rem; color:#888; text-align:${isAr?'left':'right'}; margin-top:3px; }
+  /* Info worker */
+  .worker-card { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; background:#f8f5ee; border:1px solid #e0c97a; border-radius:10px; padding:12px 16px; margin-bottom:16px; }
+  .worker-field { }
+  .worker-label { font-size:.7rem; color:#888; text-transform:uppercase; letter-spacing:.5px; }
+  .worker-value { font-size:.92rem; font-weight:700; color:#1a1a1a; margin-top:2px; }
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  thead tr { background:#B8902F; color:#fff; }
+  thead th { padding:9px 10px; font-weight:700; text-align:right; }
+  thead th:first-child { text-align:${isAr?'right':'left'}; }
+  tbody td { padding:7px 10px; border-bottom:1px solid #f0ede0; }
+  tfoot tr { background:#f0ede8; font-weight:900; }
+  tfoot td { padding:10px; border-top:2px solid #B8902F; }
+  /* Summary */
+  .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:16px; }
+  .sum-box { background:#f8f5ee; border:1px solid #e0c97a; border-radius:8px; padding:10px 14px; text-align:center; }
+  .sum-num  { font-size:1.1rem; font-weight:900; font-family:monospace; }
+  .sum-lbl  { font-size:.72rem; color:#888; margin-top:3px; }
+  .gold-bar { height:4px; background:linear-gradient(90deg,#B8902F,#E8B84B,#B8902F); border-radius:2px; margin:12px 0; }
+  .footer   { margin-top:16px; padding-top:10px; border-top:1px solid #e8e0cc; display:flex; justify-content:space-between; font-size:.72rem; color:#999; }
+</style>
+</head>
+<body>
+<div class="no-print">
+  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="btn-close" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<div class="header">
+  <div>
+    <div class="brand-name">▦ ${tenant.name || 'المؤسسة'}</div>
+    <div class="brand-sub">${[tenant.rc_number?'RC: '+tenant.rc_number:'', tenant.nif?'NIF: '+tenant.nif:'', tenant.address||''].filter(Boolean).join(' | ')}</div>
+  </div>
+  <div>
+    <div class="doc-title">${isAr?'كشف حساب الرواتب السنوي':'RELEVÉ ANNUEL DES SALAIRES'}</div>
+    <div class="doc-sub">${isAr?'سجل كامل لكل الأشهر المُستحقة':'Récapitulatif complet de tous les mois travaillés'}</div>
+  </div>
+</div>
+
+<div class="worker-card">
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'العامل':'Employé(e)'}</div>
+    <div class="worker-value">${worker.full_name}</div>
+  </div>
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'المنصب':'Poste'}</div>
+    <div class="worker-value">${worker.role||'—'}</div>
+  </div>
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'الحالة العائلية':'Situation familiale'}</div>
+    <div class="worker-value">${maritalLabel}${(worker.children_count||0)>0?' • '+worker.children_count+' '+(isAr?'أطفال':'enfants'):''}</div>
+  </div>
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'عدد الأشهر':'Mois travaillés'}</div>
+    <div class="worker-value">${rows.length} ${isAr?'شهر':'mois'} | ${totals.days} ${isAr?'يوم إجمالي':'jours total'}</div>
+  </div>
+</div>
+
+<div class="gold-bar"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align:${isAr?'right':'left'}">${isAr?'الشهر':'Mois'}</th>
+      <th>${isAr?'أيام العمل':'Jours'}</th>
+      <th>${isAr?'الإجمالي (دج)':'Brut (DA)'}</th>
+      <th>− CNAS 9%</th>
+      <th>− IRG</th>
+      <th>${isAr?'+ المنح':'+ Alloc.'}</th>
+      <th>${isAr?'الصافي (دج)':'Net (DA)'}</th>
+      <th>${isAr?'الحالة':'Statut'}</th>
+    </tr>
+  </thead>
+  <tbody>${tableRows}</tbody>
+  <tfoot>
+    <tr>
+      <td style="font-weight:900;text-align:${isAr?'right':'left'}">${isAr?'الإجمالي السنوي':'TOTAL ANNUEL'}</td>
+      <td style="text-align:center;font-family:monospace">${totals.days}</td>
+      <td style="text-align:right;font-family:monospace">${fmtNum(totals.gross)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(totals.cnas)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(totals.irg_net)}</td>
+      <td style="text-align:right;font-family:monospace;color:#27ae60">+${fmtNum(totals.allocations)}</td>
+      <td style="text-align:right;font-family:monospace;color:#0a5c2f;font-size:1.05rem">${fmtNum(totals.net)}</td>
+      <td style="text-align:center">—</td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="summary">
+  <div class="sum-box">
+    <div class="sum-num" style="color:#1a1a1a">${fmtNum(totals.gross)}</div>
+    <div class="sum-lbl">${isAr?'إجمالي الرواتب (دج)':'Total brut (DA)'}</div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-num" style="color:#c0392b">${fmtNum(totals.cnas)}</div>
+    <div class="sum-lbl">Total CNAS 9%</div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-num" style="color:#c0392b">${fmtNum(totals.irg_net)}</div>
+    <div class="sum-lbl">Total IRG</div>
+  </div>
+  <div class="sum-box" style="background:#e8f8ee;border-color:#a8d5b5">
+    <div class="sum-num" style="color:#0a5c2f">${fmtNum(totals.net)}</div>
+    <div class="sum-lbl">${isAr?'إجمالي الصافي المصروف (دج)':'Total NET versé (DA)'}</div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme gestion BTP Algérie'}</span>
+  <span>${isAr?'تاريخ الإصدار':'Émis le'}: ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ', {day:'2-digit',month:'long',year:'numeric'})}</span>
+</div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=1100,height=820');
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `Relevé_${worker.full_name.replace(/\s+/g,'_')}.pdf`;
+}
 
 function paySalary(wid, monthKey, amount) {
   if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaire')); return; }
@@ -14215,7 +14620,7 @@ Pages.invoices = function() {
           </div>
           <div class="form-group">
             <label class="form-label">NIF ${L('العميل','Client')}</label>
-            <input class="form-input" id="invClientNif" placeholder="000 111 222 333 444" dir="ltr">
+            <input class="form-input" id="invClientNif" type="text" placeholder="000 111 222 333 444" dir="ltr" inputmode="numeric" maxlength="20">
           </div>
           <div class="form-group">
             <label class="form-label">${L('المشروع','Projet')}</label>
@@ -14257,7 +14662,7 @@ Pages.invoices = function() {
           </div>
           <div class="form-group">
             <label class="form-label">${L('نسبة TVA (%)','Taux TVA (%)')}</label>
-            <input class="form-input" id="invTVA" type="number" value="${tenant?.tva_rate||19}" min="0" max="100">
+            <input class="form-input" id="invTVA" type="number" value="${tenant?.tva_rate||19}" min="0" max="100" step="0.01" inputmode="decimal">
           </div>
         </div>
 
@@ -16729,7 +17134,7 @@ Pages.obligations = function() {
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label">${L('المبلغ (دج)','Montant (DA)')}</label>
-            <input class="form-input" id="ob_amount" type="number" placeholder="500000">
+            <input class="form-input" id="ob_amount" type="number" min="0" step="1" inputmode="numeric" placeholder="500000">
           </div>
           <div class="form-group">
             <label class="form-label">${L('تاريخ الاستحقاق','Date d\'échéance')}</label>

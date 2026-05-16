@@ -259,41 +259,81 @@ window.DZDocsUI = {
         <div id="dzdModalBody" style="max-height:65vh;overflow-y:auto;padding:.4rem"></div>
         <div class="modal-footer" style="flex-wrap:wrap;gap:.5rem">
           <button class="btn btn-ghost" onclick="DZDocsUI.close()">${_L('إلغاء','Annuler')}</button>
-          <!-- ─── زر اختيار لغة الوثيقة ─── -->
-          <div style="display:flex;align-items:center;gap:.4rem;margin-${_L('left','right')}:auto">
-            <span style="font-size:.72rem;color:var(--dim)">${_L('لغة الوثيقة:','Langue du document:')}</span>
-            <button id="dzdLangBtn"
-              onclick="DZDocsUI.toggleDocLang()"
-              title="${_L('تبديل لغة الوثيقة','Changer la langue du document')}"
-              style="padding:5px 12px;background:rgba(184,144,47,.1);border:1px solid rgba(184,144,47,.3);border-radius:6px;color:var(--gold);cursor:pointer;font-family:inherit;font-size:.78rem;font-weight:700">
-              ${_L('🇫🇷 Français','🇩🇿 عربية')}
-            </button>
+
+          <!-- ═══ اختيار لغة الوثيقة (خياران واضحان) ═══ -->
+          <div style="display:flex;align-items:center;gap:.5rem;margin-${_L('left','right')}:auto;background:rgba(184,144,47,.05);padding:6px 10px;border-radius:10px;border:1px solid rgba(184,144,47,.2)">
+            <span style="font-size:.72rem;color:var(--gold);font-weight:700;white-space:nowrap">🌐 ${_L('لغة الوثيقة','Langue')}:</span>
+            <div id="dzdLangGroup" style="display:flex;background:rgba(0,0,0,.25);padding:3px;border-radius:8px;gap:2px">
+              <button id="dzdLangFr"
+                onclick="DZDocsUI.setDocLang('fr')"
+                style="padding:5px 14px;background:rgba(184,144,47,.85);border:none;border-radius:6px;color:#0F1A0F;cursor:pointer;font-family:inherit;font-size:.75rem;font-weight:900;transition:all .2s">
+                🇫🇷 Français
+              </button>
+              <button id="dzdLangAr"
+                onclick="DZDocsUI.setDocLang('ar')"
+                style="padding:5px 14px;background:transparent;border:none;border-radius:6px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.75rem;font-weight:700;transition:all .2s">
+                🇩🇿 عربية
+              </button>
+            </div>
           </div>
+
           <button class="btn btn-gold" id="dzdGenerateBtn">📄 ${_L('توليد وطباعة PDF','Générer & Imprimer PDF')}</button>
         </div>
       </div>`;
     document.body.appendChild(div);
     // إغلاق عند النقر على الخلفية
     div.addEventListener('click', e => { if (e.target === div) this.close(); });
+
+    // تحميل اللغة المحفوظة وتطبيقها على الأزرار
+    setTimeout(() => {
+      if (typeof DZDocs !== 'undefined' && DZDocs._getLang) {
+        this._updateLangButtons(DZDocs._getLang());
+      }
+    }, 100);
   },
 
-  // ── تبديل لغة الوثيقة ──
-  toggleDocLang() {
-    if (typeof DZDocs === 'undefined') return;
-    const current = DZDocs._getLang();
-    const newLang = current === 'fr' ? 'ar' : 'fr';
-    DZDocs._setLang(newLang);
-    // تحديث زر اللغة
-    const btn = document.getElementById('dzdLangBtn');
-    if (btn) {
-      btn.textContent = newLang === 'ar' ? '🇩🇿 عربية' : '🇫🇷 Français';
+  // ─── تحديد لغة الوثيقة (مع تحديث الأزرار) ───
+  setDocLang(lang) {
+    if (typeof DZDocs === 'undefined') {
+      if (typeof Toast !== 'undefined') Toast.error(_L('نظام الوثائق لم يُحمَّل بعد','Module DZDocs non chargé'));
+      return;
     }
+    DZDocs._setLang(lang);
+    this._updateLangButtons(lang);
     if (typeof Toast !== 'undefined') {
-      Toast.info(newLang === 'ar'
-        ? '🇩🇿 الوثيقة ستُولَّد باللغة العربية'
-        : '🇫🇷 Le document sera généré en Français'
+      Toast.info(lang === 'ar'
+        ? '🇩🇿 الوثيقة ستُولَّد باللغة العربية الكاملة'
+        : '🇫🇷 Le document sera généré entièrement en Français'
       );
     }
+  },
+
+  // ─── تحديث مظهر أزرار اللغة ───
+  _updateLangButtons(lang) {
+    const fr = document.getElementById('dzdLangFr');
+    const ar = document.getElementById('dzdLangAr');
+    if (!fr || !ar) return;
+    if (lang === 'fr') {
+      fr.style.background = 'rgba(184,144,47,.85)';
+      fr.style.color      = '#0F1A0F';
+      ar.style.background = 'transparent';
+      ar.style.color      = 'var(--muted)';
+    } else {
+      ar.style.background = 'rgba(184,144,47,.85)';
+      ar.style.color      = '#0F1A0F';
+      fr.style.background = 'transparent';
+      fr.style.color      = 'var(--muted)';
+    }
+  },
+
+  // ── تبديل لغة الوثيقة (تركها للتوافق مع الكود القديم) ──
+  toggleDocLang() {
+    if (typeof DZDocs === 'undefined') {
+      if (typeof Toast !== 'undefined') Toast.error(_L('نظام الوثائق لم يُحمَّل بعد','Module DZDocs non chargé'));
+      return;
+    }
+    const current = DZDocs._getLang();
+    this.setDocLang(current === 'fr' ? 'ar' : 'fr');
   },
 
   open(key) {
@@ -510,7 +550,7 @@ _handlers: {
   </div>
   <div class="form-group">
     <label class="form-label">NIF ${_L('العميل','client')}</label>
-    <input class="form-input" id="proClientNif">
+    <input class="form-input" id="proClientNif" type="text" placeholder="000 111 222 333 444" dir="ltr" inputmode="numeric" maxlength="20">
   </div>
   <div class="form-group" style="grid-column:1/-1">
     <label class="form-label">${_L('عنوان العميل','Adresse client')}</label>
@@ -765,7 +805,7 @@ _handlers: {
   </div>
   <div class="form-group">
     <label class="form-label">${_L('الساعة','Heure')}</label>
-    <input class="form-input" id="pvoHour" value="09h00">
+    <input class="form-input" id="pvoHour" type="time" value="09:00" placeholder="09:00">
   </div>
   <div class="form-group">
     <label class="form-label">${_L('تاريخ الانطلاق','Date démarrage')}</label>
@@ -804,7 +844,7 @@ _handlers: {
   </div>
   <div class="form-group">
     <label class="form-label">${_L('رقم المرفق','N° Attachement')}</label>
-    <input class="form-input" id="attNum" value="01">
+    <input class="form-input" id="attNum" type="text" value="01" inputmode="numeric" placeholder="01">
   </div>
   <div class="form-group">
     <label class="form-label">${_L('مرجع الصفقة','Réf. marché')}</label>
@@ -1203,12 +1243,17 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
     <input class="form-input" id="paieMonth" value="${new Date().toLocaleString('fr-DZ',{month:'long',year:'numeric'})}">
   </div>
   <div class="form-group">
-    <label class="form-label">${_L('أيام العمل','Jours travaillés')}</label>
-    <input class="form-input" type="number" id="paieDays" value="26" min="0" max="31">
+    <label class="form-label">${_L('أيام العمل','Jours travaillés')} *</label>
+    <input class="form-input" type="number" id="paieDays" value="26" min="0" max="31"
+      oninput="DZDocsUI._handlers._recalcPaieBase()"
+    >
   </div>
   <div class="form-group">
-    <label class="form-label">${_L('الراتب القاعدي (دج)','Salaire de base (DA)')} *</label>
-    <input class="form-input" type="number" id="paieBase" value="${defBase}" min="0" placeholder="${_L('يُملأ تلقائياً عند اختيار العامل','Pré-rempli à la sélection')}">
+    <label class="form-label" id="paieBaseLabel">
+      ${_L('الراتب القاعدي (دج)','Salaire de base (DA)')} *
+      <span id="paieBaseHint" style="font-size:.7rem;color:var(--gold);margin-${_L('right','left')}:.3rem"></span>
+    </label>
+    <input class="form-input" type="number" id="paieBase" value="${defBase}" min="0" placeholder="${_L('يُملأ تلقائياً','Auto-calculé')}">
   </div>
   <div class="form-group">
     <label class="form-label">${_L('ساعات إضافية (دج)','Heures supp. (DA)')}</label>
@@ -1228,22 +1273,72 @@ ${invs.length>0?`<div class="form-group" style="margin-bottom:1rem;padding:.8rem
   </div>
 </div>
 <div style="font-size:.75rem;color:var(--dim);padding:.5rem;background:rgba(232,184,75,.04);border-radius:6px;margin-top:.5rem">
-  💡 ${_L('الاقتطاعات المحسوبة تلقائياً: CNAS 9% + IRG حسب الشرائح الجزائرية','CNAS 9% + IRG calculé automatiquement selon barème algérien')}
+  💡 ${_L('الاقتطاعات المحسوبة تلقائياً: CNAS 9% + IRG حسب الشرائح الجزائرية 2026','CNAS 9% + IRG calculé auto selon barème algérien 2026')}
 </div>`);
       this._setAction('📄 ' + _L('توليد PDF','Générer PDF'), () => {
-        const wid = this._val('paieWorker');
+        const wid    = this._val('paieWorker');
         const worker = wid ? this._workersList().find(w=>String(w.id)===String(wid)) : null;
         if (!worker) { _toast(_L('اختر عاملًا','Choisir employé'),'error'); return; }
         if (!this._num('paieBase')) { _toast(_L('أدخِل الراتب القاعدي','Saisir salaire base'),'error'); return; }
-        DZDocs.fichePaie({ worker, month:this._val('paieMonth'), daysWorked:this._num('paieDays',26), baseSalary:this._num('paieBase'), overtime:this._num('paieOT'), bonuses:this._num('paieBonus'), transport:this._num('paieTransp'), otherDeductions:this._num('paieOther') });
+        DZDocs.fichePaie({
+          worker,
+          month:       this._val('paieMonth'),
+          daysWorked:  this._num('paieDays', 26),
+          baseSalary:  this._num('paieBase'),
+          contractType: worker.contract_type || 'monthly',
+          overtime:    this._num('paieOT'),
+          bonuses:     this._num('paieBonus'),
+          transport:   this._num('paieTransp'),
+          otherDeductions: this._num('paieOther'),
+        });
       });
+      // ✅ إذا كان عامل محدد مسبقاً، نهيئ حقول الأيام والراتب
+      if (defW) {
+        setTimeout(() => {
+          const sel = document.getElementById('paieWorker');
+          if (sel) {
+            sel._workerDaily   = Number(defW.daily_salary || 0);
+            sel._workerMonthly = Number(defW.monthly_base || (defW.daily_salary||0)*26);
+            sel._workerType    = defW.contract_type || 'monthly';
+            this._handlers._recalcPaieBase();
+          }
+        }, 100);
+      }
     },
     _fillPaieFromWorker(wid) {
       if (!wid) return;
-      const worker = this._workersList().find(w=>String(w.id)===String(wid));
-      if (!worker) return;
-      const base = document.getElementById('paieBase');
-      if (base) base.value = worker.monthly_base || (worker.daily_salary||0)*26 || '';
+      const sel = document.getElementById('paieWorker');
+      const opt = sel ? sel.options[sel.selectedIndex] : null;
+      // احفظ بيانات العامل على الـ select لاستخدامها عند تغيير الأيام
+      if (opt) {
+        sel._workerDaily    = Number(opt.dataset.daily || 0);
+        sel._workerMonthly  = Number(opt.dataset.base  || 0);
+        sel._workerType     = opt.dataset.type || 'monthly';
+      }
+      this._handlers._recalcPaieBase();
+    },
+
+    _recalcPaieBase() {
+      const sel     = document.getElementById('paieWorker');
+      const baseInp = document.getElementById('paieBase');
+      const hintEl  = document.getElementById('paieBaseHint');
+      if (!sel || !baseInp) return;
+
+      const type    = sel._workerType    || 'monthly';
+      const daily   = sel._workerDaily   || 0;
+      const monthly = sel._workerMonthly || 0;
+      const days    = Number(document.getElementById('paieDays')?.value || 26);
+
+      if (type === 'daily' || type === 'seasonal') {
+        // ✅ للعامل اليومي: الراتب = أجر يومي × عدد الأيام
+        const computed = Math.round(daily * days);
+        baseInp.value  = computed;
+        if (hintEl) hintEl.textContent = `(${daily.toLocaleString()} × ${days} ${_L('يوم','j')} = ${computed.toLocaleString()} ${_L('دج','DA')})`;
+      } else {
+        // للعامل الشهري: الراتب ثابت بغض النظر عن الأيام
+        baseInp.value  = monthly || '';
+        if (hintEl) hintEl.textContent = _L('(شهري ثابت)','(mensuel fixe)');
+      }
     },
 
     cdd() { this._handlers._contract.call(this,'cdd'); },
@@ -1753,15 +1848,14 @@ window.DZDocsUI.openForWorker = function(key, wid, extras) {
     else if (key === 'paie') {
       const sel = document.getElementById('paieWorker');
       if (sel) {
+        // ✅ تحديث data attributes على الـ select أولاً
+        sel._workerDaily   = Number(worker.daily_salary || 0);
+        sel._workerMonthly = Number(worker.monthly_base || (worker.daily_salary||0)*26);
+        sel._workerType    = worker.contract_type || 'monthly';
         sel.value = String(worker.id);
-        sel.dispatchEvent(new Event('change'));
       }
       // إذا أتى extras من Pages.salary مع راتب محسوب
       if (extras) {
-        if (extras.baseSalary) {
-          const baseInp = document.getElementById('paieBase');
-          if (baseInp) baseInp.value = extras.baseSalary;
-        }
         if (extras.daysWorked) {
           const daysInp = document.getElementById('paieDays');
           if (daysInp) daysInp.value = extras.daysWorked;
@@ -1775,6 +1869,8 @@ window.DZDocsUI.openForWorker = function(key, wid, extras) {
           }
         }
       }
+      // ✅ إعادة حساب الراتب بناءً على الأيام ونوع العقد
+      DZDocsUI._handlers._recalcPaieBase();
     }
   }, 80);
 };
