@@ -257,14 +257,43 @@ window.DZDocsUI = {
       <div class="modal" style="max-width:800px">
         <div class="modal-title" id="dzdModalTitle">📄 ${_L('توليد وثيقة','Générer document')}</div>
         <div id="dzdModalBody" style="max-height:65vh;overflow-y:auto;padding:.4rem"></div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="flex-wrap:wrap;gap:.5rem">
           <button class="btn btn-ghost" onclick="DZDocsUI.close()">${_L('إلغاء','Annuler')}</button>
+          <!-- ─── زر اختيار لغة الوثيقة ─── -->
+          <div style="display:flex;align-items:center;gap:.4rem;margin-${_L('left','right')}:auto">
+            <span style="font-size:.72rem;color:var(--dim)">${_L('لغة الوثيقة:','Langue du document:')}</span>
+            <button id="dzdLangBtn"
+              onclick="DZDocsUI.toggleDocLang()"
+              title="${_L('تبديل لغة الوثيقة','Changer la langue du document')}"
+              style="padding:5px 12px;background:rgba(184,144,47,.1);border:1px solid rgba(184,144,47,.3);border-radius:6px;color:var(--gold);cursor:pointer;font-family:inherit;font-size:.78rem;font-weight:700">
+              ${_L('🇫🇷 Français','🇩🇿 عربية')}
+            </button>
+          </div>
           <button class="btn btn-gold" id="dzdGenerateBtn">📄 ${_L('توليد وطباعة PDF','Générer & Imprimer PDF')}</button>
         </div>
       </div>`;
     document.body.appendChild(div);
     // إغلاق عند النقر على الخلفية
     div.addEventListener('click', e => { if (e.target === div) this.close(); });
+  },
+
+  // ── تبديل لغة الوثيقة ──
+  toggleDocLang() {
+    if (typeof DZDocs === 'undefined') return;
+    const current = DZDocs._getLang();
+    const newLang = current === 'fr' ? 'ar' : 'fr';
+    DZDocs._setLang(newLang);
+    // تحديث زر اللغة
+    const btn = document.getElementById('dzdLangBtn');
+    if (btn) {
+      btn.textContent = newLang === 'ar' ? '🇩🇿 عربية' : '🇫🇷 Français';
+    }
+    if (typeof Toast !== 'undefined') {
+      Toast.info(newLang === 'ar'
+        ? '🇩🇿 الوثيقة ستُولَّد باللغة العربية'
+        : '🇫🇷 Le document sera généré en Français'
+      );
+    }
   },
 
   open(key) {

@@ -2381,23 +2381,25 @@ Pages.landing = function() {
       <div class="ll-section-head ll-reveal">
         <span class="ll-eyebrow">${L('أسعار شفافة','Tarifs transparents')}</span>
         <h2 class="ll-section-title">${L('اختر الخطة','Choisissez le plan')} <span class="ll-gold">${L('المناسبة لك','qui vous convient')}</span></h2>
-        <p class="ll-section-desc">${L('جميع الخطط تشمل التجربة المجانية 14 يوماً — بدون بطاقة بنكية. ألغِ متى شئت.','Tous les plans incluent l\'essai 14 jours — sans CB. Annulez à tout moment.')}</p>
+        <p class="ll-section-desc">${L('من المقاول الفردي إلى الشركات الكبرى — جميع الخطط تشمل التجربة المجانية 14 يوماً بدون بطاقة بنكية.','Du contractant individuel aux grandes entreprises — tous les plans incluent 14 jours d\'essai gratuit sans CB.')}</p>
       </div>
 
       <div class="ll-pricing-grid">
+        <!-- المبتدئ — للمقاولين الأفراد والشركات الناشئة -->
         <div class="ll-price-card ll-reveal">
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">👷 ${L('للمقاول الفردي','Contractant individuel')}</div>
           <div class="ll-price-name">${L('المبتدئ','Starter')}</div>
-          <div class="ll-price-tagline">${L('للشركات الناشئة','Pour les start-ups')}</div>
+          <div class="ll-price-tagline">${L('للشركات الناشئة والمقاولين الأفراد','Pour entrepreneurs individuels')}</div>
           <div class="ll-price-amount">
-            <span class="ll-price-num">9,900</span>
+            <span class="ll-price-num">2,900</span>
             <span class="ll-price-currency">${L('دج','DA')}</span>
             <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
           </div>
           <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('حتى 5 مشاريع نشطة','Jusqu\'à 5 projets actifs')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 20 عامل','Jusqu\'à 20 ouvriers')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 3 مشاريع نشطة','Jusqu\'à 3 projets actifs')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 15 عامل','Jusqu\'à 15 ouvriers')}</li>
             <li><span class="ll-price-check">✓</span> ${L('فواتير PDF احترافية','Factures PDF pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('3 مستخدمين','3 utilisateurs')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('50 بريد إلكتروني/شهر','50 emails/mois')}</li>
             <li><span class="ll-price-check">✓</span> ${L('دعم بالبريد الإلكتروني','Support par email')}</li>
           </ul>
           ${user
@@ -2406,22 +2408,24 @@ Pages.landing = function() {
           }
         </div>
 
+        <!-- الاحترافي — للشركات المتوسطة (المُوصى به) -->
         <div class="ll-price-card ll-featured ll-reveal">
           <div class="ll-price-badge">⭐ ${L('الأكثر شيوعاً','Plus populaire')}</div>
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏢 ${L('للشركات المتوسطة','Entreprises moyennes')}</div>
           <div class="ll-price-name">${L('الاحترافي','Professionnel')}</div>
           <div class="ll-price-tagline">${L('للشركات النامية','Pour entreprises en croissance')}</div>
           <div class="ll-price-amount">
-            <span class="ll-price-num ll-gold">24,900</span>
+            <span class="ll-price-num ll-gold">7,900</span>
             <span class="ll-price-currency">${L('دج','DA')}</span>
             <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
           </div>
           <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 20 مشروع','Jusqu\'à 20 projets')}</li>
             <li><span class="ll-price-check">✓</span> ${L('حتى 100 عامل','Jusqu\'à 100 ouvriers')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 50 معدة','Jusqu\'à 50 équipements')}</li>
             <li><span class="ll-price-check">✓</span> ${L('SmartAI كامل + تقارير شهرية','SmartAI complet + rapports')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('10 مستخدمين + أدوار مخصصة','10 utilisateurs + rôles')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي أولوية','Support prioritaire')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('500 بريد إلكتروني/شهر','500 emails/mois')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي ذو أولوية','Support prioritaire')}</li>
           </ul>
           ${user
             ? `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
@@ -2429,17 +2433,21 @@ Pages.landing = function() {
           }
         </div>
 
+        <!-- المؤسسي — للشركات الكبرى -->
         <div class="ll-price-card ll-reveal">
-          <div class="ll-price-name">${L('المؤسسات','Enterprise')}</div>
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏛️ ${L('للمؤسسات الكبرى','Grandes entreprises')}</div>
+          <div class="ll-price-name">${L('المؤسسي','Entreprise')}</div>
           <div class="ll-price-tagline">${L('للشركات الكبرى','Pour les grandes entreprises')}</div>
           <div class="ll-price-amount">
-            <span class="ll-price-num">${L('حسب الطلب','Sur devis')}</span>
+            <span class="ll-price-num">19,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
           </div>
           <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('كل ميزات الاحترافي','Tout le plan Pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('عمال ومستخدمون غير محدودين','Ouvriers & utilisateurs illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('خادم Supabase خاص','Serveur Supabase dédié')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('تكامل مع أنظمتك الحالية','Intégration vos systèmes')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('عمال غير محدودين','Ouvriers illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('معدات غير محدودة','Équipements illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('بريد إلكتروني غير محدود','Emails illimités')}</li>
             <li><span class="ll-price-check">✓</span> ${L('SLA + تدريب فريقك','SLA + formation équipe')}</li>
             <li><span class="ll-price-check">✓</span> ${L('مدير حساب مخصص','Account manager dédié')}</li>
           </ul>
@@ -2448,58 +2456,141 @@ Pages.landing = function() {
       </div>
     </section>
 
-    <!-- ═══ PRICING ═══ -->
-    <section class="ll-section" id="ll-pricing">
+    <!-- ═══ قبل / بعد ═══ -->
+    <section class="ll-section" style="background:rgba(232,184,75,.03);border-top:1px solid rgba(232,184,75,.08);border-bottom:1px solid rgba(232,184,75,.08)">
       <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('شفافية تامة','Tarification claire')}</span>
-        <h2 class="ll-section-title">${L('خطط تناسب','Des formules adaptées à')}<span class="ll-gold"> ${L('كل مقاول','chaque entrepreneur')}</span></h2>
-        <p class="ll-section-desc">${L('ابدأ مجاناً 14 يوماً — لا بطاقة بنكية مطلوبة.','Commencez gratuitement 14 jours — sans carte bancaire.')}</p>
+        <span class="ll-eyebrow">${L('الفرق الحقيقي','La vraie différence')}</span>
+        <h2 class="ll-section-title">${L('حياتك','Votre quotidien')} <span class="ll-gold">${L('قبل وبعد SmartStruct','avant & après SmartStruct')}</span></h2>
       </div>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.2rem;max-width:880px;margin:0 auto">
-
-        <!-- خطة مجانية -->
-        <div class="ll-reveal" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem">
-          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">🆓 ${L('تجريبي','Essai')}</div>
-          <div style="font-size:2rem;font-weight:900;color:var(--text)">${L('مجاني','Gratuit')} <span style="font-size:.8rem;color:var(--muted);font-weight:500">/ 14 ${L('يوم','jours')}</span></div>
-          <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted);flex:1">
-            <li>✓ ${L('مشروعان نشطان','2 projets actifs')}</li>
-            <li>✓ ${L('10 عمال','10 ouvriers')}</li>
-            <li>✓ ${L('كل الوثائق الإدارية','Tous les documents admin')}</li>
-            <li>✓ ${L('تقارير أساسية','Rapports de base')}</li>
-          </ul>
-          <button class="ll-btn ll-btn-ghost" onclick="showRegisterPanel()" style="width:100%;justify-content:center">${L('ابدأ مجاناً','Commencer')}</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:960px;margin:2.5rem auto 0" class="ll-reveal">
+        <div style="background:rgba(240,78,106,.05);border:1px solid rgba(240,78,106,.2);border-radius:16px;padding:2rem">
+          <div style="font-size:1.1rem;font-weight:900;color:#F04E6A;margin-bottom:1.2rem">😰 ${L('قبل','Avant')}</div>
+          ${[
+            L('دفاتر ورقية تضيع أو تتلف','Carnets papier perdus ou abîmés'),
+            L('Excel يتعطل عند آخر لحظة','Excel qui plante au dernier moment'),
+            L('فواتير بأخطاء جبائية مكلفة','Factures avec erreurs fiscales coûteuses'),
+            L('لا تعرف أين ذهب مال شركتك','Impossible de savoir où va l\'argent'),
+            L('ساعات في إعداد كشف الراتب','Des heures à préparer les fiches de paie'),
+            L('لا تعرف ربحية كل مشروع','Impossible de connaître la marge par projet'),
+          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--muted)"><span style="color:#F04E6A;flex-shrink:0">✗</span>${t}</div>`).join('')}
         </div>
-
-        <!-- خطة أساسية -->
-        <div class="ll-reveal" style="background:rgba(232,184,75,.05);border:1px solid rgba(232,184,75,.3);border-radius:16px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem;position:relative">
-          <div style="position:absolute;top:-12px;${isAr?'right':'left'}:1.5rem;background:var(--gold);color:#09120A;font-size:.65rem;font-weight:900;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px">${L('الأكثر طلباً','Le plus populaire')}</div>
-          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">⭐ ${L('أساسي','Essentiel')}</div>
-          <div style="font-size:2rem;font-weight:900;color:var(--text)">2,500 <span style="font-size:.8rem;color:var(--muted);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
-          <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted);flex:1">
-            <li style="color:var(--text)">✓ ${L('10 مشاريع','10 projets')}</li>
-            <li style="color:var(--text)">✓ ${L('50 عامل','50 ouvriers')}</li>
-            <li style="color:var(--text)">✓ ${L('ذكاء اصطناعي SmartAI','SmartAI intégré')}</li>
-            <li style="color:var(--text)">✓ ${L('تقارير متقدمة + تصدير','Rapports avancés + export')}</li>
-            <li>✓ ${L('Realtime sync','Sync temps réel')}</li>
-          </ul>
-          <button class="ll-btn ll-btn-gold" onclick="showRegisterPanel()" style="width:100%;justify-content:center">${L('ابدأ الآن','Commencer')}</button>
+        <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.2);border-radius:16px;padding:2rem">
+          <div style="font-size:1.1rem;font-weight:900;color:#34C38F;margin-bottom:1.2rem">🚀 ${L('بعد SmartStruct','Avec SmartStruct')}</div>
+          ${[
+            L('كل البيانات في السحابة — لا تضيع أبداً','Toutes les données dans le cloud — jamais perdues'),
+            L('لوحة تحكم حية بالثانية','Dashboard live actualisé en temps réel'),
+            L('23 وثيقة رسمية بنقرة واحدة','23 documents officiels en un seul clic'),
+            L('تعرف أرباحك لحظة بلحظة','Vos bénéfices en temps réel'),
+            L('كشف راتب كامل في 10 ثوانٍ','Bulletin de paie complet en 10 secondes'),
+            L('تقرير AI ذكي شهري تلقائياً','Rapport IA mensuel automatique'),
+          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--text)"><span style="color:#34C38F;flex-shrink:0">✓</span>${t}</div>`).join('')}
         </div>
+      </div>
+    </section>
 
-        <!-- خطة احترافية -->
-        <div class="ll-reveal" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem">
-          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">🏆 ${L('احترافي','Pro')}</div>
-          <div style="font-size:2rem;font-weight:900;color:var(--text)">7,500 <span style="font-size:.8rem;color:var(--muted);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
-          <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--muted);flex:1">
-            <li>✓ ${L('مشاريع غير محدودة','Projets illimités')}</li>
-            <li>✓ ${L('عمال غير محدودين','Ouvriers illimités')}</li>
-            <li>✓ ${L('كل مزايا الأساسي','Tout Essentiel')}</li>
-            <li>✓ ${L('دعم ذو أولوية','Support prioritaire')}</li>
-            <li>✓ ${L('تقرير AI شهري','Rapport IA mensuel')}</li>
-          </ul>
-          <button class="ll-btn ll-btn-ghost" onclick="showRegisterPanel()" style="width:100%;justify-content:center">${L('تواصل معنا','Nous contacter')}</button>
-        </div>
+    <!-- ═══ أرقام التأثير ═══ -->
+    <section class="ll-section">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('بالأرقام','En chiffres')}</span>
+        <h2 class="ll-section-title">${L('توفير حقيقي في','Économies réelles de')} <span class="ll-gold">${L('الوقت والمال','temps & d\'argent')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;max-width:1050px;margin:2rem auto 0" class="ll-reveal">
+        ${[
+          {n:'23',u:'',s:L('وثيقة رسمية جاهزة للطباعة','documents officiels imprimables'),i:'📄',c:'#E8B84B'},
+          {n:'80',u:'%',s:L('توفير في وقت الإدارة','du temps administratif économisé'),i:'⏱️',c:'#34C38F'},
+          {n:'100',u:'%',s:L('توافق مع القانون الجزائري','conforme loi algérienne NIF/NIS'),i:'🏛️',c:'#4A90E2'},
+          {n:'14',u:'',s:L('يوم تجربة مجانية كاملة','jours d\'essai gratuit complet'),i:'🎁',c:'#9B6DFF'},
+          {n:'0',u:'',s:L('بيانات تضيع — ضمان مدى الحياة','donnée perdue — garanti à vie'),i:'🔒',c:'#FF7043'},
+          {n:'2',u:'',s:L('لغة — عربي وفرنسي كامل','langues — arabe & français complets'),i:'🌐',c:'#E8B84B'},
+        ].map(s=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1.4rem;text-align:center;transition:transform .2s,border-color .2s" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(232,184,75,.3)'" onmouseout="this.style.transform='';this.style.borderColor='rgba(255,255,255,.07)'">
+          <div style="font-size:1.7rem;margin-bottom:.4rem">${s.i}</div>
+          <div style="font-size:2.4rem;font-weight:900;color:${s.c};font-family:monospace;line-height:1">${s.n}<span style="font-size:1.1rem">${s.u}</span></div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:.4rem;line-height:1.5">${s.s}</div>
+        </div>`).join('')}
+      </div>
+    </section>
 
+    <!-- ═══ شهادات المقاولين ═══ -->
+    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('يقولون عنا','Ils en parlent')}</span>
+        <h2 class="ll-section-title">${L('مقاولون جزائريون','Des entrepreneurs algériens')} <span class="ll-gold">${L('وثقوا بنا','nous font confiance')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:2.5rem" class="ll-reveal">
+        ${[
+          {name:L('محمد الصالح قاسمي','Mohamed Salah Kasmi'),role:L('مقاول بناء — الجزائر العاصمة','Entrepreneur BTP — Alger'),av:'👷',c:'#E8B84B',
+           t:L('"قبل SmartStruct كنت أضيع 3 ساعات يومياً في الورق. الآن كل شيء في هاتفي — الحضور، الرواتب، الفواتير. وفّرت أكثر من 300,000 دج في 3 أشهر."','"Avant SmartStruct, je perdais 3h/jour dans la paperasse. Maintenant tout est dans mon téléphone. J\'ai économisé plus de 300 000 DA en 3 mois grâce au suivi."')},
+          {name:L('فريدة بن يوسف','Farida Benyoucef'),role:L('مديرة مؤسسة إنجاز — وهران','Directrice Injaaz Ent. — Oran'),av:'👩‍💼',c:'#34C38F',
+           t:L('"أخيراً نظام يفهم العربية ويعمل مع القانون الجزائري. الفواتير مع NIF وNIS في دقيقة. حتى من لا يعرف الكمبيوتر يستخدمه."','"Enfin un système qui comprend l\'arabe et la loi algérienne. Factures avec NIF/NIS en une minute. Même les non-techniciens l\'utilisent facilement."')},
+          {name:L('عماد الدين تيزي','Imad Eddine Tizi'),role:L('مقاول ترميم — قسنطينة','Entrepreneur rénovation — Constantine'),av:'🏗️',c:'#4A90E2',
+           t:L('"استخدمت برامج أجنبية قبلاً — معقدة وبالإنجليزية. SmartStruct صُنع لنا نحن. محضر الاستلام، كشف الرواتب، العقود — كلها بالعربية بلمسة واحدة."','"J\'ai essayé des logiciels étrangers avant — trop complexes. SmartStruct est fait pour nous. PV, bulletins de paie, contrats — tout en arabe en un clic."')},
+        ].map(t=>`<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:1.8rem;display:flex;flex-direction:column;gap:.8rem">
+          <div style="color:#E8B84B;font-size:.9rem;letter-spacing:2px">★★★★★</div>
+          <p style="font-size:.83rem;color:var(--muted);line-height:1.8;font-style:italic;flex:1">${t.t}</p>
+          <div style="display:flex;align-items:center;gap:.8rem;padding-top:.8rem;border-top:1px solid rgba(255,255,255,.06)">
+            <div style="width:40px;height:40px;border-radius:50%;background:${t.c}22;border:1px solid ${t.c}44;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${t.av}</div>
+            <div><div style="font-weight:800;font-size:.84rem">${t.name}</div><div style="font-size:.7rem;color:${t.c};font-weight:600">${t.role}</div></div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ مقارنة مع المنافسين ═══ -->
+    <section class="ll-section">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('لماذا SmartStruct؟','Pourquoi SmartStruct ?')}</span>
+        <h2 class="ll-section-title">${L('صُنع للجزائر','Conçu pour l\'Algérie')} <span class="ll-gold">${L('وليس مُترجَم عنها','non traduit')}</span></h2>
+      </div>
+      <div class="ll-reveal" style="max-width:860px;margin:2rem auto 0;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+          <thead><tr>
+            <th style="padding:.8rem 1rem;text-align:${isAr?'right':'left'};color:var(--muted);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">${L('الميزة','Fonctionnalité')}</th>
+            <th style="padding:.8rem 1rem;text-align:center;color:#E8B84B;font-weight:900;border-bottom:2px solid rgba(232,184,75,.4)">SmartStruct</th>
+            <th style="padding:.8rem 1rem;text-align:center;color:var(--dim);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">Excel</th>
+            <th style="padding:.8rem 1rem;text-align:center;color:var(--dim);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">${L('برامج أجنبية','Logiciels étrangers')}</th>
+          </tr></thead>
+          <tbody>
+            ${[
+              [L('واجهة عربية كاملة','Interface arabe complète'),       '✅','⚠️','❌'],
+              [L('NIF / NIS / RC الجزائري','NIF / NIS / RC algérien'),   '✅','❌','❌'],
+              ['TVA 19% + CNAS + IRG',                                    '✅','❌','⚠️'],
+              [L('23 وثيقة PDF رسمية','23 docs PDF officiels'),           '✅','❌','⚠️'],
+              [L('مزامنة Realtime','Sync Realtime'),                      '✅','❌','⚠️'],
+              [L('ذكاء اصطناعي بالعربية','IA en arabe'),                  '✅','❌','❌'],
+              [L('يعمل بدون إنترنت','Fonctionne offline'),                '✅','✅','⚠️'],
+              [L('دعم باللهجة الجزائرية','Support dialecte algérien'),   '✅','❌','❌'],
+            ].map((r,i)=>`<tr style="background:${i%2===0?'rgba(255,255,255,.02)':'transparent'}">
+              <td style="padding:.7rem 1rem;color:var(--text)">${r[0]}</td>
+              <td style="padding:.7rem 1rem;text-align:center;background:rgba(232,184,75,.04);border-left:2px solid rgba(232,184,75,.12);border-right:2px solid rgba(232,184,75,.12)">${r[1]}</td>
+              <td style="padding:.7rem 1rem;text-align:center;color:var(--muted)">${r[2]}</td>
+              <td style="padding:.7rem 1rem;text-align:center;color:var(--muted)">${r[3]}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="text-align:center;margin-top:.8rem;font-size:.7rem;color:var(--dim)">✅ ${L('متوفر','Disponible')} &nbsp; ⚠️ ${L('جزئياً','Partiel')} &nbsp; ❌ ${L('غير متوفر','Non disponible')}</div>
+      </div>
+    </section>
+
+    <!-- ═══ FAQ ═══ -->
+    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('أسئلة شائعة','FAQ')}</span>
+        <h2 class="ll-section-title">${L('كل ما تريد معرفته','Tout ce que vous voulez savoir')} <span class="ll-gold">?</span></h2>
+      </div>
+      <div style="max-width:720px;margin:2.5rem auto 0;display:flex;flex-direction:column;gap:.7rem" class="ll-reveal">
+        ${[
+          {q:L('هل يحتاج تثبيتاً؟','Faut-il l\'installer ?'),a:L('لا. SmartStruct يعمل من المتصفح مباشرة على أي جهاز — حاسوب، هاتف، تابلت. لا تثبيت ولا تحديثات يدوية.','Non. SmartStruct fonctionne directement depuis le navigateur sur n\'importe quel appareil. Pas d\'installation ni de mises à jour manuelles.')},
+          {q:L('هل بياناتي آمنة؟','Mes données sont-elles sécurisées ?'),a:L('نعم. بياناتك مُشفّرة PBKDF2+SHA-256، محفوظة في Supabase مع Row-Level Security. لا أحد غيرك يصل لها — حتى نحن.','Oui. Chiffrement PBKDF2+SHA-256, hébergement Supabase avec Row-Level Security. Personne d\'autre ne peut y accéder, même nous.')},
+          {q:L('هل يعمل بدون إنترنت؟','Fonctionne-t-il sans internet ?'),a:L('نعم. يحفظ البيانات محلياً ويتزامن تلقائياً عند عودة الإنترنت. مثالي للورشات في المناطق النائية.','Oui. Il sauvegarde localement et se synchronise automatiquement au retour de la connexion. Idéal pour les chantiers éloignés.')},
+          {q:L('هل هو متوافق مع القانون الجزائري؟','Est-il conforme à la loi algérienne ?'),a:L('100٪. كل الوثائق تحتوي NIF, NIS, RC, Article d\'Imposition وTVA 19٪. الرواتب تحتسب CNAS وIRG تلقائياً.','À 100%. Tous les documents incluent NIF, NIS, RC, Article d\'Imposition et TVA 19%. Les salaires calculent CNAS et IRG automatiquement.')},
+          {q:L('كيف أبدأ؟','Comment démarrer ?'),a:L('اضغط "ابدأ التجربة الآن"، سجّل اسمك وبريدك وكلمة مرور — في دقيقتين حسابك جاهز وتجربة 14 يوم مجانية تبدأ فوراً بدون بطاقة بنكية.','Cliquez "Commencer l\'essai", entrez votre nom, email et mot de passe — en 2 minutes votre compte est prêt et votre essai 14 jours commence immédiatement, sans carte bancaire.')},
+        ].map((f,i)=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+          <button onclick="(function(b){var d=b.nextElementSibling,open=d.style.maxHeight&&d.style.maxHeight!=='0px';d.style.maxHeight=open?'0px':'300px';d.style.paddingTop=open?'0':'.8rem';d.style.paddingBottom=open?'0':'.9rem';b.querySelector('span:last-child').style.transform=open?'':'rotate(180deg)'})(this)"
+            style="width:100%;padding:.9rem 1.2rem;background:none;border:none;cursor:pointer;text-align:${isAr?'right':'left'};color:var(--text);font-family:inherit;font-size:.87rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:1rem">
+            <span>${f.q}</span><span style="color:var(--gold);transition:transform .25s;flex-shrink:0;font-size:.8rem">▼</span>
+          </button>
+          <div style="max-height:0;overflow:hidden;transition:all .3s;padding:0 1.2rem;font-size:.81rem;color:var(--muted);line-height:1.8">${f.a}</div>
+        </div>`).join('')}
       </div>
     </section>
 
@@ -3767,18 +3858,21 @@ const TrialManager = {
           <div class="tem-plans-title">💎 ${t('اختر خطتك','Choisissez votre plan')}</div>
           <div class="tem-plans">
             <div class="tem-plan" onclick="TrialManager._requestUpgrade(1)">
+              <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">👷 ${t('للمقاول الفردي','Contractant indiv.')}</div>
               <div class="tem-plan-name">${t('المبتدئ','Starter')}</div>
               <div class="tem-plan-price">2,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('3 مشاريع · 15 عامل','3 projets · 15 ouvriers')}</div>
             </div>
             <div class="tem-plan featured" onclick="TrialManager._requestUpgrade(2)">
+              <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏢 ${t('للشركات','Entreprises')}</div>
               <div class="tem-plan-name">⭐ ${t('الاحترافي','Pro')}</div>
               <div class="tem-plan-price">7,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('20 مشروع · 100 عامل','20 projets · 100 ouvriers')}</div>
             </div>
             <div class="tem-plan" onclick="TrialManager._requestUpgrade(3)">
+              <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏛️ ${t('للمؤسسات الكبرى','Grandes ent.')}</div>
               <div class="tem-plan-name">${t('المؤسسي','Entreprise')}</div>
               <div class="tem-plan-price">19,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
@@ -3797,7 +3891,7 @@ const TrialManager = {
         </div>
 
         <div class="tem-foot">
-          📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartbtp.dz</strong>
+          📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartstruct.dz</strong>
         </div>
       </div>
     `;
@@ -6666,8 +6760,51 @@ Pages.settings = function() {
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">👤 ${L('الحساب الشخصي','Compte personnel')}</div>
           <div style="padding:.6rem 0;border-bottom:1px solid var(--border)"><div style="font-size:.72rem;color:var(--dim)">${L('الاسم','Nom')}</div><div style="font-weight:700">${escHtml(user.full_name)}</div></div>
-          <div style="padding:.6rem 0;border-bottom:1px solid var(--border)"><div style="font-size:.72rem;color:var(--dim)">${L('البريد','Email')}</div><div style="font-weight:700;direction:ltr;text-align:right">${escHtml(user.email)}</div></div>
-          <div style="padding:.6rem 0"><div style="font-size:.72rem;color:var(--dim)">${L('الخطة','Plan')}</div><div style="font-weight:700;color:var(--gold)">${escHtml(plan?.name||'—')}</div></div>
+          <div style="padding:.6rem 0"><div style="font-size:.72rem;color:var(--dim)">${L('البريد','Email')}</div><div style="font-weight:700;direction:ltr;text-align:right">${escHtml(user.email)}</div></div>
+        </div>
+
+        <!-- 💎 Subscription Card -->
+        <div class="card" style="margin-bottom:1rem;background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.2)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+            <div>
+              <div style="font-weight:800;margin-bottom:.3rem">💎 ${L('خطتك الحالية','Votre plan actuel')}</div>
+              <div style="font-size:.72rem;color:var(--dim)">${L('الاشتراك والميزات','Abonnement & fonctionnalités')}</div>
+            </div>
+            <span style="background:${tenant?.subscription_status==='active'?'rgba(52,195,143,.15)':tenant?.subscription_status==='trial'?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)'};color:${tenant?.subscription_status==='active'?'#34C38F':tenant?.subscription_status==='trial'?'#E8B84B':'#F04E6A'};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
+              ${tenant?.subscription_status==='active'?L('✅ نشط','✅ Actif'):tenant?.subscription_status==='trial'?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré')}
+            </span>
+          </div>
+
+          <div style="background:rgba(0,0,0,.2);padding:1rem;border-radius:10px;margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+              <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
+              <div style="font-size:1.1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.7rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;margin-top:.8rem">
+              <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
+              <div><span style="color:var(--dim)">👷 ${L('العمال','Ouvriers')}:</span> <strong>${plan?.max_workers===-1?L('غير محدود','Illimité'):(plan?.max_workers||0)}</strong></div>
+              <div><span style="color:var(--dim)">🚜 ${L('المعدات','Équipements')}:</span> <strong>${plan?.max_equipment===-1?L('غير محدود','Illimité'):(plan?.max_equipment||0)}</strong></div>
+              <div><span style="color:var(--dim)">📧 ${L('إيميلات/شهر','Emails/mois')}:</span> <strong>${plan?.max_emails===-1?L('غير محدود','Illimité'):(plan?.max_emails||0)}</strong></div>
+            </div>
+          </div>
+
+          ${(plan?.id < 3) ? `
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:.8rem;line-height:1.7">
+            ${L('💡 هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك واحصل على المزيد من الميزات.','💡 Besoin de plus ? Passez à un plan supérieur.')}
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-gold btn-sm" onclick="TrialManager._requestUpgrade(${(plan?.id||0)+1})">
+              ⬆️ ${L('ترقية الخطة','Mise à niveau')}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')">
+              📋 ${L('مقارنة الخطط','Comparer plans')}
+            </button>
+          </div>
+          ` : `
+          <div style="text-align:center;color:var(--gold);font-weight:700;font-size:.85rem">
+            🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}
+          </div>
+          `}
         </div>
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🔑 ${L('تغيير كلمة المرور','Changer le mot de passe')}</div>
@@ -12527,6 +12664,27 @@ async function testEmailJS(event) {
 
 
 /* ══════════════════════════════════════════════════════
+   DOC LANGUAGE SWITCH — يستقبل طلب تبديل اللغة من نافذة الوثيقة
+══════════════════════════════════════════════════════ */
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'rebuildDoc') return;
+  const newLang = e.data.lang;
+  if (newLang !== 'fr' && newLang !== 'ar') return;
+  // حفظ اللغة المختارة
+  localStorage.setItem('sbtp_doc_lang', newLang);
+  // إعادة فتح آخر وثيقة بالبيانات نفسها باللغة الجديدة
+  if (window._lastDocCall && typeof DZDocs !== 'undefined' && DZDocs._setLang) {
+    try {
+      DZDocs._setLang(newLang);
+      const { fn, args } = window._lastDocCall;
+      DZDocs[fn](...args);
+    } catch(err) {
+      console.warn('[DocLang switch]', err.message);
+    }
+  }
+});
+
+/* ══════════════════════════════════════════════════════
    SMOOTH SCROLL FOR LANDING ANCHORS
    ملاحظة مهمة: هذا الكود يعمل فقط على الروابط التي تحتوي على href يبدأ بـ #
    ولا تحتوي على onclick أو data-nav، لكي لا يتدخل في روابط التنقل بين الصفحات
@@ -17423,8 +17581,8 @@ function showUpsellModal(feature) {
         ${plans.slice(0,3).map((p,i)=>`
           <div class="plan-card-mini ${i===1?'featured':''}">
             <div class="plan-card-mini-name">${escHtml(p.name)}</div>
-            <div class="plan-card-mini-price">${p.price_monthly||'0'} دج</div>
-            <div class="plan-card-mini-limit">حتى ${p.max_projects||'∞'} مشروع</div>
+            <div class="plan-card-mini-price">${fmt(p.price||p.price_monthly||0)} دج</div>
+            <div class="plan-card-mini-limit">${(p.max_projects===-1||p.max_projects===undefined||p.max_projects===null)?'مشاريع غير محدودة':'حتى '+p.max_projects+' مشروع'}</div>
           </div>
         `).join('')}
       </div>

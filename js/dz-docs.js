@@ -330,23 +330,106 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 // ════════════════════════════════════════════════════════════════════
 //  بناء الترويسة القانونية الموحدة
 // ════════════════════════════════════════════════════════════════════
-function _buildHeader(tenant, docLabel, docNumber, docDate) {
-  const logo = _getLogo();
+
+// ════════════════════════════════════════════════════════════════════
+//  نظام الترجمة للوثائق — يدعم عربي كامل وفرنسي كامل
+// ════════════════════════════════════════════════════════════════════
+let _docLang = 'fr'; // اللغة الافتراضية fr أو ar
+
+function _L(fr, ar) {
+  return _docLang === 'ar' ? ar : fr;
+}
+
+const _TERMS = {
+  'PROFORMA':      { fr:_T('PROFORMA'),                     ar:'فاتورة شكلية' },
+  'DEVIS':         { fr:'DEVIS ESTIMATIF',                      ar:'كشف تقديري' },
+  'BPU':           { fr:'BORDEREAU DES PRIX UNITAIRES',         ar:'جدول الأسعار الوحدوية' },
+  'OFFRE':         { fr:'OFFRE DE SERVICE',                     ar:'عرض خدمة' },
+  'PV_OUVERTURE':  { fr:"PV D'OUVERTURE DES TRAVAUX",           ar:'محضر بدء الأشغال' },
+  'ATTACHEMENT':   { fr:'ATTACHEMENT',                          ar:'كشف المرفقات' },
+  'JOURNAL':       { fr:'JOURNAL DE CHANTIER',                  ar:'يومية الورشة' },
+  'PV_PROV':       { fr:'PV DE RÉCEPTION PROVISOIRE',           ar:'محضر الاستلام المؤقت' },
+  'PV_DEF':        { fr:'PV DE RÉCEPTION DÉFINITIVE',           ar:'محضر الاستلام النهائي' },
+  'ACOMPTE':       { fr:"FACTURE D'ACOMPTE",                    ar:'فاتورة تسبيق' },
+  'SITUATION':     { fr:'SITUATION DE TRAVAUX',                 ar:'كشف الأشغال' },
+  'FACTURE_DEF':   { fr:'FACTURE DÉFINITIVE',                   ar:'فاتورة نهائية' },
+  'QUITTANCE':     { fr:'QUITTANCE DE PAIEMENT',                ar:'وصل التسديد' },
+  'FICHE_PAIE':    { fr:'BULLETIN DE PAIE',                     ar:'كشف الراتب' },
+  'CONTRAT':       { fr:'CONTRAT DE TRAVAIL',                   ar:'عقد عمل' },
+  'POINTAGE':      { fr:_T('POINTAGE'),                    ar:'بطاقة الحضور' },
+  'ATTESTATION':   { fr:_T('ATTESTATION'),               ar:'شهادة عمل' },
+  'BON_CMD':       { fr:'BON DE COMMANDE',                      ar:'وصل الطلب' },
+  'BON_REC':       { fr:_T('BON_REC'),                     ar:'وصل الاستلام' },
+  'BON_SORTIE':    { fr:'BON DE SORTIE',                        ar:'وصل الخروج' },
+  'FICHE_SUIVI':   { fr:'FICHE DE SUIVI ÉQUIPEMENT',            ar:'بطاقة تتبع المعدة' },
+  'client':        { fr:'Client',             ar:'العميل' },
+  'details':       { fr:'Détails',            ar:'التفاصيل' },
+  'designation':   { fr:'Désignation',        ar:'التعيين' },
+  'qty':           { fr:'Qté',                ar:'الكمية' },
+  'unit':          { fr:'Unité',              ar:'الوحدة' },
+  'pu':            { fr:'P.U. (DA)',           ar:'س.و. (دج)' },
+  'total_col':     { fr:'Total (DA)',          ar:'المجموع (دج)' },
+  'total_ht':      { fr:_T('total_ht'),      ar:'المجموع ق.ض.' },
+  'tva':           { fr:'TVA',                ar:'TVA' },
+  'total_ttc':     { fr:_T('total_ttc'),          ar:'المجموع الإجمالي' },
+  'signature':     { fr:'Signature',          ar:'التوقيع' },
+  'stamp':         { fr:'Cachet',             ar:'الختم' },
+  'maitre':        { fr:"Maître d'ouvrage",   ar:'صاحب المشروع' },
+  'entreprise_lbl':{ fr:'Entreprise',         ar:'المقاول' },
+  'date_lbl':      { fr:'Date',               ar:'التاريخ' },
+  'project_lbl':   { fr:'Chantier / Projet',  ar:'المشروع / الورشة' },
+  'ref_lbl':       { fr:'Réf.',               ar:'المرجع' },
+  'worker_lbl':    { fr:'Ouvrier',            ar:'العامل' },
+  'role_lbl':      { fr:'Poste',              ar:'المنصب' },
+  'period_lbl':    { fr:'Période',            ar:'الفترة' },
+  'brut_lbl':      { fr:'Salaire Brut',       ar:'الراتب الإجمالي' },
+  'net_lbl':       { fr:'Net à Payer',        ar:'صافي الراتب' },
+  'note_lbl':      { fr:'Observation',        ar:'ملاحظة' },
+  'visa_lbl':      { fr:'Bon pour accord',    ar:'موافقة / مصادقة' },
+  'print_btn':     { fr:'Imprimer / Enregistrer PDF', ar:'طباعة / حفظ PDF' },
+  'save_btn':      { fr:'Enregistrer sur PC', ar:'حفظ على الحاسوب' },
+  'close_btn':     { fr:'Fermer',             ar:'إغلاق' },
+  'lang_badge_fr': { fr:'🌐 Langue : Français',  ar:'🌐 Langue : Français' },
+  'lang_badge_ar': { fr:'🌐 لغة الوثيقة: العربية', ar:'🌐 لغة الوثيقة: العربية' },
+  'switch_to_ar':  { fr:'🇩🇿 التبديل للعربية',   ar:'🇩🇿 التبديل للعربية' },
+  'switch_to_fr':  { fr:'🇫🇷 Passer en Français', ar:'🇫🇷 Passer en Français' },
+  'footer_brand':  { fr:'SmartStruct — Plateforme gestion chantiers BTP', ar:'SmartStruct — منصة إدارة مشاريع المقاولة' },
+  'important_note_fr': { fr:'⚠️ Note importante :', ar:'⚠️ ملاحظة مهمة:' },
+  'proforma_note': {
+    fr: "Cette facture proforma est non-définitive et n'a aucune valeur fiscale. Elle est destinée uniquement à informer le client des prix proposés.",
+    ar: 'هذه فاتورة شكلية غير ملزمة وليس لها قيمة جبائية. تُستخدم لإطلاع العميل على الأسعار المقترحة فقط.'
+  },
+};
+
+function _T(key) {
+  const e = _TERMS[key];
+  if (!e) return key;
+  return _docLang === 'ar' ? e.ar : e.fr;
+}
+
+function _buildHeader(tenant, docLabelOrKey, docNumber, docDate) {
+  const logo  = _getLogo();
+  const isAr  = _docLang === 'ar';
+  // إذا كان مفتاح موجود في _TERMS استخدمه، وإلا استخدم النص مباشرة
+  const docLabel = _TERMS[docLabelOrKey]
+    ? _T(docLabelOrKey)
+    : (docLabelOrKey || '');
+  const artLbl = isAr ? 'رقم المادة' : "Art. d'imp.";
   const lines = [];
-  if (tenant?.rc_number) lines.push(`RC: ${_esc(tenant.rc_number)}`);
-  if (tenant?.nif)       lines.push(`NIF: ${_esc(tenant.nif)}`);
-  if (tenant?.nis)       lines.push(`NIS: ${_esc(tenant.nis)}`);
-  if (tenant?.article_imp) lines.push(`Art. d'imp.: ${_esc(tenant.article_imp)}`);
-  if (tenant?.address)   lines.push(`📍 ${_esc(tenant.address)}${tenant?.wilaya ? ', ' + _esc(tenant.wilaya) : ''}`);
-  if (tenant?.phone)     lines.push(`📞 ${_esc(tenant.phone)}`);
-  if (tenant?.rib)       lines.push(`RIB: ${_esc(tenant.rib)}`);
+  if (tenant?.rc_number)   lines.push(`RC: ${_esc(tenant.rc_number)}`);
+  if (tenant?.nif)         lines.push(`NIF: ${_esc(tenant.nif)}`);
+  if (tenant?.nis)         lines.push(`NIS: ${_esc(tenant.nis)}`);
+  if (tenant?.article_imp) lines.push(`${artLbl}: ${_esc(tenant.article_imp)}`);
+  if (tenant?.address)     lines.push(`📍 ${_esc(tenant.address)}${tenant?.wilaya ? ', ' + _esc(tenant.wilaya) : ''}`);
+  if (tenant?.phone)       lines.push(`📞 ${_esc(tenant.phone)}`);
+  if (tenant?.rib)         lines.push(`RIB: ${_esc(tenant.rib)}`);
 
   return `
-<div class="dz-header">
+<div class="dz-header" style="direction:${isAr?'rtl':'ltr'}">
   <div class="dz-brand">
     ${logo ? `<img src="${_esc(logo)}" alt="Logo">` : ''}
     <div class="dz-brand-text">
-      <div class="name">▦ ${_esc(tenant?.name || 'مؤسستي')}</div>
+      <div class="name">▦ ${_esc(tenant?.name || _L('Mon Entreprise','مؤسستي'))}</div>
       <div class="legal">${lines.join('<br>')}</div>
     </div>
   </div>
@@ -365,19 +448,19 @@ function _buildHeader(tenant, docLabel, docNumber, docDate) {
 function _buildFooter(docNumber) {
   return `
 <div class="dz-footer">
-  <span>SmartStruct — منصة إدارة مشاريع المقاولة الجزائرية</span>
+  <span>${_T('footer_brand')}</span>
   <span class="gold-text">${_esc(docNumber || '')} | ${_today()}</span>
 </div>`;
 }
 
 // ════════════════════════════════════════════════════════════════════
-//  فتح نافذة الطباعة وحفظ PDF
+//  فتح نافذة الطباعة + دعم تبديل اللغة
 // ════════════════════════════════════════════════════════════════════
 function _openPrint(html, filename, autoPrint=false) {
   const win = window.open('', '_blank', 'width=920,height=1100');
   if (!win) {
-    if (typeof Toast !== 'undefined') Toast.error('السماح بالنوافذ المنبثقة مطلوب');
-    else alert('السماح بالنوافذ المنبثقة مطلوب');
+    if (typeof Toast !== 'undefined') Toast.error(_L('Autorisez les popups dans le navigateur','السماح بالنوافذ المنبثقة مطلوب'));
+    else alert(_L('Autorisez les popups','السماح بالنوافذ المنبثقة مطلوب'));
     return null;
   }
   win.document.write(html);
@@ -395,29 +478,48 @@ function _openPrint(html, filename, autoPrint=false) {
 //  Wrapper HTML (template أساسي مشترك)
 // ════════════════════════════════════════════════════════════════════
 function _wrap(title, bodyHtml, watermarkText) {
+  const isAr = _docLang === 'ar';
+  const btnPrint  = _T('print_btn');
+  const btnSave   = _T('save_btn');
+  const btnClose  = _T('close_btn');
+  const langBadge = isAr ? _T('lang_badge_ar') : _T('lang_badge_fr');
+  const switchBtn = isAr ? _T('switch_to_fr')  : _T('switch_to_ar');
+  const switchTitle = isAr ? 'Passer en Français' : 'التبديل للعربية';
+
   return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
 <head>
 <meta charset="UTF-8">
 <title>${_esc(title)}</title>
-<style>${_SHARED_CSS}</style>
+<style>${_SHARED_CSS}
+.btn-lang{padding:9px 16px;background:#fff;color:#B8902F;border:1.5px solid #B8902F;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
+.btn-lang:hover{background:#B8902F;color:#fff}
+.lang-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;background:rgba(184,144,47,.08);border:1px solid rgba(184,144,47,.25);border-radius:6px;padding:5px 10px;color:#B8902F;font-weight:700}
+</style>
 </head>
 <body>
-<div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+<div class="no-print" style="align-items:center">
+  <button class="btn-print" onclick="window.print()">🖨️ ${btnPrint}</button>
   <button class="btn-print" style="background:#34C38F" onclick="(function(){
-    const html = document.documentElement.outerHTML;
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = ${JSON.stringify(title)} + '.html';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url), 1000);
-  })()">💾 حفظ على الحاسوب</button>
-  <button class="btn-close" onclick="window.close()">✕ إغلاق</button>
+    const html=document.documentElement.outerHTML;
+    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=${JSON.stringify(title)}+'.html';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  })()">💾 ${btnSave}</button>
+  <span class="lang-badge">${langBadge}</span>
+  <button class="btn-lang" title="${_esc(switchTitle)}" onclick="(function(){
+    const newLang = '${isAr?'fr':'ar'}';
+    if(window.opener&&!window.opener.closed){
+      window.opener.postMessage({type:'rebuildDoc',lang:newLang},'*');
+      window.close();
+    } else {
+      alert(isAr ? 'أعِد فتح الوثيقة من التطبيق لتغيير اللغة' : 'Rouvrez le document depuis l\'application');
+    }
+  })()">${switchBtn}</button>
+  <button class="btn-close" onclick="window.close()">✕ ${btnClose}</button>
 </div>
 <div class="page">
   ${watermarkText ? `<div class="watermark">${_esc(watermarkText)}</div>` : ''}
@@ -441,6 +543,14 @@ const _REPUBLIQUE = `
 // ════════════════════════════════════════════════════════════════════
 window.DZDocs = {
 
+  // ─── إعداد لغة الوثيقة ───
+  _setLang(lang) {
+    _docLang = (lang === 'ar') ? 'ar' : 'fr';
+    // احفظ في localStorage
+    try { localStorage.setItem('sbtp_doc_lang', _docLang); } catch(_) {}
+  },
+  _getLang() { return _docLang; },
+
   /* ════════════════════════════════════════════════════
      ① الوثائق التجارية (Pre-Contract)
      ════════════════════════════════════════════════════ */
@@ -457,7 +567,7 @@ window.DZDocs = {
     const tva    = ttc - ht;
 
     const body = `
-${_buildHeader(tenant, 'FACTURE PROFORMA', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('PROFORMA'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -483,7 +593,7 @@ ${_buildHeader(tenant, 'FACTURE PROFORMA', num, _fmtDate(opts.date || _todayISO(
   <table>
     <thead><tr>
       <th style="width:40px">N°</th>
-      <th>Désignation / التعيين</th>
+      <th>${_T('designation')}</th>
       <th class="td-center" style="width:60px">U.</th>
       <th class="td-center" style="width:70px">Qté</th>
       <th class="td-right" style="width:110px">P.U. (DA)</th>
@@ -505,9 +615,9 @@ ${_buildHeader(tenant, 'FACTURE PROFORMA', num, _fmtDate(opts.date || _todayISO(
 
 <div class="totals-section">
   <div class="totals-box">
-    <div class="total-row"><span>Sous-total HT</span><span class="td-num">${_fmt(ht)} DA</span></div>
+    <div class="total-row"><span>${_T('total_ht')}</span><span class="td-num">${_fmt(ht)} DA</span></div>
     <div class="total-row"><span>TVA ${tvaRate}%</span><span class="td-num">${_fmt(tva)} DA</span></div>
-    <div class="total-final"><span>TOTAL TTC</span><span class="td-num">${_fmt(ttc)} DA</span></div>
+    <div class="total-final"><span>${_T('total_ttc')}</span><span class="td-num">${_fmt(ttc)} DA</span></div>
   </div>
 </div>
 
@@ -548,7 +658,7 @@ ${_buildFooter(num)}
     const project= opts.project || {};
 
     const body = `
-${_buildHeader(tenant, 'DEVIS ESTIMATIF', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('DEVIS'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -574,7 +684,7 @@ lots.map((lot, lotIdx) => `
   <table>
     <thead><tr>
       <th style="width:40px">N°</th>
-      <th>Désignation / التعيين</th>
+      <th>${_T('designation')}</th>
       <th class="td-center" style="width:55px">U.</th>
       <th class="td-center" style="width:70px">Qté</th>
       <th class="td-right" style="width:110px">P.U. (DA)</th>
@@ -602,7 +712,7 @@ lots.map((lot, lotIdx) => `
 
 <div class="totals-section">
   <div class="totals-box">
-    <div class="total-row"><span>Sous-total HT</span><span class="td-num">${_fmt(ht)} DA</span></div>
+    <div class="total-row"><span>${_T('total_ht')}</span><span class="td-num">${_fmt(ht)} DA</span></div>
     <div class="total-row"><span>TVA ${tvaRate}%</span><span class="td-num">${_fmt(tva)} DA</span></div>
     <div class="total-final"><span>TOTAL GÉNÉRAL TTC</span><span class="td-num">${_fmt(ttc)} DA</span></div>
   </div>
@@ -637,7 +747,7 @@ ${_buildFooter(num)}`;
     const items  = opts.items || [];
 
     const body = `
-${_buildHeader(tenant, 'BORDEREAU DES PRIX UNITAIRES', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('BPU'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -707,7 +817,7 @@ ${_buildFooter(num)}`;
     const equip  = opts.equipment || [];
 
     const body = `
-${_buildHeader(tenant, 'OFFRE DE SERVICE', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('OFFRE'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-block">
@@ -1002,7 +1112,7 @@ ${_buildFooter(num)}`;
     const project= opts.project || {};
 
     const body = `
-${_buildHeader(tenant, 'JOURNAL DE CHANTIER', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('JOURNAL'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -1072,7 +1182,7 @@ ${_buildFooter(num)}`;
     opts = opts || {};
     const tenant = Auth.getTenant() || {};
     const isFinal= opts.kind === 'final';
-    const label  = isFinal ? "PV DE RÉCEPTION DÉFINITIVE" : "PV DE RÉCEPTION PROVISOIRE";
+    const label  = isFinal ? _T('PV_DEF') : _T('PV_PROV');
     const num    = opts.number || `PV-${isFinal?'DEF':'PRO'}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
     const project= opts.project || {};
     const reserves = opts.reserves || [];
@@ -1197,7 +1307,7 @@ ${_buildFooter(num)}`;
     const pct    = totalContract > 0 ? Math.round((ttc/totalContract)*100) : 0;
 
     const body = `
-${_buildHeader(tenant, "FACTURE D'ACOMPTE", num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('ACOMPTE'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid-3">
@@ -1384,7 +1494,7 @@ ${_buildFooter(num)}`;
     const netToPay   = total - acompteSum - sitSum - retenue;
 
     const body = `
-${_buildHeader(tenant, 'FACTURE DÉFINITIVE', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('FACTURE_DEF'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -1478,7 +1588,7 @@ ${_buildFooter(num)}`;
     const amount = Number(opts.amount || 0);
 
     const body = `
-${_buildHeader(tenant, 'QUITTANCE DE PAIEMENT', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('QUITTANCE'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="article">
   <p style="text-align:center;font-size:13px;font-weight:700;line-height:2">
@@ -1575,7 +1685,7 @@ ${_buildFooter(num)}`;
     const netSalary = grossSalary - cnas - irg - otherDeductions;
 
     const body = `
-${_buildHeader(tenant, 'BULLETIN DE PAIE', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('FICHE_PAIE'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -1705,7 +1815,7 @@ ${_buildFooter(num)}`;
     const tenant = Auth.getTenant() || {};
     const worker = opts.worker || {};
     const kind   = opts.kind || 'cdd'; // 'cdd', 'cta', 'cdi'
-    const kindLabel = { cdd: 'CONTRAT À DURÉE DÉTERMINÉE', cta: 'CONTRAT DE TRAVAIL AIDÉ (CTA-ANEM)', cdi: 'CONTRAT À DURÉE INDÉTERMINÉE' }[kind] || 'CONTRAT DE TRAVAIL';
+    const kindLabel = { cdd: 'CONTRAT À DURÉE DÉTERMINÉE', cta: 'CONTRAT DE TRAVAIL AIDÉ (CTA-ANEM)', cdi: 'CONTRAT À DURÉE INDÉTERMINÉE' }[kind] || _T('CONTRAT');
     const num    = opts.number || `CONT-${kind.toUpperCase()}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
 
     const dailySalary = Number(worker.daily_salary || 0);
@@ -1860,7 +1970,7 @@ ${_buildFooter(num)}`;
     const totalOT    = days.reduce((s,d) => s + Number(d.overtime||0), 0);
 
     const body = `
-${_buildHeader(tenant, 'FICHE DE POINTAGE', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('POINTAGE'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid-3">
@@ -1941,7 +2051,7 @@ ${_buildFooter(num)}`;
 
     const body = `
 ${_REPUBLIQUE}
-${_buildHeader(tenant, 'ATTESTATION DE TRAVAIL', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('ATTESTATION'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="article">
   <p style="text-align:center;font-size:14px;font-weight:700;line-height:2;margin-top:20px">
@@ -2015,7 +2125,7 @@ ${_buildFooter(num)}`;
     const tva    = ttc - ht;
 
     const body = `
-${_buildHeader(tenant, 'BON DE COMMANDE', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('BON_CMD'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -2063,9 +2173,9 @@ ${_buildHeader(tenant, 'BON DE COMMANDE', num, _fmtDate(opts.date || _todayISO()
 
 <div class="totals-section">
   <div class="totals-box">
-    <div class="total-row"><span>Sous-total HT</span><span class="td-num">${_fmt(ht)} DA</span></div>
+    <div class="total-row"><span>${_T('total_ht')}</span><span class="td-num">${_fmt(ht)} DA</span></div>
     <div class="total-row"><span>TVA ${tvaRate}%</span><span class="td-num">${_fmt(tva)} DA</span></div>
-    <div class="total-final"><span>TOTAL TTC</span><span class="td-num">${_fmt(ttc)} DA</span></div>
+    <div class="total-final"><span>${_T('total_ttc')}</span><span class="td-num">${_fmt(ttc)} DA</span></div>
   </div>
 </div>
 
@@ -2099,7 +2209,7 @@ ${_buildFooter(num)}`;
     const items  = opts.items || [];
 
     const body = `
-${_buildHeader(tenant, 'BON DE RÉCEPTION', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('BON_REC'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid">
@@ -2183,7 +2293,7 @@ ${_buildFooter(num)}`;
     const items  = opts.items || [];
 
     const body = `
-${_buildHeader(tenant, 'BON DE SORTIE', num, _fmtDate(opts.date || _todayISO()))}
+${_buildHeader(tenant, _T('BON_SORTIE'), num, _fmtDate(opts.date || _todayISO()))}
 
 <div class="section">
   <div class="info-grid-3">
@@ -2698,6 +2808,17 @@ window.DZArchive = {
   });
 
   console.log('📁 DZArchive — نظام الأرشفة مُفعّل (22 نوع وثيقة)');
+})();
+
+// ── تحميل اللغة المحفوظة عند الإقلاع ──
+(function _initDocLang() {
+  try {
+    const saved = localStorage.getItem('sbtp_doc_lang');
+    if (saved === 'ar' || saved === 'fr') {
+      _docLang = saved;
+      console.log('[DZDocs] لغة الوثيقة المحفوظة:', saved);
+    }
+  } catch(_) {}
 })();
 
 })();
