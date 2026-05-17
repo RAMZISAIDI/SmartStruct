@@ -95,13 +95,14 @@ const SUPABASE_CONFIG = {
 ══════════════════════════════════════════════════════ */
 const _SB_SCHEMA_INTERNAL = {
   plans:          ['id','slug','name','price_monthly','price','max_projects','max_workers','max_equipment','max_emails','created_at'],
-  tenants:        ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','article_imp','rib','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
-  users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login','created_at','updated_at'],
-  projects:       ['id','tenant_id','name','project_type','wilaya','client_name','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at','updated_at'],
-  workers:        ['id','tenant_id','project_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','hire_date','color','avatar_color','is_active','created_at'],
-  equipment:      ['id','tenant_id','project_id','name','model','plate_number','icon','status','purchase_price','notes','created_at'],
+  tenants:        ['id','name','name_fr','plan_id','wilaya','address','phone','email','nif','nis','rc_number','article_imp','rib','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
+  users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login','gdrive_connected','created_at','updated_at'],
+  projects:       ['id','tenant_id','name','project_type','wilaya','client_name','client_name_fr','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at','updated_at'],
+  workers:        ['id','tenant_id','project_id','full_name','full_name_fr','role','phone','national_id','cnas_number','daily_salary','monthly_base','contract_type','hire_date','color','avatar_color','marital_status','children_count','spouse_works','is_handicap','is_active','created_at'],
+  equipment:      ['id','tenant_id','project_id','name','model','type','serial','plate_number','icon','status','purchase_price','purchase_date','next_maintenance','insurance_expiry','notes','created_at'],
+  equipment_logs: ['id','tenant_id','equipment_id','type','date','cost','note','vendor','next_maintenance','created_at'],
   transactions:   ['id','tenant_id','project_id','worker_id','type','category','amount','description','date','payment_method','supplier','created_at'],
-  attendance:     ['id','tenant_id','worker_id','project_id','date','status','hours','note','created_at'],
+  attendance:     ['id','tenant_id','worker_id','project_id','date','status','hours','note','gps','created_at'],
   materials:      ['id','tenant_id','project_id','name','unit','quantity','min_quantity','unit_price','supplier','created_at'],
   invoices:       ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method','created_at'],
   salary_records: ['id','tenant_id','worker_id','month_key','amount','paid_date','created_at'],
@@ -109,7 +110,7 @@ const _SB_SCHEMA_INTERNAL = {
   documents:      ['id','tenant_id','project_id','worker_id','name','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number','created_at'],
   obligations:    ['id','tenant_id','title','amount','due','created_at'],
   notes:          ['id','tenant_id','project_id','user_id','text','date','created_at'],
-  notifications:  ['id','tenant_id','user_id','type','title','body','date','read','status','created_at'],
+  notifications:  ['id','tenant_id','user_id','type','title','body','message','link','action_url','date','read','status','created_at'],
   global_settings:['key','value','updated_at'],
   stock_movements:['id','tenant_id','material_id','type','quantity','date','note','created_at'],
   audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent','created_at'],
@@ -127,6 +128,8 @@ const _SB_DATE_FIELDS_INTERNAL = {
   projects:       ['start_date','end_date'],
   tenants:        ['trial_start','trial_end'],
   workers:        ['hire_date'],
+  equipment:      ['purchase_date','next_maintenance','insurance_expiry'],
+  equipment_logs: ['date','next_maintenance'],
   transactions:   ['date'],
   attendance:     ['date'],
   invoices:       ['date','due_date','paid_date'],
@@ -1165,45 +1168,120 @@ if (!navigator.onLine || !this._useSupabase) {
      مزامنة أولية (عند أول اتصال ناجح)
   ───────────────────────────────────────────────────── */
   async _initialSync() {
-    const tables = [
-      'plans','tenants','users','workers','projects',
-      'materials','equipment','attendance','transactions'
+    const user = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
+    const tid  = user?.tenant_id;
+    const isAdmin = user?.is_admin;
+
+    // الجداول التي تحتوي tenant_id (تُسحب مفلترة للمستخدم العادي)
+    const tenantTables = [
+      'projects','workers','equipment','equipment_logs',
+      'transactions','attendance','materials','stock_movements',
+      'invoices','salary_records','kanban_tasks','documents',
+      'obligations','notes','notifications','audit_log'
     ];
-    // رفع المحلي
-    for (const t of tables) {
-      const local = this.get(t);
-      if (local.length)
-        await this._syncTableToSupabase(t, local).catch(() => {});
-    }
-    // سحب البعيد
+    // الجداول العامة (تُسحب كاملاً للجميع)
+    const globalTables = ['plans','tenants','users'];
+
+    // ═══ ① السحب من Supabase أولاً ═══
+    console.log('🔽 سحب البيانات من Supabase...');
     try {
-      await this._pullRemoteTable('tenants', 'sbtp5_tenants');
-        await this._pullRemoteTable('users',   'sbtp5_users');
-        await this._pullRemoteTable('notifications','sbtp5_notifications');
-const aiRows = await this._sb.select('global_settings', { key: 'global_ai_config' }).catch(() => []);
-      if (aiRows.length && aiRows[0].value) {
-        const cfg = typeof aiRows[0].value === 'string'
-          ? JSON.parse(aiRows[0].value) : aiRows[0].value;
-        if (cfg.apiKey) {
-          localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
-          console.log('✅ AI config مُحمَّل من Supabase');
+      // الجداول العامة
+      for (const t of globalTables) {
+        try {
+          const remote = await this._sb.select(t);
+          if (Array.isArray(remote) && remote.length) {
+            // احترم blacklist للمحذوفات محلياً
+            let filtered = remote;
+            if (t === 'tenants' || t === 'users') {
+              try {
+                const deletedIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+                if (deletedIds.length) {
+                  filtered = remote.filter(r =>
+                    t === 'tenants'
+                      ? !deletedIds.includes(Number(r.id))
+                      : !deletedIds.includes(Number(r.tenant_id))
+                  );
+                }
+              } catch(_) {}
+            }
+            // دمج ذكي: لا نُلغي السجلات المحلية الجديدة غير المرفوعة بعد
+            const local = this.get(t) || [];
+            const remoteIds = new Set(filtered.map(r => Number(r.id)));
+            const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+            const merged = [...filtered, ...localOnly];
+            localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
+            console.log(`  ✅ ${t}: ${filtered.length} من السحابة + ${localOnly.length} محلي`);
+          }
+        } catch(e) {
+          console.warn(`  ⚠️ ${t}:`, e.message);
         }
       }
 
-      const notifs = await this._sb.select('notifications').catch(() => []);
-      if (notifs.length) {
-        const local = this.get('admin_notifications') || [];
-        const merged = [...notifs];
-        local.forEach(l => { if (!merged.find(r => r.id === l.id)) merged.push(l); });
-        localStorage.setItem('sbtp5_admin_notifications',
-          JSON.stringify(merged.sort((a, b) =>
-            new Date(b.date || 0) - new Date(a.date || 0)
-          ))
-        );
+      // الجداول الخاصة بالمؤسسة
+      if (tid || isAdmin) {
+        for (const t of tenantTables) {
+          try {
+            // المستخدم العادي: يسحب فقط بيانات مؤسسته
+            // الأدمن: يسحب كل شيء
+            const filters = isAdmin ? {} : { tenant_id: tid };
+            const remote = await this._sb.select(t, filters);
+            if (Array.isArray(remote)) {
+              // دمج مع المحلي (المحلي الذي ليس له id في البعيد = جديد لم يُرفع)
+              const local = this.get(t) || [];
+              const remoteIds = new Set(remote.map(r => Number(r.id)));
+              const localUnsynced = local.filter(r =>
+                !remoteIds.has(Number(r.id)) &&
+                (isAdmin || Number(r.tenant_id) === Number(tid))
+              );
+              const merged = [...remote, ...localUnsynced];
+              localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
+              if (remote.length || localUnsynced.length) {
+                console.log(`  ✅ ${t}: ${remote.length} من السحابة + ${localUnsynced.length} محلي غير مُرفَع`);
+              }
+            }
+          } catch(e) {
+            console.warn(`  ⚠️ ${t}:`, e.message);
+          }
+        }
+      }
+
+      // إعدادات AI
+      const aiRows = await this._sb.select('global_settings', { key: 'global_ai_config' }).catch(() => []);
+      if (aiRows.length && aiRows[0].value) {
+        const cfg = typeof aiRows[0].value === 'string' ? JSON.parse(aiRows[0].value) : aiRows[0].value;
+        if (cfg.apiKey) {
+          localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
+          console.log('  ✅ AI config مُحمَّل');
+        }
+      }
+
+      // إعدادات Google Drive المركزية
+      const gdRows = await this._sb.select('global_settings', { key: 'global_gdrive_config' }).catch(() => []);
+      if (gdRows.length && gdRows[0].value) {
+        const cfg = typeof gdRows[0].value === 'string' ? JSON.parse(gdRows[0].value) : gdRows[0].value;
+        localStorage.setItem('sbtp5_global_gdrive_config', JSON.stringify(cfg));
+        console.log('  ✅ Google Drive config مُحمَّل');
       }
     } catch (e) {
       console.warn('⚠️ فشل سحب البيانات من Supabase:', e.message);
     }
+
+    // ═══ ② دفع السجلات المحلية غير المرفوعة ═══
+    console.log('🔼 رفع السجلات المحلية الجديدة...');
+    const allTables = [...globalTables, ...tenantTables];
+    for (const t of allTables) {
+      try {
+        const local = this.get(t) || [];
+        if (!local.length) continue;
+        // فقط السجلات التي ليس لها id في البعيد (لتفادي إعادة الكتابة)
+        // _syncTableToSupabase يستخدم upsert فهو آمن
+        await this._syncTableToSupabase(t, local).catch(() => {});
+      } catch(_) {}
+    }
+    console.log('✅ المزامنة الأولية انتهت');
+
+    // إطلاق event لتحديث الواجهة
+    document.dispatchEvent(new CustomEvent('smartsync', { detail: { state: 'synced', detail: 'initial' } }));
   },
 
   /* ─────────────────────────────────────────────────────

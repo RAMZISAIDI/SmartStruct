@@ -187,20 +187,35 @@ const Auth = {
    TOAST
 ══════════════════════════════════════════════════════ */
 const Toast = {
-  show(msg, type='info') {
+  _shown: new Set(), // منع الإشعارات المكررة في نفس الجلسة
+  show(msg, type='info', duration) {
     const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
     const c = document.getElementById('toastContainer');
-    if (!c) return;
+    if (!c) {
+      // إذا لم يُهيَّأ الـ DOM بعد، انتظر قليلاً
+      setTimeout(() => Toast.show(msg, type, duration), 300);
+      return;
+    }
     const t = document.createElement('div');
     t.className = `toast toast-${type==='warn'?'warn':type}`;
-    t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${String(msg).replace(/</g,'&lt;')}</span>`;
+    // دعم HTML في الرسائل (للروابط)
+    const safeMsg = String(msg);
+    const hasHtml = safeMsg.includes('<a ') || safeMsg.includes('<strong>');
+    if (hasHtml) {
+      t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${safeMsg}</span>`;
+    } else {
+      t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${safeMsg.replace(/</g,'&lt;')}</span>`;
+    }
+    t.style.cursor = 'pointer';
+    t.addEventListener('click', () => t.remove());
     c.appendChild(t);
-    setTimeout(() => t.remove(), type === 'warn' ? 6000 : 4000);
+    const ms = duration || (type === 'error' ? 6000 : type === 'warn' ? 5000 : 4000);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, ms);
   },
-  success: m => Toast.show(m,'success'),
-  error: m => Toast.show(m,'error'),
-  info: m => Toast.show(m,'info'),
-  warn: m => Toast.show(m,'warn')
+  success: (m, d) => Toast.show(m, 'success', d),
+  error:   (m, d) => Toast.show(m, 'error',   d),
+  info:    (m, d) => Toast.show(m, 'info',     d),
+  warn:    (m, d) => Toast.show(m, 'warn',     d),
 };
 
 /* ══════════════════════════════════════════════════════
@@ -1226,7 +1241,7 @@ function topbarHTML(breadcrumb) {
       <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
         ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
       </button>
-      <div id="syncPill" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="App.navigate('settings')">
+      <div id="syncPill" title="${L('انقر للمزامنة اليدوية','Cliquez pour synchroniser')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="manualSyncNow()">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
         <span id="syncLabel">${L('متزامن','Sync')}</span>
       </div>
@@ -13689,6 +13704,126 @@ async function testEmailJS(event) {
 
 
 /* ══════════════════════════════════════════════════════
+   SUPABASE NOTIFICATIONS — عرض الإشعارات الواردة من Supabase
+   يعمل مع الـ Realtime pull ويعرضها كـ Toast فور وصولها
+══════════════════════════════════════════════════════ */
+const NotificationWatcher = {
+  _seenIds:  new Set(JSON.parse(localStorage.getItem('sbtp_seen_notif_ids') || '[]')),
+  _interval: null,
+  _lastCount: 0,
+
+  start() {
+    if (this._interval) return;
+    // فحص كل 8 ثوانٍ
+    this._interval = setInterval(() => this._check(), 8000);
+    // فحص فوري بعد ثانيتين من بدء التشغيل
+    setTimeout(() => this._check(), 2000);
+    // استمع لأحداث الـ Realtime القادمة من supabase-db.js
+    document.addEventListener('smartsync', () => setTimeout(() => this._check(), 500));
+    console.log('🔔 NotificationWatcher بدأ');
+  },
+
+  stop() {
+    if (this._interval) { clearInterval(this._interval); this._interval = null; }
+  },
+
+  _check() {
+    const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
+    if (!user) return;
+
+    const allNotifs = (DB.get('notifications') || []);
+    // الإشعارات المخصصة لهذا المستخدم أو لمؤسسته أو العامة
+    const myNotifs = allNotifs.filter(n =>
+      (!n.user_id || n.user_id === user.id) &&
+      (!n.tenant_id || n.tenant_id === user.tenant_id)
+    );
+
+    // اكتشاف الإشعارات الجديدة
+    const newNotifs = myNotifs.filter(n => !this._seenIds.has(String(n.id)));
+    if (!newNotifs.length) return;
+
+    newNotifs.forEach(n => {
+      this._seenIds.add(String(n.id));
+      this._showNotif(n);
+    });
+
+    // حفظ IDs المُشاهَدة (أبقِ آخر 200 فقط لتجنب تضخم localStorage)
+    const idsArr = [...this._seenIds].slice(-200);
+    this._seenIds = new Set(idsArr);
+    localStorage.setItem('sbtp_seen_notif_ids', JSON.stringify(idsArr));
+  },
+
+  _showNotif(n) {
+    const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
+
+    // تحديد نوع الإشعار
+    const typeMap = {
+      success: 'success',
+      error:   'error',
+      warning: 'warn',
+      warn:    'warn',
+      info:    'info',
+      alert:   'warn',
+    };
+    const toastType = typeMap[n.type] || typeMap[n.category] || 'info';
+
+    // بناء رسالة الإشعار
+    let msg = '';
+    if (n.title) msg += `<strong>${String(n.title).replace(/</g,'&lt;')}</strong> `;
+    if (n.message || n.body) msg += String(n.message || n.body).replace(/</g,'&lt;');
+    if (!msg.trim()) return; // لا نعرض إشعارات فارغة
+
+    // إضافة رابط إذا وجد
+    if (n.link || n.action_url) {
+      const url = n.link || n.action_url;
+      const label = isAr ? 'عرض' : 'Voir';
+      msg += ` <a href="#" onclick="event.preventDefault();App.navigate('${url.replace(/['"]/g,'')}')" style="color:var(--gold);text-decoration:underline;font-weight:700">${label}</a>`;
+    }
+
+    // عرض Toast مع مدة أطول للإشعارات المهمة
+    const duration = (toastType === 'error' || toastType === 'warn') ? 8000 : 6000;
+    if (typeof Toast !== 'undefined') Toast.show(msg, toastType, duration);
+
+    console.log('[NotificationWatcher] إشعار جديد:', n);
+  },
+};
+
+// بدء المراقبة عند تسجيل الدخول
+const _origLogin = Auth.login?.bind(Auth);
+if (_origLogin) {
+  Auth.login = function(...args) {
+    const result = _origLogin(...args);
+    // بعد تسجيل الدخول الناجح، اسحب بيانات المؤسسة من Supabase
+    setTimeout(async () => {
+      NotificationWatcher.start();
+      const user = Auth.getUser();
+      if (user && typeof DB !== 'undefined' && DB._useSupabase && typeof DB._initialSync === 'function') {
+        try {
+          if (typeof Toast !== 'undefined') Toast.info(L('⏳ جارٍ سحب بياناتك من السحابة...','⏳ Synchronisation des données...'), 3000);
+          await DB._initialSync();
+          if (typeof Toast !== 'undefined') Toast.success(L('✅ تم تحديث بياناتك من السحابة','✅ Données synchronisées'));
+          // أعد رسم الصفحة الحالية للعرض الجديد
+          if (typeof App !== 'undefined' && App.currentPage) {
+            setTimeout(() => App.render(), 300);
+          }
+        } catch(e) {
+          console.warn('[Login sync]', e.message);
+        }
+      }
+    }, 1500);
+    return result;
+  };
+}
+// بدء إذا المستخدم مسجّل بالفعل
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (typeof Auth !== 'undefined' && Auth.getUser()) {
+      NotificationWatcher.start();
+    }
+  }, 2000);
+});
+
+/* ══════════════════════════════════════════════════════
    DOC LANGUAGE SWITCH — يستقبل طلب تبديل اللغة من نافذة الوثيقة
 ══════════════════════════════════════════════════════ */
 window.addEventListener('message', function(e) {
@@ -17057,20 +17192,6 @@ function inviteUserV5(){
   App.navigate('team');
 }
 
-/* ── PATCH LOGIN to add more demo users ── */
-/* ── PATCH Toast to add warn type ── */
-const _origToastShow = Toast.show;
-Toast.show = function(msg, type='info') {
-  const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
-  const c = document.getElementById('toastContainer');
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
-  t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${msg}</span>`;
-  c.appendChild(t);
-  setTimeout(() => t.remove(), 4500);
-};
-Toast.warn = m => Toast.show(m, 'warn');
-
 /* ── PATCH nav to register new routes ── */
 /* Routes are now handled directly in App.render() */
 
@@ -19694,3 +19815,71 @@ function saveAttWithGPS(wid, date, status) {
   });
 }
 
+
+// ════════════════════════════════════════════════════════════════════
+//  إرسال إشعار لمستخدم أو مؤسسة (تُستخدم من الأدمن)
+// ════════════════════════════════════════════════════════════════════
+function sendNotification({ title, message, type='info', tenant_id=null, user_id=null, link=null }) {
+  const notifs = DB.get('notifications') || [];
+  const n = {
+    id:         DB.nextId('notifications'),
+    title:      title || '',
+    message:    message || '',
+    type:       type,
+    tenant_id:  tenant_id,
+    user_id:    user_id,
+    link:       link,
+    created_at: new Date().toISOString(),
+    read:       false,
+  };
+  notifs.push(n);
+  DB.set('notifications', notifs);
+  // مزامنة مع Supabase
+  if (typeof sbSync === 'function') sbSync('notifications', n, 'POST').catch(()=>{});
+  return n;
+}
+
+// إشعار عام لكل مستخدمي مؤسسة معينة
+function notifyTenant(tenantId, { title, message, type='info', link=null }) {
+  return sendNotification({ title, message, type, tenant_id: tenantId, link });
+}
+
+// إشعار فوري في نفس الجلسة (Toast مباشر + حفظ)
+function notifyNow(msg, type='info', duration) {
+  Toast.show(msg, type, duration);
+  const user = Auth.getUser();
+  if (user) sendNotification({ message: msg, type, tenant_id: user.tenant_id, user_id: user.id });
+}
+
+window.sendNotification = sendNotification;
+window.notifyTenant     = notifyTenant;
+window.notifyNow        = notifyNow;
+window.NotificationWatcher = NotificationWatcher;
+
+// ════════════════════════════════════════════════════════════════════
+//  مزامنة يدوية فورية — يضغطها المستخدم من syncPill
+// ════════════════════════════════════════════════════════════════════
+async function manualSyncNow() {
+  if (typeof DB === 'undefined') return;
+  if (!DB._useSupabase) {
+    Toast.warn(L('Supabase غير مُهيَّأ — اتصل بالمسؤول','Supabase non configuré'));
+    return;
+  }
+  if (!navigator.onLine) {
+    Toast.warn(L('📵 لا يوجد اتصال بالإنترنت','📵 Pas de connexion'));
+    return;
+  }
+  Toast.info(L('⏳ جاري المزامنة مع السحابة...','⏳ Synchronisation en cours...'), 3000);
+  updateSyncPill('syncing');
+  try {
+    await DB._initialSync();
+    updateSyncPill('synced');
+    Toast.success(L('✅ تمت المزامنة بنجاح','✅ Synchronisation réussie'));
+    // أعد رسم الصفحة الحالية
+    setTimeout(() => { if (App.currentPage) App.render(); }, 300);
+  } catch(e) {
+    updateSyncPill('error');
+    Toast.error(L('❌ فشلت المزامنة: ','❌ Échec sync: ') + e.message);
+  }
+}
+window.manualSyncNow = manualSyncNow;
