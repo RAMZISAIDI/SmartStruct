@@ -8225,15 +8225,15 @@ function clearAIKey() {
 }
 
 function switchAdminTab(tab) {
-  const tabs = ['tenants','ai','notif','supabase'];
-  const colors = { tenants:'var(--gold)', ai:'#9B6DFF', notif:'var(--blue)', supabase:'#34C38F' };
+  const tabs = ['tenants','ai','gdrive','notif','supabase'];
+  const colors = { tenants:'var(--gold)', ai:'#9B6DFF', gdrive:'#4285F4', notif:'var(--blue)', supabase:'#34C38F' };
   tabs.forEach(t => {
     const btn = document.getElementById('adminTab_' + t);
     const panel = document.getElementById('adminTabContent_' + t);
     if (!btn || !panel) return;
     if (t === tab) {
       btn.style.background = colors[t] || 'var(--gold)';
-      btn.style.color = t === 'ai' ? '#fff' : '#1a1a1a';
+      btn.style.color = (t==='ai'||t==='gdrive') ? '#fff' : '#1a1a1a';
       panel.style.display = 'block';
     } else {
       btn.style.background = 'transparent';
@@ -8564,22 +8564,26 @@ Pages.admin = function() {
         </div>
 
         <!-- Admin Tabs -->
-        <div style="display:flex;gap:.4rem;margin-bottom:1.5rem;background:rgba(255,255,255,0.03);border:1px solid var(--border2);border-radius:14px;padding:.35rem">
+        <div style="display:flex;gap:.4rem;margin-bottom:1.5rem;background:rgba(255,255,255,0.03);border:1px solid var(--border2);border-radius:14px;padding:.35rem;flex-wrap:wrap">
           <button id="adminTab_tenants" onclick="switchAdminTab('tenants')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:var(--gold);color:#1a1a1a">
-            🏢 المؤسسات والإحصائيات
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:var(--gold);color:#1a1a1a">
+            🏢 المؤسسات
           </button>
           <button id="adminTab_ai" onclick="switchAdminTab('ai')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            🤖 إعدادات SmartAI
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            🤖 SmartAI
+          </button>
+          <button id="adminTab_gdrive" onclick="switchAdminTab('gdrive')"
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            ☁️ Google Drive
           </button>
           <button id="adminTab_notif" onclick="switchAdminTab('notif')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            📧 الإشعارات والبريد
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            📧 البريد
           </button>
           <button id="adminTab_supabase" onclick="switchAdminTab('supabase')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            🗄️ قاعدة البيانات Supabase
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            🗄️ Supabase
           </button>
         </div>
 
@@ -8885,6 +8889,140 @@ Pages.admin = function() {
         <div id="adminTabContent_ai" style="display:none">
           ${renderAIProviderSettings()}
         </div><!-- END adminTabContent_ai -->
+
+        <!-- ══════════════════════════════════════════════════ -->
+        <!-- TAB: Google Drive API Settings -->
+        <!-- ══════════════════════════════════════════════════ -->
+        <div id="adminTabContent_gdrive" style="display:none">
+          <div class="card" style="margin-bottom:1rem">
+            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
+              <svg width="32" height="28" viewBox="0 0 87.3 78">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              <div>
+                <div style="font-size:1.1rem;font-weight:900">Google Drive API</div>
+                <div style="font-size:.75rem;color:var(--dim)">إعداد مركزي — يُطبَّق على كل المستخدمين</div>
+              </div>
+            </div>
+
+            <!-- الشرح -->
+            <div style="background:rgba(66,133,244,.08);border:1px solid rgba(66,133,244,.2);border-radius:10px;padding:1rem;margin-bottom:1.2rem;font-size:.8rem;line-height:1.8;color:var(--text)">
+              <strong>☁️ كيف يعمل؟</strong><br>
+              أنت كمسؤول تُدخل <strong>Client ID</strong> مرة واحدة هنا.
+              كل مستخدم يرى زر <strong>"ربط حسابي بـ Google Drive"</strong> في إعداداته الشخصية —
+              عند الضغط يسجّل دخوله بحساب Google الخاص به ويُحفظ كل وثائقه في Drive الشخصي <strong>تلقائياً ومنفصلاً</strong>.
+              لا يرى SmartStruct ملفات المستخدمين.
+            </div>
+
+            <!-- خطوات الإعداد -->
+            <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:10px;padding:1rem;margin-bottom:1.2rem">
+              <div style="font-weight:800;color:var(--gold);margin-bottom:.7rem">📋 خطوات إنشاء Google OAuth Client ID</div>
+              <ol style="padding-right:1.3rem;font-size:.78rem;line-height:2;color:var(--muted);margin:0">
+                <li>اذهب إلى <a href="https://console.cloud.google.com" target="_blank" style="color:#4285F4;font-weight:700">console.cloud.google.com</a></li>
+                <li>أنشئ مشروع جديد أو اختر مشروعاً موجوداً</li>
+                <li>اذهب لـ <strong>APIs &amp; Services → Library</strong> → ابحث عن <strong>"Google Drive API"</strong> → فعّله</li>
+                <li>اذهب لـ <strong>APIs &amp; Services → Credentials → Create Credentials → OAuth 2.0 Client ID</strong></li>
+                <li>اختر <strong>Web application</strong></li>
+                <li>في <strong>Authorized JavaScript origins</strong> أضف نطاق موقعك (مثال: <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px">https://smartstruct.dz</code>)</li>
+                <li>انسخ الـ <strong>Client ID</strong> والصقه أدناه</li>
+                <li>احفظ — سيظهر زر الربط لجميع المستخدمين فوراً</li>
+              </ol>
+            </div>
+
+            <!-- حقل Client ID -->
+            <div class="form-group" style="margin-bottom:1rem">
+              <label class="form-label">🔑 Google OAuth Client ID</label>
+              <div style="display:flex;gap:.5rem">
+                <input class="form-input" id="adminGdriveClientId" type="text" dir="ltr"
+                  placeholder="123456789-abcdefghijk.apps.googleusercontent.com"
+                  value="${escHtml(DB.get('global_gdrive_config')?.client_id || '')}"
+                  style="font-family:monospace;font-size:.78rem;flex:1">
+                <button class="btn btn-blue" onclick="(function(){
+                  const id = document.getElementById('adminGdriveClientId').value.trim();
+                  if (!id) { Toast.error('أدخل Client ID أولاً'); return; }
+                  if (!id.includes('.apps.googleusercontent.com')) {
+                    Toast.warn('تأكد من صيغة Client ID الصحيحة');
+                  }
+                  const cfg = { client_id: id, enabled: true, updated_at: new Date().toISOString() };
+                  DB.set('global_gdrive_config', cfg);
+                  localStorage.setItem('sbtp_gdrive_client_id', id);
+                  Toast.success('✅ تم حفظ Google Client ID بنجاح!');
+                  document.getElementById('adminGdriveStatus').innerHTML = adminGdriveStatusHTML(true, id);
+                })()">
+                  💾 حفظ
+                </button>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.4rem">
+                الصيغة الصحيحة: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">XXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.apps.googleusercontent.com</code>
+              </div>
+            </div>
+
+            <!-- حالة الإعداد -->
+            <div id="adminGdriveStatus">
+              ${(function(){
+                const cfg = DB.get('global_gdrive_config');
+                const enabled = cfg?.enabled && cfg?.client_id;
+                if (enabled) return `<div style="background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.25);border-radius:10px;padding:.8rem 1rem;display:flex;align-items:center;gap:.7rem">
+                  <span style="font-size:1.3rem">✅</span>
+                  <div>
+                    <div style="font-weight:700;color:#34C38F;font-size:.85rem">Google Drive API مُفعَّل</div>
+                    <div style="font-size:.72rem;color:var(--dim);font-family:monospace;margin-top:2px">${escHtml(cfg.client_id.substring(0,40))}...</div>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" style="margin-right:auto" onclick="(function(){
+                    if(!confirm('هل تريد تعطيل Google Drive لجميع المستخدمين؟')) return;
+                    DB.set('global_gdrive_config',{client_id:'',enabled:false});
+                    localStorage.removeItem('sbtp_gdrive_client_id');
+                    Toast.info('تم تعطيل Google Drive');
+                    App.navigate('admin');
+                  })()">🗑️ تعطيل</button>
+                </div>`;
+                return `<div style="background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.2);border-radius:10px;padding:.8rem 1rem;font-size:.82rem;color:var(--dim)">
+                  ⭕ Google Drive غير مُفعَّل — أدخل Client ID أعلاه لتفعيله لجميع المستخدمين.
+                </div>`;
+              })()}
+            </div>
+          </div>
+
+          <!-- إحصائيات الربط -->
+          <div class="card" style="margin-bottom:1rem">
+            <div style="font-weight:800;margin-bottom:.8rem">📊 إحصائيات الربط</div>
+            ${(function(){
+              const cfg = DB.get('global_gdrive_config');
+              if (!cfg?.enabled) return `<div style="font-size:.8rem;color:var(--dim)">فعّل Google Drive أولاً لعرض الإحصائيات.</div>`;
+              // نبحث في users عن من ربط Drive
+              const allUsers = DB.get('users')||[];
+              const tenantUsers = allUsers.filter(u=>!u.is_admin);
+              // المستخدمون الذين لديهم gdrive_connected = true في localStorage لا يمكن معرفتهم من الأدمن
+              // لكن نعرض إجمالي المستخدمين
+              return `
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem">
+                  <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value">${tenantUsers.length}</div><div class="stat-label">إجمالي المستخدمين</div></div>
+                  <div class="stat-card"><div class="stat-icon" style="color:#4285F4">☁️</div><div class="stat-value" style="color:#4285F4">${tenantUsers.filter(u=>u.gdrive_connected).length}</div><div class="stat-label">ربطوا Drive</div></div>
+                  <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-value" style="color:var(--gold)">${(DB.get('gdrive_uploads')||[]).length}</div><div class="stat-label">وثيقة رُفعت</div></div>
+                </div>
+                <div style="margin-top:.8rem;font-size:.75rem;color:var(--dim);background:rgba(255,255,255,.03);border-radius:8px;padding:.6rem .8rem">
+                  💡 كل مستخدم يربط Drive الخاص به. الوثائق تُحفظ في Drive الشخصي لكل مستخدم — لا يمكن للأدمن الوصول إليها.
+                </div>`;
+            })()}
+          </div>
+
+          <!-- دليل المستخدم -->
+          <div class="card">
+            <div style="font-weight:800;margin-bottom:.8rem">📖 ما يراه المستخدم في إعداداته</div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:1rem;font-size:.78rem;color:var(--dim);line-height:1.8">
+              بعد حفظ Client ID، يجد كل مستخدم في صفحة <strong>الإعدادات</strong> بطاقة <strong>"Google Drive"</strong> تحتوي على:<br>
+              • زر <strong>"ربط حسابي بـ Google Drive"</strong> يفتح نافذة تسجيل دخول Google<br>
+              • بعد الربط: كل وثيقة تُولَّد تُحفظ تلقائياً في Drive الشخصي<br>
+              • البنية: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">SmartStruct BTP / اسم المؤسسة / 2026 / نوع الوثيقة</code><br>
+              • زر "قطع الاتصال" لإلغاء الربط في أي وقت
+            </div>
+          </div>
+        </div><!-- END adminTabContent_gdrive -->
 
         <!-- TAB CONTENT: Supabase -->
         <div id="adminTabContent_supabase" style="display:none">

@@ -13,13 +13,25 @@
 'use strict';
 
 // ── إعدادات Google OAuth ──
-// ⚠️ يجب على المطوّر إنشاء مشروع في console.cloud.google.com
-// وإضافة redirect URI = origin الموقع + تفعيل Google Drive API
+// Client ID يُدخله المسؤول مرة واحدة من لوحة الأدمن
+// ويُطبَّق تلقائياً على كل المستخدمين
 const GDRIVE_CONFIG = {
-  // Client ID من Google Console (يجب أن يكون مخصصاً للنطاق)
-  CLIENT_ID: localStorage.getItem('sbtp_gdrive_client_id') || '',
+  get CLIENT_ID() {
+    // أولوية: إعداد الأدمن المركزي ← localStorage الخاص بالمستخدم
+    if (typeof DB !== 'undefined') {
+      const globalCfg = DB.get('global_gdrive_config');
+      if (globalCfg?.enabled && globalCfg?.client_id) return globalCfg.client_id;
+    }
+    return localStorage.getItem('sbtp_gdrive_client_id') || '';
+  },
+  get ENABLED() {
+    if (typeof DB !== 'undefined') {
+      const globalCfg = DB.get('global_gdrive_config');
+      return !!(globalCfg?.enabled && globalCfg?.client_id);
+    }
+    return !!localStorage.getItem('sbtp_gdrive_client_id');
+  },
   SCOPE: 'https://www.googleapis.com/auth/drive.file',
-  DISCOVERY: 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
 };
 
 // ── حالة الاتصال ──
@@ -33,21 +45,25 @@ const GDrive = {
     // تحميل Google API Script
     await this._loadGAPI();
 
-    // التحقق من وجود Client ID
+    // التحقق من وجود Client ID (من الأدمن)
     if (!GDRIVE_CONFIG.CLIENT_ID) {
-      const id = prompt(
-        L(
-          'أدخل Google Client ID من Google Console:\n(console.cloud.google.com → APIs & Services → Credentials)',
-          'Entrez votre Google Client ID depuis Google Console:\n(console.cloud.google.com → APIs & Services → Credentials)'
-        )
-      );
-      if (!id?.trim()) { Toast.warn(L('تم الإلغاء','Annulé')); return false; }
-      localStorage.setItem('sbtp_gdrive_client_id', id.trim());
-      GDRIVE_CONFIG.CLIENT_ID = id.trim();
+      const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
+      if (user?.is_admin) {
+        Toast.warn(L(
+          'اذهب لـ لوحة الأدمن → تبويب ☁️ Google Drive → أدخل Client ID أولاً',
+          'Allez dans Admin → ☁️ Google Drive → entrez le Client ID d\'abord'
+        ));
+        if (typeof App !== 'undefined') App.navigate('admin');
+      } else {
+        Toast.warn(L(
+          '⚙️ Google Drive غير مُفعَّل بعد. تواصل مع مسؤول المنصة.',
+          '⚙️ Google Drive non activé. Contactez l\'administrateur de la plateforme.'
+        ));
+      }
+      return false;
     }
 
     return new Promise((resolve) => {
-      // OAuth2 Implicit Flow
       const tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GDRIVE_CONFIG.CLIENT_ID,
         scope: GDRIVE_CONFIG.SCOPE,
@@ -59,9 +75,21 @@ const GDrive = {
           }
           this._token = resp.access_token;
           this._tokenExpiry = Date.now() + (Number(resp.expires_in) * 1000);
-          // حفظ token مؤقتاً (ينتهي خلال ساعة)
           localStorage.setItem('sbtp_gdrive_token', JSON.stringify({ token: this._token, expiry: this._tokenExpiry }));
-          Toast.success(L('✅ تم ربط Google Drive بنجاح!', '✅ Google Drive connecté avec succès!'));
+          // تسجيل الربط في بيانات المستخدم
+          if (typeof Auth !== 'undefined' && Auth.getUser) {
+            try {
+              const u = Auth.getUser();
+              const users = DB.get('users') || [];
+              const idx = users.findIndex(x => x.id === u.id);
+              if (idx >= 0) { users[idx].gdrive_connected = true; DB.set('users', users); }
+              // تسجيل في سجل الرفعات
+              const uploads = DB.get('gdrive_uploads') || [];
+              uploads.push({ user_id: u.id, connected_at: new Date().toISOString(), tenant_id: u.tenant_id });
+              DB.set('gdrive_uploads', uploads);
+            } catch(_) {}
+          }
+          Toast.success(L('✅ تم ربط Google Drive بنجاح! وثائقك ستُحفظ تلقائياً.', '✅ Google Drive connecté! Vos documents seront sauvegardés automatiquement.'));
           resolve(true);
         },
       });
@@ -286,10 +314,106 @@ window.GDrive = GDrive;
 //  واجهة إعدادات Google Drive في الإعدادات
 // ════════════════════════════════════════════════════════════════════
 window.renderGDriveSettings = function() {
-  const connected = GDrive.isConnected();
-  const clientId  = localStorage.getItem('sbtp_gdrive_client_id') || '';
-  const expiry    = JSON.parse(localStorage.getItem('sbtp_gdrive_token') || 'null')?.expiry;
-  const remaining = expiry ? Math.max(0, Math.round((expiry - Date.now()) / 60000)) : 0;
+  const connected  = GDrive.isConnected();
+  const adminCfg   = (typeof DB !== 'undefined') ? DB.get('global_gdrive_config') : null;
+  const isEnabled  = adminCfg?.enabled && adminCfg?.client_id;
+  const expiry     = JSON.parse(localStorage.getItem('sbtp_gdrive_token') || 'null')?.expiry;
+  const remaining  = expiry ? Math.max(0, Math.round((expiry - Date.now()) / 60000)) : 0;
+  const isAdmin    = (typeof Auth !== 'undefined') && Auth.getUser()?.is_admin;
+
+  // إذا لم يُفعَّل من الأدمن
+  if (!isEnabled && !isAdmin) {
+    return `
+      <div class="card" style="border:1px solid rgba(255,255,255,.1);opacity:.7">
+        <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem">
+          <svg width="22" height="19" viewBox="0 0 87.3 78">
+            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+          </svg>
+          <div style="font-weight:800">Google Drive</div>
+          <span style="font-size:.72rem;color:var(--dim);background:rgba(255,255,255,.06);padding:2px 8px;border-radius:20px">
+            ${L('قريباً — في انتظار التفعيل من المسؤول','Bientôt — en attente activation admin')}
+          </span>
+        </div>
+        <div style="font-size:.78rem;color:var(--dim)">
+          ${L('سيتم تفعيل ميزة الحفظ التلقائي في Google Drive من قِبَل مسؤول المنصة.','La sauvegarde automatique sur Google Drive sera activée par l\'administrateur.')}
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="card" style="border:1px solid ${connected?'rgba(52,195,143,.3)':'rgba(66,133,244,.25)'}">
+      <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem">
+        <svg width="28" height="24" viewBox="0 0 87.3 78">
+          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+        </svg>
+        <div style="flex:1">
+          <div style="font-weight:800">Google Drive</div>
+          <div style="font-size:.72rem;color:${connected?'#34C38F':'var(--dim)'}">
+            ${connected
+              ? `✅ ${L('متصل بحسابك','Connecté à votre compte')} — ${remaining} ${L('دقيقة متبقية','min restantes')}`
+              : `⭕ ${L('غير متصل','Non connecté')}`
+            }
+          </div>
+        </div>
+        ${connected
+          ? `<span style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-size:.68rem;padding:3px 10px;border-radius:20px;font-weight:700;white-space:nowrap">
+              ⚡ ${L('حفظ تلقائي مُفعَّل','Auto-save actif')}
+            </span>`
+          : ''
+        }
+      </div>
+
+      ${connected ? `
+        <!-- متصل: عرض بنية المجلدات -->
+        <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.15);border-radius:10px;padding:.8rem;margin-bottom:.8rem;font-size:.75rem">
+          <div style="font-weight:700;color:#34C38F;margin-bottom:.4rem">📂 ${L('وثائقك تُحفظ في:','Vos documents sont sauvegardés dans:')}</div>
+          <div style="font-family:monospace;color:var(--dim);line-height:2;font-size:.7rem">
+            📂 SmartStruct BTP → ${escHtml((typeof Auth!=='undefined'&&Auth.getTenant)?Auth.getTenant()?.name||'مؤسستك':'مؤسستك')} → ${new Date().getFullYear()} → ${L('نوع الوثيقة','Type document')}
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="GDrive.disconnect();App.navigate('settings')">
+            🔌 ${L('قطع الاتصال','Déconnecter')}
+          </button>
+          <button class="btn btn-blue btn-sm" onclick="GDrive.connect().then(()=>App.navigate('settings'))">
+            🔄 ${L('تجديد (ساعة جديدة)','Renouveler (1h)')}
+          </button>
+        </div>
+      ` : `
+        <!-- غير متصل: زر الربط فقط -->
+        <div style="font-size:.8rem;color:var(--dim);line-height:1.7;margin-bottom:.8rem">
+          ${L(
+            '🔗 اربط حساب Google الخاص بك لحفظ وثائقك وفواتيرك تلقائياً في Drive الشخصي. الملفات في حسابك فقط — لا يصل إليها أحد.',
+            '🔗 Connectez votre compte Google pour sauvegarder automatiquement vos documents dans votre Drive personnel. Fichiers privés — personne d\'autre n\'y accède.'
+          )}
+        </div>
+        <button class="btn btn-blue" onclick="GDrive.connect().then(ok=>ok&&App.navigate('settings'))"
+          style="justify-content:center;gap:.6rem;width:100%">
+          <svg width="18" height="16" viewBox="0 0 87.3 78" style="flex-shrink:0">
+            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#fff"/>
+            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#fff"/>
+            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#fff"/>
+            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#fff"/>
+            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#fff"/>
+            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#fff"/>
+          </svg>
+          ${L('ربط حسابي بـ Google Drive','Connecter mon Google Drive')}
+        </button>
+        <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem;text-align:center">
+          ${L('الوثائق ستُحفظ تلقائياً بعد الربط','Documents sauvegardés automatiquement après connexion')}
+        </div>
+      `}
+    </div>`;
 
   return `
     <div class="card" style="margin-bottom:1rem;border:1px solid ${connected?'rgba(52,195,143,.3)':'rgba(255,255,255,.1)'}">
