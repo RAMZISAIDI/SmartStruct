@@ -1172,24 +1172,41 @@ function topbarHTML(breadcrumb) {
   const user = Auth.getUser();
   const initial = (user?.full_name||'U')[0].toUpperCase();
   const tid = user?.tenant_id;
-  // Check budget alerts
   const projects = tid ? DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived) : [];
   const alertCount = projects.filter(p=>p.total_spent >= p.budget*0.9 && p.budget>0).length;
   return `<header class="topbar">
-    <div style="display:flex;align-items:center;gap:.8rem">
+    <div style="display:flex;align-items:center;gap:.8rem;flex:1">
       <button class="hamburger">☰</button>
       <div class="topbar-breadcrumb">SmartStruct <span style="opacity:.3">›</span> ${breadcrumb}</div>
+      <!-- البحث العالمي -->
+      <div style="position:relative;margin:0 .5rem;flex:1;max-width:260px;display:flex;align-items:center">
+        <span style="position:absolute;right:8px;font-size:14px;color:rgba(255,255,255,.35);pointer-events:none">🔍</span>
+        <input id="globalSearchInp" type="text"
+          placeholder="${L('بحث عالمي...','Recherche...')}"
+          style="width:100%;padding:5px 28px 5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text);font-size:.78rem;font-family:inherit;outline:none"
+          oninput="globalSearch(this.value)"
+          onkeydown="if(event.key==='Escape'){this.value='';document.getElementById('globalSearchResults')?.remove();}"
+          onfocus="this.style.borderColor='rgba(232,184,75,.5)'" 
+          onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:.6rem">
-      ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
-      <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.78rem">🌐 ${I18N.currentLang==='ar'?'الموقع':'Site'}</button>
-      <button class="lang-toggle-btn" style="padding:.25rem .7rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${I18N.currentLang==='ar'?'Français':'العربية'}">
-        ${I18N.currentLang === 'ar' ? '🇫🇷 FR' : '🇩🇿 AR'}
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <!-- زر وضع الميدان -->
+      <button onclick="showMobileMode()" title="${L('وضع الميدان','Mode Terrain')}"
+        style="padding:5px 10px;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:8px;color:#34C38F;cursor:pointer;font-size:.75rem;font-weight:700;white-space:nowrap">
+        📱 ${L('الميدان','Terrain')}
       </button>
-      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}" style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s" onclick="App.navigate('settings')"><span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span> <span id="syncLabel">${L('متزامن','Synchronisé')}</span></div>
+      ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
+      <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
+      <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+        ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
+      </button>
+      <div id="syncPill" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="App.navigate('settings')">
+        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
+        <span id="syncLabel">${L('متزامن','Sync')}</span>
+      </div>
       <div class="topbar-user">
         <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">${initial}</div>
-        <span style="font-size:.82rem;color:var(--muted)">${escHtml((user?.full_name||'').split(' ')[0])}</span>
       </div>
     </div>
   </header>`;
@@ -6079,9 +6096,25 @@ Pages.attendance = function() {
 /* ─── REPORTS ─── */
 Pages.reports = function() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
-  const projs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+
+  // ── قراءة الفلاتر من state ──
+  const state    = window._reportsState || {};
+  const dateFrom = state.dateFrom || '';
+  const dateTo   = state.dateTo   || '';
+  const projId   = state.projId   || '';
+  const txType   = state.txType   || '';
+
+  let txs   = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  let projs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+
+  // ── تطبيق الفلاتر ──
+  if (dateFrom) txs = txs.filter(t=>t.date && t.date>=dateFrom);
+  if (dateTo)   txs = txs.filter(t=>t.date && t.date<=dateTo);
+  if (projId)   txs = txs.filter(t=>String(t.project_id)===String(projId));
+  if (txType)   txs = txs.filter(t=>t.type===txType);
+  if (projId)   projs = projs.filter(p=>String(p.id)===String(projId));
+
   const revenue=txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const totalBudget=projs.reduce((s,p)=>s+Number(p.budget),0);
@@ -6090,18 +6123,64 @@ Pages.reports = function() {
   txs.filter(t=>t.type==='expense').forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+Number(t.amount);});
   const topCats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const maxCat=topCats[0]?.[1]||1;
+
+  const allProjs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+  const isFiltered = !!(dateFrom||dateTo||projId||txType);
+
   return layoutHTML('reports','التقارير',`
     <div class="page-header">
-      <div class="page-title">📈 التقارير والإحصاء</div>
+      <div><div class="page-title">📈 ${L('التقارير والإحصاء','Rapports & Statistiques')}</div></div>
       <div class="page-actions">
-        <button class="btn" style="background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;font-weight:800" onclick="generateAISmartReport()" title="${L('تقرير شامل مولّد بالذكاء الاصطناعي','Rapport IA complet')}">🤖 ${L('تقرير ذكي بـ AI','Rapport IA')}</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportFinancialCSV()">📥 تصدير مالي CSV</button><button class="btn btn-gold btn-sm" onclick="exportReportPDF()">📄 تصدير PDF</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportAttendanceMonthly()">📥 تقرير حضور CSV</button>
-        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ طباعة التقرير</button>
+        <button class="btn" style="background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;font-weight:800" onclick="generateAISmartReport()" title="${L('تقرير شامل بالذكاء الاصطناعي','Rapport IA complet')}">🤖 ${L('تقرير AI','Rapport IA')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportFinancialCSV()">📥 CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportFinancialXLSX()" title="${L('تصدير Excel','Exporter Excel')}">📊 Excel</button>
+        <button class="btn btn-gold btn-sm" onclick="exportReportPDF()">📄 PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️</button>
       </div>
     </div>
 
-    <!-- ✨ بطاقة التقرير الذكي الشامل -->
+    <!-- ✅ لوحة الفلاتر -->
+    <div class="card" style="margin-bottom:1rem;padding:1rem 1.2rem">
+      <div style="font-size:.82rem;font-weight:700;margin-bottom:.8rem;color:var(--gold)">🔍 ${L('فلترة التقارير','Filtrer les rapports')}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;align-items:end">
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('من تاريخ','Du')}</label>
+          <input class="form-input" type="date" id="repDateFrom" value="${dateFrom}"
+            onchange="window._reportsState=(window._reportsState||{});window._reportsState.dateFrom=this.value;App.navigate('reports')">
+        </div>
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('إلى تاريخ','Au')}</label>
+          <input class="form-input" type="date" id="repDateTo" value="${dateTo}"
+            onchange="window._reportsState=(window._reportsState||{});window._reportsState.dateTo=this.value;App.navigate('reports')">
+        </div>
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('المشروع','Projet')}</label>
+          <select class="form-select" id="repProj" onchange="window._reportsState=(window._reportsState||{});window._reportsState.projId=this.value;App.navigate('reports')">
+            <option value="">${L('كل المشاريع','Tous les projets')}</option>
+            ${allProjs.map(p=>`<option value="${p.id}" ${String(p.id)===String(projId)?'selected':''}>${escHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('نوع المعاملة','Type')}</label>
+          <select class="form-select" id="repType" onchange="window._reportsState=(window._reportsState||{});window._reportsState.txType=this.value;App.navigate('reports')">
+            <option value="">${L('الكل','Tous')}</option>
+            <option value="revenue" ${txType==='revenue'?'selected':''}>${L('إيرادات','Revenus')}</option>
+            <option value="expense" ${txType==='expense'?'selected':''}>${L('مصاريف','Dépenses')}</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:.4rem">
+          ${isFiltered?`<button class="btn btn-ghost btn-sm" onclick="window._reportsState={};App.navigate('reports')" style="width:100%">
+            ✕ ${L('مسح الفلاتر','Effacer')}</button>`:''}
+          ${isFiltered?`<span style="font-size:.7rem;color:var(--gold);padding:.3rem .5rem;background:rgba(232,184,75,.1);border-radius:6px;white-space:nowrap;align-self:center">
+            ${L('مُفلتَر','Filtré')} ✓</span>`:''}
+        </div>
+      </div>
+      ${isFiltered?`<div style="margin-top:.6rem;font-size:.75rem;color:var(--dim)">
+        ${L('يعرض','Affichage')} <strong style="color:var(--text)">${txs.length}</strong> ${L('معاملة','transaction(s)')} 
+        ${dateFrom?L(`من ${dateFrom}`,'depuis '+dateFrom):''} ${dateTo?L(`حتى ${dateTo}`,'jusqu\'au '+dateTo):''}
+        ${projId?L('— مشروع محدد','— projet sélectionné'):''}
+      </div>`:''}
+    </div>
     <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
       <div style="position:absolute;top:-30px;${I18N.currentLang==='ar'?'left':'right'}:-30px;width:140px;height:140px;background:radial-gradient(circle,rgba(155,109,255,.15),transparent);border-radius:50%"></div>
       <div style="font-size:3.2rem;flex-shrink:0;position:relative;z-index:1">🤖</div>
@@ -6846,16 +6925,26 @@ Pages.settings = function() {
           </div>
         </div>
         <div class="card">
-          <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي','Sauvegarde des données')}</div>
+          <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي والاسترداد','Sauvegarde & Restauration')}</div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:.8rem;line-height:1.6">
+            ${L('احتفظ بنسخة احتياطية من بياناتك لحمايتها من أي فقدان. يمكنك الاسترداد في أي وقت.','Gardez une sauvegarde de vos données pour les protéger. Vous pouvez restaurer à tout moment.')}
+          </div>
           <div style="display:flex;flex-direction:column;gap:.6rem">
-            <button class="btn btn-green" onclick="exportAllData()" style="justify-content:center">
-              📤 ${L('تصدير جميع البيانات (JSON)','Exporter toutes les données (JSON)')}
+            <button class="btn btn-green" onclick="userExportBackup()" style="justify-content:center">
+              📤 ${L('تصدير نسخة احتياطية (JSON)','Exporter sauvegarde (JSON)')}
             </button>
-            <button class="btn btn-ghost" onclick="importAllData()" style="justify-content:center">
-              📥 ${L('استيراد بيانات من ملف','Importer depuis un fichier')}
+            <label class="btn btn-blue" style="justify-content:center;cursor:pointer">
+              📥 ${L('استعادة من نسخة احتياطية','Restaurer depuis une sauvegarde')}
+              <input type="file" accept=".json" style="display:none" onchange="userImportBackup(this)">
+            </label>
+            <button class="btn btn-ghost" onclick="exportFinancialXLSX()" style="justify-content:center">
+              📊 ${L('تصدير المعاملات Excel','Exporter transactions Excel')}
             </button>
-            <div style="font-size:.72rem;color:var(--dim);margin-top:.3rem">
-              ${L('⚠️ الاستيراد سيستبدل البيانات الحالية','⚠️ L\'import remplace les données actuelles')}
+            <button class="btn btn-ghost" onclick="exportSalaryXLSX()" style="justify-content:center">
+              📊 ${L('تصدير الرواتب Excel','Exporter salaires Excel')}
+            </button>
+            <div style="font-size:.7rem;color:var(--dim);padding:.5rem;background:rgba(232,184,75,.05);border-radius:6px;border:1px solid rgba(232,184,75,.15)">
+              💡 ${L('نوصي بتصدير نسخة احتياطية أسبوعياً. ملف النسخ الاحتياطي يحتوي كل مشاريعك وعمالك ومعاملاتك.','Nous recommandons un export hebdomadaire. Le fichier contient projets, ouvriers et transactions.')}
             </div>
           </div>
         </div>
@@ -9980,7 +10069,86 @@ function exportFinancialCSV() {
   txs.forEach(t=>{ const proj=projs.find(p=>p.id===t.project_id); csv+=`"${t.date}","${t.type==='revenue'?'إيراد':'مصروف'}","${t.description}","${t.category}","${t.amount}","${proj?.name||'—'}","${t.payment_method||''}"\n`; });
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='financial_report.csv'; a.click();
-  Toast.success('تم تصدير التقرير المالي');
+  Toast.success('تم تصدير التقرير المالي CSV');
+}
+
+// ✅ تصدير Excel (XLSX) باستخدام مكتبة SheetJS عبر CDN
+function exportFinancialXLSX() {
+  const tid = Auth.getUser().tenant_id;
+  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const projs = DB.get('projects');
+
+  function doExport(XLSX) {
+    const rows = txs.map(t => {
+      const proj = projs.find(p=>p.id===t.project_id);
+      return {
+        'التاريخ': t.date||'',
+        'النوع': t.type==='revenue'?'إيراد':'مصروف',
+        'الوصف': t.description||'',
+        'الفئة': t.category||'',
+        'المبلغ (دج)': Number(t.amount)||0,
+        'المشروع': proj?.name||'—',
+        'طريقة الدفع': t.payment_method||'',
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [12,15,25,15,14,20,12].map(w=>({wch:w}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'المعاملات');
+
+    // ورقة إجماليات
+    const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
+    const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+    const summary = [
+      { 'البيان': 'إجمالي الإيرادات', 'المبلغ (دج)': revenue },
+      { 'البيان': 'إجمالي المصاريف', 'المبلغ (دج)': expense },
+      { 'البيان': 'صافي الربح', 'المبلغ (دج)': revenue - expense },
+    ];
+    const ws2 = XLSX.utils.json_to_sheet(summary);
+    XLSX.utils.book_append_sheet(wb, ws2, 'الملخص');
+    XLSX.writeFile(wb, `SmartStruct_مالي_${new Date().toISOString().split('T')[0]}.xlsx`);
+    Toast.success(L('✅ تم تصدير Excel بنجاح','✅ Excel exporté avec succès'));
+  }
+
+  if (typeof XLSX !== 'undefined') { doExport(XLSX); return; }
+  // تحميل SheetJS
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  script.onload = () => doExport(window.XLSX);
+  script.onerror = () => Toast.error(L('تعذّر تحميل مكتبة Excel','Échec chargement bibliothèque Excel'));
+  document.head.appendChild(script);
+}
+
+function exportSalaryXLSX() {
+  const tid = Auth.getUser().tenant_id;
+  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const records = DB.get('salary_records')||[];
+
+  function doExport(XLSX) {
+    const rows = [];
+    workers.forEach(w => {
+      const wRecs = records.filter(r=>r.worker_id===w.id);
+      if (!wRecs.length) {
+        rows.push({ 'العامل': w.full_name, 'المنصب': w.role||'', 'الشهر': '—', 'الإجمالي': 0, 'CNAS 9%': 0, 'IRG': 0, 'الصافي': 0, 'الحالة': '—' });
+      } else {
+        wRecs.forEach(r => {
+          rows.push({ 'العامل': w.full_name, 'المنصب': w.role||'', 'الشهر': r.month_key||'', 'الإجمالي': Number(r.amount||0), 'CNAS 9%': Math.round(Number(r.amount||0)*0.09), 'IRG': 0, 'الصافي': Number(r.amount||0) - Math.round(Number(r.amount||0)*0.09), 'الحالة': r.status==='paid'?'مصروف':'معلق' });
+        });
+      }
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [20,15,12,14,12,10,14,10].map(w=>({wch:w}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'الرواتب');
+    XLSX.writeFile(wb, `SmartStruct_رواتب_${new Date().toISOString().split('T')[0]}.xlsx`);
+    Toast.success(L('✅ تم تصدير Excel الرواتب','✅ Excel salaires exporté'));
+  }
+
+  if (typeof XLSX !== 'undefined') { doExport(XLSX); return; }
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  script.onload = () => doExport(window.XLSX);
+  document.head.appendChild(script);
 }
 
 /* ─── EXPORT MONTHLY ATTENDANCE CSV ─── */
@@ -13278,145 +13446,162 @@ function quickAddTask(col) {
 Pages.gantt = function() {
   const tid = Auth.getUser().tenant_id;
   const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const validP   = projects.filter(p => p.start_date && p.end_date);
+  const noDateP  = projects.filter(p => !p.start_date || !p.end_date);
 
-  // Projects with no dates → show warning card
-  const validProjects = projects.filter(p => p.start_date && p.end_date);
-  const noDateProjects = projects.filter(p => !p.start_date || !p.end_date);
+  if (!projects.length) return layoutHTML('gantt','Gantt Chart',`
+    <div class="empty"><div class="empty-icon">📅</div>
+    <div class="empty-title">${L('لا توجد مشاريع','Aucun projet')}</div>
+    <div class="empty-text">${L('أضف مشاريع أولاً','Ajoutez des projets d\'abord')}</div></div>`);
 
-  if (!projects.length) return layoutHTML('gantt', 'Gantt Chart', `
-    <div class="empty">
-      <div class="empty-icon">📅</div>
-      <div class="empty-title">لا توجد مشاريع</div>
-      <div class="empty-text">أضف مشاريع أولاً لعرض الجدول الزمني</div>
-    </div>`);
+  if (!validP.length) return layoutHTML('gantt','Gantt Chart',`
+    <div class="page-header"><div><div class="page-title">📅 Gantt Chart</div></div></div>
+    <div class="alert alert-error">${L('⚠️ لا توجد مشاريع بتواريخ. عدّل المشاريع وأضف تواريخ البداية والنهاية.','⚠️ Aucun projet avec des dates. Modifiez les projets.')}</div>
+    <div class="grid-cards">${projects.map(p=>`<div class="card" style="display:flex;align-items:center;gap:1rem">
+      <div style="width:10px;height:40px;border-radius:4px;background:${p.color||'#E8B84B'};flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-weight:700">${escHtml(p.name)}</div>
+      <div style="font-size:.75rem;color:var(--red)">⚠️ ${L('بدون تواريخ','Sans dates')}</div></div>
+      <button class="btn btn-blue btn-sm" onclick="editProject(${p.id})">✏️</button>
+    </div>`).join('')}</div>`);
 
-  // Fallback if no valid date projects
-  if (!validProjects.length) return layoutHTML('gantt', 'Gantt Chart', `
-    <div class="page-header">
-      <div><div class="page-title">📅 Gantt Chart</div><div class="page-sub">الجدول الزمني التفاعلي للمشاريع</div></div>
-    </div>
-    <div class="alert alert-error">⚠️ لا توجد مشاريع بتواريخ بداية ونهاية محددة. يرجى تعديل المشاريع وإضافة التواريخ.</div>
-    <div class="grid-cards">
-      ${projects.map(p=>`
-        <div class="card" style="display:flex;align-items:center;gap:1rem">
-          <div style="width:10px;height:40px;border-radius:4px;background:${p.color};flex-shrink:0"></div>
-          <div style="flex:1">
-            <div style="font-weight:700">${escHtml(p.name)}</div>
-            <div style="font-size:.75rem;color:var(--red)">⚠️ بدون تواريخ</div>
-          </div>
-          <button class="btn btn-blue btn-sm" onclick="editProject(${p.id})">✏️ تعديل</button>
-        </div>`).join('')}
-    </div>`);
-
-  // Calculate date range from valid projects only
-  const allDates = validProjects.flatMap(p => [new Date(p.start_date), new Date(p.end_date)]);
-  const minDate = new Date(Math.min(...allDates.map(d=>d.getTime())));
-  const maxDate = new Date(Math.max(...allDates.map(d=>d.getTime())));
-  // Add padding
-  minDate.setDate(minDate.getDate() - 15);
-  maxDate.setDate(maxDate.getDate() + 30);
-
-  const totalDays = Math.ceil((maxDate - minDate) / (1000*60*60*24));
+  const allDates = validP.flatMap(p=>[new Date(p.start_date),new Date(p.end_date)]);
+  let minDate = new Date(Math.min(...allDates)); minDate.setDate(minDate.getDate()-7);
+  let maxDate = new Date(Math.max(...allDates)); maxDate.setDate(maxDate.getDate()+14);
+  const totalDays = Math.ceil((maxDate-minDate)/(864e5));
   const today = new Date();
-  const todayOffset = Math.ceil((today - minDate) / (1000*60*60*24));
+  const todayOff = Math.ceil((today-minDate)/(864e5));
+  const DAY_W = 28, LABEL_W = 220;
 
-  // Responsive: smaller day width on mobile
-  const DAY_W = window.innerWidth < 768 ? 4 : 6;
-  const LABEL_W = window.innerWidth < 768 ? 130 : 180;
-
-  // Build months header
-  let months = [];
-  let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-  while (cur <= maxDate) {
-    months.push(new Date(cur));
-    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
-  }
-
-  const monthsHTML = months.map(m => {
-    const daysInM = new Date(m.getFullYear(), m.getMonth()+1, 0).getDate();
-    const startOff = Math.max(0, Math.ceil((m - minDate) / (1000*60*60*24)));
-    return `<div style="position:absolute;left:${startOff*DAY_W}px;width:${daysInM*DAY_W}px;font-size:.62rem;color:var(--dim);font-weight:700;text-align:center;border-right:1px solid rgba(255,255,255,0.06);padding-top:5px;overflow:hidden">${MONTHS_AR[m.getMonth()]} ${m.getFullYear()}</div>`;
+  // Months header
+  let months=[]; let cur=new Date(minDate.getFullYear(),minDate.getMonth(),1);
+  while(cur<=maxDate){months.push(new Date(cur));cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);}
+  const monthsHTML = months.map(m=>{
+    const daysInM=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
+    const off=Math.max(0,Math.ceil((m-minDate)/(864e5)));
+    return `<div style="position:absolute;left:${off*DAY_W}px;width:${daysInM*DAY_W}px;font-size:.65rem;color:var(--dim);font-weight:700;border-right:1px solid rgba(255,255,255,.06);padding:4px 0;text-align:center;overflow:hidden">${MONTHS_AR[m.getMonth()]} ${m.getFullYear()}</div>`;
   }).join('');
 
-  const rowsHTML = projects.map(p => {
-    const start = new Date(p.start_date), end = new Date(p.end_date);
-    const hasDate = !isNaN(start) && !isNaN(end) && p.start_date && p.end_date;
-    const pct = Math.max(0, Math.min(100, p.progress || 0));
+  // Days header (shows day numbers)
+  let daysHTML='';
+  for(let i=0;i<totalDays;i++){
+    const d=new Date(minDate); d.setDate(d.getDate()+i);
+    const isWeekend=d.getDay()===5||d.getDay()===6;
+    const isToday=d.toDateString()===today.toDateString();
+    daysHTML+=`<div style="position:absolute;left:${i*DAY_W}px;width:${DAY_W}px;font-size:.55rem;text-align:center;color:${isToday?'var(--gold)':isWeekend?'rgba(255,255,255,.3)':'rgba(255,255,255,.35)'};font-weight:${isToday?'900':'400'};border-right:1px solid rgba(255,255,255,.04);padding-top:2px">${d.getDate()}</div>`;
+  }
 
-    let barHTML = '';
-    if (hasDate) {
-      const left = Math.max(0, Math.ceil((start - minDate) / (1000*60*60*24)));
-      const width = Math.max(14, Math.ceil((end - start) / (1000*60*60*24)));
-      const isOverdue = end < today && p.status !== 'completed';
-      barHTML = `
-        <div style="position:absolute;left:${left*DAY_W}px;width:${width*DAY_W}px;height:26px;background:rgba(255,255,255,0.07);border-radius:5px;border:1px solid rgba(255,255,255,0.08)">
-          <div style="width:${pct}%;height:100%;background:${isOverdue?'var(--red)':p.color};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#fff;overflow:hidden;transition:width 0.6s ease">
-            ${pct>15?pct+'%':''}
+  // Project rows
+  const rowsHTML = projects.map((p,ri)=>{
+    const start=new Date(p.start_date), end=new Date(p.end_date);
+    const hasDate=!isNaN(start)&&!isNaN(end)&&p.start_date&&p.end_date;
+    const pct=Math.max(0,Math.min(100,p.progress||0));
+    const status=p.status||'active';
+    const isOverdue=hasDate&&end<today&&status!=='completed';
+    const isCompleted=status==='completed';
+    const barColor=isCompleted?'#34C38F':isOverdue?'#F04E6A':(p.color||'#E8B84B');
+    const daysTotal=hasDate?Math.ceil((end-start)/(864e5)):0;
+    const daysLeft=hasDate?Math.ceil((end-today)/(864e5)):0;
+
+    let barHTML='';
+    if(hasDate){
+      const left=Math.max(0,Math.ceil((start-minDate)/(864e5)));
+      const width=Math.max(2,Math.ceil((end-start)/(864e5)));
+      barHTML=`
+        <div title="${escHtml(p.name)}: ${fmtDate(p.start_date)} → ${fmtDate(p.end_date)} (${daysTotal}j)" 
+          style="position:absolute;left:${left*DAY_W}px;width:${width*DAY_W}px;height:28px;background:${barColor}22;border:1.5px solid ${barColor};border-radius:6px;cursor:pointer;overflow:hidden"
+          onclick="editProject(${p.id})">
+          <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width .4s;display:flex;align-items:center;justify-content:flex-end;padding-right:4px">
+            ${pct>20?`<span style="font-size:.6rem;font-weight:900;color:${isCompleted||isOverdue?'#fff':'#0a1a0a'}">${pct}%</span>`:''}
           </div>
+          ${pct<=20?`<span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:.6rem;font-weight:900;color:${barColor}">${pct}%</span>`:''}
         </div>`;
     } else {
-      barHTML = `<div style="position:absolute;left:8px;font-size:.7rem;color:var(--dim);line-height:26px">بدون تواريخ</div>`;
+      barHTML=`<div style="position:absolute;left:8px;font-size:.72rem;color:var(--dim);line-height:28px;font-style:italic">${L('بدون تواريخ','Sans dates')}</div>`;
     }
+    const bgRow=ri%2===0?'rgba(255,255,255,.015)':'transparent';
+    const statusBadge=isCompleted?`<span style="font-size:.55rem;background:rgba(52,195,143,.2);color:#34C38F;padding:1px 5px;border-radius:4px">✓</span>`:
+      isOverdue?`<span style="font-size:.55rem;background:rgba(240,78,106,.2);color:#F04E6A;padding:1px 5px;border-radius:4px">${L('متأخر','Retard')}</span>`:'';
 
-    return `<div class="gantt-row-v5" style="min-height:48px">
-      <div style="width:${LABEL_W}px;flex-shrink:0;padding:.45rem .8rem;border-left:1px solid rgba(255,255,255,0.05)">
-        <div style="display:flex;align-items:center;gap:.4rem">
-          <div style="width:8px;height:8px;border-radius:50%;background:${p.color};flex-shrink:0"></div>
-          <div style="font-weight:700;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
+    return `<div style="display:flex;min-height:44px;border-bottom:1px solid rgba(255,255,255,.04);background:${bgRow}" onmouseover="this.style.background='rgba(232,184,75,.04)'" onmouseout="this.style.background='${bgRow}'">
+      <div style="width:${LABEL_W}px;flex-shrink:0;padding:.4rem .7rem;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;justify-content:center;gap:2px">
+        <div style="display:flex;align-items:center;gap:.35rem">
+          <div style="width:8px;height:8px;border-radius:50%;background:${barColor};flex-shrink:0"></div>
+          <span style="font-weight:700;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(p.name)}</span>
+          ${statusBadge}
         </div>
-        <div style="font-size:.62rem;color:var(--dim);margin-top:2px">${pct}% • ${hasDate?fmtDate(p.start_date):'—'}</div>
+        <div style="font-size:.62rem;color:var(--dim)">${hasDate?fmtDate(p.start_date)+' → '+fmtDate(p.end_date):'—'} ${hasDate&&!isCompleted&&daysLeft>0?`• ${daysLeft}${L('ي','j')} ${L('متبقي','restant')}`:''}${hasDate&&!isCompleted&&daysLeft<0?`• <span style="color:var(--red)">${Math.abs(daysLeft)}${L('ي','j')} ${L('تأخر','retard')}</span>`:''}</div>
       </div>
-      <div style="flex:1;position:relative;padding:.45rem 0;overflow:hidden">
-        <div style="position:relative;height:26px;width:${totalDays*DAY_W}px">
+      <div style="flex:1;position:relative;overflow:hidden">
+        <div style="position:relative;height:44px;width:${totalDays*DAY_W}px">
           ${barHTML}
-          ${todayOffset>0 && todayOffset<totalDays ? `<div style="position:absolute;left:${todayOffset*DAY_W}px;top:-6px;bottom:-6px;width:2px;background:var(--red);border-radius:2px;opacity:0.9;z-index:2"></div>` : ''}
+          ${todayOff>0&&todayOff<totalDays?`<div style="position:absolute;left:${todayOff*DAY_W}px;top:0;bottom:0;width:2px;background:rgba(232,184,75,.8);pointer-events:none;z-index:3"></div>`:''}
         </div>
       </div>
     </div>`;
   }).join('');
 
-  const noDateWarning = noDateProjects.length
-    ? `<div class="alert" style="background:rgba(232,184,75,0.08);border:1px solid rgba(232,184,75,0.25);color:var(--gold);font-size:.8rem;margin-bottom:1rem">
-        ⚠️ ${noDateProjects.length} مشروع بدون تواريخ: ${noDateProjects.map(p=>escHtml(p.name)).join('، ')}
-      </div>`
-    : '';
+  // Stats bar
+  const completed=projects.filter(p=>p.status==='completed').length;
+  const overdue=validP.filter(p=>new Date(p.end_date)<today&&p.status!=='completed').length;
+  const onTrack=validP.length-overdue-completed;
+  const avgPct=projects.length?Math.round(projects.reduce((s,p)=>s+(p.progress||0),0)/projects.length):0;
 
   return layoutHTML('gantt', 'Gantt Chart', `
     <div class="page-header">
-      <div>
-        <div class="page-title">📅 Gantt Chart</div>
-        <div class="page-sub">الجدول الزمني التفاعلي للمشاريع</div>
-      </div>
+      <div><div class="page-title">📅 Gantt Chart</div><div class="page-sub">${L('الجدول الزمني التفاعلي','Calendrier interactif')}</div></div>
       <div class="page-actions">
-        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ طباعة</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ ${L('طباعة','Imprimer')}</button>
       </div>
     </div>
-    ${noDateWarning}
+
+    <!-- إحصائيات سريعة -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-value">${projects.length}</div><div class="stat-label">${L('إجمالي المشاريع','Total projets')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--green)">✅</div><div class="stat-value" style="color:var(--green)">${completed}</div><div class="stat-label">${L('مكتمل','Terminés')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--red)">⚠️</div><div class="stat-value" style="color:var(--red)">${overdue}</div><div class="stat-label">${L('متأخر','En retard')}</div></div>
+      <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" style="color:var(--gold)">${avgPct}%</div><div class="stat-label">${L('متوسط التقدم','Avancement moyen')}</div></div>
+    </div>
+
+    ${noDateP.length?`<div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:10px;padding:.7rem 1rem;font-size:.8rem;color:var(--gold);margin-bottom:1rem">
+      ⚠️ ${noDateP.length} ${L('مشاريع بدون تواريخ:','projets sans dates:')} ${noDateP.map(p=>`<button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:2px 6px" onclick="editProject(${p.id})">${escHtml(p.name)}</button>`).join(' ')}
+    </div>`:''}
+
+    <!-- مخطط Gantt -->
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-        <div style="min-width:${LABEL_W + totalDays*DAY_W}px">
+      <!-- Legend -->
+      <div style="display:flex;align-items:center;gap:1rem;padding:.6rem 1rem;border-bottom:1px solid var(--border);font-size:.72rem;flex-wrap:wrap">
+        <span style="font-weight:700;color:var(--dim)">${L('مفتاح الألوان:','Légende:')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:8px;background:#34C38F;border-radius:2px"></span>${L('مكتمل','Terminé')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:8px;background:#E8B84B;border-radius:2px"></span>${L('جارٍ','En cours')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:8px;background:#F04E6A;border-radius:2px"></span>${L('متأخر','En retard')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:3px;background:rgba(232,184,75,.8)"></span>${L('اليوم','Aujourd\'hui')}</span>
+        <span style="color:var(--dim);font-size:.68rem">${L('انقر على أي شريط لتعديل المشروع','Cliquez sur une barre pour modifier')}</span>
+      </div>
 
-          <!-- Header: months -->
-          <div style="display:flex;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);height:30px;position:sticky;top:0;z-index:5">
-            <div style="width:${LABEL_W}px;flex-shrink:0;padding:.4rem .8rem;font-size:.7rem;font-weight:800;color:var(--dim);border-left:1px solid rgba(255,255,255,0.05)">المشروع</div>
-            <div style="flex:1;position:relative;height:30px">${monthsHTML}</div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="ganttScroll">
+        <div style="min-width:${LABEL_W+totalDays*DAY_W}px">
+          <!-- الشعار المثبت في الأعلى -->
+          <div style="display:flex;border-bottom:1px solid var(--border);background:var(--card-bg,#0e1720);position:sticky;top:0;z-index:10">
+            <div style="width:${LABEL_W}px;flex-shrink:0;padding:.4rem .7rem;font-size:.72rem;font-weight:800;color:var(--dim);border-right:1px solid rgba(255,255,255,.06)">${L('المشروع','Projet')}</div>
+            <div style="flex:1;position:relative">
+              <!-- Months -->
+              <div style="position:relative;height:24px;border-bottom:1px solid rgba(255,255,255,.06)">${monthsHTML}</div>
+              <!-- Days -->
+              <div style="position:relative;height:18px">${daysHTML}</div>
+            </div>
           </div>
-
-          <!-- Rows -->
+          <!-- صفوف المشاريع -->
           ${rowsHTML}
-
-          <!-- Legend -->
-          <div style="padding:.6rem 1rem;font-size:.7rem;color:var(--dim);border-top:1px solid var(--border);display:flex;gap:1.2rem;flex-wrap:wrap">
-            <span style="display:inline-flex;align-items:center;gap:.4rem">
-              <span style="width:16px;height:2px;background:var(--red);display:inline-block;border-radius:1px"></span>اليوم
-            </span>
-            <span style="display:inline-flex;align-items:center;gap:.4rem">
-              <span style="width:16px;height:8px;background:rgba(255,255,255,0.07);border-radius:3px;display:inline-block"></span>نطاق المشروع
-            </span>
-          </div>
         </div>
       </div>
     </div>
+    <script>
+      // اسكرول تلقائي ليظهر اليوم الحالي
+      setTimeout(()=>{
+        const s=document.getElementById('ganttScroll');
+        if(s){ const td=${todayOff}*${DAY_W}; s.scrollLeft=Math.max(0,td-s.clientWidth/2); }
+      },100);
+    </script>
   `);
 };
 
@@ -17458,12 +17643,37 @@ ${JSON.stringify(ctx, null, 2)}
     const noKey = !cfg.apiKey || cfg.status === 'inactive' || cfg.status === 'error';
 
     if (noKey) {
-      // المسؤول لم يُعدّ AI بعد — رسالة للمسؤول فقط
+      // محاولة Groq المجاني تلقائياً بدون مفتاح شخصي
+      // نستخدم OpenRouter Free كـ fallback عام
+      try {
+        const systemPrompt = this.buildSystemPrompt();
+        const msgs = [{ role:'system', content: systemPrompt }, ...this.history.slice(-8)];
+        const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer sk-or-free-smartstruct-demo-key',
+            'HTTP-Referer': 'https://smartstruct.dz',
+            'X-Title': 'SmartStruct BTP Algeria'
+          },
+          body: JSON.stringify({ model:'meta-llama/llama-3.2-3b-instruct:free', messages: msgs, max_tokens: 800 })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const msg = data.choices?.[0]?.message?.content;
+          if (msg) {
+            this.history.push({ role:'assistant', content: msg });
+            return msg;
+          }
+        }
+      } catch(_) {}
+
+      // fallback أخير: رسالة للمستخدم والمسؤول
       const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
       const isAdmin = user && user.is_admin;
       const guideMsg = isAdmin
-        ? `⚙️ **فعّل SmartAI من لوحة التحكم**\n\nاذهب لـ تبويب **🤖 إعدادات SmartAI** في صفحة الإدارة، أدخل مفتاح API (Groq مجاني ⚡)، واضغط اختبار واحفظ.\n\nبعدها يشتغل الروبوت لجميع المؤسسات تلقائياً.`
-        : `🤖 **SmartAI** في انتظار التفعيل من المسؤول.\n\nسيكون متاحاً قريباً — تواصل مع إدارة المنصة.`;
+        ? `⚙️ **فعّل SmartAI من لوحة التحكم**\n\nاذهب لـ **🤖 إعدادات SmartAI** في صفحة الإدارة، أدخل مفتاح Groq المجاني ⚡، واضغط اختبار واحفظ.\n\nللحصول على مفتاح مجاني: https://console.groq.com`
+        : `🤖 **SmartAI** في انتظار التفعيل من المسؤول.\n\nسيكون متاحاً قريباً.`;
       this.history.push({ role: 'assistant', content: guideMsg });
       return guideMsg;
     }
@@ -18418,3 +18628,362 @@ window.dzsPrintPDF = function(id) {
   // نفس آلية dzsReprint — يُفعّل توليد PDF عبر زر التوليد
   window.dzsReprint(id);
 };
+
+// ════════════════════════════════════════════════════════════════════
+//  ① SESSION TIMEOUT — خروج تلقائي بعد 30 دقيقة خمول
+// ════════════════════════════════════════════════════════════════════
+(function initSessionTimeout() {
+  const TIMEOUT_MS = 30 * 60 * 1000; // 30 دقيقة
+  const WARN_MS    =  5 * 60 * 1000; // تحذير قبل 5 دقائق
+  let timer, warnTimer, warnShown = false;
+
+  function resetTimer() {
+    clearTimeout(timer); clearTimeout(warnTimer); warnShown = false;
+    const el = document.getElementById('sessionWarnBanner');
+    if (el) el.remove();
+    if (!Auth.getUser()) return;
+    warnTimer = setTimeout(showWarn, TIMEOUT_MS - WARN_MS);
+    timer     = setTimeout(doLogout, TIMEOUT_MS);
+  }
+
+  function showWarn() {
+    if (warnShown || !Auth.getUser()) return;
+    warnShown = true;
+    const div = document.createElement('div');
+    div.id = 'sessionWarnBanner';
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B8902F;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:12px';
+    div.innerHTML = `<span>⏱️ ${L('سيتم تسجيل خروجك خلال 5 دقائق بسبب الخمول','Déconnexion dans 5 min par inactivité')}</span>
+      <button onclick="(function(){document.getElementById('sessionWarnBanner').remove();window._resetSessionTimer&&window._resetSessionTimer()})()" 
+        style="padding:4px 14px;background:rgba(0,0,0,.25);border:none;border-radius:6px;color:#fff;cursor:pointer;font-weight:700;font-size:13px">${L('بقاء متصل','Rester connecté')}</button>`;
+    document.body.appendChild(div);
+  }
+
+  function doLogout() {
+    const el = document.getElementById('sessionWarnBanner');
+    if (el) el.remove();
+    if (!Auth.getUser()) return;
+    if (typeof Auth.logout === 'function') Auth.logout();
+    Toast.info(L('تم تسجيل خروجك تلقائياً بسبب الخمول','Déconnexion automatique par inactivité'));
+    App.navigate('landing');
+  }
+
+  // استمع لأي نشاط
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(ev => {
+    document.addEventListener(ev, resetTimer, { passive: true });
+  });
+
+  window._resetSessionTimer = resetTimer;
+  resetTimer();
+})();
+
+// ════════════════════════════════════════════════════════════════════
+//  ② GLOBAL SEARCH — بحث عالمي في كل البيانات
+// ════════════════════════════════════════════════════════════════════
+function globalSearch(query) {
+  if (!query || query.length < 2) {
+    document.getElementById('globalSearchResults')?.remove();
+    return;
+  }
+  const q   = query.toLowerCase().trim();
+  const tid = Auth.getUser()?.tenant_id;
+  if (!tid) return;
+
+  const results = [];
+
+  // مشاريع
+  (DB.get('projects')||[]).filter(p=>p.tenant_id===tid&&!p.is_archived).forEach(p=>{
+    if ((p.name||'').toLowerCase().includes(q)||(p.client_name||'').toLowerCase().includes(q)||(p.wilaya||'').toLowerCase().includes(q)) {
+      results.push({type:'project', icon:'🏗️', label:p.name, sub:p.client_name||p.wilaya||'', action:`App.navigate('projects')`});
+    }
+  });
+  // عمال
+  (DB.get('workers')||[]).filter(w=>w.tenant_id===tid).forEach(w=>{
+    if ((w.full_name||'').toLowerCase().includes(q)||(w.role||'').toLowerCase().includes(q)||(w.phone||'').includes(q)) {
+      results.push({type:'worker', icon:'👷', label:w.full_name, sub:w.role||'', action:`App.navigate('workers')`});
+    }
+  });
+  // فواتير
+  (DB.get('invoices')||[]).filter(i=>i.tenant_id===tid).forEach(i=>{
+    if ((i.number||'').toLowerCase().includes(q)||(i.client||'').toLowerCase().includes(q)) {
+      results.push({type:'invoice', icon:'🧾', label:i.number||L('فاتورة','Facture'), sub:(i.client||''), action:`App.navigate('invoices')`});
+    }
+  });
+  // معاملات
+  (DB.get('transactions')||[]).filter(t=>t.tenant_id===tid).forEach(t=>{
+    if ((t.description||'').toLowerCase().includes(q)||(t.category||'').toLowerCase().includes(q)) {
+      results.push({type:'tx', icon:t.type==='revenue'?'💰':'💸', label:t.description||t.category, sub:`${fmt(t.amount)} ${L('دج','DA')}`, action:`App.navigate('transactions')`});
+    }
+  });
+  // معدات
+  (DB.get('equipment')||[]).filter(e=>e.tenant_id===tid).forEach(e=>{
+    if ((e.name||'').toLowerCase().includes(q)||(e.plate_number||'').toLowerCase().includes(q)) {
+      results.push({type:'equip', icon:'🚜', label:e.name, sub:e.plate_number||e.type||'', action:`App.navigate('equipment')`});
+    }
+  });
+  // مواد
+  (DB.get('materials')||[]).filter(m=>m.tenant_id===tid).forEach(m=>{
+    if ((m.name||'').toLowerCase().includes(q)||(m.supplier||'').toLowerCase().includes(q)) {
+      results.push({type:'mat', icon:'📦', label:m.name, sub:m.supplier||'', action:`App.navigate('materials')`});
+    }
+  });
+
+  const old = document.getElementById('globalSearchResults');
+  if (old) old.remove();
+  if (!results.length) {
+    const div = document.createElement('div');
+    div.id = 'globalSearchResults';
+    div.style.cssText = 'position:fixed;top:58px;right:16px;width:320px;z-index:9999;background:var(--card-bg,#16202c);border:1px solid var(--border);border-radius:12px;padding:.7rem 1rem;font-size:.82rem;color:var(--dim);box-shadow:0 8px 32px rgba(0,0,0,.4)';
+    div.textContent = L('لا نتائج — جرّب كلمات أخرى','Aucun résultat');
+    document.body.appendChild(div);
+    setTimeout(()=>div.remove(), 2000);
+    return;
+  }
+
+  const div = document.createElement('div');
+  div.id = 'globalSearchResults';
+  div.style.cssText = 'position:fixed;top:58px;right:16px;width:340px;z-index:9999;background:var(--card-bg,#16202c);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5);max-height:360px;overflow-y:auto';
+  div.innerHTML = `<div style="padding:.5rem .8rem;font-size:.7rem;color:var(--dim);border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><span>${results.length} ${L('نتيجة','résultat(s)')}</span><button onclick="document.getElementById('globalSearchResults').remove()" style="background:none;border:none;color:var(--dim);cursor:pointer">✕</button></div>` +
+    results.slice(0,10).map(r=>`<div onclick="${r.action};document.getElementById('globalSearchResults').remove();document.getElementById('globalSearchInp')&&(document.getElementById('globalSearchInp').value='')" 
+      style="display:flex;align-items:center;gap:.7rem;padding:.55rem .8rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04)" 
+      onmouseover="this.style.background='rgba(232,184,75,.08)'" onmouseout="this.style.background=''"
+    >
+      <span style="font-size:1.1rem;flex-shrink:0">${r.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.label)}</div>
+        <div style="font-size:.72rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.sub)}</div>
+      </div>
+    </div>`).join('');
+  document.body.appendChild(div);
+  // إغلاق عند النقر خارجاً
+  setTimeout(()=>{
+    document.addEventListener('click', function close(e){
+      if(!document.getElementById('globalSearchResults')?.contains(e.target) &&
+         e.target.id!=='globalSearchInp'){
+        document.getElementById('globalSearchResults')?.remove();
+        document.removeEventListener('click',close);
+      }
+    });
+  }, 100);
+}
+
+// حقن شريط البحث العالمي في الـ navbar
+(function injectGlobalSearch() {
+  function tryInject() {
+    const nav = document.querySelector('.app-nav, .topbar, nav.nav-bar, .main-nav');
+    if (!nav || document.getElementById('globalSearchInp')) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:flex;align-items:center;margin:0 auto;max-width:280px';
+    wrap.innerHTML = `
+      <i class="ti ti-search" style="position:absolute;right:10px;font-size:15px;color:rgba(255,255,255,.4);pointer-events:none"></i>
+      <input id="globalSearchInp" type="text" 
+        placeholder="${L('بحث عالمي...','Recherche globale...')}"
+        style="width:100%;padding:6px 32px 6px 10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text);font-size:.82rem;font-family:inherit;outline:none"
+        oninput="globalSearch(this.value)"
+        onkeydown="if(event.key==='Escape'){this.value='';document.getElementById('globalSearchResults')?.remove();}"
+        onfocus="this.style.borderColor='rgba(232,184,75,.5)'"
+        onblur="this.style.borderColor='rgba(255,255,255,.1)'"
+      >`;
+    nav.appendChild(wrap);
+  }
+  document.addEventListener('DOMContentLoaded', tryInject);
+  setTimeout(tryInject, 1500);
+})();
+
+// ════════════════════════════════════════════════════════════════════
+//  ③ BACKUP / RESTORE — تصدير واسترداد البيانات للمستخدم
+// ════════════════════════════════════════════════════════════════════
+function userExportBackup() {
+  const tid = Auth.getUser()?.tenant_id;
+  if (!tid) { Toast.error(L('يجب تسجيل الدخول','Connexion requise')); return; }
+  const tables = ['projects','workers','equipment','transactions','attendance',
+    'salary_records','materials','stock_movements','invoices','documents',
+    'kanban_tasks','notifications','obligations'];
+  const data = {};
+  tables.forEach(t => {
+    const all = DB.get(t) || [];
+    data[t] = all.filter(r => r.tenant_id === tid || !r.tenant_id);
+  });
+  data._meta = { tenant: Auth.getTenant(), exported_at: new Date().toISOString(), version: 'v7.3', user: Auth.getUser()?.email };
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `SmartStruct_backup_${tid}_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  Toast.success(L('✅ تم تصدير البيانات بنجاح','✅ Données exportées avec succès'));
+  if (typeof AuditLog !== 'undefined') AuditLog.log('export', 'backup', null, null, { type: 'user_backup' });
+}
+
+function userImportBackup(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data._meta) throw new Error('ملف غير صالح');
+      const tid = Auth.getUser()?.tenant_id;
+      if (!tid) throw new Error('يجب تسجيل الدخول');
+      if (!confirm(L(
+        `⚠️ استعادة البيانات ستستبدل بياناتك الحالية.\n\nنسخة احتياطية من: ${data._meta.exported_at}\n\nهل تريد المتابعة؟`,
+        `⚠️ La restauration remplacera vos données actuelles.\n\nSauvegarde du: ${data._meta.exported_at}\n\nContinuer?`
+      ))) return;
+      const tables = ['projects','workers','equipment','transactions','attendance',
+        'salary_records','materials','stock_movements','invoices','documents',
+        'kanban_tasks','notifications','obligations'];
+      tables.forEach(t => {
+        if (data[t]) DB.set(t, data[t]);
+      });
+      Toast.success(L('✅ تمت استعادة البيانات بنجاح! سيتم إعادة التحميل.','✅ Données restaurées! Rechargement...'));
+      setTimeout(() => { App.navigate('dashboard'); }, 1500);
+    } catch(err) {
+      Toast.error(L('❌ ملف غير صالح: ' + err.message, '❌ Fichier invalide: ' + err.message));
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ④ EMAIL NOTIFICATIONS — إشعارات بريد تلقائية
+// ════════════════════════════════════════════════════════════════════
+const SmartNotify = {
+  // فحص الفواتير المتأخرة وإرسال تذكير
+  checkOverdueInvoices() {
+    if (typeof EMAILJS === 'undefined') return;
+    const tid = Auth.getUser()?.tenant_id;
+    const tenant = Auth.getTenant();
+    if (!tid || !tenant) return;
+    const today = new Date().toISOString().split('T')[0];
+    const overdue = (DB.get('invoices')||[]).filter(i =>
+      i.tenant_id===tid && i.status!=='paid' && i.due_date && i.due_date<today
+    );
+    if (!overdue.length) return;
+    const lastKey = `sbtp_notif_overdue_${tid}_${today}`;
+    if (localStorage.getItem(lastKey)) return;
+    localStorage.setItem(lastKey, '1');
+    const msg = overdue.map(i=>`${i.number} — ${i.client} — ${fmt(i.total_ttc||i.amount||0)} DA`).join('\n');
+    EMAILJS.sendNotification({
+      subject: `SmartStruct — ${overdue.length} ${L('فاتورة متأخرة','facture(s) en retard')}`,
+      body: `${L('الفواتير المتأخرة:','Factures en retard:')}\n\n${msg}`,
+      to_name: Auth.getUser()?.full_name || tenant.name,
+    }).catch(()=>{});
+  },
+
+  // فحص الصيانة القادمة للمعدات
+  checkEquipmentMaintenance() {
+    if (typeof EMAILJS === 'undefined') return;
+    const tid = Auth.getUser()?.tenant_id;
+    const tenant = Auth.getTenant();
+    if (!tid || !tenant) return;
+    const today = new Date();
+    const soon  = new Date(); soon.setDate(soon.getDate()+7);
+    const due = (DB.get('equipment')||[]).filter(e => {
+      if (e.tenant_id!==tid || !e.next_maintenance) return false;
+      const d = new Date(e.next_maintenance);
+      return d >= today && d <= soon;
+    });
+    if (!due.length) return;
+    const lastKey = `sbtp_notif_maint_${tid}_${today.toISOString().split('T')[0]}`;
+    if (localStorage.getItem(lastKey)) return;
+    localStorage.setItem(lastKey, '1');
+    const msg = due.map(e=>`${e.name} — ${e.next_maintenance}`).join('\n');
+    EMAILJS.sendNotification({
+      subject: `SmartStruct — ${L('صيانة معدات قادمة','Maintenance équipements à venir')}`,
+      body: `${L('معدات تحتاج صيانة خلال 7 أيام:','Équipements à maintenir dans 7 jours:')}\n\n${msg}`,
+      to_name: Auth.getUser()?.full_name || tenant.name,
+    }).catch(()=>{});
+  },
+
+  // تشغيل كل الفحوصات مرة يومياً
+  runDaily() {
+    const key = `sbtp_daily_notif_${new Date().toISOString().split('T')[0]}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    setTimeout(() => { this.checkOverdueInvoices(); }, 3000);
+    setTimeout(() => { this.checkEquipmentMaintenance(); }, 6000);
+  }
+};
+
+// تشغيل الإشعارات عند تسجيل الدخول
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => { if (Auth.getUser()) SmartNotify.runDaily(); }, 5000);
+});
+
+// ════════════════════════════════════════════════════════════════════
+//  ⑤ MOBILE MODE — وضع الميدان (5 أزرار كبيرة)
+// ════════════════════════════════════════════════════════════════════
+function showMobileMode() {
+  const existing = document.getElementById('mobileModeOverlay');
+  if (existing) { existing.remove(); return; }
+  const overlay = document.createElement('div');
+  overlay.id = 'mobileModeOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;background:#09120A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem';
+  const btns = [
+    { icon:'👷', label:L('الحضور','Pointage'),    page:'attendance', color:'#34C38F' },
+    { icon:'🏗️', label:L('المشاريع','Projets'),   page:'projects',   color:'#4A90E2' },
+    { icon:'💵', label:L('الرواتب','Salaires'),    page:'salary',     color:'#E8B84B' },
+    { icon:'📦', label:L('المخزون','Stock'),        page:'materials',  color:'#9B6DFF' },
+    { icon:'📄', label:L('الوثائق','Documents'),    page:'dz_documents', color:'#F04E6A' },
+  ];
+  overlay.innerHTML = `
+    <div style="font-size:.85rem;color:rgba(232,184,75,.7);font-weight:700;letter-spacing:.5px;margin-bottom:.5rem">📱 ${L('وضع الميدان','Mode Terrain')}</div>
+    ${btns.map(b=>`
+      <button onclick="document.getElementById('mobileModeOverlay').remove();App.navigate('${b.page}')"
+        style="width:100%;max-width:320px;padding:1.2rem;background:${b.color}18;border:2px solid ${b.color}44;border-radius:16px;color:${b.color};cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:1rem;font-size:1.1rem;font-weight:800;transition:all .15s"
+        onmouseover="this.style.background='${b.color}30'" onmouseout="this.style.background='${b.color}18'">
+        <span style="font-size:2rem">${b.icon}</span>
+        <span>${b.label}</span>
+        <span style="margin-right:auto;font-size:1.2rem">→</span>
+      </button>`).join('')}
+    <button onclick="document.getElementById('mobileModeOverlay').remove()" 
+      style="margin-top:.5rem;padding:.6rem 2rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:rgba(255,255,255,.5);cursor:pointer;font-family:inherit;font-size:.85rem">
+      ${L('إغلاق','Fermer')} ✕
+    </button>`;
+  document.body.appendChild(overlay);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ⑥ GPS ATTENDANCE — تسجيل الحضور مع الموقع
+// ════════════════════════════════════════════════════════════════════
+function getGPSLocation(callback) {
+  if (!navigator.geolocation) {
+    Toast.warn(L('جهازك لا يدعم GPS','GPS non supporté'));
+    callback(null);
+    return;
+  }
+  Toast.info(L('⏳ جاري تحديد موقعك...','⏳ Localisation en cours...'));
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const coords = { lat: pos.coords.latitude.toFixed(5), lng: pos.coords.longitude.toFixed(5), accuracy: Math.round(pos.coords.accuracy) };
+      Toast.success(L(`📍 تم تحديد الموقع (±${coords.accuracy}م)`, `📍 Position obtenue (±${coords.accuracy}m)`));
+      callback(coords);
+    },
+    err => {
+      Toast.warn(L('❌ تعذّر تحديد الموقع — ' + err.message, '❌ Localisation échouée — ' + err.message));
+      callback(null);
+    },
+    { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+  );
+}
+
+function saveAttWithGPS(wid, date, status) {
+  getGPSLocation(coords => {
+    const att = DB.get('attendance') || [];
+    const tid = Auth.getUser().tenant_id;
+    const existing = att.find(a => a.worker_id===wid && a.date===date);
+    if (existing) {
+      existing.status = status;
+      if (coords) existing.gps = coords;
+    } else {
+      att.push({ id: DB.nextId('attendance'), tenant_id: tid, worker_id: wid, date, status, gps: coords||null });
+    }
+    DB.set('attendance', att);
+    Toast.success(L('✅ تم تسجيل الحضور مع الموقع','✅ Pointage avec GPS enregistré'));
+    App.navigate('attendance');
+  });
+}
+
