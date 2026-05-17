@@ -71,6 +71,24 @@ function _fmtDate(d) {
   } catch(e) { return _esc(d); }
 }
 
+// ── اختيار الاسم المناسب حسب لغة الوثيقة ──
+function _localName(obj, nameField) {
+  if (!obj) return '—';
+  const isAr = _docLang === 'ar';
+  const frField = (nameField || 'name') + '_fr';
+  const arField = nameField || 'name';
+  if (isAr) return obj[arField] || obj[frField] || '—';
+  return obj[frField] || obj[arField] || '—';
+}
+
+// ── اختيار اسم الشخص (full_name / full_name_fr) ──
+function _localPerson(obj) {
+  if (!obj) return '—';
+  const isAr = _docLang === 'ar';
+  if (isAr) return obj.full_name || obj.full_name_fr || obj.name || '—';
+  return obj.full_name_fr || obj.full_name || obj.name_fr || obj.name || '—';
+}
+
 function _today() {
   return new Date().toLocaleDateString('fr-DZ');
 }
@@ -410,11 +428,16 @@ function _T(key) {
 function _buildHeader(tenant, docLabelOrKey, docNumber, docDate) {
   const logo  = _getLogo();
   const isAr  = _docLang === 'ar';
-  // إذا كان مفتاح موجود في _TERMS استخدمه، وإلا استخدم النص مباشرة
   const docLabel = _TERMS[docLabelOrKey]
     ? _T(docLabelOrKey)
     : (docLabelOrKey || '');
   const artLbl = isAr ? 'رقم المادة' : "Art. d'imp.";
+
+  // ✅ اسم المؤسسة حسب لغة الوثيقة
+  const tenantName = isAr
+    ? (tenant?.name || tenant?.name_fr || 'مؤسستي')
+    : (tenant?.name_fr || tenant?.name || 'Mon Entreprise');
+
   const lines = [];
   if (tenant?.rc_number)   lines.push(`RC: ${_esc(tenant.rc_number)}`);
   if (tenant?.nif)         lines.push(`NIF: ${_esc(tenant.nif)}`);
@@ -429,7 +452,7 @@ function _buildHeader(tenant, docLabelOrKey, docNumber, docDate) {
   <div class="dz-brand">
     ${logo ? `<img src="${_esc(logo)}" alt="Logo">` : ''}
     <div class="dz-brand-text">
-      <div class="name">▦ ${_esc(tenant?.name || _L('Mon Entreprise','مؤسستي'))}</div>
+      <div class="name">▦ ${_esc(tenantName)}</div>
       <div class="legal">${lines.join('<br>')}</div>
     </div>
   </div>
@@ -573,7 +596,7 @@ ${_buildHeader(tenant, _T('PROFORMA'), num, _fmtDate(opts.date || _todayISO()))}
   <div class="info-grid">
     <div class="info-block">
       <h4>👤 Client / العميل</h4>
-      <p><strong>${_esc(opts.clientName || '—')}</strong></p>
+      <p><strong>${_esc(_localName({name:opts.clientName,name_fr:opts.clientNameFr},'name') || opts.clientName || '—')}</strong></p>
       ${opts.clientAddress ? `<p>📍 ${_esc(opts.clientAddress)}</p>` : ''}
       ${opts.clientPhone   ? `<p>📞 ${_esc(opts.clientPhone)}</p>` : ''}
       ${opts.clientNif     ? `<p>NIF: ${_esc(opts.clientNif)}</p>` : ''}
@@ -1313,7 +1336,7 @@ ${_buildHeader(tenant, _T('ACOMPTE'), num, _fmtDate(opts.date || _todayISO()))}
   <div class="info-grid-3">
     <div class="info-block">
       <h4>👤 Client</h4>
-      <p><strong>${_esc(opts.clientName || '—')}</strong></p>
+      <p><strong>${_esc(_localName({name:opts.clientName,name_fr:opts.clientNameFr},'name') || opts.clientName || '—')}</strong></p>
       ${opts.clientNif ? `<p>NIF: ${_esc(opts.clientNif)}</p>` : ''}
     </div>
     <div class="info-block">
@@ -1500,7 +1523,7 @@ ${_buildHeader(tenant, _T('FACTURE_DEF'), num, _fmtDate(opts.date || _todayISO()
   <div class="info-grid">
     <div class="info-block">
       <h4>👤 Client / Maître d'ouvrage</h4>
-      <p><strong>${_esc(opts.clientName || opts.maitreOuvrage || '—')}</strong></p>
+      <p><strong>${_esc(_localName({name:opts.clientName,name_fr:opts.clientNameFr},'name') || opts.clientName || opts.maitreOuvrage || '—')}</strong></p>
       ${opts.clientAddress ? `<p>📍 ${_esc(opts.clientAddress)}</p>` : ''}
       ${opts.clientNif ? `<p>NIF: ${_esc(opts.clientNif)}</p>` : ''}
     </div>
@@ -1731,7 +1754,7 @@ ${_buildHeader(tenant, _T('FICHE_PAIE'), num, _fmtDate(opts.date || _todayISO())
   <div class="info-grid">
     <div class="info-block">
       <h4>👤 ${_L('Employé','العامل')}</h4>
-      <p><strong>${_esc(worker.full_name || opts.workerName || '—')}</strong></p>
+      <p><strong>${_esc(_localPerson(worker) || opts.workerName || '—')}</strong></p>
       ${worker.role ? `<p><strong>${_L('Poste','المنصب')}:</strong> ${_esc(worker.role)}</p>` : ''}
       ${worker.national_id ? `<p><strong>${_L('N° CIN','رقم البطاقة الوطنية')}:</strong> ${_esc(worker.national_id)}</p>` : ''}
       ${worker.cnas_number ? `<p><strong>N° CNAS:</strong> ${_esc(worker.cnas_number)}</p>` : ''}
@@ -1892,7 +1915,7 @@ ${_buildHeader(tenant, kindLabel, num, _fmtDate(opts.date || _todayISO()))}
   </p>
   <p style="text-align:center;font-weight:700;margin:8px 0">— D'UNE PART / من جهة —</p>
   <p style="font-size:12px;line-height:1.9;text-align:justify">
-    <strong>Et Monsieur/Madame ${_esc(worker.full_name || '—')}</strong>,
+    <strong>Et Monsieur/Madame ${_esc(_localPerson(worker) || '—')}</strong>,
     ${worker.national_id ? `titulaire de la carte d'identité N° ${_esc(worker.national_id)}` : ''}
     ${worker.phone ? `, tél. ${_esc(worker.phone)}` : ''}
     ${opts.workerAddress ? `, demeurant à ${_esc(opts.workerAddress)}` : ''},
@@ -2124,7 +2147,7 @@ ${_buildHeader(tenant, _T('ATTESTATION'), num, _fmtDate(opts.date || _todayISO()
 
   <div style="background:#fafafa;padding:20px;border-radius:8px;border-right:4px solid #E8B84B;margin:20px 0;text-align:center">
     <p style="font-size:18px;font-weight:900;color:#3a3a3a;letter-spacing:1px">
-      ${_esc(worker.full_name || opts.workerName || '—')}
+      ${_esc(_localPerson(worker) || opts.workerName || '—')}
     </p>
     ${worker.national_id ? `<p style="font-size:12px;color:#555;margin-top:6px">Carte d'identité N° : <strong>${_esc(worker.national_id)}</strong></p>` : ''}
   </div>

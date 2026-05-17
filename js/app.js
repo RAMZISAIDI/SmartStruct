@@ -83,6 +83,7 @@ if (!DB.init) DB.init = function() {
     _set('projects',        []);
     _set('workers',         []);
     _set('equipment',       []);
+    _set('equipment_logs',  []);
     _set('transactions',    []);
     _set('attendance',      []);
     _set('materials',       []);
@@ -440,6 +441,30 @@ const I18N = {
 function __(key) { return I18N.t(key); }
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
 function L(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; }
+
+// ── الحصول على اسم الكيان (مؤسسة/عامل/عميل) حسب اللغة الحالية ──
+// يدعم حقلين: name (عربي) و name_fr (فرنسي)
+function getLocalName(obj, fallback) {
+  if (!obj) return fallback || '—';
+  if (I18N.currentLang === 'fr') {
+    return obj.name_fr?.trim() || obj.full_name_fr?.trim() || obj.name?.trim() || obj.full_name?.trim() || fallback || '—';
+  }
+  return obj.name?.trim() || obj.full_name?.trim() || obj.name_fr?.trim() || obj.full_name_fr?.trim() || fallback || '—';
+}
+
+// ── حقل اسم ثنائي اللغة (يُستخدم في الفورمات) ──
+function bilingualNameField(id, labelAr, labelFr, valAr, valFr, placeholder_ar, placeholder_fr) {
+  valAr = valAr || ''; valFr = valFr || '';
+  return `
+    <div class="form-group">
+      <label class="form-label">🇩🇿 ${labelAr} <span style="font-size:.72rem;color:var(--dim)">(${L('عربي','Arabe')})</span></label>
+      <input class="form-input" id="${id}" type="text" value="${escHtml(valAr)}" placeholder="${placeholder_ar||labelAr}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">🇫🇷 ${labelFr} <span style="font-size:.72rem;color:var(--dim)">(Français)</span></label>
+      <input class="form-input" id="${id}_fr" type="text" value="${escHtml(valFr)}" placeholder="${placeholder_fr||labelFr}" dir="ltr">
+    </div>`;
+}
 
 /* ══════════════════════════════════════════════════════
    DOM TRANSLATION ENGINE
@@ -3057,7 +3082,12 @@ function renderRegisterForm(L) {
         <label class="auth-label">${L('اسم المؤسسة','Entreprise')} <span class="auth-required">*</span></label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
-          <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة المقاولة','Entreprise BTP')}" autocomplete="organization">
+          <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة البناء الحديث','Entreprise BTP')}" autocomplete="organization">
+        </div>
+        <div style="margin-top:.4rem;font-size:.72rem;color:var(--muted)">🇫🇷 ${L('الاسم بالفرنسية (اختياري للفواتير)','Nom en français (optionnel pour factures)')}</div>
+        <div class="auth-input-wrap" style="margin-top:.3rem">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
+          <input class="auth-input" id="regCompanyFr" type="text" placeholder="Entreprise BTP Moderne" dir="ltr" autocomplete="off">
         </div>
       </div>
     </div>
@@ -3172,8 +3202,9 @@ function togglePassReg() {
 
 async function doRegister() {
 
-  const name    = (document.getElementById('regName')  ||{}).value||'';
-  const company = (document.getElementById('regCompany')||{}).value||'';
+  const name      = (document.getElementById('regName')     ||{}).value||'';
+  const company   = (document.getElementById('regCompany')  ||{}).value||'';
+  const companyFr = (document.getElementById('regCompanyFr')||{}).value||'';
   const email   = ((document.getElementById('regEmail') ||{}).value||'').trim().toLowerCase();
   const pass    = (document.getElementById('regPass')   ||{}).value||'';
   const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
@@ -3243,7 +3274,9 @@ async function doRegister() {
     const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
       method: 'POST', headers: sbHUpsert,
       body: JSON.stringify({
-        name: company.trim(), plan_id: 2, wilaya: wilaya,
+        name: company.trim(),
+        name_fr: companyFr.trim() || company.trim(),
+        plan_id: 2, wilaya: wilaya,
         subscription_status: 'trial',
         trial_start: registrationDate,
         trial_end: trialEndDate,
@@ -5113,7 +5146,14 @@ Pages.projects = function() {
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label><input class="form-input" id="pClient" placeholder="${L('بلدية / شركة...','Commune / Société...')}"></div>
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label>
+            <input class="form-input" id="pClient" placeholder="${L('بلدية تيزي وزو...','Commune / Société...')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 Client / Maître d'ouvrage <span style="font-size:.7rem;color:var(--dim)">(Français)</span></label>
+            <input class="form-input" id="pClientFr" placeholder="Commune de Tizi Ouzou..." dir="ltr">
+          </div>
           <div class="form-group"><label class="form-label">${L('هاتف العميل','Tél. client')}</label><input class="form-input" id="pPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="pBudget" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('رقم الصفقة / المرجع','N° Marché / Réf.')}</label><input class="form-input" id="pMarket" placeholder="N°/2025/..."></div>
@@ -5710,7 +5750,14 @@ Pages.workers = function() {
       <div class="modal modal-lg">
         <div class="modal-title">👷 ${L('إضافة عامل جديد','Ajouter un ouvrier')}</div>
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label><input class="form-input" id="wName" placeholder="${L('محمد الأمين...','Prénom Nom...')}"></div>
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('الاسم الكامل *','Nom complet *')}</label>
+            <input class="form-input" id="wName" placeholder="${L('محمد الأمين بن علي','Mohamed Amine Ben Ali')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 Nom complet (français) <span style="font-size:.7rem;color:var(--dim)">${L('للوثائق الفرنسية','Pour documents FR')}</span></label>
+            <input class="form-input" id="wNameFr" placeholder="Mohamed Amine Ben Ali" dir="ltr">
+          </div>
           <div class="form-group"><label class="form-label">${L('المهنة *','Métier *')}</label><input class="form-input" id="wRole" placeholder="${L('بنّاء، حداد...','Maçon, Ferrailleur...')}"></div>
           <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="wPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <div class="form-group"><label class="form-label">${L('رقم الهوية الوطنية','N° CIN')}</label><input class="form-input" id="wNid" type="text" placeholder="00 123 45678 90 12" pattern="[0-9 ]{10,20}" inputmode="numeric" dir="ltr"></div>
@@ -5772,78 +5819,207 @@ Pages.workers = function() {
 
 /* ─── EQUIPMENT ─── */
 Pages.equipment = function() {
-  const tid = Auth.getUser().tenant_id;
-  const equip = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const tid      = Auth.getUser().tenant_id;
+  const equip    = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const logs     = DB.get('equipment_logs')||[];
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const statusMap = { active:{label:L('نشط','Actif'),col:'var(--green)'}, maintenance:{label:L('صيانة','Maintenance'),col:'var(--gold)'}, idle:{label:L('خامل','Inactif'),col:'var(--dim)'} };
-  const cards = equip.map(e=>{
-    const proj=projects.find(p=>p.id===e.project_id);
-    const st=statusMap[e.status]||statusMap.idle;
-    return `<div class="card" style="position:relative">
-      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-        <div style="width:52px;height:52px;border-radius:14px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.8rem">${e.icon||'🚜'}</div>
-        <div style="flex:1">
-          <div style="font-weight:800">${escHtml(e.name)}</div>
-          <div style="font-size:.75rem;color:var(--dim)">${escHtml(e.model||'')}${e.type?' · '+escHtml(e.type):''}</div>
+  const statusMap = {
+    active:      { label:L('نشط','Actif'),       col:'var(--green)' },
+    maintenance: { label:L('صيانة','Maintenance'),col:'var(--gold)'  },
+    idle:        { label:L('خامل','Inactif'),     col:'var(--dim)'   },
+  };
+
+  // ── بناء بطاقة لكل معدة ──
+  const cards = equip.map(e => {
+    const proj   = projects.find(p=>p.id===e.project_id);
+    const st     = statusMap[e.status]||statusMap.idle;
+    const eLogs  = logs.filter(l=>l.equipment_id===e.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const lastMaint = eLogs.filter(l=>l.type==='maintenance')[0];
+    const lastOp    = eLogs[0];
+
+    // تحذيرات
+    const maintSoon = e.next_maintenance && new Date(e.next_maintenance) <= new Date(Date.now()+30*864e5);
+    const maintDue  = e.next_maintenance && new Date(e.next_maintenance) <= new Date();
+    const insSoon   = e.insurance_expiry && new Date(e.insurance_expiry) <= new Date(Date.now()+30*864e5);
+
+    return `
+    <div class="card" style="position:relative;display:flex;flex-direction:column;gap:.7rem">
+
+      <!-- ─ رأس البطاقة ─ -->
+      <div style="display:flex;align-items:flex-start;gap:.8rem">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0">${e.icon||'🚜'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(e.name)}</div>
+          <div style="font-size:.74rem;color:var(--dim)">${escHtml(e.model||'')}${e.type?' · '+escHtml(e.type):''}</div>
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem">
+            <span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:${st.col}18;border:1px solid ${st.col}44;color:${st.col};font-weight:700">${st.label}</span>
+            ${maintDue  ? `<span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);color:#F04E6A;font-weight:700">🔧 ${L('صيانة متأخرة','Maint. en retard')}</span>` : ''}
+            ${maintSoon && !maintDue ? `<span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.3);color:#E8B84B;font-weight:700">🔧 ${L('صيانة قريبة','Maint. proche')}</span>` : ''}
+            ${insSoon   ? `<span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.2);color:#F04E6A;font-weight:700">⚠️ ${L('تأمين قريب','Assur. proche')}</span>` : ''}
+          </div>
         </div>
-        ${e.next_maintenance && new Date(e.next_maintenance) <= new Date(Date.now()+30*86400000) ? `<span title="${L('صيانة قادمة','Maintenance prochaine')}" style="font-size:.7rem;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.3);color:#E8B84B;padding:2px 7px;border-radius:8px">🔧 ${L('صيانة قريباً','Maint. proche')}</span>` : ''}
-        ${e.insurance_expiry && new Date(e.insurance_expiry) <= new Date(Date.now()+30*86400000) ? `<span title="${L('تأمين منتهٍ قريباً','Assurance expirante')}" style="font-size:.7rem;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:2px 7px;border-radius:8px">⚠️ ${L('تأمين','Assur.')}</span>` : ''}
+        <select class="form-select" style="padding:.25rem .5rem;font-size:.72rem;width:auto;flex-shrink:0" onchange="updateEquipStatus(${e.id},this.value)">
+          ${Object.entries(statusMap).map(([k,v])=>`<option value="${k}"${e.status===k?' selected':''}>${v.label}</option>`).join('')}
+        </select>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.78rem;margin-bottom:.8rem">
-        <div><div style="color:var(--dim)">${L('المشروع','Projet')}</div><div style="font-weight:600">${escHtml(proj?.name||'—')}</div></div>
-        <div><div style="color:var(--dim)">${L('رقم اللوحة','N° Plaque')}</div><div style="font-weight:600;font-family:monospace;direction:ltr;text-align:right">${escHtml(e.plate_number||'—')}</div></div>
-        ${e.serial ? `<div><div style="color:var(--dim)">${L('الرقم التسلسلي','N° Série')}</div><div style="font-weight:600;font-family:monospace;font-size:.72rem;direction:ltr;text-align:right">${escHtml(e.serial)}</div></div>` : ''}
-        <div><div style="color:var(--dim)">${L('قيمة الشراء','Valeur achat')}</div><div style="font-weight:600;font-family:monospace">${fmt(e.purchase_price)} دج</div></div>
-        ${e.next_maintenance ? `<div><div style="color:var(--dim)">${L('الصيانة القادمة','Proch. maint.')}</div><div style="font-weight:600;color:${new Date(e.next_maintenance)<=new Date()?'#F04E6A':'var(--text)'}">${e.next_maintenance}</div></div>` : ''}
-        <div><div style="color:var(--dim)">${L('الحالة','État')}</div>
-          <select class="form-select" style="padding:.2rem .5rem;font-size:.75rem;margin-top:2px" onchange="updateEquipStatus(${e.id},this.value)">
-            ${Object.entries(statusMap).map(([k,v])=>`<option value="${k}"${e.status===k?' selected':''}>${v.label}</option>`).join('')}
-          </select>
+
+      <!-- ─ معلومات ─ -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem;font-size:.76rem;background:rgba(255,255,255,.025);border-radius:8px;padding:.6rem">
+        ${proj ? `<div><span style="color:var(--dim)">${L('المشروع','Projet')}: </span><strong>${escHtml(proj.name)}</strong></div>` : ''}
+        ${e.plate_number ? `<div><span style="color:var(--dim)">${L('اللوحة','Plaque')}: </span><strong dir="ltr">${escHtml(e.plate_number)}</strong></div>` : ''}
+        ${e.serial ? `<div><span style="color:var(--dim)">${L('الرقم التسلسلي','Série')}: </span><strong dir="ltr" style="font-family:monospace">${escHtml(e.serial)}</strong></div>` : ''}
+        ${e.purchase_price ? `<div><span style="color:var(--dim)">${L('قيمة الشراء','Prix achat')}: </span><strong>${fmt(e.purchase_price)} ${L('دج','DA')}</strong></div>` : ''}
+        ${e.next_maintenance ? `<div><span style="color:var(--dim)">${L('الصيانة القادمة','Proch. maint.')}: </span><strong style="color:${maintDue?'#F04E6A':maintSoon?'#E8B84B':'var(--text)'}">${e.next_maintenance}</strong></div>` : ''}
+        ${e.insurance_expiry ? `<div><span style="color:var(--dim)">${L('انتهاء التأمين','Exp. assur.')}: </span><strong style="color:${insSoon?'#F04E6A':'var(--text)'}">${e.insurance_expiry}</strong></div>` : ''}
+        ${e.purchase_date ? `<div><span style="color:var(--dim)">${L('تاريخ الشراء','Dt. achat')}: </span><strong>${e.purchase_date}</strong></div>` : ''}
+        ${lastMaint ? `<div><span style="color:var(--dim)">${L('آخر صيانة','Dern. maint.')}: </span><strong style="color:#34C38F">${lastMaint.date}</strong></div>` : ''}
+      </div>
+
+      <!-- ─ آخر سجلات ─ -->
+      ${eLogs.length ? `
+      <div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--dim);margin-bottom:.3rem">🕐 ${L('آخر العمليات','Dernières opérations')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          ${eLogs.slice(0,3).map(l=>{
+            const typeColors = { maintenance:'#34C38F', fuel:'#4A90E2', repair:'#F04E6A', incident:'#FF7043', inspection:'#9B6DFF', use:'#E8B84B' };
+            const typeLabels = {
+              maintenance: L('صيانة','Maintenance'),
+              fuel:        L('تزويد وقود','Carburant'),
+              repair:      L('إصلاح','Réparation'),
+              incident:    L('حادث','Incident'),
+              inspection:  L('فحص','Inspection'),
+              use:         L('استخدام','Utilisation'),
+            };
+            const c = typeColors[l.type]||'var(--dim)';
+            return `<div style="display:flex;align-items:center;gap:.5rem;font-size:.72rem;padding:3px 6px;background:${c}10;border-radius:5px;border-right:2px solid ${c}">
+              <span style="color:${c};font-weight:700;white-space:nowrap">${typeLabels[l.type]||l.type}</span>
+              <span style="color:var(--dim);white-space:nowrap">${l.date}</span>
+              <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(l.note||'')}</span>
+              ${l.cost ? `<span style="color:var(--gold);font-weight:700;white-space:nowrap;font-family:monospace">${fmt(l.cost)}</span>` : ''}
+            </div>`;
+          }).join('')}
+          ${eLogs.length > 3 ? `<div style="font-size:.68rem;color:var(--dim);text-align:center;margin-top:2px">${L('و','et')} ${eLogs.length-3} ${L('عملية أخرى...','autre(s)...')}</div>` : ''}
         </div>
       </div>
-      <div style="display:flex;gap:.4rem">
-        <button class="btn btn-blue btn-sm" style="flex:1;justify-content:center" onclick="DZDocsUI.openForEquipment('suivi',${e.id})" title="${L('بطاقة تتبع PDF','Fiche suivi PDF')}">📄 ${L('بطاقة تتبع','Fiche suivi')}</button>
+      ` : `<div style="font-size:.73rem;color:var(--dim);font-style:italic;text-align:center;padding:.3rem 0">${L('لا توجد سجلات بعد','Aucun enregistrement')}</div>`}
+
+      <!-- ─ أزرار ─ -->
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+        <button class="btn btn-gold btn-sm" style="flex:1;justify-content:center" onclick="openEquipLog(${e.id})">
+          📋 ${L('إضافة سجل','Ajouter entrée')}
+        </button>
+        <button class="btn btn-blue btn-sm" style="flex:1;justify-content:center" onclick="viewEquipHistory(${e.id})">
+          📊 ${L('السجل الكامل','Historique complet')} ${eLogs.length?`(${eLogs.length})`:''}
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForEquipment('suivi',${e.id})" title="${L('بطاقة تتبع PDF','Fiche suivi PDF')}">📄</button>
         <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" title="${L('حذف','Suppr.')}">🗑️</button>
       </div>
     </div>`;
-  }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">${L('لا توجد معدات','Aucun équipement')}</div></div>`;
+  }).join('') || `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">${L('لا توجد معدات','Aucun équipement')}</div></div>`;
 
-  return layoutHTML('equipment',L('المعدات','Équipements'),`
+  return layoutHTML('equipment', L('المعدات','Équipements'), `
     <div class="page-header">
       <div><div class="page-title">🚜 ${L('المعدات','Équipements')}</div><div class="page-sub">${equip.length} ${L('معدة مسجلة','équipement(s)')}</div></div>
-      <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button><button class="btn btn-gold" data-modal-open="addEquipModal">+ ${L('إضافة معدة','Ajouter équipement')}</button></div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة','Imprimer')}</button>
+        <button class="btn btn-gold" data-modal-open="addEquipModal">+ ${L('إضافة معدة','Ajouter')}</button>
+      </div>
     </div>
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card"><div class="stat-value" style="color:var(--green)">${equip.filter(e=>e.status==='active').length}</div><div class="stat-label">${L('نشط','Actif')}</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--gold)">${equip.filter(e=>e.status==='maintenance').length}</div><div class="stat-label">${L('صيانة','Maintenance')}</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--dim)">${equip.filter(e=>e.status==='idle').length}</div><div class="stat-label">${L('خامل','Inactif')}</div></div>
+
+    <!-- إحصائيات -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card"><div class="stat-icon">🚜</div><div class="stat-value">${equip.length}</div><div class="stat-label">${L('إجمالي المعدات','Total équip.')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--green)">✅</div><div class="stat-value" style="color:var(--green)">${equip.filter(e=>e.status==='active').length}</div><div class="stat-label">${L('نشطة','Actifs')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--gold)">🔧</div><div class="stat-value" style="color:var(--gold)">${equip.filter(e=>e.status==='maintenance').length}</div><div class="stat-label">${L('صيانة','Maintenance')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:#F04E6A">⚠️</div><div class="stat-value" style="color:#F04E6A">${equip.filter(e=>e.next_maintenance&&new Date(e.next_maintenance)<=new Date(Date.now()+7*864e5)).length}</div><div class="stat-label">${L('صيانة هذا الأسبوع','Maint. cette semaine')}</div></div>
     </div>
+
     <div class="grid-cards">${cards}</div>
+
+    <!-- Modal إضافة معدة -->
     <div class="modal-overlay" id="addEquipModal">
       <div class="modal modal-lg">
         <div class="modal-title">🚜 ${L('إضافة معدة','Ajouter un équipement')}</div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('الاسم *','Nom *')}</label><input class="form-input" id="eName" placeholder="${L('حفارة...','Pelle...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الطراز / الموديل','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320D"></div>
-          <div class="form-group"><label class="form-label">${L('نوع المعدة','Type')}</label><input class="form-input" id="eType" placeholder="${L('حفارة، شاحنة، رافعة...','Pelleteuse, Camion...')}"></div>
+          <div class="form-group"><label class="form-label">${L('الطراز','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320D"></div>
+          <div class="form-group"><label class="form-label">${L('النوع','Type')}</label><input class="form-input" id="eType" placeholder="${L('حفارة، شاحنة...','Pelleteuse, Camion...')}"></div>
           <div class="form-group"><label class="form-label">${L('الرقم التسلسلي','N° Série')}</label><input class="form-input" id="eSerial" dir="ltr" placeholder="CAT320-2024-001"></div>
-          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° Plaque')}</label><input class="form-input" id="ePlate" dir="ltr" placeholder="12345-AB-16"></div>
-          <div class="form-group"><label class="form-label">${L('الأيقونة','Icône')}</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option><option>🔧</option><option>🚁</option></select></div>
-          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number" min="0" step="1" inputmode="numeric"></div>
-          <div class="form-group"><label class="form-label">${L('تاريخ الشراء','Date d\'achat')}</label><input class="form-input" id="ePurchaseDate" type="date"></div>
-          <div class="form-group"><label class="form-label">${L('تاريخ آخر صيانة','Dernière maintenance')}</label><input class="form-input" id="eLastMaint" type="date"></div>
-          <div class="form-group"><label class="form-label">${L('موعد الصيانة القادمة','Prochaine maintenance')}</label><input class="form-input" id="eNextMaint" type="date"></div>
-          <div class="form-group"><label class="form-label">${L('تاريخ انتهاء التأمين','Fin assurance')}</label><input class="form-input" id="eInsurDate" type="date"></div>
-          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="eProject"><option value="">${L('اختر...','Choisir...')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° Plaque')}</label><input class="form-input" id="ePlate" dir="ltr" type="text" placeholder="12345-AB-16"></div>
+          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="eProject"><option value="">${L('بدون مشروع','Sans projet')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الشراء','Date achat')}</label><input class="form-input" id="ePurchaseDate" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الصيانة القادمة','Proch. maintenance')}</label><input class="form-input" id="eNextMaint" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('انتهاء التأمين','Exp. assurance')}</label><input class="form-input" id="eInsurance" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('أيقونة','Icône')}</label><select class="form-select" id="eIcon">
+            <option value="🚜">🚜 ${L('حفارة','Pelleteuse')}</option><option value="🚛">🚛 ${L('شاحنة','Camion')}</option>
+            <option value="🏗️">🏗️ ${L('رافعة','Grue')}</option><option value="🚧">🚧 ${L('آلة طرق','Compacteur')}</option>
+            <option value="⚙️">⚙️ ${L('مضخة','Pompe')}</option><option value="🔩">🔩 ${L('معدة أخرى','Autre')}</option>
+          </select></div>
+          <div class="form-group"><label class="form-label">${L('الحالة','État')}</label><select class="form-select" id="eStatus">
+            <option value="active">${L('نشط','Actif')}</option>
+            <option value="maintenance">${L('صيانة','Maintenance')}</option>
+            <option value="idle">${L('خامل','Inactif')}</option>
+          </select></div>
         </div>
-        <div class="form-group"><label class="form-label">${L('ملاحظات','Notes')}</label><textarea class="form-textarea" id="eNotes" style="min-height:60px"></textarea></div>
-        <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addEquip()">💾 ${L('حفظ','Enregistrer')}</button></div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('addEquipModal')">${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="addEquip()">${L('إضافة','Ajouter')}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal إضافة سجل صيانة/وقود/... -->
+    <div class="modal-overlay" id="equipLogModal">
+      <div class="modal">
+        <div class="modal-title" id="equipLogModalTitle">📋 ${L('إضافة سجل للمعدة','Ajouter une entrée')}</div>
+        <input type="hidden" id="equipLogEid">
+        <div class="form-grid-2">
+          <div class="form-group form-col-full">
+            <label class="form-label">${L('نوع العملية *','Type d\'opération *')}</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">
+              ${[
+                {v:'maintenance',i:'🔧',l:L('صيانة','Maintenance'),c:'#34C38F'},
+                {v:'fuel',       i:'⛽',l:L('وقود','Carburant'),   c:'#4A90E2'},
+                {v:'repair',     i:'🛠️',l:L('إصلاح','Réparation'), c:'#F04E6A'},
+                {v:'inspection', i:'🔍',l:L('فحص','Inspection'),   c:'#9B6DFF'},
+                {v:'incident',   i:'⚠️',l:L('حادث','Incident'),    c:'#FF7043'},
+                {v:'use',        i:'▶️',l:L('استخدام','Utilisation'),c:'#E8B84B'},
+              ].map(t=>`
+                <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:${t.c}10;border:2px solid ${t.c}30;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:700;color:${t.c};transition:all .2s"
+                  onmouseover="this.style.background='${t.c}22'" onmouseout="this.style.background='${t.c}10'">
+                  <input type="radio" name="logType" value="${t.v}" style="display:none" onchange="document.querySelectorAll('[name=logType]').forEach(r=>{r.parentElement.style.borderColor=(r.checked?'${t.c}':'${t.c}30')})">
+                  ${t.i} ${t.l}
+                </label>
+              `).join('')}
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">${L('التاريخ *','Date *')}</label><input class="form-input" id="logDate" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+          <div class="form-group"><label class="form-label">${L('التكلفة (دج)','Coût (DA)')}</label><input class="form-input" id="logCost" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group form-col-full"><label class="form-label">${L('ملاحظة','Note')}</label><textarea class="form-input" id="logNote" rows="2" placeholder="${L('تفاصيل العملية...','Détails de l\'opération...')}"></textarea></div>
+          <div class="form-group"><label class="form-label">${L('التالي: موعد الصيانة القادمة','Proch. maintenance')}</label><input class="form-input" id="logNextMaint" type="date" placeholder="${L('اختياري','Optionnel')}"></div>
+          <div class="form-group"><label class="form-label">${L('المورد / الميكانيكي','Fournisseur')}</label><input class="form-input" id="logVendor" placeholder="${L('اسم المورد...','Nom fournisseur...')}"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('equipLogModal')">${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveEquipLog()">💾 ${L('حفظ السجل','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal السجل الكامل -->
+    <div class="modal-overlay" id="equipHistoryModal">
+      <div class="modal modal-lg" style="max-width:700px">
+        <div class="modal-title" id="equipHistoryTitle">📊 ${L('سجل المعدة','Historique équipement')}</div>
+        <div id="equipHistoryBody" style="max-height:65vh;overflow-y:auto"></div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('equipHistoryModal')">${L('إغلاق','Fermer')}</button>
+          <button class="btn btn-gold" onclick="printEquipHistory()">${L('🖨️ طباعة PDF','🖨️ Imprimer')}</button>
+        </div>
       </div>
     </div>
   `);
 };
-
-/* ─── TRANSACTIONS ─── */
 Pages.transactions = function() {
   const tid = Auth.getUser().tenant_id;
   const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
@@ -6759,7 +6935,15 @@ Pages.settings = function() {
         <!-- Company Info -->
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🏢 ${L('معلومات الشركة','Infos de l\'entreprise')}</div>
-          <div class="form-group"><label class="form-label">${L('اسم الشركة','Nom de la société')}</label><input class="form-input" id="setName" value="${escHtml(tenant?.name||'')}"></div>
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('اسم الشركة (عربي)','Nom société (arabe)')}</label>
+            <input class="form-input" id="setName" value="${escHtml(tenant?.name||'')}" placeholder="${L('مؤسسة البناء الحديث','Entreprise BTP')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 Nom société (français)</label>
+            <input class="form-input" id="setNameFr" value="${escHtml(tenant?.name_fr||'')}" placeholder="Entreprise BTP Moderne" dir="ltr">
+            <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('يُستخدم في الفواتير والوثائق عند التبديل للفرنسية','Utilisé dans les documents en mode français')}</div>
+          </div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <button class="btn btn-gold" onclick="saveTenantSettings()">💾 ${L('حفظ التغييرات','Sauvegarder')}</button>
@@ -6950,31 +7134,121 @@ Pages.settings = function() {
         </div>
 
         <!-- ☁️ Google Drive Integration -->
-        <div id="gdriveSettingsCard">
-          ${typeof renderGDriveSettings === 'function' ? renderGDriveSettings() : `
-            <div class="card" style="border:1px solid rgba(66,133,244,.2)">
-              <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.6rem">
-                <svg width="24" height="21" viewBox="0 0 87.3 78">
-                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                  <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
-                  <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                  <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                  <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                  <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                </svg>
+        <div id="gdriveSettingsCard" style="margin-bottom:1rem">
+          <div class="card" style="border:1px solid rgba(66,133,244,.25)">
+            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem">
+              <svg width="28" height="24" viewBox="0 0 87.3 78">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              <div style="flex:1">
                 <div style="font-weight:800">Google Drive</div>
-                <span style="font-size:.72rem;color:var(--dim)">— ${L('جارٍ التحميل...','Chargement...')}</span>
+                <div id="gdriveStatusText" style="font-size:.72rem;color:var(--dim)">${L('جارٍ التحقق...','Vérification...')}</div>
               </div>
+              <div id="gdriveBadge"></div>
             </div>
-          `}
+            <div id="gdriveBody">
+              <div style="font-size:.8rem;color:var(--dim)">${L('جارٍ تحميل إعدادات Google Drive...','Chargement des paramètres Google Drive...')}</div>
+            </div>
+          </div>
         </div>
-
         <script>
-          // تحديث واجهة Drive بعد تحميل الصفحة
-          setTimeout(function(){
-            const el=document.getElementById('gdriveSettingsCard');
-            if(el&&typeof renderGDriveSettings==='function') el.innerHTML=renderGDriveSettings();
-          }, 300);
+        // تحديث واجهة Drive — يعمل بعد تحميل google-drive.js
+        (function initGDriveCard() {
+          function render() {
+            const statusEl = document.getElementById('gdriveStatusText');
+            const bodyEl   = document.getElementById('gdriveBody');
+            const badgeEl  = document.getElementById('gdriveBadge');
+            const cardEl   = document.getElementById('gdriveSettingsCard')?.querySelector('.card');
+            if (!statusEl || !bodyEl) return;
+
+            const connected = typeof GDrive !== 'undefined' && GDrive.isConnected();
+            const adminCfg  = (typeof DB !== 'undefined') ? DB.get('global_gdrive_config') : null;
+            const isEnabled = !!(adminCfg?.enabled && adminCfg?.client_id);
+            const expiry    = JSON.parse(localStorage.getItem('sbtp_gdrive_token') || 'null')?.expiry;
+            const remaining = expiry ? Math.max(0, Math.round((expiry - Date.now()) / 60000)) : 0;
+
+            // لون البطاقة
+            if (cardEl) {
+              cardEl.style.borderColor = connected ? 'rgba(52,195,143,.35)' : 'rgba(66,133,244,.25)';
+            }
+
+            if (connected) {
+              // ── متصل ──
+              statusEl.textContent = '✅ ' + (window.L ? L('متصل بحسابك على Google','Connecté à votre compte Google') : 'Connecté') + ' — ' + remaining + ' min';
+              statusEl.style.color = '#34C38F';
+              badgeEl.innerHTML = '<span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-size:.68rem;padding:3px 10px;border-radius:20px;font-weight:700;white-space:nowrap">⚡ ' + (window.L ? L('حفظ تلقائي','Auto-save') : 'Auto-save') + '</span>';
+              bodyEl.innerHTML = \`
+                <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.15);border-radius:10px;padding:.8rem;margin-bottom:.8rem;font-size:.75rem">
+                  <div style="font-weight:700;color:#34C38F;margin-bottom:.35rem">📂 \${window.L?L('وثائقك تُحفظ تلقائياً في:','Vos documents sauvegardés dans:'):''}</div>
+                  <div style="font-family:monospace;color:var(--dim);line-height:2;font-size:.7rem">
+                    SmartStruct BTP → \${(typeof Auth!=='undefined'&&Auth.getTenant?Auth.getTenant()?.name:'') || 'مؤسستك'} → \${new Date().getFullYear()} → نوع الوثيقة
+                  </div>
+                </div>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                  <button class="btn btn-ghost btn-sm" onclick="GDrive.disconnect();App.navigate('settings')">
+                    🔌 \${window.L?L('قطع الاتصال','Déconnecter'):'Déconnecter'}
+                  </button>
+                  <button class="btn btn-blue btn-sm" onclick="GDrive.connect().then(()=>App.navigate('settings'))">
+                    🔄 \${window.L?L('تجديد الجلسة','Renouveler'):'Renouveler'}
+                  </button>
+                </div>\`;
+            } else if (!isEnabled) {
+              // ── غير مُفعَّل من الأدمن ──
+              statusEl.textContent = window.L ? L('غير مُفعَّل — في انتظار المسؤول','Non activé — en attente admin') : 'Non activé';
+              statusEl.style.color = 'var(--dim)';
+              badgeEl.innerHTML = '';
+              bodyEl.innerHTML = '<div style="font-size:.78rem;color:var(--dim);padding:.5rem 0">' +
+                (window.L ? L('سيتم تفعيل هذه الميزة من قِبَل مسؤول المنصة.','Cette fonctionnalité sera activée par l\'administrateur.') : '') +
+                '</div>';
+            } else {
+              // ── مُفعَّل ولكن غير متصل بعد ──
+              statusEl.textContent = window.L ? L('جاهز للربط','Prêt à connecter') : 'Prêt à connecter';
+              statusEl.style.color = '#4285F4';
+              badgeEl.innerHTML = '';
+              bodyEl.innerHTML = \`
+                <div style="font-size:.8rem;color:var(--dim);line-height:1.7;margin-bottom:.8rem">
+                  \${window.L ? L(
+                    '🔗 اربط حسابك على Google لحفظ وثائقك وفواتيرك تلقائياً في Drive الشخصي. ملفاتك خاصة — لا يصل إليها أحد سواك.',
+                    '🔗 Connectez votre compte Google pour sauvegarder vos documents dans votre Drive personnel. Fichiers privés — accès uniquement à vous.'
+                  ) : ''}
+                </div>
+                <button class="btn btn-blue" style="width:100%;justify-content:center;gap:.6rem"
+                  onclick="GDrive.connect().then(ok=>{ if(ok){ setTimeout(()=>App.navigate('settings'),800); } })">
+                  <svg width="16" height="14" viewBox="0 0 87.3 78" style="flex-shrink:0">
+                    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#fff"/>
+                    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#fff"/>
+                    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#fff"/>
+                    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#fff"/>
+                    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#fff"/>
+                    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#fff"/>
+                  </svg>
+                  \${window.L ? L('ربط حسابي بـ Google Drive','Connecter mon Google Drive') : 'Connecter Google Drive'}
+                </button>
+                <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem;text-align:center">
+                  \${window.L ? L('وثائقك ستُحفظ تلقائياً بعد الربط','Documents sauvegardés automatiquement') : ''}
+                </div>\`;
+            }
+          }
+
+          // ننتظر google-drive.js يكتمل التحميل
+          if (typeof GDrive !== 'undefined') {
+            render();
+          } else {
+            let tries = 0;
+            const wait = setInterval(function() {
+              tries++;
+              if (typeof GDrive !== 'undefined' || tries > 20) {
+                clearInterval(wait);
+                render();
+              }
+            }, 150);
+          }
+        })();
         </script>
 
 
@@ -10837,7 +11111,8 @@ function addProject() {
     id: DB.nextId('projects'), tenant_id: tid, name,
     project_type: document.getElementById('pType')?.value||'',
     wilaya:       document.getElementById('pWilaya')?.value||'',
-    client_name:  document.getElementById('pClient')?.value||'',
+    client_name:    document.getElementById('pClient')?.value||'',
+    client_name_fr: document.getElementById('pClientFr')?.value||'',
     phone:        document.getElementById('pPhone')?.value||'',
     budget:       Number(document.getElementById('pBudget')?.value)||0,
     market_ref:   document.getElementById('pMarket')?.value||'',
@@ -10985,7 +11260,9 @@ function calcAlgerianSalary(opts) {
 
 function addWorker() {
   if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لإضافة عامل','Permission refusée : ouvrier')); return; }
-  const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
+  const name=document.getElementById('wName')?.value?.trim(),
+        nameFr=document.getElementById('wNameFr')?.value?.trim()||'',
+        role=document.getElementById('wRole')?.value?.trim();
   const phone=document.getElementById('wPhone')?.value?.trim();
   const salary=document.getElementById('wSalary')?.value;
   if (!validateForm([
@@ -10999,7 +11276,7 @@ function addWorker() {
   const monthly_base = monthlyVal ? Number(monthlyVal) : Math.round(dailySal * 26);
   const tid=Auth.getUser().tenant_id; const ws=DB.get('workers');
   const newWorker = {
-    id: DB.nextId('workers'), tenant_id: tid, full_name: name, role,
+    id: DB.nextId('workers'), tenant_id: tid, full_name: name, full_name_fr: nameFr||name, role,
     phone:        document.getElementById('wPhone')?.value||'',
     national_id:  document.getElementById('wNid')?.value||'',
     dob:          document.getElementById('wDob')?.value||'',
@@ -11062,6 +11339,264 @@ function exportWorkers() {
 }
 
 function addEquip() {
+  const name = document.getElementById('eName')?.value?.trim();
+  if (!name) { Toast.error(L('اسم المعدة مطلوب','Nom équipement requis')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const equips = DB.get('equipment');
+  equips.push({
+    id: DB.nextId('equipment'), tenant_id: tid,
+    name, model: document.getElementById('eModel')?.value||'',
+    type: document.getElementById('eType')?.value||'',
+    serial: document.getElementById('eSerial')?.value||'',
+    plate_number: document.getElementById('ePlate')?.value||'',
+    project_id: Number(document.getElementById('eProject')?.value)||null,
+    purchase_price: Number(document.getElementById('ePrice')?.value)||0,
+    purchase_date: document.getElementById('ePurchaseDate')?.value||'',
+    next_maintenance: document.getElementById('eNextMaint')?.value||'',
+    insurance_expiry: document.getElementById('eInsurance')?.value||'',
+    icon: document.getElementById('eIcon')?.value||'🚜',
+    status: document.getElementById('eStatus')?.value||'active',
+  });
+  DB.set('equipment', equips);
+  closeModal('addEquipModal');
+  Toast.success(L('✅ تمت إضافة المعدة','✅ Équipement ajouté'));
+  App.navigate('equipment');
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  سجل الصيانة والعمليات للمعدة
+// ════════════════════════════════════════════════════════════════════
+function openEquipLog(eid) {
+  const equip = (DB.get('equipment')||[]).find(e=>e.id===eid);
+  if (!equip) return;
+  document.getElementById('equipLogEid').value = eid;
+  document.getElementById('equipLogModalTitle').textContent =
+    `📋 ${L('إضافة سجل','Ajouter entrée')} — ${equip.name}`;
+  // تحديد "صيانة" افتراضياً
+  const firstRadio = document.querySelector('[name="logType"]');
+  if (firstRadio) { firstRadio.checked = true; firstRadio.dispatchEvent(new Event('change')); }
+  // إفراغ الحقول
+  ['logDate','logCost','logNote','logNextMaint','logVendor'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.value = id==='logDate' ? new Date().toISOString().split('T')[0] : '';
+  });
+  openModal('equipLogModal');
+}
+
+function saveEquipLog() {
+  const eid  = Number(document.getElementById('equipLogEid')?.value);
+  const type = document.querySelector('[name="logType"]:checked')?.value;
+  const date = document.getElementById('logDate')?.value;
+  if (!eid || !type) { Toast.error(L('اختر نوع العملية','Choisir le type')); return; }
+  if (!date) { Toast.error(L('التاريخ مطلوب','Date requise')); return; }
+
+  const tid  = Auth.getUser().tenant_id;
+  const logs = DB.get('equipment_logs') || [];
+  const newLog = {
+    id:           DB.nextId('equipment_logs'),
+    equipment_id: eid,
+    tenant_id:    tid,
+    type,
+    date,
+    cost:     Number(document.getElementById('logCost')?.value) || 0,
+    note:     document.getElementById('logNote')?.value?.trim() || '',
+    vendor:   document.getElementById('logVendor')?.value?.trim() || '',
+    next_maintenance: document.getElementById('logNextMaint')?.value || '',
+    created_at: new Date().toISOString(),
+  };
+  logs.push(newLog);
+  DB.set('equipment_logs', logs);
+
+  // تحديث next_maintenance في المعدة إذا أُدخل
+  if (newLog.next_maintenance) {
+    const equips = DB.get('equipment') || [];
+    const idx = equips.findIndex(e=>e.id===eid);
+    if (idx>=0) { equips[idx].next_maintenance = newLog.next_maintenance; DB.set('equipment',equips); }
+  }
+  // تحديث حالة المعدة إلى "صيانة" إذا كان نوع السجل صيانة
+  if (type === 'maintenance') {
+    const equips = DB.get('equipment') || [];
+    const idx = equips.findIndex(e=>e.id===eid);
+    if (idx>=0 && equips[idx].status==='active') {
+      equips[idx].status = 'maintenance';
+      DB.set('equipment', equips);
+    }
+  }
+
+  closeModal('equipLogModal');
+  Toast.success(L('✅ تم حفظ السجل','✅ Entrée enregistrée'));
+  App.navigate('equipment');
+}
+
+function viewEquipHistory(eid) {
+  const equip = (DB.get('equipment')||[]).find(e=>e.id===eid);
+  if (!equip) return;
+  const logs  = (DB.get('equipment_logs')||[]).filter(l=>l.equipment_id===eid).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const typeColors = { maintenance:'#34C38F', fuel:'#4A90E2', repair:'#F04E6A', incident:'#FF7043', inspection:'#9B6DFF', use:'#E8B84B' };
+  const typeLabels = {
+    maintenance:L('صيانة','Maintenance'), fuel:L('وقود','Carburant'),
+    repair:L('إصلاح','Réparation'),       incident:L('حادث','Incident'),
+    inspection:L('فحص','Inspection'),     use:L('استخدام','Utilisation'),
+  };
+
+  const totalCost = logs.reduce((s,l)=>s+Number(l.cost||0), 0);
+  const byType = {};
+  logs.forEach(l=>{ byType[l.type]=(byType[l.type]||0)+1; });
+
+  document.getElementById('equipHistoryTitle').textContent = `📊 ${equip.icon||'🚜'} ${equip.name} — ${logs.length} ${L('عملية','opération(s)')}`;
+
+  document.getElementById('equipHistoryBody').innerHTML = !logs.length
+    ? `<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">${L('لا توجد سجلات بعد','Aucun enregistrement')}</div><div class="empty-text"><button class="btn btn-gold" onclick="closeModal('equipHistoryModal');openEquipLog(${eid})">+ ${L('إضافة أول سجل','Ajouter premier enregistrement')}</button></div></div>`
+    : `
+    <!-- إحصائيات سريعة -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1rem">
+      <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.15);border-radius:8px;padding:.7rem;text-align:center">
+        <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${logs.length}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${L('إجمالي العمليات','Total opérations')}</div>
+      </div>
+      <div style="background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.15);border-radius:8px;padding:.7rem;text-align:center">
+        <div style="font-size:1.1rem;font-weight:900;color:#F04E6A;font-family:monospace">${fmt(totalCost)}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${L('إجمالي التكاليف (دج)','Total coûts (DA)')}</div>
+      </div>
+      <div style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.15);border-radius:8px;padding:.7rem;text-align:center">
+        <div style="font-size:1.3rem;font-weight:900;color:#34C38F">${byType['maintenance']||0}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${L('مرات الصيانة','Maintenances')}</div>
+      </div>
+    </div>
+    <!-- جدول السجلات -->
+    <div style="display:flex;flex-direction:column;gap:.4rem">
+      ${logs.map(l => {
+        const c = typeColors[l.type]||'var(--dim)';
+        return `
+        <div style="background:rgba(255,255,255,.025);border:1px solid ${c}22;border-right:3px solid ${c};border-radius:8px;padding:.7rem 1rem;display:grid;grid-template-columns:auto 1fr auto auto;gap:.5rem .8rem;align-items:center">
+          <span style="background:${c}18;color:${c};font-size:.7rem;font-weight:800;padding:3px 8px;border-radius:6px;white-space:nowrap">${typeLabels[l.type]||l.type}</span>
+          <div>
+            <div style="font-weight:700;font-size:.82rem">${escHtml(l.note||'—')}</div>
+            ${l.vendor?`<div style="font-size:.7rem;color:var(--dim)">🏪 ${escHtml(l.vendor)}</div>`:''}
+            ${l.next_maintenance?`<div style="font-size:.7rem;color:#E8B84B">🔧 ${L('الصيانة القادمة','Proch. maint.')}: ${l.next_maintenance}</div>`:''}
+          </div>
+          <span style="font-size:.75rem;color:var(--dim);white-space:nowrap">${l.date}</span>
+          ${l.cost>0?`<span style="font-size:.78rem;font-weight:900;color:#F04E6A;font-family:monospace;white-space:nowrap">${fmt(l.cost)} ${L('دج','DA')}</span>`:'<span></span>'}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:.8rem;text-align:center">
+      <button class="btn btn-gold btn-sm" onclick="closeModal('equipHistoryModal');openEquipLog(${eid})">
+        + ${L('إضافة سجل جديد','Ajouter une entrée')}
+      </button>
+    </div>`;
+
+  // حفظ eid للطباعة
+  window._currentEquipHistoryId = eid;
+  openModal('equipHistoryModal');
+}
+
+function printEquipHistory() {
+  const eid   = window._currentEquipHistoryId;
+  const equip = (DB.get('equipment')||[]).find(e=>e.id===eid);
+  const logs  = (DB.get('equipment_logs')||[]).filter(l=>l.equipment_id===eid).sort((a,b)=>b.date.localeCompare(a.date));
+  const tenant= Auth.getTenant()||{};
+  const isAr  = I18N.currentLang==='ar';
+  if (!equip) return;
+
+  const typeLabels = {
+    maintenance:isAr?'صيانة':'Maintenance', fuel:isAr?'وقود':'Carburant',
+    repair:isAr?'إصلاح':'Réparation',       incident:isAr?'حادث':'Incident',
+    inspection:isAr?'فحص':'Inspection',     use:isAr?'استخدام':'Utilisation',
+  };
+  const typeColors = { maintenance:'#34C38F',fuel:'#4A90E2',repair:'#F04E6A',incident:'#FF7043',inspection:'#9B6DFF',use:'#E8B84B' };
+  const totalCost = logs.reduce((s,l)=>s+Number(l.cost||0),0);
+
+  const html = `<!DOCTYPE html><html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head><meta charset="UTF-8"><title>${isAr?'سجل المعدة':'Historique équipement'} — ${equip.name}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:20px;direction:${isAr?'rtl':'ltr'}}
+@page{size:A4;margin:15mm}
+@media print{.no-print{display:none!important}}
+.no-print{position:fixed;top:10px;${isAr?'left':'right'}:10px;display:flex;gap:8px}
+.btn{padding:8px 18px;background:#B8902F;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B8902F;padding-bottom:12px;margin-bottom:16px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#f8f5ee;border:1px solid #e0c97a;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.82rem}
+.info-item{display:flex;flex-direction:column;gap:2px}
+.info-lbl{font-size:.68rem;color:#888;text-transform:uppercase;letter-spacing:.4px}
+.info-val{font-weight:700;color:#1a1a1a}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat{background:#f8f5ee;border-radius:8px;padding:10px;text-align:center;border:1px solid #e0c97a}
+.stat-num{font-size:1.5rem;font-weight:900;color:#B8902F}
+.stat-lbl{font-size:.7rem;color:#888;margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}
+thead tr{background:#B8902F;color:#fff}
+th{padding:8px 10px;text-align:${isAr?'right':'left'};font-weight:700}
+tbody tr:nth-child(even){background:#f8f3e8}
+td{padding:7px 10px;border-bottom:1px solid #f0ede0}
+.type-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;color:#fff}
+.gold-bar{height:3px;background:linear-gradient(90deg,#B8902F,#E8B84B,#B8902F);border-radius:2px;margin:12px 0}
+.footer{font-size:.72rem;color:#999;display:flex;justify-content:space-between;margin-top:16px;border-top:1px solid #e0d4a8;padding-top:8px}
+</style></head>
+<body>
+<div class="no-print">
+  <button class="btn" onclick="window.print()">🖨️ ${isAr?'طباعة':'Imprimer'}</button>
+  <button class="btn" style="background:#888" onclick="window.close()">✕</button>
+</div>
+<div class="header">
+  <div>
+    <div style="font-size:1.1rem;font-weight:900">▦ ${tenant.name||'SmartStruct'}</div>
+    <div style="font-size:.75rem;color:#666">${tenant.rc_number?'RC: '+tenant.rc_number+'  ':''} ${tenant.nif?'NIF: '+tenant.nif:''}</div>
+  </div>
+  <div style="text-align:${isAr?'left':'right'}">
+    <div style="font-size:1.2rem;font-weight:900;color:#B8902F">${isAr?'سجل المعدة':'HISTORIQUE ÉQUIPEMENT'}</div>
+    <div style="font-size:.75rem;color:#888">${isAr?'تاريخ الإصدار':'Émis le'}: ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</div>
+  </div>
+</div>
+<div class="info-grid">
+  <div class="info-item"><span class="info-lbl">${isAr?'المعدة':'Équipement'}</span><span class="info-val">${equip.icon||''} ${equip.name}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'الطراز':'Modèle'}</span><span class="info-val">${equip.model||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'رقم اللوحة':'N° Plaque'}</span><span class="info-val" dir="ltr">${equip.plate_number||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'الرقم التسلسلي':'N° Série'}</span><span class="info-val" dir="ltr">${equip.serial||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'تاريخ الشراء':'Date achat'}</span><span class="info-val">${equip.purchase_date||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'الصيانة القادمة':'Proch. maintenance'}</span><span class="info-val" style="color:${equip.next_maintenance&&new Date(equip.next_maintenance)<=new Date()?'#c0392b':'#1a1a1a'}">${equip.next_maintenance||'—'}</span></div>
+</div>
+<div class="gold-bar"></div>
+<div class="stat-row">
+  <div class="stat"><div class="stat-num">${logs.length}</div><div class="stat-lbl">${isAr?'إجمالي العمليات':'Total opérations'}</div></div>
+  <div class="stat"><div class="stat-num" style="font-size:1.1rem">${Number(totalCost).toLocaleString('fr-DZ')} ${isAr?'دج':'DA'}</div><div class="stat-lbl">${isAr?'إجمالي التكاليف':'Total coûts'}</div></div>
+  <div class="stat"><div class="stat-num">${logs.filter(l=>l.type==='maintenance').length}</div><div class="stat-lbl">${isAr?'مرات الصيانة':'Maintenances'}</div></div>
+</div>
+<table>
+  <thead><tr>
+    <th>${isAr?'التاريخ':'Date'}</th>
+    <th>${isAr?'نوع العملية':'Type'}</th>
+    <th>${isAr?'الملاحظة':'Note'}</th>
+    <th>${isAr?'المورد':'Fournisseur'}</th>
+    <th>${isAr?'التكلفة (دج)':'Coût (DA)'}</th>
+    <th>${isAr?'الصيانة القادمة':'Proch. maint.'}</th>
+  </tr></thead>
+  <tbody>
+    ${logs.map(l=>`<tr>
+      <td style="white-space:nowrap">${l.date}</td>
+      <td><span class="type-badge" style="background:${typeColors[l.type]||'#888'}">${typeLabels[l.type]||l.type}</span></td>
+      <td>${escHtml(l.note||'—')}</td>
+      <td>${escHtml(l.vendor||'—')}</td>
+      <td style="font-weight:700;font-family:monospace;text-align:center">${l.cost>0?Number(l.cost).toLocaleString('fr-DZ'):'—'}</td>
+      <td>${l.next_maintenance||'—'}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+<div class="footer">
+  <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme gestion BTP Algérie'}</span>
+  <span>${equip.name} | ${logs.length} ${isAr?'عملية':'opération(s)'}</span>
+</div>
+</body></html>`;
+
+  const win = window.open('','_blank','width=900,height=700');
+  if (!win) { Toast.error(L('السماح بالنوافذ مطلوب','Autorisez les popups')); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
+function updateEquipStatus(id, status) {
   if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لإضافة معدة','Permission refusée : équipement')); return; }
   const name=document.getElementById('eName')?.value?.trim();
   if(!name){Toast.error('أدخل اسم المعدة');return;}
@@ -11242,7 +11777,13 @@ function markAll(status) {
 function saveTenantSettings() {
 
   const tid=Auth.getUser().tenant_id;
-  const tenants=DB.get('tenants').map(t=>t.id===tid?{...t,name:document.getElementById('setName')?.value||t.name,wilaya:document.getElementById('setWilaya')?.value||t.wilaya,phone:document.getElementById('setPhone')?.value||t.phone,rc_number:document.getElementById('setRc')?.value||t.rc_number}:t);
+  const tenants=DB.get('tenants').map(t=>t.id===tid?{...t,
+    name:    document.getElementById('setName')?.value||t.name,
+    name_fr: document.getElementById('setNameFr')?.value||t.name_fr||'',
+    wilaya:  document.getElementById('setWilaya')?.value||t.wilaya,
+    phone:   document.getElementById('setPhone')?.value||t.phone,
+    rc_number: document.getElementById('setRc')?.value||t.rc_number
+  }:t);
   DB.set('tenants',tenants);
   const updTenant = tenants.find(t=>t.id===tid);
   if (updTenant) sbSync('tenants', updTenant, 'PATCH').catch(()=>{});

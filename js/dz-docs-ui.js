@@ -547,6 +547,7 @@ _handlers: {
   <div class="form-group">
     <label class="form-label">${_L('اسم العميل','Nom client')} *</label>
     <input class="form-input" id="proClient" value="${_esc(defProj?.client_name||'')}" placeholder="SARL / اسم العميل...">
+    </div><div class="form-group"><label class="form-label">🇫🇷 Client (Français)</label><input class="form-input" id="proClientFr" value="${_esc(defProj?.client_name_fr||defProj?.client_name||'')}" placeholder="Client FR..." dir="ltr">
   </div>
   <div class="form-group">
     <label class="form-label">NIF ${_L('العميل','client')}</label>
@@ -583,7 +584,7 @@ _handlers: {
           .filter(r => r.desc);
         if (!this._val('proClient')) { _toast(_L('أدخِل اسم العميل','Saisir le client'),'error'); return; }
         if (!items.length) { _toast(_L('أضِف بندًا واحداً على الأقل','Au moins une ligne'),'error'); return; }
-        DZDocs.factureProforma({ clientName:this._val('proClient'), clientNif:this._val('proClientNif'), clientAddress:this._val('proClientAddr'), subject:this._val('proSubject'), validity:this._val('proValid'), payTerms:this._val('proPay'), items });
+        DZDocs.factureProforma({ clientName:this._val('proClient'), clientNameFr:this._val('proClientFr'), clientNif:this._val('proClientNif'), clientAddress:this._val('proClientAddr'), subject:this._val('proSubject'), validity:this._val('proValid'), payTerms:this._val('proPay'), items });
       });
     },
 
@@ -597,7 +598,7 @@ _handlers: {
     <label class="form-label">🏗️ ${_L('المشروع','Projet')}</label>
     <select class="form-select" id="devProj">
       <option value="">— ${_L('بدون','Aucun')} —</option>
-      ${projs.map(p => `<option value="${p.id}" data-name="${_esc(p.name)}" data-mo="${_esc(p.client_name||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
+      ${projs.map(p => `<option value="${p.id}" data-name="${_esc(p.name)}" data-mo="${_esc(p.client_name||'')}" data-mo-fr="${_esc(p.client_name_fr||p.client_name||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
     </select>
   </div>
   <div class="form-group">
@@ -772,7 +773,7 @@ _handlers: {
     <label class="form-label">🏗️ ${_L('المشروع','Projet')} *</label>
     <select class="form-select" id="pvoProj" onchange="DZDocsUI._handlers._onProjChange.call(DZDocsUI,this.value,['pvoMO','pvoStart'])">
       <option value="">— ${_L('اختر','Choisir')} —</option>
-      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-start="${_esc(p.start_date||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
+      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-mo-fr="${_esc(p.client_name_fr||p.client_name||'')}" data-start="${_esc(p.start_date||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
     </select>
   </div>
   <div class="form-group">
@@ -933,7 +934,7 @@ _handlers: {
     <label class="form-label">🏗️ ${_L('المشروع','Projet')} *</label>
     <select class="form-select" id="pvrProj" onchange="DZDocsUI._handlers._onProjChange.call(DZDocsUI,this.value,['pvrMO'])">
       <option value="">—</option>
-      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
+      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-mo-fr="${_esc(p.client_name_fr||p.client_name||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
     </select>
   </div>
   <div class="form-group">
@@ -998,7 +999,7 @@ _handlers: {
     <label class="form-label">🏗️ ${_L('المشروع','Projet')}</label>
     <select class="form-select" id="acoProj" onchange="DZDocsUI._handlers._onProjChange.call(DZDocsUI,this.value,['acoClient'],['acoTotal','acoClient'])">
       <option value="">—</option>
-      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-budget="${p.budget||''}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
+      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-mo-fr="${_esc(p.client_name_fr||p.client_name||'')}" data-budget="${p.budget||''}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
     </select>
   </div>
   <div class="form-group">
@@ -1023,7 +1024,7 @@ _handlers: {
         if (!this._num('acoAmount')) { _toast(_L('أدخِل مبلغ التسبيق','Saisir le montant'),'error'); return; }
         const projId = this._val('acoProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
-        DZDocs.factureAcompte({ clientName:this._val('acoClient'), clientNif:this._val('acoClientNif'), projectName:proj?.name||'', marketRef:this._val('acoMarket'), totalContract:this._num('acoTotal'), amount:this._num('acoAmount'), description:this._val('acoDesc') });
+        DZDocs.factureAcompte({ clientName:this._val('acoClient'), clientNameFr:this._val('acoClientFr'), clientNif:this._val('acoClientNif'), projectName:proj?.name||'', marketRef:this._val('acoMarket'), totalContract:this._num('acoTotal'), amount:this._num('acoAmount'), description:this._val('acoDesc') });
       });
     },
 
@@ -1045,7 +1046,7 @@ _handlers: {
     <label class="form-label">🏗️ ${_L('المشروع','Projet')}</label>
     <select class="form-select" id="sitProj" onchange="DZDocsUI._handlers._onProjChange.call(DZDocsUI,this.value,['sitMO'])">
       <option value="">—</option>
-      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
+      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-mo-fr="${_esc(p.client_name_fr||p.client_name||'')}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
     </select>
   </div>
   <div class="form-group">
@@ -1108,7 +1109,7 @@ _handlers: {
     <label class="form-label">🏗️ ${_L('المشروع','Projet')}</label>
     <select class="form-select" id="defProj" onchange="DZDocsUI._handlers._onProjChange.call(DZDocsUI,this.value,['defClient'],['defTotal'])">
       <option value="">—</option>
-      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-budget="${p.budget||''}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
+      ${projs.map(p=>`<option value="${p.id}" data-mo="${_esc(p.client_name||'')}" data-mo-fr="${_esc(p.client_name_fr||p.client_name||'')}" data-budget="${p.budget||''}" ${defProj?.id===p.id?'selected':''}>${_esc(p.name)}</option>`).join('')}
     </select>
   </div>
   <div class="form-group">
@@ -1141,7 +1142,7 @@ _handlers: {
         if (!this._num('defTotal')) { _toast(_L('أدخِل قيمة العقد','Saisir le montant'),'error'); return; }
         const projId = this._val('defProj');
         const proj = projId ? this._projectsList().find(p=>String(p.id)===String(projId)) : null;
-        DZDocs.factureDefinitive({ clientName:this._val('defClient'), clientNif:this._val('defNif'), projectName:proj?.name||'', marketRef:this._val('defMarket'), pvRef:this._val('defPv'), totalContract:this._num('defTotal'), acompteSum:this._num('defAcoSum'), situationsSum:this._num('defSitSum'), payTerms:this._val('defPay') });
+        DZDocs.factureDefinitive({ clientName:this._val('defClient'), clientNameFr:this._val('defClientFr'), clientNif:this._val('defNif'), projectName:proj?.name||'', marketRef:this._val('defMarket'), pvRef:this._val('defPv'), totalContract:this._num('defTotal'), acompteSum:this._num('defAcoSum'), situationsSum:this._num('defSitSum'), payTerms:this._val('defPay') });
       });
     },
 
