@@ -19903,11 +19903,12 @@ async function manualSyncNow() {
 window.manualSyncNow = manualSyncNow;
 
 // ════════════════════════════════════════════════════════════════════
-//  Pending Queue Dropdown — قائمة العمليات المعلقة
-//  عند الضغط على syncPill: تعرض القائمة + أزرار تسريع/تعطيل
+//  Pending Queue Dropdown — قائمة العمليات المعلقة الاحترافية
+//  يعرض كل عملية بالتفصيل + إمكانية حذف/إعادة لكل عملية لوحدها
 // ════════════════════════════════════════════════════════════════════
+
 function showPendingQueue() {
-  // إغلاق القائمة إذا كانت مفتوحة
+  // Toggle: إغلاق القائمة إذا كانت مفتوحة
   const existing = document.getElementById('pendingQueueDropdown');
   if (existing) { existing.remove(); return; }
 
@@ -19915,209 +19916,331 @@ function showPendingQueue() {
 
   // قراءة الـ queue
   let queue = [];
-  try {
-    queue = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
-  } catch(_) {}
+  try { queue = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
 
-  // ─── تسميات الجداول ───
-  const tableLabels = {
-    projects:       isAr ? '🏗️ مشاريع'        : '🏗️ Projets',
-    workers:        isAr ? '👷 عمال'           : '👷 Ouvriers',
-    equipment:      isAr ? '🚜 معدات'          : '🚜 Équipements',
-    equipment_logs: isAr ? '📋 سجلات معدات'    : '📋 Logs équip.',
-    transactions:   isAr ? '💰 معاملات'        : '💰 Transactions',
-    attendance:     isAr ? '📅 حضور'           : '📅 Pointage',
-    materials:      isAr ? '📦 مواد'           : '📦 Matériaux',
-    invoices:       isAr ? '🧾 فواتير'         : '🧾 Factures',
-    salary_records: isAr ? '💵 رواتب'          : '💵 Salaires',
-    documents:      isAr ? '📄 وثائق'          : '📄 Documents',
-    notifications:  isAr ? '🔔 إشعارات'        : '🔔 Notifications',
-    kanban_tasks:   isAr ? '📋 مهام'           : '📋 Tâches',
-    obligations:    isAr ? '📌 التزامات'       : '📌 Obligations',
-    stock_movements:isAr ? '📊 حركات مخزون'    : '📊 Mvts stock',
-    tenants:        isAr ? '🏢 مؤسسات'         : '🏢 Sociétés',
-    users:          isAr ? '👤 مستخدمين'       : '👤 Utilisateurs',
-  };
+  // إضافة فهرس لكل عملية للتمكن من حذفها فرديًا
+  queue.forEach((op, i) => { op._idx = i; });
 
-  const methodLabels = {
-    POST:   isAr ? '➕ إضافة'   : '➕ Création',
-    PATCH:  isAr ? '✏️ تعديل'   : '✏️ Modif.',
-    DELETE: isAr ? '🗑️ حذف'    : '🗑️ Suppr.',
-  };
-
-  // ─── حالة الشبكة ───
+  // ─── حالة الاتصال ───
   const isOnline = navigator.onLine;
   const supabaseOk = typeof DB !== 'undefined' && DB._useSupabase;
-  const stateColor = !isOnline ? '#888' : (!supabaseOk ? '#F04E6A' : '#34C38F');
-  const stateText  = !isOnline ? (isAr?'📵 غير متصل بالإنترنت':'📵 Hors ligne')
-                   : !supabaseOk ? (isAr?'⚠️ Supabase معطل':'⚠️ Supabase déconnecté')
-                   : (isAr?'✅ متصل':'✅ Connecté');
+  const canSync = isOnline && supabaseOk;
 
-  // ─── بناء القائمة ───
+  const stateColor = !isOnline ? '#888' : (!supabaseOk ? '#F04E6A' : '#34C38F');
+  const stateIcon  = !isOnline ? '📵' : (!supabaseOk ? '⚠️' : '✅');
+  const stateText  = !isOnline ? (isAr?'غير متصل بالإنترنت':'Hors ligne')
+                   : !supabaseOk ? (isAr?'Supabase معطل':'Supabase déconnecté')
+                   : (isAr?'متصل ومستعد':'Connecté & prêt');
+
+  // ─── بناء الـ dropdown ───
   const dropdown = document.createElement('div');
   dropdown.id = 'pendingQueueDropdown';
   dropdown.style.cssText = `
     position: fixed;
     top: 56px;
     ${isAr ? 'left:' : 'right:'} 16px;
-    width: 340px;
-    max-height: 480px;
-    background: var(--card-bg, #131c26);
-    border: 1px solid var(--border, rgba(255,255,255,.12));
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 80px);
+    background: #131c26;
+    border: 1px solid rgba(255,255,255,.12);
     border-radius: 14px;
-    box-shadow: 0 12px 40px rgba(0,0,0,.6);
+    box-shadow: 0 16px 50px rgba(0,0,0,.7);
     z-index: 99998;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     animation: fadeInDown .2s ease-out;
+    color: #e8e8e8;
   `;
 
-  // عدّاد حسب الجدول
-  const tableCounts = {};
-  queue.forEach(op => { tableCounts[op.table] = (tableCounts[op.table] || 0) + 1; });
-
-  dropdown.innerHTML = `
-    <!-- رأس -->
-    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div>
-        <div style="font-weight:800;font-size:.92rem">${isAr?'🔄 المزامنة مع السحابة':'🔄 Synchronisation cloud'}</div>
-        <div style="font-size:.7rem;color:${stateColor};margin-top:2px;font-weight:600">${stateText}</div>
-      </div>
-      <button onclick="document.getElementById('pendingQueueDropdown')?.remove()" 
-        style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:1.1rem;padding:4px 8px">✕</button>
-    </div>
-
-    ${queue.length === 0 ? `
-      <!-- لا توجد عمليات معلقة -->
-      <div style="padding:32px 20px;text-align:center">
-        <div style="font-size:2.5rem;margin-bottom:8px">✅</div>
-        <div style="font-weight:700;color:#34C38F;margin-bottom:4px">${isAr?'كل البيانات متزامنة':'Tout est synchronisé'}</div>
-        <div style="font-size:.75rem;color:var(--dim);line-height:1.6">${isAr?'لا توجد عمليات معلقة. أي تغيير جديد سيُرفع تلقائياً.':'Aucune opération en attente. Tout changement futur sera synchronisé automatiquement.'}</div>
-        <button class="btn btn-blue btn-sm" style="margin-top:12px" onclick="manualSyncNow();document.getElementById('pendingQueueDropdown')?.remove()">
-          🔄 ${isAr?'مزامنة الآن':'Synchroniser maintenant'}
-        </button>
-      </div>
-    ` : `
-      <!-- ملخص العمليات -->
-      <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(232,184,75,.05)">
-        <div style="font-size:.78rem;color:var(--gold);font-weight:700">
-          ⏳ ${queue.length} ${isAr?'عملية معلقة':'opération(s) en attente'}
-        </div>
-        <div style="font-size:.7rem;color:var(--dim);margin-top:2px">${isAr?'ستُرفع تلقائياً عند توفر الاتصال':'Seront envoyées dès reconnexion'}</div>
-      </div>
-
-      <!-- قائمة بالأنواع -->
-      <div style="flex:1;overflow-y:auto;padding:8px 0">
-        ${Object.entries(tableCounts).sort((a,b)=>b[1]-a[1]).map(([t,c]) => `
-          <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(255,255,255,.03)">
-            <span style="font-size:.82rem;flex:1">${tableLabels[t] || t}</span>
-            <span style="background:rgba(232,184,75,.15);color:#E8B84B;padding:2px 9px;border-radius:10px;font-size:.72rem;font-weight:800">${c}</span>
-          </div>
-        `).join('')}
-      </div>
-
-      <!-- تفاصيل آخر 5 عمليات -->
-      <details style="border-top:1px solid rgba(255,255,255,.06)">
-        <summary style="padding:8px 16px;cursor:pointer;font-size:.74rem;color:var(--dim);user-select:none">
-          📋 ${isAr?'عرض التفاصيل':'Voir détails'}
-        </summary>
-        <div style="max-height:140px;overflow-y:auto;background:rgba(0,0,0,.15);font-size:.7rem;font-family:monospace;padding:6px 0">
-          ${queue.slice(-8).reverse().map(op => `
-            <div style="padding:4px 16px;color:var(--dim);display:flex;justify-content:space-between;gap:8px">
-              <span style="color:#E8B84B;font-weight:700">${methodLabels[op.method] || op.method}</span>
-              <span style="flex:1">${tableLabels[op.table] || op.table}</span>
-              <span style="color:var(--dim)">#${op.record?.id || '?'}</span>
-            </div>
-          `).join('')}
-          ${queue.length > 8 ? `<div style="padding:4px 16px;color:var(--dim);text-align:center;font-style:italic">${isAr?`...و ${queue.length-8} أخرى`:`...et ${queue.length-8} autres`}</div>` : ''}
-        </div>
-      </details>
-
-      <!-- الأزرار -->
-      <div style="padding:10px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;gap:6px;background:rgba(255,255,255,.02)">
-        <button class="btn btn-gold btn-sm" style="flex:1;justify-content:center"
-          onclick="forceUploadPending();document.getElementById('pendingQueueDropdown')?.remove()"
-          ${!isOnline || !supabaseOk ? 'disabled style="opacity:.4;cursor:not-allowed;flex:1"' : ''}>
-          ⚡ ${isAr?'تسريع الرفع':'Forcer l\'envoi'}
-        </button>
-        <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;color:#F04E6A;border-color:rgba(240,78,106,.3)"
-          onclick="clearPendingQueue()">
-          🗑️ ${isAr?'تعطيل/مسح':'Annuler'}
-        </button>
-      </div>
-    `}
-  `;
+  // عرض القائمة مع التحديث الذكي
+  dropdown.innerHTML = renderPendingQueueContent(queue, isAr, canSync, isOnline, supabaseOk, stateColor, stateIcon, stateText);
 
   document.body.appendChild(dropdown);
 
   // إغلاق عند النقر خارج القائمة
   setTimeout(() => {
-    function close(e) {
+    function closeHandler(e) {
       const dd = document.getElementById('pendingQueueDropdown');
       const pill = document.getElementById('syncPill');
       if (dd && !dd.contains(e.target) && !pill?.contains(e.target)) {
         dd.remove();
-        document.removeEventListener('click', close);
+        document.removeEventListener('click', closeHandler);
       }
     }
-    document.addEventListener('click', close);
+    document.addEventListener('click', closeHandler);
   }, 100);
 }
 
-// ─── تسريع رفع العمليات المعلقة ───
-async function forceUploadPending() {
-  if (!navigator.onLine) {
-    Toast.error(L('📵 لا يوجد اتصال بالإنترنت','📵 Pas de connexion Internet'));
+// ─── محتوى القائمة (يُعاد رسمه بعد كل تغيير) ───
+function renderPendingQueueContent(queue, isAr, canSync, isOnline, supabaseOk, stateColor, stateIcon, stateText) {
+  const tableLabels = {
+    projects:       isAr ? '🏗️ مشاريع'        : '🏗️ Projets',
+    workers:        isAr ? '👷 عمال'           : '👷 Ouvriers',
+    equipment:      isAr ? '🚜 معدات'          : '🚜 Équipements',
+    equipment_logs: isAr ? '📋 سجل صيانة'      : '📋 Log équip.',
+    transactions:   isAr ? '💰 معاملة مالية'   : '💰 Transaction',
+    attendance:     isAr ? '📅 حضور'           : '📅 Pointage',
+    materials:      isAr ? '📦 مواد'           : '📦 Matériaux',
+    invoices:       isAr ? '🧾 فاتورة'         : '🧾 Facture',
+    salary_records: isAr ? '💵 راتب'           : '💵 Salaire',
+    documents:      isAr ? '📄 وثيقة'          : '📄 Document',
+    notifications:  isAr ? '🔔 إشعار'          : '🔔 Notification',
+    kanban_tasks:   isAr ? '📋 مهمة'           : '📋 Tâche',
+    obligations:    isAr ? '📌 التزام'         : '📌 Obligation',
+    stock_movements:isAr ? '📊 حركة مخزون'     : '📊 Mvt stock',
+    tenants:        isAr ? '🏢 مؤسسة'          : '🏢 Société',
+    users:          isAr ? '👤 مستخدم'         : '👤 Utilisateur',
+    notes:          isAr ? '📝 ملاحظة'         : '📝 Note',
+    custom_roles:   isAr ? '🔐 دور'            : '🔐 Rôle',
+    audit_log:      isAr ? '📜 سجل تدقيق'      : '📜 Audit',
+  };
+
+  const methodInfo = {
+    POST:   { ar: 'إضافة',  fr: 'Ajout',     color: '#34C38F', icon: '➕' },
+    PATCH:  { ar: 'تعديل',  fr: 'Modif.',    color: '#4A90E2', icon: '✏️' },
+    DELETE: { ar: 'حذف',    fr: 'Suppr.',    color: '#F04E6A', icon: '🗑️' },
+  };
+
+  return `
+    <!-- ═════ رأس ═════ -->
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:.92rem;color:#fff">${isAr?'🔄 العمليات المعلقة':'🔄 File d\'attente'}</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:.7rem;color:${stateColor};margin-top:3px;font-weight:600">
+          <span>${stateIcon}</span><span>${stateText}</span>
+        </div>
+      </div>
+      <button onclick="document.getElementById('pendingQueueDropdown')?.remove()" 
+        style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#999;cursor:pointer;font-size:1rem;padding:4px 10px;border-radius:8px">✕</button>
+    </div>
+
+    ${queue.length === 0 ? `
+      <!-- لا توجد عمليات -->
+      <div style="padding:40px 24px;text-align:center">
+        <div style="font-size:3rem;margin-bottom:10px">✅</div>
+        <div style="font-weight:700;color:#34C38F;font-size:.95rem;margin-bottom:6px">${isAr?'كل البيانات متزامنة':'Tout est synchronisé'}</div>
+        <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:16px">${isAr?'لا توجد عمليات معلقة حالياً. أي تغيير جديد سيُرفع تلقائياً للسحابة.':'Aucune opération en attente. Tout futur changement sera synchronisé automatiquement.'}</div>
+        <button onclick="manualSyncNow();document.getElementById('pendingQueueDropdown')?.remove()"
+          style="padding:8px 20px;background:#4A90E2;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem">
+          🔄 ${isAr?'تحديث / مزامنة الآن':'Actualiser / Synchroniser'}
+        </button>
+      </div>
+    ` : `
+      <!-- ═════ شريط الإحصائيات ═════ -->
+      <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(232,184,75,.06);display:flex;align-items:center;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:.85rem;color:#E8B84B;font-weight:800">
+            ⏳ ${queue.length} ${isAr?'عملية معلقة':'opération(s)'}
+          </div>
+          <div style="font-size:.7rem;color:#999;margin-top:2px">${isAr?'ستُرفع تلقائياً عند الاتصال':'S\'enverra automatiquement'}</div>
+        </div>
+        <button onclick="forceUploadAllPending()" ${!canSync?'disabled':''}
+          style="padding:6px 14px;background:${canSync?'#E8B84B':'rgba(255,255,255,.08)'};color:${canSync?'#1a1a1a':'#666'};border:none;border-radius:8px;cursor:${canSync?'pointer':'not-allowed'};font-weight:800;font-size:.75rem;white-space:nowrap;opacity:${canSync?1:.5}">
+          ⚡ ${isAr?'رفع الكل':'Envoyer tout'}
+        </button>
+        <button onclick="clearAllPending()"
+          style="padding:6px 12px;background:rgba(240,78,106,.12);color:#F04E6A;border:1px solid rgba(240,78,106,.3);border-radius:8px;cursor:pointer;font-weight:800;font-size:.75rem;white-space:nowrap">
+          🗑️ ${isAr?'مسح الكل':'Tout supprimer'}
+        </button>
+      </div>
+
+      <!-- ═════ قائمة العمليات التفصيلية ═════ -->
+      <div id="pendingQueueList" style="flex:1;overflow-y:auto;background:rgba(0,0,0,.15)">
+        ${queue.slice().reverse().map((op) => {
+          const idx = op._idx;
+          const tLabel = tableLabels[op.table] || op.table;
+          const mInfo = methodInfo[op.method] || { ar:op.method, fr:op.method, color:'#888', icon:'•' };
+          const recId = op.record?.id || '—';
+          // تفاصيل السجل (الحقول المهمة فقط)
+          const r = op.record || {};
+          const previewKeys = ['name','full_name','title','number','description','amount','total','date'];
+          const previews = [];
+          for (const k of previewKeys) {
+            if (r[k] !== undefined && r[k] !== null && r[k] !== '') {
+              const v = String(r[k]).slice(0, 40);
+              previews.push(`<span style="color:#999">${k}:</span> <span style="color:#ddd">${escHtml(v)}</span>`);
+              if (previews.length >= 2) break;
+            }
+          }
+          const timeAgo = op.time ? formatTimeAgo(op.time, isAr) : '';
+
+          return `
+          <div data-pending-idx="${idx}" style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:10px;align-items:flex-start;transition:background .15s"
+            onmouseover="this.style.background='rgba(255,255,255,.03)'"
+            onmouseout="this.style.background='transparent'">
+            
+            <!-- نوع العملية (POST/PATCH/DELETE) -->
+            <div style="flex-shrink:0;width:42px;text-align:center">
+              <div style="font-size:1.1rem;line-height:1">${mInfo.icon}</div>
+              <div style="font-size:.6rem;font-weight:800;color:${mInfo.color};margin-top:2px;text-transform:uppercase">${isAr?mInfo.ar:mInfo.fr}</div>
+            </div>
+
+            <!-- التفاصيل -->
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-weight:700;font-size:.82rem;color:#fff">${tLabel}</span>
+                <span style="font-size:.65rem;color:#666;background:rgba(255,255,255,.05);padding:1px 6px;border-radius:4px;font-family:monospace">#${recId}</span>
+                ${timeAgo ? `<span style="font-size:.65rem;color:#888">⏰ ${timeAgo}</span>` : ''}
+              </div>
+              ${previews.length ? `<div style="font-size:.7rem;margin-top:4px;color:#aaa;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${previews.join('  •  ')}</div>` : ''}
+            </div>
+
+            <!-- أزرار الفعل -->
+            <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+              <button onclick="retryPendingItem(${idx})" ${!canSync?'disabled':''} title="${isAr?'رفع الآن':'Envoyer maintenant'}"
+                style="background:${canSync?'rgba(52,195,143,.15)':'rgba(255,255,255,.05)'};border:1px solid ${canSync?'rgba(52,195,143,.35)':'rgba(255,255,255,.1)'};color:${canSync?'#34C38F':'#666'};padding:4px 8px;border-radius:6px;cursor:${canSync?'pointer':'not-allowed'};font-size:.7rem;font-weight:700;white-space:nowrap;opacity:${canSync?1:.5}">⚡</button>
+              <button onclick="removePendingItem(${idx})" title="${isAr?'حذف هذه العملية':'Supprimer cette opération'}"
+                style="background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);color:#F04E6A;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.7rem;font-weight:700">🗑️</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- ═════ تذييل ═════ -->
+      <div style="padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);font-size:.65rem;color:#666;text-align:center">
+        💡 ${isAr?'انقر ⚡ لرفع عملية واحدة | 🗑️ لحذفها':'⚡ envoyer une opération | 🗑️ la supprimer'}
+      </div>
+    `}
+  `;
+}
+
+// ─── تنسيق الوقت "منذ كذا" ───
+function formatTimeAgo(timestamp, isAr) {
+  const diff = Date.now() - timestamp;
+  const min = Math.floor(diff / 60000);
+  const hr  = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+  if (day > 0) return isAr ? `منذ ${day} ${day===1?'يوم':'أيام'}` : `il y a ${day}j`;
+  if (hr  > 0) return isAr ? `منذ ${hr} ${hr===1?'ساعة':'ساعات'}` : `il y a ${hr}h`;
+  if (min > 0) return isAr ? `منذ ${min} د` : `il y a ${min}min`;
+  return isAr ? 'الآن' : 'À l\'instant';
+}
+
+// ─── إعادة رسم القائمة (بعد كل تغيير) ───
+function refreshPendingQueueUI() {
+  const dd = document.getElementById('pendingQueueDropdown');
+  if (!dd) return;
+  const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+  queue.forEach((op, i) => { op._idx = i; });
+  const isOnline = navigator.onLine;
+  const supabaseOk = typeof DB !== 'undefined' && DB._useSupabase;
+  const canSync = isOnline && supabaseOk;
+  const stateColor = !isOnline ? '#888' : (!supabaseOk ? '#F04E6A' : '#34C38F');
+  const stateIcon  = !isOnline ? '📵' : (!supabaseOk ? '⚠️' : '✅');
+  const stateText  = !isOnline ? (isAr?'غير متصل':'Hors ligne')
+                   : !supabaseOk ? (isAr?'Supabase معطل':'Supabase déconnecté')
+                   : (isAr?'متصل':'Connecté');
+  dd.innerHTML = renderPendingQueueContent(queue, isAr, canSync, isOnline, supabaseOk, stateColor, stateIcon, stateText);
+}
+
+// ─── حذف عملية واحدة ───
+function removePendingItem(idx) {
+  if (typeof idx !== 'number') return;
+  try {
+    const q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
+    if (idx < 0 || idx >= q.length) return;
+    const removed = q.splice(idx, 1)[0];
+    localStorage.setItem('sbtp5_offline_queue', JSON.stringify(q));
+    Toast.info(L('🗑️ تم حذف العملية المعلقة','🗑️ Opération supprimée'));
+    refreshPendingQueueUI();
+    if (typeof updateSyncPill === 'function') {
+      const c = q.length;
+      updateSyncPill(c > 0 ? 'pending' : 'synced', c > 0 ? (L(`${c} عملية معلقة`,`${c} en attente`)) : '');
+    }
+  } catch(e) { Toast.error(L('فشل الحذف','Échec')); }
+}
+
+// ─── إعادة محاولة رفع عملية واحدة ───
+async function retryPendingItem(idx) {
+  if (typeof idx !== 'number') return;
+  if (!navigator.onLine || !DB._useSupabase) {
+    Toast.error(L('📵 لا يوجد اتصال','📵 Pas de connexion'));
     return;
   }
-  if (typeof DB === 'undefined' || !DB._useSupabase) {
-    Toast.error(L('⚠️ Supabase غير متصل','⚠️ Supabase non connecté'));
+  try {
+    const q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
+    if (idx < 0 || idx >= q.length) return;
+    const op = q[idx];
+    Toast.info(L('⏳ جاري رفع العملية...','⏳ Envoi en cours...'), 2000);
+    try {
+      await DB._pushToSupabase(op.table, op.record, op.method, { fromQueue: true });
+      // نجح → احذف من الـ queue
+      q.splice(idx, 1);
+      localStorage.setItem('sbtp5_offline_queue', JSON.stringify(q));
+      Toast.success(L('✅ تم رفع العملية بنجاح','✅ Opération envoyée'));
+      refreshPendingQueueUI();
+      if (typeof updateSyncPill === 'function') {
+        const c = q.length;
+        updateSyncPill(c > 0 ? 'pending' : 'synced', c > 0 ? (L(`${c} عملية معلقة`,`${c} en attente`)) : '');
+      }
+    } catch(err) {
+      Toast.error(L('❌ فشل الرفع: ','❌ Échec: ') + err.message);
+    }
+  } catch(e) {
+    Toast.error(L('خطأ: ','Erreur: ') + e.message);
+  }
+}
+
+// ─── رفع كل العمليات ───
+async function forceUploadAllPending() {
+  if (!navigator.onLine || !DB._useSupabase) {
+    Toast.error(L('📵 لا يوجد اتصال','📵 Pas de connexion'));
     return;
   }
-  const count = DB.getOfflineQueueCount?.() || 0;
-  if (!count) {
-    Toast.info(L('لا توجد عمليات معلقة','Aucune opération en attente'));
-    return;
-  }
-  Toast.info(L(`⚡ جاري رفع ${count} عملية...`, `⚡ Envoi de ${count} opération(s)...`), 3000);
+  let q = [];
+  try { q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+  if (!q.length) { Toast.info(L('لا توجد عمليات','Aucune opération')); return; }
+
+  const total = q.length;
+  Toast.info(L(`⚡ جاري رفع ${total} عملية...`, `⚡ Envoi de ${total} opération(s)...`), 4000);
   updateSyncPill('syncing');
+
   try {
     await DB._flushOfflineQueue();
     const remaining = DB.getOfflineQueueCount?.() || 0;
+    const succeeded = total - remaining;
     if (remaining === 0) {
       updateSyncPill('synced');
-      Toast.success(L(`✅ تم رفع كل العمليات بنجاح`, `✅ Toutes les opérations envoyées`));
+      Toast.success(L(`✅ تم رفع كل العمليات (${succeeded})`, `✅ Toutes envoyées (${succeeded})`));
     } else {
       updateSyncPill('pending', `${remaining}`);
-      Toast.warn(L(`⚠️ نُجح ${count - remaining} / فشل ${remaining}`, `⚠️ Réussies ${count-remaining} / Échec ${remaining}`));
+      Toast.warn(L(`⚠️ نجح ${succeeded} / متبقي ${remaining}`, `⚠️ Réussies ${succeeded} / Restantes ${remaining}`));
     }
+    refreshPendingQueueUI();
   } catch(e) {
     Toast.error(L('❌ خطأ: ','❌ Erreur: ') + e.message);
   }
 }
 
-// ─── تعطيل/مسح العمليات المعلقة ───
-function clearPendingQueue() {
-  const count = (typeof DB !== 'undefined' && DB.getOfflineQueueCount) ? DB.getOfflineQueueCount() : 0;
-  if (!count) {
-    Toast.info(L('لا توجد عمليات معلقة','Aucune opération en attente'));
-    return;
-  }
+// ─── مسح كل العمليات (بعد تأكيد مزدوج) ───
+function clearAllPending() {
+  let q = [];
+  try { q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+  if (!q.length) { Toast.info(L('لا توجد عمليات','Aucune')); return; }
+
   if (!confirm(L(
-    `⚠️ هل تريد فعلاً تعطيل ${count} عملية معلقة؟\n\nستفقد التغييرات التي لم تُرفع للسحابة.\nالبيانات المحفوظة محلياً تبقى آمنة.`,
-    `⚠️ Annuler ${count} opération(s) en attente?\n\nLes modifications non envoyées seront perdues.\nLes données locales restent intactes.`
+    `⚠️ مسح كل العمليات المعلقة (${q.length})؟\n\nالتغييرات لن تُرفع للسحابة.\nالبيانات المحفوظة محلياً تبقى آمنة.\n\nاضغط موافق للمتابعة.`,
+    `⚠️ Supprimer toutes les opérations en attente (${q.length})?\n\nLes modifications ne seront pas synchronisées.\nLes données locales restent intactes.`
   ))) return;
+
   try {
     localStorage.removeItem('sbtp5_offline_queue');
-    Toast.success(L(`✅ تم مسح ${count} عملية معلقة`, `✅ ${count} opération(s) supprimée(s)`));
+    Toast.success(L(`✅ تم مسح ${q.length} عملية`, `✅ ${q.length} opérations supprimées`));
     updateSyncPill('synced');
-    document.getElementById('pendingQueueDropdown')?.remove();
+    refreshPendingQueueUI();
   } catch(e) {
-    Toast.error(L('فشل المسح: ','Échec: ') + e.message);
+    Toast.error(L('فشل المسح','Échec'));
   }
 }
 
-window.showPendingQueue   = showPendingQueue;
-window.forceUploadPending = forceUploadPending;
-window.clearPendingQueue  = clearPendingQueue;
+window.showPendingQueue      = showPendingQueue;
+window.refreshPendingQueueUI = refreshPendingQueueUI;
+window.removePendingItem     = removePendingItem;
+window.retryPendingItem      = retryPendingItem;
+window.forceUploadAllPending = forceUploadAllPending;
+window.clearAllPending       = clearAllPending;
+
