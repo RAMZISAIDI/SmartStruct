@@ -64,9 +64,25 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message     TEXT;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link        TEXT;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url  TEXT;
 
--- ─── ⑧ تفعيل Realtime للجداول المهمة ───
-ALTER PUBLICATION supabase_realtime ADD TABLE equipment_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+-- ─── ⑧ تفعيل Realtime للجداول المهمة (مع تجاهل التكرار) ───
+DO $$
+BEGIN
+  -- equipment_logs
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'equipment_logs'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE equipment_logs;
+  END IF;
+
+  -- notifications
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'notifications'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+  END IF;
+END $$;
 
 -- ════════════════════════════════════════════════════════════════════
 --  انتهى — كل جداولك جاهزة لاستقبال البيانات الجديدة

@@ -148,8 +148,9 @@ const _SB_NUM_FIELDS_INTERNAL = {
   plans:          ['price_monthly','price','max_projects','max_workers','max_equipment','max_emails'],
   tenants:        ['tva_rate'],
   projects:       ['budget','total_spent','progress'],
-  workers:        ['daily_salary','monthly_base'],
+  workers:        ['daily_salary','monthly_base','children_count','spouse_works','is_handicap'],
   equipment:      ['purchase_price'],
+  equipment_logs: ['cost'],
   transactions:   ['amount'],
   materials:      ['quantity','min_quantity','unit_price'],
   invoices:       ['amount','amount_ht','tva_amount','tva_rate'],
@@ -165,7 +166,7 @@ const _SB_NUM_FIELDS_INTERNAL = {
 
 // IDs الاختيارية (تقبل null) — لا تشمل id (المفتاح الأساسي)
 const _NULLABLE_IDS_INTERNAL = new Set([
-  'project_id','worker_id','material_id','user_id',
+  'project_id','worker_id','material_id','user_id','equipment_id','document_id','tender_id',
   'plan_id','uploader_id','assignee_id','tenant_id'
 ]);
 
@@ -617,40 +618,27 @@ const DBHybrid = {
     this._cancelReconnect();
     this._updateConnectionBadge(true);
 
-    // مزامنة الـ offline queue أولاً (البيانات المحفوظة أثناء الانقطاع)
+    // ① مزامنة الـ offline queue (البيانات المحفوظة أثناء الانقطاع)
     setTimeout(() => this._flushOfflineQueue().catch(() => {}), 800);
-    setTimeout(() => syncToSupabase().catch(() => {}), 2000);
 
-    // ⚡ إعادة تشغيل Realtime
+    // ② مزامنة كاملة من السحابة (تسحب كل جداول المؤسسة، ليس فقط tenants/users)
+    setTimeout(async () => {
+      try {
+        await this._initialSync();
+      } catch(e) {
+        console.warn('⚠️ فشل _initialSync عند استعادة الاتصال:', e.message);
+      }
+    }, 1500);
+
+    // ③ إعادة تشغيل Realtime
     setTimeout(() => {
       const user = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
       const tid  = user && user.tenant_id ? user.tenant_id : null;
       SmartRealtime.restart(tid);
     }, 3000);
 
-    // جلب AI config من Supabase
-    setTimeout(async () => {
-      try {
-        const rows = await this._sb.select('global_settings', { key: 'global_ai_config' });
-        if (rows.length && rows[0].value) {
-          const cfg = typeof rows[0].value === 'string'
-            ? JSON.parse(rows[0].value) : rows[0].value;
-          if (cfg.apiKey) {
-            localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
-          }
-        }
-      } catch (_) {}
-
-    // جلب المستخدمين والمؤسسات الجديدة (مع احترام blacklist المحذوفات)
-      try {
-        await this._pullRemoteTable('tenants', 'sbtp5_tenants');
-        await this._pullRemoteTable('users',   'sbtp5_users');
-        await this._pullRemoteTable('notifications','sbtp5_notifications');
-      } catch (_) {}
-    }, 1500);
-
     if (typeof Toast !== 'undefined')
-      Toast.success('✅ عاد الاتصال بـ Supabase — جاري مزامنة البيانات...');
+      Toast.success('✅ عاد الاتصال بـ Supabase — جارٍ مزامنة البيانات...');
     this._emitSyncEvent('syncing');
   },
 
@@ -742,10 +730,12 @@ const DBHybrid = {
    */
   _smartSync(key, newVal, prevVal) {
     const SYNCABLE = new Set([
-      'plans','tenants','users','projects','workers','equipment',
+      'plans','tenants','users','projects','workers','equipment','equipment_logs',
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
-      'notifications','global_settings','admin_notifications','stock_movements'
+      'notifications','global_settings','admin_notifications','stock_movements',
+      'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
+      'bank_transactions','signatures','ai_conversations'
     ]);
     if (!SYNCABLE.has(key)) return;
     if (!Array.isArray(newVal) || !Array.isArray(prevVal)) {
@@ -1105,10 +1095,12 @@ if (!navigator.onLine || !this._useSupabase) {
   ───────────────────────────────────────────────────── */
   _queueSync(key, val) {
     const SYNCABLE = new Set([
-      'plans','tenants','users','projects','workers','equipment',
+      'plans','tenants','users','projects','workers','equipment','equipment_logs',
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
-      'notifications','global_settings','admin_notifications','stock_movements'
+      'notifications','global_settings','admin_notifications','stock_movements',
+      'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
+      'bank_transactions','signatures','ai_conversations'
     ]);
     if (!SYNCABLE.has(key)) return;
 
@@ -1126,17 +1118,24 @@ if (!navigator.onLine || !this._useSupabase) {
     if (this._syncing || !this._syncQueue.length || !this._useSupabase) return;
     this._syncing = true;
 
+    // ترتيب أولوية: المراجع أولاً، ثم الجداول التابعة
     const ORDER = [
-      'plans','tenants','users','workers','projects',
-      'materials','equipment','attendance','transactions',
-      'invoices','salary_records','kanban_tasks','documents',
-      'obligations','notes','notifications','global_settings',
-      'admin_notifications','stock_movements'
+      'plans','tenants','users',                         // الأساسيات
+      'projects','workers','equipment','materials',      // الكيانات الرئيسية
+      'equipment_logs','attendance','transactions',      // التابعة
+      'invoices','salary_records','kanban_tasks',
+      'documents','obligations','notes','stock_movements',
+      'notifications','admin_notifications','global_settings',
+      'audit_log','custom_roles','equipment_locations',
+      'tenders','tender_offers','bank_transactions','signatures','ai_conversations'
     ];
 
     const queue = [...this._syncQueue];
     this._syncQueue = [];
-    queue.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
+    queue.sort((a, b) => {
+      const ai = ORDER.indexOf(a.key), bi = ORDER.indexOf(b.key);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
 
     try {
       for (const { key, val } of queue) {
@@ -1154,14 +1153,28 @@ if (!navigator.onLine || !this._useSupabase) {
 
   async _syncTableToSupabase(table, records) {
     if (!Array.isArray(records) || !records.length) return;
+    let okCount = 0, failCount = 0;
+    const errors = [];
     for (const record of records) {
       const pk = table === 'global_settings' ? record.key : record.id;
       if (!pk) continue;
-      const clean = _cleanForSupabase_INTERNAL(table, record);
-      await this._sb.upsert(table, clean).catch(e =>
-        console.warn(`⚠️ upsert ${table} [${pk}]:`, e.message)
-      );
+      try {
+        const clean = _cleanForSupabase_INTERNAL(table, record);
+        await this._sb.upsert(table, clean);
+        okCount++;
+      } catch (e) {
+        failCount++;
+        if (errors.length < 3) errors.push(`${pk}: ${e.message}`);
+        console.warn(`⚠️ upsert ${table} [${pk}]:`, e.message);
+      }
     }
+    if (failCount > 0 && typeof Toast !== 'undefined') {
+      // اعرض الخطأ للمستخدم فقط إذا فشل كل شيء (تجنب الإزعاج)
+      if (okCount === 0 && errors.length) {
+        console.error(`❌ ${table}: فشل رفع ${failCount} سجل`, errors);
+      }
+    }
+    return { ok: okCount, failed: failCount };
   },
 
   /* ─────────────────────────────────────────────────────
@@ -1177,7 +1190,9 @@ if (!navigator.onLine || !this._useSupabase) {
       'projects','workers','equipment','equipment_logs',
       'transactions','attendance','materials','stock_movements',
       'invoices','salary_records','kanban_tasks','documents',
-      'obligations','notes','notifications','audit_log'
+      'obligations','notes','notifications','audit_log',
+      'custom_roles','equipment_locations','tenders','bank_transactions',
+      'signatures','ai_conversations'
     ];
     // الجداول العامة (تُسحب كاملاً للجميع)
     const globalTables = ['plans','tenants','users'];
@@ -1616,8 +1631,8 @@ const SmartRealtime = (() => {
   const WATCHED_TABLES = [
     'projects','workers','transactions','attendance',
     'kanban_tasks','invoices','materials','salary_records',
-    'equipment','notifications','obligations','notes',
-    'stock_movements','documents'
+    'equipment','equipment_logs','notifications','obligations',
+    'notes','stock_movements','documents'
   ];
 
   const RECONNECT_DELAY  = 5000;   // 5 ث أول محاولة
