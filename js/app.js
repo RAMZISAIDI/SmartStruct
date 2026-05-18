@@ -5333,18 +5333,60 @@ function updateSyncPill(state, detail = '') {
 document.addEventListener('smartsync', function(e) {
   const { state, detail } = e.detail || {};
   updateSyncPill(state, detail);
-  // إخفاء حالة syncing بعد ثانيتين والرجوع لـ synced
+
   if (state === 'syncing') {
     clearTimeout(window._syncResetTimer);
     window._syncResetTimer = setTimeout(() => {
       const count = (typeof DBHybrid !== 'undefined') ? DBHybrid.getOfflineQueueCount?.() || 0 : 0;
-      updateSyncPill(count > 0 ? 'pending' : 'synced', count > 0 ? (I18N.currentLang==='ar'?`${count} عملية معلقة`:`${count} en attente`) : '');
+      updateSyncPill(count > 0 ? 'pending' : 'synced',
+        count > 0 ? (I18N.currentLang==='ar'?`${count} معلقة`:`${count} en attente`) : '');
     }, 2000);
+  }
+
+  // ✅ عند خطأ رفع → حوّله إلى "pending" وأعد المحاولة تلقائياً بعد 5 ثوانٍ
+  if (state === 'error') {
+    clearTimeout(window._syncRetryTimer);
+    const count = (typeof DBHybrid !== 'undefined') ? DBHybrid.getOfflineQueueCount?.() || 0 : 0;
+    if (count > 0) {
+      // أظهر "pending" بدلاً من "error" لأن لديه queue
+      setTimeout(() => {
+        updateSyncPill('pending', I18N.currentLang==='ar'?`${count} معلقة`:`${count} en attente`);
+      }, 3000);
+      // إعادة المحاولة تلقائياً بعد 8 ثوانٍ
+      window._syncRetryTimer = setTimeout(async () => {
+        if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase || !navigator.onLine) return;
+        const cnt = DBHybrid.getOfflineQueueCount?.() || 0;
+        if (cnt === 0) return;
+        console.log(`🔄 Auto-retry: ${cnt} عملية معلقة...`);
+        updateSyncPill('syncing');
+        try {
+          await DBHybrid._flushOfflineQueue();
+          const remaining = DBHybrid.getOfflineQueueCount?.() || 0;
+          updateSyncPill(remaining > 0 ? 'pending' : 'synced',
+            remaining > 0 ? (I18N.currentLang==='ar'?`${remaining} معلقة`:`${remaining} en attente`) : '');
+          if (remaining === 0) document.dispatchEvent(new CustomEvent('smartsync',{detail:{state:'synced'}}));
+        } catch(_) {}
+      }, 8000);
+    } else {
+      // لا توجد عمليات معلقة → ارجع لـ synced بعد 4 ثوانٍ
+      setTimeout(() => updateSyncPill('synced'), 4000);
+    }
   }
 });
 
 // ── مراقبة حالة الشبكة ──
-window.addEventListener('online',  () => updateSyncPill('syncing'));
+window.addEventListener('online', () => {
+  updateSyncPill('syncing');
+  // عند استعادة الإنترنت → flush تلقائي
+  setTimeout(async () => {
+    if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
+    const cnt = DBHybrid.getOfflineQueueCount?.() || 0;
+    if (cnt > 0) {
+      console.log(`🌐 عاد الاتصال: رفع ${cnt} عملية معلقة...`);
+      await DBHybrid._flushOfflineQueue().catch(() => {});
+    }
+  }, 2000);
+});
 window.addEventListener('offline', () => updateSyncPill('offline'));
 
 // ── تحديث دوري كل 5 ثوانٍ ──
@@ -13797,16 +13839,14 @@ const _origLogin = Auth.login?.bind(Auth);
 if (_origLogin) {
   Auth.login = function(...args) {
     const result = _origLogin(...args);
-    // بعد تسجيل الدخول الناجح، اسحب بيانات المؤسسة من Supabase
     setTimeout(async () => {
       NotificationWatcher.start();
       const user = Auth.getUser();
       if (user && typeof DB !== 'undefined' && DB._useSupabase && typeof DB._initialSync === 'function') {
         try {
-          if (typeof Toast !== 'undefined') Toast.info(L('⏳ جارٍ سحب بياناتك من السحابة...','⏳ Synchronisation des données...'), 3000);
-          await DB._initialSync();
-          if (typeof Toast !== 'undefined') Toast.success(L('✅ تم تحديث بياناتك من السحابة','✅ Données synchronisées'));
-          // أعد رسم الصفحة الحالية للعرض الجديد
+          if (typeof Toast !== 'undefined') Toast.info(L('⏳ جارٍ مزامنة بياناتك...','⏳ Synchronisation...'), 3000);
+          await DB._initialSync(); // يشمل flush تلقائياً الآن
+          if (typeof Toast !== 'undefined') Toast.success(L('✅ تمت المزامنة','✅ Synchronisé'));
           if (typeof App !== 'undefined' && App.currentPage) {
             setTimeout(() => App.render(), 300);
           }
@@ -13818,13 +13858,32 @@ if (_origLogin) {
     return result;
   };
 }
-// بدء إذا المستخدم مسجّل بالفعل
+
+// عند فتح التطبيق مع مستخدم موجود → flush تلقائي للعمليات المعلقة
 document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    if (typeof Auth !== 'undefined' && Auth.getUser()) {
-      NotificationWatcher.start();
+  setTimeout(async () => {
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return;
+    NotificationWatcher.start();
+    // flush تلقائي للعمليات المعلقة إذا وُجدت
+    if (typeof DB !== 'undefined' && DB._useSupabase && navigator.onLine) {
+      const cnt = DB.getOfflineQueueCount?.() || 0;
+      if (cnt > 0) {
+        console.log(`🚀 فتح التطبيق: ${cnt} عملية معلقة → رفع تلقائي...`);
+        updateSyncPill('syncing');
+        try {
+          await DB._flushOfflineQueue();
+          const remaining = DB.getOfflineQueueCount?.() || 0;
+          updateSyncPill(remaining > 0 ? 'pending' : 'synced',
+            remaining > 0 ? L(`${remaining} معلقة`, `${remaining} en attente`) : '');
+          if (remaining === 0 && typeof Toast !== 'undefined') {
+            Toast.success(L(`✅ رُفعت ${cnt} عملية معلقة تلقائياً`, `✅ ${cnt} opérations synchronisées`));
+          }
+        } catch(e) {
+          console.warn('[DOMContentLoaded flush]', e.message);
+        }
+      }
     }
-  }, 2000);
+  }, 3000); // انتظر 3 ثوانٍ حتى يكتمل تهيئة Supabase
 });
 
 /* ══════════════════════════════════════════════════════

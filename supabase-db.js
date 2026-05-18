@@ -1359,15 +1359,25 @@ if (!navigator.onLine || !this._useSupabase) {
       console.warn('⚠️ فشل سحب البيانات من Supabase:', e.message);
     }
 
-    // ═══ ② دفع السجلات المحلية غير المرفوعة ═══
+    // ═══ ② رفع الـ Offline Queue أولاً (العمليات المحفوظة أثناء الانقطاع) ═══
+    const queueCount = this.getOfflineQueueCount();
+    if (queueCount > 0) {
+      console.log(`⚡ رفع ${queueCount} عملية معلقة من الـ queue...`);
+      try {
+        await this._flushOfflineQueue();
+        console.log('✅ queue فُرِّغت بنجاح');
+      } catch(e) {
+        console.warn('⚠️ فشل رفع queue:', e.message);
+      }
+    }
+
+    // ═══ ③ دفع السجلات المحلية الجديدة (التي لم تُرفع بعد) ═══
     console.log('🔼 رفع السجلات المحلية الجديدة...');
     const allTables = [...globalTables, ...tenantTables];
     for (const t of allTables) {
       try {
         const local = this.get(t) || [];
         if (!local.length) continue;
-        // فقط السجلات التي ليس لها id في البعيد (لتفادي إعادة الكتابة)
-        // _syncTableToSupabase يستخدم upsert فهو آمن
         await this._syncTableToSupabase(t, local).catch(() => {});
       } catch(_) {}
     }
@@ -1375,6 +1385,21 @@ if (!navigator.onLine || !this._useSupabase) {
 
     // إطلاق event لتحديث الواجهة
     document.dispatchEvent(new CustomEvent('smartsync', { detail: { state: 'synced', detail: 'initial' } }));
+
+    // ═══ ④ تشغيل auto-flush دوري كل 30 ثانية ═══
+    if (!this._autoFlushInterval) {
+      this._autoFlushInterval = setInterval(async () => {
+        if (!this._useSupabase || !navigator.onLine) return;
+        const cnt = this.getOfflineQueueCount();
+        if (cnt === 0) return;
+        console.log(`⚡ Auto-flush: ${cnt} عملية معلقة...`);
+        try {
+          await this._flushOfflineQueue();
+          // إذا نجح → حدّث الـ pill صامتاً بدون toast
+          document.dispatchEvent(new CustomEvent('smartsync', { detail: { state: 'synced' } }));
+        } catch(_) {}
+      }, 30000); // كل 30 ثانية
+    }
   },
 
   /* ─────────────────────────────────────────────────────
