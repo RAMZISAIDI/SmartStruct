@@ -719,11 +719,16 @@ const DBHybrid = {
     try { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); }
     catch (_) {}
 
-    // 2. إذا Supabase مُفعّل (حتى لو offline) → سجّل التغييرات للرفع الفوري أو للـ Offline Queue
+    // 2. إذا Supabase مُفعّل → رفع فوري أو حفظ في queue
     if (SUPABASE_CONFIG.isConfigured) {
-      // أطلق حدث "syncing" لتحديث الـ pill في الـ topbar
       this._emitSyncEvent('syncing');
       this._smartSync(key, val, prev);
+
+      // ✅ إذا كان Supabase متصلاً → شغّل queue بعد 500ms مباشرة
+      if (this._useSupabase && navigator.onLine) {
+        clearTimeout(this._syncTimer);
+        this._syncTimer = setTimeout(() => this._processSyncQueue(), 500);
+      }
     }
   },
 
@@ -1178,19 +1183,27 @@ if (!navigator.onLine || !this._useSupabase) {
 
     if (!this._syncing) {
       clearTimeout(this._syncTimer);
-      this._syncTimer = setTimeout(() => this._processSyncQueue(), 2000);
+      // ✅ 500ms بدلاً من 2000ms — أسرع استجابة
+      this._syncTimer = setTimeout(() => this._processSyncQueue(), 500);
     }
   },
 
   async _processSyncQueue() {
-    if (this._syncing || !this._syncQueue.length || !this._useSupabase) return;
+    if (this._syncing || !this._syncQueue.length || !this._useSupabase) {
+      // إذا كان Supabase غير جاهز → أعِد المحاولة بعد 3 ثوانٍ
+      if (this._syncQueue.length && !this._useSupabase) {
+        clearTimeout(this._syncTimer);
+        this._syncTimer = setTimeout(() => this._processSyncQueue(), 3000);
+      }
+      return;
+    }
     this._syncing = true;
+    this._emitSyncEvent('syncing');
 
-    // ترتيب أولوية: المراجع أولاً، ثم الجداول التابعة
     const ORDER = [
-      'plans','tenants','users',                         // الأساسيات
-      'projects','workers','equipment','materials',      // الكيانات الرئيسية
-      'equipment_logs','attendance','transactions',      // التابعة
+      'plans','tenants','users',
+      'projects','workers','equipment','materials',
+      'equipment_logs','attendance','transactions',
       'invoices','salary_records','kanban_tasks',
       'documents','obligations','notes','stock_movements',
       'notifications','admin_notifications','global_settings',
@@ -1205,17 +1218,38 @@ if (!navigator.onLine || !this._useSupabase) {
       return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
     });
 
+    let allOk = true;
     try {
       for (const { key, val } of queue) {
-        if (Array.isArray(val) && val.length)
-          await this._syncTableToSupabase(key, val);
+        if (Array.isArray(val) && val.length) {
+          const result = await this._syncTableToSupabase(key, val).catch(e => {
+            console.warn(`⚠️ sync ${key}:`, e.message);
+            allOk = false;
+            return { ok: 0, failed: 1 };
+          });
+          if (result?.failed > 0) allOk = false;
+        }
       }
-    } catch (e) {
-      console.warn('⚠️ مزامنة فشلت:', e.message);
-      // أعد الفاشلة للقائمة
-      this._syncQueue = [...queue, ...this._syncQueue];
     } finally {
       this._syncing = false;
+    }
+
+    if (allOk) {
+      this._emitSyncEvent('synced');
+      // ✅ بعد رفع الـ queue → flush الـ offline queue إن وُجدت
+      const offlineCnt = this.getOfflineQueueCount();
+      if (offlineCnt > 0) {
+        setTimeout(() => this._flushOfflineQueue().catch(() => {}), 300);
+      }
+    } else {
+      // بعض العمليات فشلت → أعِد المحاولة بعد 5 ثوانٍ
+      this._emitSyncEvent('error');
+      clearTimeout(this._syncRetry);
+      this._syncRetry = setTimeout(() => {
+        if (this._useSupabase && navigator.onLine) {
+          this._flushOfflineQueue().catch(() => {});
+        }
+      }, 5000);
     }
   },
 

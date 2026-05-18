@@ -5323,7 +5323,9 @@ function updateSyncPill(state, detail = '') {
   };
   const cfg = states[state] || states.synced;
 
-  pill.classList.add(cfg.cls);
+  // ✅ إصلاح: لا نُضيف class فارغ → يرمي DOMException
+  pill.className = 'sync-pill';
+  if (cfg.cls) pill.classList.add(cfg.cls);
   dot.style.background  = cfg.color;
   dot.style.animation   = cfg.anim;
   label.textContent     = cfg.txt;
