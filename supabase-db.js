@@ -884,22 +884,36 @@ if (!navigator.onLine || !this._useSupabase) {
       if (method === 'PATCH') {
         if (!record || !record.id) return;
 
-        const res = await fetch(`${baseUrl}?id=eq.${record.id}`, {
+        const patchRes = await fetch(`${baseUrl}?id=eq.${record.id}`, {
           method: 'PATCH',
           headers,
           body: JSON.stringify(clean)
         });
 
-        if (!res.ok) {
-          console.warn(`⚠️ AutoSync [PATCH ${table} #${record.id}]:`, await res.text().catch(() => ''));
-          this._emitSyncEvent('error');
-          if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
-          this._updateAdminSyncUI();
-          if (opts.fromQueue) throw new Error('PATCH failed while flushing queue');
-          return;
+        if (!patchRes.ok) {
+          const errText = await patchRes.text().catch(() => '');
+          console.warn(`⚠️ PATCH ${table} #${record.id}: ${errText}`);
+
+          // ✅ إذا فشل PATCH (السجل غير موجود) → حاول UPSERT (POST + on_conflict)
+          const upsertBody = { ...clean };
+          const upsertRes = await fetch(`${baseUrl}?on_conflict=id`, {
+            method: 'POST',
+            headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(upsertBody)
+          });
+
+          if (!upsertRes.ok) {
+            const upsertErr = await upsertRes.text().catch(() => '');
+            console.warn(`⚠️ UPSERT fallback ${table} #${record.id}: ${upsertErr}`);
+            this._emitSyncEvent('error');
+            if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
+            this._updateAdminSyncUI();
+            if (opts.fromQueue) throw new Error(`PATCH+UPSERT failed: ${upsertErr}`);
+            return;
+          }
         }
 
-        console.log(`✅ AutoSync [PATCH ${table} #${record.id}]`);
+        console.log(`✅ AutoSync [PATCH→UPSERT ${table} #${record.id}]`);
         this._emitSyncEvent('synced');
         this._updateAdminSyncUI();
         return;

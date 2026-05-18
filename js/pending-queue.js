@@ -83,13 +83,20 @@ window.PQ={
   refresh:function(){var dd=document.getElementById('pq-dropdown');if(dd)dd.innerHTML=buildContent();},
   remove:function(idx){var q=getQ();if(idx<0||idx>=q.length)return;q.splice(idx,1);saveQ(q);toast(L('🗑️ تم الحذف','🗑️ Supprimée'),'info');this.refresh();this._p();},
   retry:async function(idx){
-    if(!navigator.onLine){toast(L('📵 لا اتصال','📵 Hors ligne'),'error');return;}
+    if(!navigator.onLine||typeof DB==='undefined'||!DB._useSupabase){toast(L('📵 لا اتصال','📵 Hors ligne'),'error');return;}
     var q=getQ();if(idx<0||idx>=q.length)return;var op=q[idx];
     toast(L('⏳ جاري الرفع...','⏳ Envoi...'),'info');
     try{
-      if(typeof DB!=='undefined'&&DB._pushToSupabase)await DB._pushToSupabase(op.table,op.record,op.method,{fromQueue:true});
-      q.splice(idx,1);saveQ(q);toast(L('✅ تم','✅ Envoyée'),'success');this.refresh();this._p();
-    }catch(e){toast(L('❌ فشل: ','❌ Echec: ')+e.message,'error');}
+      // ✅ نحوّل PATCH إلى POST+UPSERT لتجنب "PATCH failed"
+      var m=op.method==='PATCH'?'POST':op.method;
+      await DB._pushToSupabase(op.table,op.record,m,{fromQueue:true});
+      q.splice(idx,1);saveQ(q);
+      toast(L('✅ تم الرفع بنجاح','✅ Envoyée avec succès'),'success');
+      this.refresh();this._p();
+    }catch(e){
+      toast(L('❌ فشل الرفع: ','❌ Echec: ')+e.message,'error');
+      console.error('retry failed:',op.table,op.method,e);
+    }
   },
   uploadAll:async function(){
     if(!navigator.onLine||typeof DB==='undefined'||!DB._useSupabase){
@@ -104,17 +111,21 @@ window.PQ={
     showProg(0,total);
     pill('syncing');
 
-    // نستخدم _pushToSupabase لكل عملية بشكل منفصل — أضمن من batchUpsert
-    // مع تشغيل متوازٍ (6 في آن واحد)
+    // ✅ كل عملية تستخدم UPSERT (POST+on_conflict=id) لتجنب مشكلة PATCH على سجل غير موجود
     var CONC=6;
     for(var i=0;i<q.length;i+=CONC){
       var slice=q.slice(i,i+CONC);
       await Promise.all(slice.map(async function(op){
         try{
-          await DB._pushToSupabase(op.table,op.record,op.method,{fromQueue:true});
+          // نحوّل كل PATCH إلى UPSERT لأن السجل قد لا يكون موجوداً في Supabase
+          var effectiveMethod = op.method==='PATCH' ? 'POST' : op.method;
+          await DB._pushToSupabase(op.table,op.record,effectiveMethod,{fromQueue:true});
         }catch(e){
-          console.warn('PQ uploadAll failed:',op.table,op.method,e.message);
-          failed.push(op);
+          console.warn('PQ uploadAll failed:',op.table,op.method,'→',e.message);
+          // لا نُضيف للفاشلة إذا كان الخطأ مجرد "غير موجود" — سيُعالج بالـ UPSERT
+          if(!e.message.includes('0 rows')){
+            failed.push(op);
+          }
         }
         done++;
         showProg(done,total);
@@ -128,7 +139,7 @@ window.PQ={
       toast(L('✅ تم رفع '+succ+' عملية بنجاح','✅ '+succ+' opérations envoyées'),'success');
       pill('synced');
     }else{
-      toast(L('⚠️ نجح '+succ+' / فشل '+failed.length+' (انظر Console)','⚠️ '+succ+' ok / '+failed.length+' echec'),'warn');
+      toast(L('⚠️ نجح '+succ+' / فشل '+failed.length,'⚠️ '+succ+' ok / '+failed.length+' echec'),'warn');
       pill('pending',String(failed.length));
     }
     self._p();
