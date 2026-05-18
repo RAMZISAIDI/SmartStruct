@@ -1,5 +1,18 @@
 'use strict';
 
+// ════════════════════════════════════════════════════════════════════
+//  FORWARD DECLARATIONS — تُعرَّف مبكراً حتى تعمل من HTML onclick
+// ════════════════════════════════════════════════════════════════════
+window.showPendingQueue      = function() { _showPendingQueueImpl && _showPendingQueueImpl(); };
+window.removePendingItem     = function(i) { _removePendingItemImpl && _removePendingItemImpl(i); };
+window.retryPendingItem      = function(i) { _retryPendingItemImpl && _retryPendingItemImpl(i); };
+window.forceUploadAllPending = function() { _forceUploadAllPendingImpl && _forceUploadAllPendingImpl(); };
+window.clearAllPending       = function() { _clearAllPendingImpl && _clearAllPendingImpl(); };
+window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
+window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.classList.remove('show'); };
+window.manualSyncNow = function() { _manualSyncNowImpl && _manualSyncNowImpl(); };
+
+
 /* ══════════════════════════════════════════════════════
    DATABASE — localStorage
 ══════════════════════════════════════════════════════ */
@@ -1259,7 +1272,7 @@ function topbarHTML(breadcrumb) {
       <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
         ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
       </button>
-      <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="showPendingQueue()">
+      <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
         <span id="syncLabel">${L('متزامن','Sync')}</span>
       </div>
@@ -11629,33 +11642,6 @@ td{padding:7px 10px;border-bottom:1px solid #f0ede0}
   win.document.close();
 }
 
-function updateEquipStatus(id, status) {
-  if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لإضافة معدة','Permission refusée : équipement')); return; }
-  const name=document.getElementById('eName')?.value?.trim();
-  if(!name){Toast.error('أدخل اسم المعدة');return;}
-  const tid=Auth.getUser().tenant_id; const eq=DB.get('equipment');
-  const newEquip = {
-    id: DB.nextId('equipment'), tenant_id: tid, name,
-    model:          document.getElementById('eModel')?.value||'',
-    type:           document.getElementById('eType')?.value||'',
-    serial:         document.getElementById('eSerial')?.value||'',
-    plate_number:   document.getElementById('ePlate')?.value||'',
-    icon:           document.getElementById('eIcon')?.value||'🚜',
-    status:         'active',
-    purchase_price: Number(document.getElementById('ePrice')?.value)||0,
-    purchase_date:  document.getElementById('ePurchaseDate')?.value||'',
-    last_maintenance: document.getElementById('eLastMaint')?.value||'',
-    next_maintenance: document.getElementById('eNextMaint')?.value||'',
-    insurance_expiry: document.getElementById('eInsurDate')?.value||'',
-    project_id:     Number(document.getElementById('eProject')?.value)||null,
-    notes:          document.getElementById('eNotes')?.value||''
-  };
-  eq.push(newEquip);
-  DB.set('equipment',eq);
-  sbSync('equipment', newEquip, 'POST').catch(()=>{});
-  Toast.success('✅ تم إضافة المعدة'); App.navigate('equipment');
-}
-
 function updateEquipStatus(id,status) {
   if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لتعديل حالة المعدة','Permission refusée : équipement')); return; }
   const updEquip = DB.get('equipment').map(e=>e.id===id?{...e,status}:e);
@@ -13973,16 +13959,6 @@ function topbarHTMLv5(title) {
       ${avatarHtml(user?.full_name, user?.avatar_color || '#E8B84B', 32)}
     </div>
   </header>`;
-}
-
-function openAdminNotifTab(){
-  const u = Auth.getUser();
-  if(!u?.is_admin) return;
-  try{
-    App.navigate('admin', {tab:'notif'});
-    // ensure tab switch after render
-    setTimeout(()=>{ try{ if(typeof switchAdminTab==='function') switchAdminTab('notif'); }catch(e){} }, 60);
-  }catch(e){}
 }
 
 function buildNotifPanel() {
@@ -16778,18 +16754,6 @@ function downloadDocFile(id) {
 }
 
 
-function downloadDocFile(id) {
-
-  const doc = DB.get('documents').find(d=>d.id===id);
-  if (!doc || !doc.fileData) { Toast.error(L('لا يوجد ملف مرفق','Aucun fichier joint')); return; }
-  const a = document.createElement('a');
-  a.href = doc.fileData;
-  a.download = doc.fileName || doc.name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
 function deleteDocItem(id){
   if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لحذف الوثيقة','Permission refusée : document')); return; }
 
@@ -17778,62 +17742,7 @@ async function forceReconnectSupabase() {
 }
 
 // ─── Save EmailJS Settings ───
-function saveEmailJSSettings() {
-  const cfg = {
-    SERVICE_ID:     (document.getElementById('ejServiceId')?.value||'').trim(),
-    PUBLIC_KEY:     (document.getElementById('ejPublicKey')?.value||'').trim(),
-    TEMPLATE_ADMIN: (document.getElementById('ejTemplateAdmin')?.value||'').trim(),
-    TEMPLATE_USER:  (document.getElementById('ejTemplateUser')?.value||'').trim(),
-    ADMIN_EMAIL:    (document.getElementById('ejAdminEmail')?.value||'').trim(),
-  };
-  if (!cfg.SERVICE_ID || !cfg.PUBLIC_KEY) {
-    typeof Toast !== 'undefined' && Toast.error('❌ Service ID و Public Key مطلوبان');
-    return;
-  }
-  saveEmailJSConfig(cfg);
-  typeof Toast !== 'undefined' && Toast.success('✅ تم حفظ إعدادات EmailJS بنجاح!');
-  const badge = document.getElementById('emailjsStatusBadge');
-  if (badge) { badge.textContent = '🟢 مُفعَّل'; badge.style.color = '#34C38F'; }
-}
-
 // ─── Test EmailJS ───
-async function testEmailJS() {
-  const resultEl = document.getElementById('ejTestResult');
-  if (resultEl) {
-    resultEl.style.display = 'block';
-    resultEl.style.background = 'rgba(232,184,75,0.1)';
-    resultEl.style.color = 'var(--gold)';
-    resultEl.textContent = '⏳ جاري إرسال بريد اختبار...';
-  }
-  try {
-    const cfg = getEmailJSConfig();
-    await emailjs.send(cfg.SERVICE_ID, cfg.TEMPLATE_ADMIN, {
-      to_email:    cfg.ADMIN_EMAIL,
-      to_name:     'المسؤول',
-      user_name:   'اختبار النظام',
-      user_email:  cfg.ADMIN_EMAIL,
-      company_name:'SmartStruct Test',
-      plan_name:   'اختبار',
-      wilaya:      'الجزائر',
-      date:        new Date().toLocaleDateString('ar-DZ'),
-      message:     '✅ هذا بريد اختبار من لوحة تحكم SmartStruct — الإعدادات تعمل بشكل صحيح.',
-    });
-    if (resultEl) {
-      resultEl.style.background = 'rgba(52,195,143,0.1)';
-      resultEl.style.color = '#34C38F';
-      resultEl.textContent = `✅ تم الإرسال بنجاح إلى ${cfg.ADMIN_EMAIL}`;
-    }
-    typeof Toast !== 'undefined' && Toast.success('✅ البريد الاختباري أُرسل بنجاح!');
-  } catch(e) {
-    if (resultEl) {
-      resultEl.style.background = 'rgba(240,78,106,0.1)';
-      resultEl.style.color = '#F79FA9';
-      resultEl.textContent = `❌ فشل الإرسال: ${e.text || e.message || JSON.stringify(e)}`;
-    }
-    typeof Toast !== 'undefined' && Toast.error('❌ فشل إرسال البريد الاختباري');
-  }
-}
-
 /* ── Supabase fallback functions (if supabase-db.js not loaded) ── */
 if (typeof saveSupabaseConfig === 'undefined') {
   function saveSupabaseConfig() { Toast.warn('⚠️ ملف supabase-db.js غير محمّل'); }
@@ -20237,10 +20146,22 @@ function clearAllPending() {
   }
 }
 
+// ربط الـ implementations بالـ forward declarations
 window.showPendingQueue      = showPendingQueue;
 window.refreshPendingQueueUI = refreshPendingQueueUI;
 window.removePendingItem     = removePendingItem;
 window.retryPendingItem      = retryPendingItem;
 window.forceUploadAllPending = forceUploadAllPending;
 window.clearAllPending       = clearAllPending;
+window.manualSyncNow         = manualSyncNow;
+window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
+window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.classList.remove('show'); };
+// aliases للـ forward declarations
+window._showPendingQueueImpl      = showPendingQueue;
+window._removePendingItemImpl     = removePendingItem;
+window._retryPendingItemImpl      = retryPendingItem;
+window._forceUploadAllPendingImpl = forceUploadAllPending;
+window._clearAllPendingImpl       = clearAllPending;
+window._manualSyncNowImpl         = manualSyncNow;
+console.log('✅ SmartStruct: كل الدوال الحيوية مُسجَّلة في window');
 

@@ -331,6 +331,28 @@ const SupabaseClient = {
     }
   },
 
+  // ⚡ BATCH UPSERT — رفع مجموعة سجلات في طلب HTTP واحد (أسرع بكثير)
+  async batchUpsert(table, records) {
+    if (!records || !records.length) return [];
+    // ✅ on_conflict=id ضروري لـ Supabase ليعرف كيف يدمج السجلات المكررة
+    const url = `${this._url}/rest/v1/${table}?on_conflict=id`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this._timeout * 2);
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: this.headers({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(records),
+        signal: controller.signal
+      });
+      const text = await resp.text();
+      if (!resp.ok) throw new Error(`batchUpsert ${table}: ${text || resp.status}`);
+      return [];
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
   // UPDATE
   async update(table, id, data) {
     return this._request('PATCH', `${table}?id=eq.${id}`, data);
@@ -811,47 +833,46 @@ if (!navigator.onLine || !this._useSupabase) {
       if (method === 'POST') {
         const body = { ...clean };
         const oldId = record && record.id;
-        // افتراضياً نحذف id لأن Supabase يولده، لكن لبعض الجداول (مثل notifications) نُبقيه لتوحيد السجلات بين الأجهزة
         if (!_KEEP_ID_TABLES.has(table)) delete body.id;
 
         let postUrl = baseUrl;
-        let postHeaders = headers;
-        if (_KEEP_ID_TABLES.has(table) && record && record.id) {
-          postUrl += '?on_conflict=id';
-          postHeaders = { ...headers, 'Prefer': 'resolution=merge-duplicates,return=representation' };
-        }
+        let postHeaders = { ...headers };
+        // ✅ استخدم upsert دائماً لتجنب duplicate key
+        postUrl += '?on_conflict=id';
+        postHeaders['Prefer'] = 'resolution=merge-duplicates,return=minimal';
 
         const res = await fetch(postUrl, { method: 'POST', headers: postHeaders, body: JSON.stringify(body) });
+        const resText = await res.text(); // ✅ نقرأ مرة واحدة فقط
+
         if (!res.ok) {
-          // إذا فشل POST بسبب تكرار → حاول PATCH، وإن فشل خزّن بالـ queue (فقط إذا ليست من queue)
+          console.warn(`⚠️ POST ${table}:`, resText);
+          // إذا فشل POST → حاول PATCH
           if (record && record.id) {
-            await this._pushToSupabase(table, record, 'PATCH', opts);
+            await this._pushToSupabase(table, record, 'PATCH', opts).catch(() => {
+              if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
+            });
           } else {
             if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
-            this._updateAdminSyncUI();
-            if (opts.fromQueue) throw new Error('POST failed while flushing queue');
+            if (opts.fromQueue) throw new Error(`POST failed: ${resText}`);
           }
           return;
         }
 
         console.log(`✅ AutoSync [POST ${table}]`);
         this._emitSyncEvent('synced');
-        // ✅ مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase (لتجنب التكرار)
-        if (!_KEEP_ID_TABLES.has(table) && oldId) {
+
+        // مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase
+        if (!_KEEP_ID_TABLES.has(table) && oldId && resText) {
           try {
-            const respText = await res.text();
-            if (respText) {
-              const respData = JSON.parse(respText);
-              const newId = Array.isArray(respData) ? respData[0]?.id : respData?.id;
-              if (newId && newId !== oldId) {
-                const lsKey = 'sbtp5_' + table;
-                const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
-                const idx = local.findIndex(r => r.id === oldId);
-                if (idx >= 0) {
-                  local[idx] = { ...local[idx], id: newId };
-                  localStorage.setItem(lsKey, JSON.stringify(local));
-                  console.log(`🔄 ID re-sync ${table}: ${oldId} → ${newId}`);
-                }
+            const respData = JSON.parse(resText);
+            const newId = Array.isArray(respData) ? respData[0]?.id : respData?.id;
+            if (newId && newId !== oldId) {
+              const lsKey = 'sbtp5_' + table;
+              const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
+              const idx = local.findIndex(r => r.id === oldId);
+              if (idx >= 0) {
+                local[idx] = { ...local[idx], id: newId };
+                localStorage.setItem(lsKey, JSON.stringify(local));
               }
             }
           } catch(_) {}
@@ -1040,53 +1061,86 @@ if (!navigator.onLine || !this._useSupabase) {
     } catch {}
   },
 
-  /** رفع كل العمليات المؤجلة عند عودة الاتصال */
+  /** رفع كل العمليات المؤجلة — متوازٍ لأقصى سرعة */
   async _flushOfflineQueue() {
     let q;
-    try {
-      q = JSON.parse(localStorage.getItem(this._OFFLINE_QUEUE_KEY) || '[]');
-    } catch { return; }
+    try { q = JSON.parse(localStorage.getItem(this._OFFLINE_QUEUE_KEY) || '[]'); }
+    catch { return; }
     if (!q.length) return;
 
-    // ✅ تصفية عمليات المؤسسات المحذوفة من الـ queue قبل الرفع
-    let deletedTenantIds = [];
+    // تصفية عمليات المؤسسات المحذوفة
     try {
-      deletedTenantIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
-    } catch(_) {}
-
-    if (deletedTenantIds.length) {
-      const originalLen = q.length;
-      q = q.filter(op => {
-        const recTenantId = op.record?.tenant_id || (op.table === 'tenants' ? op.record?.id : null);
-        if (recTenantId && deletedTenantIds.includes(Number(recTenantId))) {
-          console.log(`🛡️ OfflineQueue: تجاهل ${op.method} على ${op.table} للمؤسسة المحذوفة #${recTenantId}`);
-          return false;
-        }
-        return true;
-      });
-      if (q.length < originalLen) {
-        console.log(`🛡️ OfflineQueue: تم حذف ${originalLen - q.length} عملية لمؤسسات محذوفة`);
+      const deleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+      if (deleted.length) {
+        q = q.filter(op => {
+          const tid = op.record?.tenant_id || (op.table==='tenants' ? op.record?.id : null);
+          return !(tid && deleted.includes(Number(tid)));
+        });
         localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
       }
-    }
-
+    } catch(_) {}
     if (!q.length) return;
 
-    console.log(`⏫ Flushing ${q.length} offline operations to Supabase...`);
+    console.log(`⚡ Flushing ${q.length} ops in parallel batches...`);
+
+    // ── تجميع العمليات المتشابهة: نفس الجدول + نفس الطريقة → batch ──
+    const groups = {};
+    q.forEach((op, i) => {
+      const key = `${op.table}::${op.method}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ ...op, _idx: i });
+    });
+
     const failed = [];
-    for (const op of q) {
-      try {
-        await this._pushToSupabase(op.table, op.record, op.method, { fromQueue: true });
-      } catch {
-        failed.push(op);
-      }
+    const BATCH_SIZE = 5; // عدد الطلبات المتوازية في آن واحد
+
+    // رفع كل مجموعة بـ batch UPSERT (أسرع بكثير من طلب لكل سجل)
+    const groupEntries = Object.entries(groups);
+
+    for (let b = 0; b < groupEntries.length; b += BATCH_SIZE) {
+      const batch = groupEntries.slice(b, b + BATCH_SIZE);
+      await Promise.all(batch.map(async ([key, ops]) => {
+        const [table, method] = key.split('::');
+        try {
+          if (method === 'DELETE') {
+            // حذف متوازٍ
+            await Promise.all(ops.map(op =>
+              this._pushToSupabase(op.table, op.record, 'DELETE', { fromQueue: true }).catch(() => {
+                failed.push(op);
+              })
+            ));
+          } else {
+            // POST / PATCH → batch upsert
+            const records = ops.map(op => _cleanForSupabase_INTERNAL(op.table, op.record)).filter(Boolean);
+            if (records.length > 0) {
+              try {
+                // محاولة batch upsert (أسرع)
+                await this._sb.batchUpsert(table, records);
+              } catch(_batchErr) {
+                // fallback: رفع فردي إذا فشل الـ batch
+                await Promise.all(ops.map(op =>
+                  this._pushToSupabase(op.table, op.record, op.method, { fromQueue: true }).catch(() => {
+                    failed.push(op);
+                  })
+                ));
+              }
+            }
+          }
+        } catch(e) {
+          ops.forEach(op => failed.push(op));
+        }
+      }));
     }
+
     localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(failed));
     this._updateAdminSyncUI();
-    if (failed.length === 0) {
-      console.log('✅ Offline queue flushed successfully');
-      if (typeof Toast !== 'undefined')
-        Toast.success(`✅ تمت مزامنة ${q.length} عملية محفوظة مع Supabase`);
+    const done = q.length - failed.length;
+    console.log(`✅ flush done: ${done} succeeded, ${failed.length} failed`);
+    if (typeof Toast !== 'undefined' && done > 0) {
+      if (failed.length === 0)
+        Toast.success(`✅ ${done} ${done===1?'عملية رُفعت':'عملية رُفعت'} بنجاح`);
+      else
+        Toast.warn(`⚠️ نجح ${done} / فشل ${failed.length}`);
     }
   },
 
@@ -1152,29 +1206,39 @@ if (!navigator.onLine || !this._useSupabase) {
   },
 
   async _syncTableToSupabase(table, records) {
-    if (!Array.isArray(records) || !records.length) return;
-    let okCount = 0, failCount = 0;
-    const errors = [];
-    for (const record of records) {
-      const pk = table === 'global_settings' ? record.key : record.id;
-      if (!pk) continue;
-      try {
-        const clean = _cleanForSupabase_INTERNAL(table, record);
-        await this._sb.upsert(table, clean);
-        okCount++;
-      } catch (e) {
-        failCount++;
-        if (errors.length < 3) errors.push(`${pk}: ${e.message}`);
-        console.warn(`⚠️ upsert ${table} [${pk}]:`, e.message);
+    if (!Array.isArray(records) || !records.length) return { ok: 0, failed: 0 };
+
+    // تنظيف السجلات
+    const cleaned = records
+      .filter(r => (table === 'global_settings' ? r.key : r.id))
+      .map(r => _cleanForSupabase_INTERNAL(table, r))
+      .filter(Boolean);
+
+    if (!cleaned.length) return { ok: 0, failed: 0 };
+
+    // ── محاولة batch upsert (طلب واحد لكل الجدول) ──
+    try {
+      await this._sb.batchUpsert(table, cleaned);
+      return { ok: cleaned.length, failed: 0 };
+    } catch(batchErr) {
+      // fallback: إذا فشل الـ batch → رفع متوازٍ
+      console.warn(`⚠️ batch failed for ${table}, falling back to parallel:`, batchErr.message);
+      const CONCURRENCY = 5;
+      let ok = 0, failCount = 0;
+      for (let i = 0; i < cleaned.length; i += CONCURRENCY) {
+        const slice = cleaned.slice(i, i + CONCURRENCY);
+        await Promise.all(slice.map(async rec => {
+          try {
+            await this._sb.upsert(table, rec);
+            ok++;
+          } catch(e) {
+            failCount++;
+            console.warn(`⚠️ upsert ${table} [${rec.id||rec.key}]:`, e.message);
+          }
+        }));
       }
+      return { ok, failed: failCount };
     }
-    if (failCount > 0 && typeof Toast !== 'undefined') {
-      // اعرض الخطأ للمستخدم فقط إذا فشل كل شيء (تجنب الإزعاج)
-      if (okCount === 0 && errors.length) {
-        console.error(`❌ ${table}: فشل رفع ${failCount} سجل`, errors);
-      }
-    }
-    return { ok: okCount, failed: failCount };
   },
 
   /* ─────────────────────────────────────────────────────
