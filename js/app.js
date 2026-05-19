@@ -2155,21 +2155,25 @@ Pages.landing = function() {
       <!-- ═══ STATS BAR ═══ -->
       <div class="ll-stats-bar ll-reveal">
         <div class="ll-stat-item">
-          <div class="ll-stat-number" data-target="27">0</div>
+          <div class="ll-stat-number" data-count="27" data-suffix="+" class="ll-stat-num">0</div>
           <div class="ll-stat-label">${L('جدول قاعدة بيانات','Tables de BDD')}</div>
         </div>
         <div class="ll-stat-item">
-          <div class="ll-stat-number" data-target="19">0</div>
+          <div class="ll-stat-number" data-count="19" class="ll-stat-num">0</div>
           <div class="ll-stat-label">${L('ميزة احترافية','Fonctionnalités pro')}</div>
         </div>
         <div class="ll-stat-item">
-          <div class="ll-stat-number"><span data-target="14">0</span> ${L('يوم','jours')}</div>
+          <div class="ll-stat-number"><span data-count="14" class="ll-stat-num">0</span> ${L('يوم','jours')}</div>
           <div class="ll-stat-label">${L('تجربة مجانية','Essai gratuit')}</div>
         </div>
         <div class="ll-stat-item">
           <div class="ll-stat-number">100<span style="font-size:1.5rem">٪</span></div>
           <div class="ll-stat-label">${L('متوافق مع القانون الجزائري','Conforme loi algérienne')}</div>
         </div>
+      </div>
+
+      <!-- شريط التقنيات المتحرك -->
+      <div class="ll-tech-strip" id="llTechStrip" style="margin-top:2.5rem;padding:.8rem 0;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden">
       </div>
     </section>
 
@@ -2751,121 +2755,270 @@ Pages.landing = function() {
 
 /* ─── Init dynamic effects after landing renders ─── */
 function initLandingEffects() {
-  const root = document.getElementById('landingRoot') || document.getElementById('aboutRoot') || document.getElementById('contactRoot');
-  if (!root) return;
+  // ── ① مكعبات BTP الطافية ──
+  (function spawnCubes() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const scene = document.createElement('div');
+    scene.className = 'll-cubes-scene';
+    const faces = ['front','back','left','right','top','bottom'];
+    const positions = [
+      {l:'8%', t:'15%', s:50, dur:18, delay:0},
+      {l:'88%',t:'20%', s:40, dur:22, delay:3},
+      {l:'5%', t:'65%', s:35, dur:25, delay:6},
+      {l:'92%',t:'70%', s:45, dur:20, delay:2},
+      {l:'50%',t:'8%',  s:30, dur:28, delay:8},
+      {l:'75%',t:'85%', s:55, dur:16, delay:4},
+      {l:'20%',t:'80%', s:38, dur:24, delay:10},
+      {l:'65%',t:'55%', s:28, dur:30, delay:5},
+    ];
+    positions.forEach(p => {
+      const cube = document.createElement('div');
+      cube.className = 'll-cube';
+      cube.style.cssText = `left:${p.l};top:${p.t};width:${p.s}px;height:${p.s}px;animation-duration:${p.dur}s;animation-delay:-${p.delay}s;opacity:.7`;
+      faces.forEach(f => {
+        const face = document.createElement('div');
+        face.className = `ll-cube-face ${f}`;
+        const half = p.s/2;
+        if(f==='front')  face.style.transform=`translateZ(${half}px)`;
+        if(f==='back')   face.style.transform=`rotateY(180deg) translateZ(${half}px)`;
+        if(f==='left')   face.style.transform=`rotateY(-90deg) translateZ(${half}px)`;
+        if(f==='right')  face.style.transform=`rotateY(90deg) translateZ(${half}px)`;
+        if(f==='top')    face.style.transform=`rotateX(90deg) translateZ(${half}px)`;
+        if(f==='bottom') face.style.transform=`rotateX(-90deg) translateZ(${half}px)`;
+        cube.appendChild(face);
+      });
+      scene.appendChild(cube);
+    });
+    hero.appendChild(scene);
+  })();
 
-  // Particles
-  const pc = document.getElementById('llParticles');
-  if (pc && !pc.children.length) {
-    const count = window.innerWidth < 768 ? 16 : 36;
-    for (let i = 0; i < count; i++) {
+  // ── ② Aurora blobs خلف الـ hero ──
+  (function addAuroras() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const blobs = [
+      {c:'#E8B84B',w:500,h:500,l:'10%',t:'20%',op:0.07,dur:12},
+      {c:'#9B6DFF',w:400,h:400,l:'60%',t:'10%',op:0.05,dur:15},
+      {c:'#34C38F',w:350,h:350,l:'40%',t:'60%',op:0.04,dur:10},
+      {c:'#4A90E2',w:300,h:300,l:'80%',t:'50%',op:0.05,dur:18},
+    ];
+    blobs.forEach((b,i) => {
+      const el = document.createElement('div');
+      el.className = 'll-aurora ll-blob';
+      el.style.cssText = `width:${b.w}px;height:${b.h}px;left:${b.l};top:${b.t};background:${b.c};opacity:${b.op};animation-duration:${b.dur}s;animation-delay:${-i*2}s;position:absolute;pointer-events:none;filter:blur(90px)`;
+      hero.style.overflow = 'hidden';
+      hero.appendChild(el);
+    });
+  })();
+
+  // ── ③ تأثير إمالة البطاقات (3D tilt) ──
+  (function initTilt() {
+    function applyTilt(cards) {
+      cards.forEach(card => {
+        if (card._tiltInit) return;
+        card._tiltInit = true;
+        card.classList.add('ll-card-3d');
+        // أضف shine div
+        if (!card.querySelector('.ll-card-shine')) {
+          const shine = document.createElement('div');
+          shine.className = 'll-card-shine';
+          card.style.position = 'relative';
+          card.appendChild(shine);
+        }
+        card.addEventListener('mousemove', e => {
+          const r = card.getBoundingClientRect();
+          const cx = r.left + r.width/2, cy = r.top + r.height/2;
+          const dx = (e.clientX - cx) / (r.width/2);
+          const dy = (e.clientY - cy) / (r.height/2);
+          const ry = dx * 12, rx = -dy * 10;
+          card.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(8px)`;
+          // تحديث موضع الضوء
+          const px = ((e.clientX - r.left)/r.width*100).toFixed(1);
+          const py = ((e.clientY - r.top)/r.height*100).toFixed(1);
+          card.style.setProperty('--mx', px+'%');
+          card.style.setProperty('--my', py+'%');
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = '';
+          card.style.removeProperty('--mx');
+          card.style.removeProperty('--my');
+        });
+      });
+    }
+    // تطبيق على بطاقات الميزات وبطاقات الأسعار
+    const selectors = ['.ll-feat-card','.ll-price-card','.ll-stat-card','.ll-showcase-card'];
+    selectors.forEach(sel => applyTilt(document.querySelectorAll(sel)));
+    // أضف class المحسَّن لبطاقات الميزات
+    document.querySelectorAll('.ll-feat-card').forEach(c => c.classList.add('ll-feat-card-enhanced'));
+  })();
+
+  // ── ④ عداد الأرقام الإحصائية ──
+  (function animateCounters() {
+    const counters = document.querySelectorAll('[data-count]');
+    if (!counters.length) return;
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        const target = parseFloat(el.dataset.count);
+        const isDecimal = String(target).includes('.');
+        const suffix = el.dataset.suffix || '';
+        const duration = 1800;
+        const start = performance.now();
+        function tick(now) {
+          const p = Math.min((now-start)/duration, 1);
+          const ease = 1 - Math.pow(1-p, 4);
+          const val = target * ease;
+          el.textContent = (isDecimal ? val.toFixed(1) : Math.round(val)) + suffix;
+          if (p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+        observer.unobserve(el);
+      });
+    }, {threshold:0.4});
+    counters.forEach(c => observer.observe(c));
+  })();
+
+  // ── ⑤ شريط التقنيات المتحرك ──
+  (function buildTechStrip() {
+    const container = document.getElementById('llTechStrip');
+    if (!container) return;
+    const isAr = document.documentElement.dir === 'rtl';
+    const techs = [
+      {i:'🏗️',l:'BTP Algérie'},
+      {i:'📊',l:'IRG 2026'},
+      {i:'🔒',l:'Supabase'},
+      {i:'📄',l:'23 وثيقة'},
+      {i:'🤖',l:'SmartAI'},
+      {i:'📱',l:'PWA Ready'},
+      {i:'☁️',l:'Google Drive'},
+      {i:'⚡',l:'Realtime'},
+      {i:'💼',l:'Multi-tenant'},
+      {i:'🌍',l:'ثنائي اللغة'},
+    ];
+    // نكرر مرتين للـ scroll لا نهائي
+    const items = [...techs,...techs].map(t =>
+      `<div class="ll-tech-badge"><span>${t.i}</span><span>${t.l}</span></div>`
+    ).join('');
+    container.innerHTML = `<div class="ll-tech-strip-inner">${items}</div>`;
+    if (isAr) {
+      const inner = container.querySelector('.ll-tech-strip-inner');
+      if (inner) inner.style.animationDirection = 'reverse';
+    }
+  })();
+
+  // ── ⑥ scroll reveal للعناصر ──
+  (function initReveal() {
+    const els = document.querySelectorAll('.ll-reveal');
+    if (!els.length) return;
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('ll-in'); obs.unobserve(e.target); }
+      });
+    }, {threshold:0.1, rootMargin:'0px 0px -40px 0px'});
+    els.forEach(el => obs.observe(el));
+  })();
+
+  // ── ⑦ نجوم متلألئة في الخلفية ──
+  (function spawnStars() {
+    const atmo = document.querySelector('.ll-atmosphere');
+    if (!atmo) return;
+    for (let i = 0; i < 60; i++) {
+      const star = document.createElement('div');
+      star.className = 'll-star';
+      const size = Math.random() * 3 + 1;
+      star.style.cssText = `
+        width:${size}px;height:${size}px;
+        left:${Math.random()*100}%;top:${Math.random()*100}%;
+        animation-duration:${2+Math.random()*5}s;
+        animation-delay:${-Math.random()*5}s;
+      `;
+      atmo.appendChild(star);
+    }
+  })();
+
+  // ── ⑧ Parallax خفيف عند تحريك الماوس ──
+  (function initParallax() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const layers = hero.querySelectorAll('.ll-hero-bg, .ll-cubes-scene, .ll-aurora');
+    let ticking = false;
+    document.addEventListener('mousemove', e => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const cx = window.innerWidth/2, cy = window.innerHeight/2;
+        const dx = (e.clientX - cx)/cx, dy = (e.clientY - cy)/cy;
+        layers.forEach((layer, i) => {
+          const factor = (i+1) * 5;
+          layer.style.transform = `translate(${dx*factor*-1}px,${dy*factor*-1}px)`;
+        });
+        ticking = false;
+      });
+    });
+  })();
+
+  // ── ⑨ بطاقة مشروع نموذجية ثلاثية الأبعاد ──
+  (function enhanceShowcase() {
+    const showcase = document.getElementById('llShowcase3D');
+    if (!showcase) return;
+    showcase.classList.add('ll-project-card-3d');
+
+    // أضف progress bars متحركة
+    showcase.querySelectorAll('.ll-progress-bar').forEach(bar => {
+      const pct = bar.dataset.pct || '70';
+      bar.parentElement.className = 'll-progress-glow';
+      bar.className = 'll-progress-glow-bar';
+      bar.style.width = '0';
+      setTimeout(() => { bar.style.width = pct + '%'; }, 500);
+    });
+  })();
+
+  // ── ⑩ Particles جزيئات ذهبية ──
+  (function spawnParticles() {
+    const container = document.getElementById('llParticles');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 0; i < 25; i++) {
       const p = document.createElement('div');
       p.className = 'll-particle';
-      const size = 1 + Math.random() * 3;
-      p.style.width = size + 'px';
-      p.style.height = size + 'px';
-      p.style.left = Math.random() * 100 + '%';
-      p.style.bottom = (-20 - Math.random() * 30) + '%';
-      p.style.animationDuration = (12 + Math.random() * 16) + 's';
-      p.style.animationDelay = (Math.random() * 15) + 's';
-      p.style.opacity = 0.3 + Math.random() * 0.5;
-      pc.appendChild(p);
+      const size = Math.random() * 4 + 2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random()*100}%;
+        bottom:-20px;
+        animation-duration:${8+Math.random()*12}s;
+        animation-delay:${-Math.random()*20}s;
+        opacity:${0.3+Math.random()*0.5};
+      `;
+      container.appendChild(p);
     }
-  }
+  })();
 
-  // Navbar scroll state
-  const nav = document.getElementById('llNav');
-  if (nav) {
-    const onScroll = () => nav.classList.toggle('ll-scrolled', window.scrollY > 30);
-    window._llScrollHandler && window.removeEventListener('scroll', window._llScrollHandler);
-    window._llScrollHandler = onScroll;
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  }
-
-  // Reveal on scroll
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('ll-in');
-          io.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    root.querySelectorAll('.ll-reveal').forEach(el => io.observe(el));
-
-    // Animated counters
-    const counterIO = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const target = parseInt(e.target.dataset.target);
-          if (isNaN(target)) { counterIO.unobserve(e.target); return; }
-          const duration = 1600;
-          const start = performance.now();
-          const animate = (t) => {
-            const p = Math.min((t - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - p, 3);
-            e.target.textContent = Math.floor(target * eased);
-            if (p < 1) requestAnimationFrame(animate);
-            else e.target.textContent = target;
-          };
-          requestAnimationFrame(animate);
-          counterIO.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.5 });
-    root.querySelectorAll('[data-target]').forEach(el => counterIO.observe(el));
-  }
-
-  // 3D tilt on feature cards
-  root.querySelectorAll('[data-tilt]').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const r = card.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      const y = e.clientY - r.top;
-      const rotX = ((y / r.height) - 0.5) * -8;
-      const rotY = ((x / r.width) - 0.5) * 8;
-      card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`;
-      card.style.setProperty('--mx', (x / r.width * 100) + '%');
-      card.style.setProperty('--my', (y / r.height * 100) + '%');
-    });
-    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-  });
-
-  // Showcase 3D follow
-  const stage = document.getElementById('llShowcaseStage');
-  if (stage) {
-    const wrap = stage.parentElement;
-    wrap.addEventListener('mousemove', (e) => {
-      const r = wrap.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5;
-      const y = (e.clientY - r.top) / r.height - 0.5;
-      stage.style.transform = `rotateX(${15 - y * 10}deg) rotateY(${-8 - x * 10}deg)`;
-    });
-    wrap.addEventListener('mouseleave', () => { stage.style.transform = ''; });
-  }
-
-  // Hero scene parallax
-  const sceneStage = document.getElementById('llSceneStage');
-  if (sceneStage && window.innerWidth > 768) {
-    const sceneWrap = sceneStage.closest('.ll-scene');
-    if (sceneWrap) {
-      sceneWrap.addEventListener('mousemove', (e) => {
-        const r = sceneStage.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width - 0.5;
-        const y = (e.clientY - r.top) / r.height - 0.5;
-        sceneStage.style.animation = 'none';
-        sceneStage.style.transform = `rotateX(${8 - y * 8}deg) rotateY(${-x * 10}deg)`;
-      });
-      sceneWrap.addEventListener('mouseleave', () => {
-        sceneStage.style.animation = '';
-        sceneStage.style.transform = '';
-      });
-    }
-  }
+  // ── ⑪ Navbar scroll effect ──
+  (function initNavScroll() {
+    const nav = document.getElementById('llNav');
+    if (!nav) return;
+    let lastY = 0;
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY;
+      if (y > 80) {
+        nav.style.background = 'rgba(9,18,10,0.92)';
+        nav.style.backdropFilter = 'blur(20px)';
+        nav.style.boxShadow = '0 1px 0 rgba(232,184,75,.1)';
+        nav.style.transform = y > lastY && y > 200 ? 'translateY(-100%)' : 'translateY(0)';
+      } else {
+        nav.style.background = '';
+        nav.style.backdropFilter = '';
+        nav.style.boxShadow = '';
+        nav.style.transform = '';
+      }
+      lastY = y;
+    }, {passive:true});
+  })();
 }
-window.initLandingEffects = initLandingEffects;
+
 
 /* ─── Init effects for auth (login/register) page ─── */
 function initAuthEffects() {
