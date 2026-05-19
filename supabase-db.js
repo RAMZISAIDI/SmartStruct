@@ -1997,9 +1997,12 @@ const SmartRealtime = (() => {
     /** إيقاف الاتصال */
     stop() {
       _running = false;
+      _wsAttempts = 0;
       clearTimeout(_reconnTimer);
+      clearTimeout(_connectTimeout);
       clearInterval(_pingTimer);
       clearTimeout(_renderTimer);
+      _stopPollingFallback();
       if (_ws) {
         try { _ws.close(1000, 'logout'); } catch {}
         _ws = null;
@@ -2017,68 +2020,152 @@ const SmartRealtime = (() => {
     }
   };
 
+  /* ─── State for polling fallback ────────────── */
+  let _pollActive = false;
+  let _pollTimer  = null;
+  let _connectTimeout = null;
+  let _wsAttempts = 0;
+  const MAX_WS_ATTEMPTS = 3; // بعد 3 محاولات فاشلة → polling دائم
+
   /* ─── الاتصال الفعلي بـ WebSocket ──────────── */
   function _connect() {
     if (!_running) return;
 
     const wsUrl = _wsUrl();
     if (!wsUrl) {
-      console.warn('⚡ Realtime: Supabase غير مُهيَّأ، لن يعمل Realtime');
       _setBadge('offline');
+      return;
+    }
+
+    // ✅ إذا فشلنا أكثر من MAX_WS_ATTEMPTS → بقاء على polling
+    if (_wsAttempts >= MAX_WS_ATTEMPTS) {
+      _startPollingFallback();
       return;
     }
 
     _setBadge('connecting');
     _joinedTopics.clear();
 
+    // timeout 8 ثوانٍ للاتصال الأولي
+    clearTimeout(_connectTimeout);
+    _connectTimeout = setTimeout(() => {
+      if (_ws && _ws.readyState === WebSocket.CONNECTING) {
+        try { _ws.close(); } catch {}
+        _ws = null;
+        _wsAttempts++;
+        if (_wsAttempts >= MAX_WS_ATTEMPTS) {
+          console.warn(`⚡ Realtime: ${MAX_WS_ATTEMPTS} محاولات WebSocket فشلت → polling fallback دائم`);
+          _startPollingFallback();
+        } else {
+          _scheduleReconnect();
+        }
+      }
+    }, 8000);
+
     try {
       _ws = new WebSocket(wsUrl);
     } catch(e) {
-      console.warn('⚡ Realtime: فشل إنشاء WebSocket:', e.message);
+      clearTimeout(_connectTimeout);
+      _wsAttempts++;
       _scheduleReconnect();
       return;
     }
 
     _ws.onopen = () => {
-      console.log('⚡ Realtime: WebSocket متصل ✅');
+      clearTimeout(_connectTimeout);
+      _wsAttempts = 0; // ✅ إعادة تعيين عند النجاح
       SmartRealtime.isLive = true;
       _reconnDelay = RECONNECT_DELAY;
       _setBadge('live');
+      _stopPollingFallback();
+      console.log('⚡ Realtime: WebSocket متصل ✅');
 
-      // Ping دوري لإبقاء الاتصال حياً
       clearInterval(_pingTimer);
       _pingTimer = setInterval(() => {
-        _send('phoenix', 'heartbeat', {});
+        if (_ws && _ws.readyState === WebSocket.OPEN) {
+          _send('phoenix', 'heartbeat', {});
+        }
       }, PING_INTERVAL);
 
-      // الانضمام لجميع الجداول
       WATCHED_TABLES.forEach(t => _joinTable(t));
     };
 
     _ws.onmessage = e => _onMessage(e.data);
 
-    _ws.onerror = err => {
-      console.warn('⚡ Realtime: خطأ في WebSocket');
-    };
+    // ✅ صامت — onclose يتولى كل شيء
+    _ws.onerror = () => {};
 
     _ws.onclose = (e) => {
+      clearTimeout(_connectTimeout);
       clearInterval(_pingTimer);
       SmartRealtime.isLive = false;
       _joinedTopics.clear();
       _setBadge('offline');
 
-      if (_running) {
-        console.log(`⚡ Realtime: انقطع (${e.code}) — إعادة محاولة بعد ${_reconnDelay/1000}ث`);
+      if (!_running) return;
+
+      // إذا انقطع قبل onopen (1006) → احسب كمحاولة فاشلة
+      if (e.code === 1006 && _wsAttempts < MAX_WS_ATTEMPTS) {
+        _wsAttempts++;
+      }
+
+      if (_wsAttempts >= MAX_WS_ATTEMPTS) {
+        console.warn(`⚡ Realtime: تعذّر الاتصال — تشغيل polling fallback`);
+        _startPollingFallback();
+      } else {
         _scheduleReconnect();
       }
     };
+  }
+
+  /* ─── Polling Fallback ──────────────────────── */
+  function _startPollingFallback() {
+    if (_pollActive) return;
+    _pollActive = true;
+    _setBadge('live'); // نُظهرها متصلة عبر polling
+    console.log('⚡ Realtime: polling fallback نشط (كل 20 ث)');
+
+    // ينفّذ سحب صامت كل 20 ثانية
+    _pollTimer = setInterval(async () => {
+      if (!_running || !navigator.onLine) return;
+      if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
+      if (!_tenantId) return;
+
+      try {
+        // سحب الإشعارات فقط (الأهم)
+        const filter = `tenant_id=eq.${_tenantId}`;
+        const url = `${SUPABASE_CONFIG.url}/rest/v1/notifications?${filter}&order=id.desc&limit=20`;
+        const resp = await fetch(url, {
+          headers: {
+            'apikey': SUPABASE_CONFIG.anonKey,
+            'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+          }
+        });
+        if (resp.ok) {
+          const remote = await resp.json();
+          if (Array.isArray(remote) && remote.length) {
+            const lsKey = 'sbtp5_notifications';
+            const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
+            const remoteIds = new Set(remote.map(r => Number(r.id)));
+            const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+            localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
+          }
+        }
+      } catch(_) {}
+    }, 20000);
+  }
+
+  function _stopPollingFallback() {
+    if (!_pollActive) return;
+    _pollActive = false;
+    clearInterval(_pollTimer);
+    _pollTimer = null;
   }
 
   function _scheduleReconnect() {
     clearTimeout(_reconnTimer);
     _reconnTimer = setTimeout(() => {
       if (_running) {
-        // Exponential backoff
         _reconnDelay = Math.min(_reconnDelay * 1.5, 60000);
         _connect();
       }

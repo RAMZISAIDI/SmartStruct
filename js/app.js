@@ -1,16 +1,10 @@
 'use strict';
 
 // ════════════════════════════════════════════════════════════════════
-//  FORWARD DECLARATIONS — تُعرَّف مبكراً حتى تعمل من HTML onclick
+//  Global helpers (تُعرَّف الدوال الفعلية لاحقاً في الملف، هذه stubs آمنة)
 // ════════════════════════════════════════════════════════════════════
-window.showPendingQueue      = function() { _showPendingQueueImpl && _showPendingQueueImpl(); };
-window.removePendingItem     = function(i) { _removePendingItemImpl && _removePendingItemImpl(i); };
-window.retryPendingItem      = function(i) { _retryPendingItemImpl && _retryPendingItemImpl(i); };
-window.forceUploadAllPending = function() { _forceUploadAllPendingImpl && _forceUploadAllPendingImpl(); };
-window.clearAllPending       = function() { _clearAllPendingImpl && _clearAllPendingImpl(); };
 window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
 window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.classList.remove('show'); };
-window.manualSyncNow = function() { _manualSyncNowImpl && _manualSyncNowImpl(); };
 
 
 /* ══════════════════════════════════════════════════════
@@ -20360,7 +20354,7 @@ function clearAllPending() {
   }
 }
 
-// ربط الـ implementations بالـ forward declarations
+// تسجيل كل الدوال الحيوية في window
 window.showPendingQueue      = showPendingQueue;
 window.refreshPendingQueueUI = refreshPendingQueueUI;
 window.removePendingItem     = removePendingItem;
@@ -20370,12 +20364,5 @@ window.clearAllPending       = clearAllPending;
 window.manualSyncNow         = manualSyncNow;
 window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
 window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.classList.remove('show'); };
-// aliases للـ forward declarations
-window._showPendingQueueImpl      = showPendingQueue;
-window._removePendingItemImpl     = removePendingItem;
-window._retryPendingItemImpl      = retryPendingItem;
-window._forceUploadAllPendingImpl = forceUploadAllPending;
-window._clearAllPendingImpl       = clearAllPending;
-window._manualSyncNowImpl         = manualSyncNow;
 console.log('✅ SmartStruct: كل الدوال الحيوية مُسجَّلة في window');
 
