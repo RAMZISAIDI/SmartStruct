@@ -1828,361 +1828,1194 @@ Pages.about = function() {
 Pages.landing = function() {
   const user = Auth.getUser();
   const isAr = I18N.currentLang === 'ar';
-  const L2 = (ar,fr) => isAr ? ar : fr;
 
-  setTimeout(() => {
-    initLandingEffects();
-    // عداد dashboard
-    function countUp(el, to, suffix, dur) {
-      if(!el) return; dur = dur||1600;
-      const start=performance.now();
-      function tick(now){ const p=Math.min((now-start)/dur,1),ease=1-Math.pow(1-p,4);el.textContent=Math.round(to*ease)+(suffix||'');if(p<1)requestAnimationFrame(tick);}
-      requestAnimationFrame(tick);
-    }
-    setTimeout(()=>{
-      countUp(document.getElementById('ldC1'),12);
-      countUp(document.getElementById('ldC2'),47);
-      countUp(document.getElementById('ldC3'),23);
-      const c4=document.getElementById('ldC4');
-      if(c4){let v=0;const iv=setInterval(()=>{v=Math.min(v+3,95);c4.textContent=v+'%';if(v>=95)clearInterval(iv);},30);}
-    },400);
-  }, 80);
+  return `<div class="landing-page" id="landingRoot">
+    <!-- ═══ ATMOSPHERE LAYERS ═══ -->
+    <div class="ll-atmosphere"></div>
+    <div class="ll-particles" id="llParticles"></div>
 
-  const plans = [
-    { id:1, slug:'starter',    price:2900,  name:L2('Starter','Starter'),    color:'var(--muted)',  icon:'⭐', features:[L2('5 مشاريع','5 projets'),L2('10 عمال','10 ouvriers'),L2('الوثائق الأساسية','Docs de base'),L2('دعم بريد إلكتروني','Support email')] },
-    { id:2, slug:'pro',        price:7900,  name:L2('Pro','Pro'),            color:'var(--gold)',   icon:'🚀', features:[L2('مشاريع غير محدودة','Projets illimités'),L2('عمال غير محدودون','Ouvriers illimités'),L2('23 وثيقة رسمية','23 documents'),L2('SmartAI مدمج','SmartAI'),L2('Google Drive','Google Drive'),L2('دعم أولوية','Support prioritaire')], featured:true },
-    { id:3, slug:'enterprise', price:19900, name:L2('Enterprise','Enterprise'),color:'#9B6DFF',     icon:'💎', features:[L2('كل مزايا Pro','Tout Pro'),L2('مستخدمون غير محدودون','Utilisateurs illimités'),'Multi-tenant','API & Webhooks','SLA 99.9%',L2('مدير حساب','Account Manager')] },
-  ];
+    <!-- ═══ NAVBAR ═══ -->
+    <nav class="ll-nav" id="llNav">
+      <a class="ll-nav-logo" data-nav="landing" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'})">
+        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+        <div class="ll-nav-logo-text">
+          <div class="ll-nav-logo-name">SmartStruct</div>
+          <div class="ll-nav-logo-sub">v7.3 PRO</div>
+        </div>
+      </a>
 
-  const feats = [
-    {i:'📄',c:'rgba(232,184,75,.12)',t:L2('23 وثيقة رسمية','23 Documents officiels'),d:L2('فواتير، عقود، كشوف رواتب — كل وثائق BTP بضغطة','Factures, contrats, bulletins — tous les docs BTP')},
-    {i:'💵',c:'rgba(52,195,143,.12)',t:L2('رواتب IRG 2026','Salaires IRG 2026'),d:L2('CNAS 9٪، شرائح IRG، منح عائلية، Abattement 40٪','CNAS 9%, tranches IRG, allocations, abattement 40%')},
-    {i:'🤖',c:'rgba(155,109,255,.12)',t:L2('SmartAI مدمج','SmartAI intégré'),d:L2('مساعد ذكاء اصطناعي يفهم السياق الجزائري','IA comprenant le contexte algérien')},
-    {i:'📊',c:'rgba(74,144,226,.12)',t:L2('Gantt Chart تفاعلي','Gantt Chart interactif'),d:L2('جدول زمني بصري مع تنبيهات التأخير','Planning visuel avec alertes de retard')},
-    {i:'☁️',c:'rgba(52,195,143,.12)',t:L2('Google Drive تلقائي','Google Drive auto'),d:L2('حفظ وثائقك تلقائياً في Drive الشخصي','Sauvegarde automatique dans votre Drive')},
-    {i:'📱',c:'rgba(232,184,75,.12)',t:L2('وضع الميدان GPS','Mode Terrain GPS'),d:L2('5 أزرار كبيرة للعامل في الورشة بالموقع الجغرافي','5 boutons pour l\'ouvrier sur chantier avec GPS')},
-  ];
+      <div class="ll-nav-links">
+        <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
+        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
+        <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
+      </div>
 
-  return `<div id="landingRoot" style="background:#07100A;color:#F0EDE4;direction:${isAr?'rtl':'ltr'};overflow-x:hidden">
+      <div class="ll-nav-cta">
+        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
+          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+        </button>
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
+             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
+        }
+        <!-- Hamburger للموبايل -->
+        <button class="ll-hamburger" id="llHamburger" aria-label="${L('القائمة','Menu')}" onclick="(function(){const m=document.getElementById('llMobileMenu');m.style.display=m.style.display==='flex'?'none':'flex';})()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
 
-  <!-- Aurora + Grid Background -->
-  <div style="position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden">
-    <div style="position:absolute;width:600px;height:600px;left:-100px;top:-100px;background:radial-gradient(circle,rgba(232,184,75,.07),transparent 70%);border-radius:50%;animation:llPulse 12s ease-in-out infinite alternate"></div>
-    <div style="position:absolute;width:500px;height:500px;right:-100px;top:30%;background:radial-gradient(circle,rgba(52,195,143,.05),transparent 70%);border-radius:50%;animation:llPulse 15s 3s ease-in-out infinite alternate"></div>
-    <div style="position:absolute;width:400px;height:400px;left:30%;bottom:-50px;background:radial-gradient(circle,rgba(155,109,255,.04),transparent 70%);border-radius:50%;animation:llPulse 10s 6s ease-in-out infinite alternate"></div>
-    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(232,184,75,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(232,184,75,.04) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse 80% 80% at 50% 40%,#000 20%,transparent 80%)"></div>
-  </div>
-
-  <!-- ═══ NAVBAR ═══ -->
-  <nav id="llNav" style="position:fixed;top:0;width:100%;z-index:1000;display:flex;align-items:center;justify-content:space-between;padding:.9rem 2.5rem;backdrop-filter:blur(20px);background:rgba(7,16,10,0.75);border-bottom:1px solid rgba(232,184,75,.08);transition:all .3s">
-    <div style="display:flex;align-items:center;gap:.6rem;font-weight:900;font-size:1.1rem;color:#E8B84B">
-      ${ssLogo(28)} SmartStruct
-      <span style="font-size:.6rem;background:rgba(232,184,75,.15);border:1px solid rgba(232,184,75,.3);color:#E8B84B;padding:2px 7px;border-radius:99px;font-weight:700">v7.4 PRO</span>
-    </div>
-    <div class="ll-nav-links" style="display:flex;gap:2rem">
-      ${['#ll-features:'+L2('المزايا','Fonctionnalités'),'#ll-pricing:'+L2('الأسعار','Tarifs')].map(s=>{const[h,t]=s.split(':');return `<a href="${h}" style="color:rgba(240,237,228,.6);text-decoration:none;font-size:.85rem;transition:color .2s" onmouseover="this.style.color='#F0EDE4'" onmouseout="this.style.color='rgba(240,237,228,.6)'">${t}</a>`}).join('')}
-    </div>
-    <div style="display:flex;align-items:center;gap:.6rem">
-      <button onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#F0EDE4;padding:.35rem .7rem;border-radius:7px;cursor:pointer;font-size:.75rem">${isAr?'🇫🇷 FR':'🇩🇿 AR'}</button>
-      ${user
-        ? `<button data-nav="${user.is_admin?'admin':'dashboard'}" style="background:#E8B84B;color:#0D1A0F;border:none;padding:.5rem 1.1rem;border-radius:8px;font-weight:800;cursor:pointer;font-size:.82rem">→ ${L2('لوحة التحكم','Tableau de bord')}</button>`
-        : `<button onclick="showLoginPanel()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#F0EDE4;padding:.5rem 1rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.82rem">${L2('دخول','Connexion')}</button>
-           <button onclick="showRegisterPanel()" style="background:#E8B84B;color:#0D1A0F;border:none;padding:.5rem 1.1rem;border-radius:8px;font-weight:800;cursor:pointer;font-size:.82rem">🚀 ${L2('جرّب مجاناً','Essai gratuit')}</button>`
-      }
-      <button id="llHamburger" onclick="(function(){const m=document.getElementById('llMobMenu');m.style.display=m.style.display==='flex'?'none':'flex'})()" style="display:none;background:none;border:none;color:#F0EDE4;font-size:1.5rem;cursor:pointer;line-height:1">☰</button>
-    </div>
-  </nav>
-
-  <!-- Mobile Menu -->
-  <div id="llMobMenu" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(7,16,10,.97);flex-direction:column;align-items:center;justify-content:center;gap:1.5rem">
-    <button onclick="document.getElementById('llMobMenu').style.display='none'" style="position:absolute;top:1.5rem;${isAr?'left':'right'}:1.5rem;background:none;border:none;color:#F0EDE4;font-size:1.8rem;cursor:pointer">✕</button>
-    ${['#ll-features:'+L2('المزايا','Fonctionnalités'),'#ll-pricing:'+L2('الأسعار','Tarifs')].map(s=>{const[h,t]=s.split(':');return `<a href="${h}" onclick="document.getElementById('llMobMenu').style.display='none'" style="color:#F0EDE4;text-decoration:none;font-size:1.5rem;font-weight:700">${t}</a>`}).join('')}
-    ${user
-      ? `<button data-nav="${user.is_admin?'admin':'dashboard'}" onclick="document.getElementById('llMobMenu').style.display='none'" style="background:#E8B84B;color:#0D1A0F;border:none;padding:.7rem 2rem;border-radius:10px;font-weight:800;cursor:pointer;font-size:.95rem;margin-top:.5rem">→ ${L2('لوحة التحكم','Tableau de bord')}</button>`
-      : `<button onclick="document.getElementById('llMobMenu').style.display='none';showRegisterPanel()" style="background:#E8B84B;color:#0D1A0F;border:none;padding:.7rem 2rem;border-radius:10px;font-weight:800;cursor:pointer;font-size:.95rem;margin-top:.5rem">🚀 ${L2('جرّب مجاناً','Essai gratuit')}</button>`
-    }
-  </div>
-
-  <!-- ═══ HERO ═══ -->
-  <section style="position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:7rem 1.5rem 4rem">
-
-    <div style="display:inline-flex;align-items:center;gap:.5rem;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.25);border-radius:99px;padding:.35rem .9rem;font-size:.75rem;color:#E8B84B;margin-bottom:1.5rem;animation:llFadeUp .8s ease both">
-      🇩🇿 ${L2('منصة BTP الجزائرية الأولى','1ère Plateforme BTP Algérienne')}
+    <!-- Mobile Menu -->
+    <div id="llMobileMenu" style="display:none;position:fixed;inset:0;background:var(--bg,#09120A);z-index:9998;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem">
+      <button style="position:absolute;top:1.2rem;${isAr?'left':'right'}:1.2rem;background:none;border:none;color:var(--text,#fff);font-size:1.6rem;cursor:pointer" onclick="document.getElementById('llMobileMenu').style.display='none'">✕</button>
+      <a class="ll-nav-link" href="#ll-features" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('المزايا','Fonctionnalités')}</a>
+      <a class="ll-nav-link" href="#ll-showcase" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('عرض الواجهة','Aperçu')}</a>
+      <a class="ll-nav-link" href="#ll-pricing" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الأسعار','Tarifs')}</a>
+      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('about')" style="font-size:1.4rem;cursor:pointer">${L('من نحن','À propos')}</a>
+      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('contact')" style="font-size:1.4rem;cursor:pointer">${L('تواصل معنا','Contact')}</a>
+      <div style="display:flex;flex-direction:column;gap:.7rem;width:200px;margin-top:1rem">
+        ${user
+          ? `<button class="ll-btn ll-btn-gold" data-nav="${user.is_admin?'admin':'dashboard'}" onclick="document.getElementById('llMobileMenu').style.display='none'" style="justify-content:center">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          : `<button class="ll-btn ll-btn-gold" onclick="document.getElementById('llMobileMenu').style.display='none';showRegisterPanel()" style="justify-content:center">${L('جرّب مجاناً','Essai gratuit')}</button>
+             <button class="ll-btn ll-btn-ghost" onclick="document.getElementById('llMobileMenu').style.display='none';showLoginPanel()" style="justify-content:center">${L('دخول','Connexion')}</button>`
+        }
+      </div>
     </div>
 
-    <h1 style="font-size:clamp(2.4rem,6vw,4.5rem);font-weight:900;line-height:1.05;margin-bottom:1.2rem;animation:llFadeUp .8s .1s ease both">
-      ${isAr
-        ? `إدارة مشاريعك البنائية<br><span style="color:#E8B84B">بذكاء حقيقي</span>`
-        : `Gérez vos projets BTP<br><span style="color:#E8B84B">intelligemment</span>`
-      }
-    </h1>
+    <!-- ═══ HERO ═══ -->
+    <section class="ll-hero">
+      <!-- خلفية مقاولاتية هندسية -->
+      <svg class="ll-hero-bg" viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.03"/>
+            <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0.01"/>
+          </linearGradient>
+          <!-- شبكة هندسية خفيفة -->
+          <pattern id="gridPat" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.07)" stroke-width="0.8"/>
+          </pattern>
+          <!-- خطوط قُطرية -->
+          <pattern id="diagPat" width="120" height="120" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="120" x2="120" y2="0" stroke="rgba(232,184,75,0.04)" stroke-width="1"/>
+          </pattern>
+        </defs>
 
-    <p style="font-size:1.05rem;color:rgba(240,237,228,.6);max-width:580px;line-height:1.75;margin-bottom:2.5rem;animation:llFadeUp .8s .2s ease both">
-      ${L2(
-        'منصة متكاملة للمقاولين الجزائريين — رواتب IRG 2026، 23 وثيقة رسمية، تتبع الحضور بـ GPS، معدات وصيانة، SmartAI، كل شيء.',
-        'Plateforme complète pour les entrepreneurs algériens — salaires IRG 2026, 23 documents officiels, pointage GPS, équipements, SmartAI, tout-en-un.'
-      )}
-    </p>
+        <!-- طبقة شبكة -->
+        <rect width="1440" height="900" fill="url(#gridPat)"/>
+        <rect width="1440" height="900" fill="url(#diagPat)"/>
 
-    <div style="display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center;animation:llFadeUp .8s .3s ease both;margin-bottom:4rem">
-      ${user
-        ? `<button data-nav="${user.is_admin?'admin':'dashboard'}" style="background:#E8B84B;color:#0D1A0F;border:none;padding:.8rem 2rem;border-radius:11px;font-size:1rem;font-weight:800;cursor:pointer">→ ${L2('لوحة التحكم','Tableau de bord')}</button>`
-        : `<button onclick="showRegisterPanel()" style="background:#E8B84B;color:#0D1A0F;border:none;padding:.8rem 2rem;border-radius:11px;font-size:1rem;font-weight:800;cursor:pointer">🚀 ${L2('جرّب مجاناً 14 يوم','Essai gratuit 14 jours')}</button>
-           <button onclick="document.getElementById('ll-features')?.scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,.07);color:#F0EDE4;border:1px solid rgba(255,255,255,.15);padding:.8rem 2rem;border-radius:11px;font-size:1rem;font-weight:700;cursor:pointer">${L2('اكتشف المزايا ↓','Découvrir ↓')}</button>`
-      }
-    </div>
+        <!-- رافعة بناء — يمين (إحداثيات مصحّحة داخل viewBox 1440x900) -->
+        <g opacity="0.13" stroke="#e8b84b" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <!-- عمود الرافعة الرأسي: x=1280, من y=30 إلى y=820 -->
+          <line x1="1280" y1="30" x2="1280" y2="820"/>
+          <!-- ذراع أفقي رئيسي: يمتد يساراً من العمود -->
+          <line x1="1280" y1="80" x2="1060" y2="80"/>
+          <!-- ذراع ثقل الموازنة: يمتد يميناً -->
+          <line x1="1280" y1="80" x2="1380" y2="80"/>
+          <!-- حبل التعليق من طرف الذراع -->
+          <line x1="1065" y1="80" x2="1065" y2="260"/>
+          <!-- خطوط دعم مائلة -->
+          <line x1="1280" y1="120" x2="1090" y2="80"/>
+          <line x1="1280" y1="160" x2="1090" y2="80"/>
+          <!-- شبكة العمود (مزيكا) -->
+          <line x1="1270" y1="100" x2="1290" y2="100"/>
+          <line x1="1270" y1="140" x2="1290" y2="140"/>
+          <line x1="1270" y1="180" x2="1290" y2="180"/>
+          <line x1="1270" y1="220" x2="1290" y2="220"/>
+          <line x1="1270" y1="260" x2="1290" y2="260"/>
+          <line x1="1270" y1="300" x2="1290" y2="300"/>
+          <line x1="1270" y1="340" x2="1290" y2="340"/>
+          <line x1="1270" y1="380" x2="1290" y2="380"/>
+          <line x1="1270" y1="420" x2="1290" y2="420"/>
+          <line x1="1270" y1="460" x2="1290" y2="460"/>
+          <line x1="1270" y1="500" x2="1290" y2="500"/>
+          <line x1="1270" y1="540" x2="1290" y2="540"/>
+          <line x1="1270" y1="580" x2="1290" y2="580"/>
+          <line x1="1270" y1="620" x2="1290" y2="620"/>
+          <line x1="1270" y1="660" x2="1290" y2="660"/>
+          <line x1="1270" y1="700" x2="1290" y2="700"/>
+          <line x1="1270" y1="740" x2="1290" y2="740"/>
+          <line x1="1270" y1="780" x2="1290" y2="780"/>
+          <!-- قاعدة الرافعة -->
+          <line x1="1240" y1="820" x2="1320" y2="820"/>
+          <line x1="1250" y1="800" x2="1310" y2="800"/>
+          <!-- علبة الرفع (hook box) -->
+          <rect x="1048" y="255" width="34" height="26" rx="3" fill="rgba(232,184,75,0.08)"/>
+          <!-- خطاف الرافعة -->
+          <path d="M1065 281 Q1075 295 1065 305 Q1055 315 1060 325" stroke-width="2"/>
+          <!-- ثقل الموازنة يمين -->
+          <rect x="1330" y="70" width="50" height="20" rx="3" fill="rgba(232,184,75,0.08)"/>
+        </g>
 
-    <!-- Dashboard 3D Preview -->
-    <div style="animation:llFadeUp 1s .5s ease both;perspective:1400px;width:min(760px,94vw)">
-      <div style="position:relative">
-        <div style="position:absolute;inset:-60px;background:radial-gradient(ellipse 70% 50% at 50% 100%,rgba(232,184,75,.1),transparent);pointer-events:none"></div>
-        <div id="ldDash3D" style="background:rgba(13,26,15,0.95);border:1px solid rgba(232,184,75,.18);border-radius:18px;padding:1.4rem;transform:rotateX(10deg) rotateY(-4deg);transform-style:preserve-3d;box-shadow:0 50px 100px rgba(0,0,0,.7),0 0 0 1px rgba(232,184,75,.06),inset 0 1px 0 rgba(255,255,255,.04);transition:transform .6s cubic-bezier(.23,1,.32,1);animation:ldSceneFloat 7s ease-in-out infinite">
-          <!-- topbar -->
-          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;padding-bottom:.8rem;border-bottom:1px solid rgba(232,184,75,.08)">
-            <div style="width:10px;height:10px;border-radius:50%;background:#F04E6A"></div>
-            <div style="width:10px;height:10px;border-radius:50%;background:#E8B84B"></div>
-            <div style="width:10px;height:10px;border-radius:50%;background:#34C38F"></div>
-            <span style="margin-${isAr?'right':'left'}:auto;font-size:.7rem;color:rgba(240,237,228,.35)">SmartStruct — ${L2('لوحة التحكم','Tableau de bord')}</span>
-            <span style="font-size:.68rem;color:#34C38F;background:rgba(52,195,143,.1);padding:2px 8px;border-radius:99px">● ${L2('متزامن','Synchronisé')}</span>
+        <!-- مخطط هندسي — يسار أسفل -->
+        <g opacity="0.07" stroke="#e8b84b" stroke-width="1.5" fill="none" stroke-linecap="round" transform="translate(40, 480)">
+          <!-- مستطيل مبنى -->
+          <rect x="20" y="20" width="200" height="160" rx="2"/>
+          <!-- طوابق -->
+          <line x1="20" y1="73" x2="220" y2="73"/>
+          <line x1="20" y1="126" x2="220" y2="126"/>
+          <!-- نوافذ طابق 1 -->
+          <rect x="45" y="35" width="30" height="25" rx="1"/>
+          <rect x="95" y="35" width="30" height="25" rx="1"/>
+          <rect x="145" y="35" width="30" height="25" rx="1"/>
+          <!-- نوافذ طابق 2 -->
+          <rect x="45" y="88" width="30" height="25" rx="1"/>
+          <rect x="95" y="88" width="30" height="25" rx="1"/>
+          <rect x="145" y="88" width="30" height="25" rx="1"/>
+          <!-- باب -->
+          <rect x="90" y="135" width="40" height="45" rx="2"/>
+          <!-- خطوط قياس -->
+          <line x1="-15" y1="20" x2="-15" y2="180"/>
+          <line x1="-20" y1="20" x2="-10" y2="20"/>
+          <line x1="-20" y1="180" x2="-10" y2="180"/>
+          <line x1="20" y1="195" x2="220" y2="195"/>
+          <line x1="20" y1="190" x2="20" y2="200"/>
+          <line x1="220" y1="190" x2="220" y2="200"/>
+        </g>
+
+        <!-- نقاط زاوية هندسية — يسار أعلى -->
+        <g opacity="0.1" stroke="#e8b84b" stroke-width="1.5" fill="rgba(232,184,75,0.15)" transform="translate(60, 60)">
+          <circle cx="0" cy="0" r="4"/>
+          <circle cx="80" cy="0" r="4"/>
+          <circle cx="0" cy="80" r="4"/>
+          <line x1="0" y1="0" x2="80" y2="0"/>
+          <line x1="0" y1="0" x2="0" y2="80"/>
+          <line x1="4" y1="4" x2="30" y2="30"/>
+        </g>
+
+        <!-- خطوط ضوء في المنتصف -->
+        <ellipse cx="720" cy="420" rx="520" ry="300" fill="radial" opacity="0"/>
+        <radialGradient id="glowCenter" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.04"/>
+          <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0"/>
+        </radialGradient>
+        <ellipse cx="720" cy="430" rx="600" ry="350" fill="url(#glowCenter)"/>
+      </svg>
+      <div class="ll-hero-badge">
+        <span class="ll-hero-badge-dot"></span>
+        ${L('تجربة مجانية 14 يوماً — بدون بطاقة بنكية','Essai gratuit 14 jours — sans carte bancaire')}
+      </div>
+
+      <h1 class="ll-hero-title">
+        ${L('إدارة مشاريع المقاولة','Gestion de projets')}<br>
+        <span class="ll-word-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
+      </h1>
+
+      <p class="ll-hero-sub">
+        ${L(
+          'منصة متكاملة لشركات المقاولة الجزائرية — من إدارة المشاريع والعمال إلى الفوترة والتوقعات المالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري (NIF/NIS/RC + TVA 19٪).',
+          'Plateforme complète pour les entreprises de BTP en Algérie — projets, ouvriers, facturation, prévisions financières, le tout propulsé par l\'IA et conforme à la loi algérienne (NIF/NIS/RC + TVA 19%).'
+        )}
+      </p>
+
+      <div class="ll-hero-actions">
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
+               ${L('الذهاب للوحة التحكم','Tableau de bord')}
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+             </button>`
+          : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
+               ${L('ابدأ التجربة الآن','Commencer l\'essai')}
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+             </button>`
+        }
+        <a class="ll-btn ll-btn-ghost ll-btn-lg" href="#ll-showcase">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          ${L('شاهد العرض','Voir la démo')}
+        </a>
+      </div>
+
+      <div class="ll-hero-trust">
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ${L('27 جدول قاعدة بيانات','27 tables de BDD')}
+        </div>
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ${L('تشفير PBKDF2','Chiffrement PBKDF2')}
+        </div>
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Row-Level Security
+        </div>
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ${L('دعم عربي كامل','Support arabe complet')}
+        </div>
+      </div>
+
+      <!-- ═══ 3D HERO SCENE ═══ -->
+      <div class="ll-scene">
+        <div class="ll-scene-glow"></div>
+        <div class="ll-scene-stage" id="llSceneStage">
+
+          <!-- Floating: Projects (top-right in LTR / top-left in RTL via auto reposition) -->
+          <div class="ll-float-card ll-fc-stat ll-fc-projects">
+            <div class="ll-fc-mini-icon ll-icon-projects">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">${L('المشاريع النشطة','Projets actifs')}</div>
+            <div class="ll-fc-mini-val">12</div>
+            <div class="ll-fc-mini-trend ll-trend-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              ${L('+3 هذا الشهر','+3 ce mois')}
+            </div>
           </div>
-          <!-- stats row -->
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:.8rem">
-            ${[['ldC1','#E8B84B',L2('مشروع','Projet')],['ldC2','#34C38F',L2('عامل','Ouvrier')],['ldC3','#9B6DFF',L2('وثيقة','Document')],['ldC4','#4A90E2',L2('حضور','Présence')]].map(([id,c,l])=>`
-            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:.65rem;text-align:center">
-              <div id="${id}" style="font-size:1.3rem;font-weight:800;color:${c}">0</div>
-              <div style="font-size:.62rem;color:rgba(240,237,228,.4);margin-top:2px">${l}</div>
-            </div>`).join('')}
+
+          <!-- Floating: Workers -->
+          <div class="ll-float-card ll-fc-stat ll-fc-workers">
+            <div class="ll-fc-mini-icon ll-icon-workers">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">${L('العمال الحاضرون','Ouvriers présents')}</div>
+            <div class="ll-fc-mini-val">87 / 92</div>
+            <div class="ll-fc-mini-trend ll-trend-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              ${L('نسبة 94٪','Taux 94%')}
+            </div>
           </div>
-          <!-- chart + list -->
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:.6rem">
-            <div id="ldChartArea" style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:.8rem;height:90px;display:flex;align-items:flex-end;gap:4px"></div>
-            <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:.7rem">
-              <div style="font-size:.63rem;color:rgba(240,237,228,.4);margin-bottom:.4rem;font-weight:700">${L2('المشاريع','Projets')}</div>
-              ${[['#34C38F',L2('وهران R+5','Oran R+5'),'87%'],['#E8B84B',L2('تيزي وزو','Tizi Ouzou'),'42%'],['#4A90E2',L2('الجزائر','Alger'),'15%']].map(([c,n,p])=>`
-              <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem;font-size:.65rem">
-                <div style="width:5px;height:5px;border-radius:50%;background:${c};flex-shrink:0"></div>
-                <div style="flex:1;color:rgba(240,237,228,.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n}</div>
-                <div style="color:rgba(240,237,228,.4);font-family:monospace">${p}</div>
-              </div>`).join('')}
+
+          <!-- Floating: Revenue -->
+          <div class="ll-float-card ll-fc-stat ll-fc-revenue">
+            <div class="ll-fc-mini-icon ll-icon-revenue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">${L('إيرادات الشهر','Revenus du mois')}</div>
+            <div class="ll-fc-mini-val">4.2M <span style="font-size:.7rem;color:var(--muted)">${L('دج','DA')}</span></div>
+            <div class="ll-fc-mini-trend ll-trend-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              +18.4٪
+            </div>
+          </div>
+
+          <!-- Floating: AI -->
+          <div class="ll-float-card ll-fc-stat ll-fc-ai">
+            <div class="ll-fc-mini-icon ll-icon-ai">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">SmartAI</div>
+            <div class="ll-ai-typing">
+              <span class="ll-typing-dot"></span><span class="ll-typing-dot"></span><span class="ll-typing-dot"></span>
+              <span class="ll-ai-text">${L('يحلل بياناتك...','analyse en cours...')}</span>
+            </div>
+          </div>
+
+          <!-- Main dashboard card -->
+          <div class="ll-float-card ll-fc-main">
+            <div class="ll-fc-header">
+              <div class="ll-fc-title">
+                <div class="ll-fc-title-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
+                </div>
+                ${L('لوحة التحكم','Tableau de bord')}
+              </div>
+              <div class="ll-fc-dots">
+                <span class="ll-fc-dot ll-active"></span><span class="ll-fc-dot"></span><span class="ll-fc-dot"></span>
+              </div>
+            </div>
+            <div class="ll-fc-stats">
+              <div class="ll-fc-stat-box">
+                <div class="ll-fc-stat-label">${L('إجمالي المشاريع','Total projets')}</div>
+                <div class="ll-fc-stat-val ll-gold">24</div>
+              </div>
+              <div class="ll-fc-stat-box">
+                <div class="ll-fc-stat-label">${L('معدل الإنجاز','Avancement')}</div>
+                <div class="ll-fc-stat-val ll-green">76%</div>
+              </div>
+              <div class="ll-fc-stat-box">
+                <div class="ll-fc-stat-label">${L('صافي الربح','Bénéfice net')}</div>
+                <div class="ll-fc-stat-val">1.8M</div>
+              </div>
+            </div>
+            <div class="ll-fc-chart">
+              <svg viewBox="0 0 500 120" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="llGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#E8B84B" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#E8B84B" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line class="ll-chart-grid" x1="0" y1="30" x2="500" y2="30"/>
+                <line class="ll-chart-grid" x1="0" y1="60" x2="500" y2="60"/>
+                <line class="ll-chart-grid" x1="0" y1="90" x2="500" y2="90"/>
+                <path class="ll-chart-area" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15 L500,120 L0,120 Z"/>
+                <path class="ll-chart-line" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="ll-scene-platform"></div>
+        </div>
+      </div>
+
+      <!-- ═══ STATS BAR ═══ -->
+      <div class="ll-stats-bar ll-reveal">
+        <div class="ll-stat-item">
+          <div class="ll-stat-number" data-count="27" data-suffix="+" class="ll-stat-num">0</div>
+          <div class="ll-stat-label">${L('جدول قاعدة بيانات','Tables de BDD')}</div>
+        </div>
+        <div class="ll-stat-item">
+          <div class="ll-stat-number" data-count="19" class="ll-stat-num">0</div>
+          <div class="ll-stat-label">${L('ميزة احترافية','Fonctionnalités pro')}</div>
+        </div>
+        <div class="ll-stat-item">
+          <div class="ll-stat-number"><span data-count="14" class="ll-stat-num">0</span> ${L('يوم','jours')}</div>
+          <div class="ll-stat-label">${L('تجربة مجانية','Essai gratuit')}</div>
+        </div>
+        <div class="ll-stat-item">
+          <div class="ll-stat-number">100<span style="font-size:1.5rem">٪</span></div>
+          <div class="ll-stat-label">${L('متوافق مع القانون الجزائري','Conforme loi algérienne')}</div>
+        </div>
+      </div>
+
+      <!-- شريط التقنيات المتحرك -->
+      <div class="ll-tech-strip" id="llTechStrip" style="margin-top:2.5rem;padding:.8rem 0;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden">
+      </div>
+    </section>
+
+    <!-- ═══ FEATURES ═══ -->
+    <section class="ll-section" id="ll-features">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('19 ميزة احترافية','19 fonctionnalités pro')}</span>
+        <h2 class="ll-section-title">${L('كل ما تحتاجه شركتك','Tout ce dont votre entreprise a besoin')}<br><span class="ll-gold">${L('في منصة واحدة','dans une seule plateforme')}</span></h2>
+        <p class="ll-section-desc">${L(
+          'من تشفير البيانات إلى توقعات السيولة، من توليد PDF إلى تتبع GPS — أدوات حقيقية لمشاكل حقيقية في قطاع البناء.',
+          'Du chiffrement aux prévisions de trésorerie, du PDF au GPS — des outils réels pour des problèmes réels du BTP.'
+        )}</p>
+      </div>
+
+      <div class="ll-features-grid">
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('أمان','Sécurité')}</span>
+          <div class="ll-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('تشفير عسكري','Chiffrement militaire')}</h3>
+          <p class="ll-feature-desc">${L('PBKDF2 + SHA-256 + 100,000 تكرار · Row-Level Security · سجل تدقيق كامل لكل تعديل.','PBKDF2 + SHA-256 + 100k itérations · RLS · audit log complet.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('جديد','Nouveau')}</span>
+          <div class="ll-feature-icon ll-purple">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('SmartAI — مساعد ذكي','SmartAI — assistant IA')}</h3>
+          <p class="ll-feature-desc">${L('يحلّل مشاريعك ويكتب تقارير شهرية بالعربية مع توصيات قابلة للتنفيذ. مدعوم بـ Groq.','Analyse vos projets et rédige des rapports mensuels avec recommandations. Propulsé par Groq.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">PDF</span>
+          <div class="ll-feature-icon ll-red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('فواتير وعقود رسمية','Factures & contrats officiels')}</h3>
+          <p class="ll-feature-desc">${L('PDF احترافي مع NIF/NIS/RC، TVA 19٪، عقود عمل حسب القانون الجزائري، وتوقيع إلكتروني.','PDF pro avec NIF/NIS/RC, TVA 19%, contrats conformes & signature électronique.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('مالي','Finance')}</span>
+          <div class="ll-feature-icon ll-green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</h3>
+          <p class="ll-feature-desc">${L('منحنى رصيد متوقع للأشهر الثلاثة القادمة + تنبيهات استباقية + استيراد كشوف CCP/BNA/BEA.','Courbe de solde projetée + alertes proactives + import des relevés CCP/BNA/BEA.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('ميدان','Terrain')}</span>
+          <div class="ll-feature-icon ll-blue">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('تتبع GPS للمعدات','Suivi GPS du matériel')}</h3>
+          <p class="ll-feature-desc">${L('QR لكل معدة → مسح بالهاتف → تسجيل الموقع تلقائياً. وضع ميدان مبسط بـ 5 أزرار كبيرة.','QR par engin → scan → géolocalisation auto. Mode chantier à 5 gros boutons.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('إنتاجية','Productivité')}</span>
+          <div class="ll-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('بحث فوري شامل','Recherche globale instantanée')}</h3>
+          <p class="ll-feature-desc">${L('Ctrl+K → ابحث في كل البيانات: مشاريع، عمال، فواتير، ملاحظات. تصدير Excel بنقرة واحدة.','Ctrl+K → cherchez partout : projets, ouvriers, factures. Export Excel en un clic.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('عمال','RH')}</span>
+          <div class="ll-feature-icon ll-green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('إدارة العمال والرواتب','Gestion RH & paie')}</h3>
+          <p class="ll-feature-desc">${L('تسجيل الحضور والغياب، كشوف الرواتب التلقائية، تتبع الإضافي والسلف — كل شيء في مكان واحد.','Pointage, fiches de paie automatiques, heures sup & avances — tout centralisé.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('مخزون','Stock')}</span>
+          <div class="ll-feature-icon ll-red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('مراقبة المواد والمخزون','Suivi matériaux & stock')}</h3>
+          <p class="ll-feature-desc">${L('تتبع دخول وخروج المواد لكل مشروع، تنبيهات نقص المخزون، وربط مباشر مع المصاريف.','Entrées/sorties par chantier, alertes rupture de stock, liaison directe aux dépenses.')}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SHOWCASE ═══ -->
+    <section class="ll-section" id="ll-showcase">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('واجهة عربية احترافية','Interface arabe professionnelle')}</span>
+        <h2 class="ll-section-title">${L('صُممت','Conçue')}<span class="ll-gold"> ${L('للسرعة والوضوح','pour vitesse & clarté')}</span></h2>
+        <p class="ll-section-desc">${L('واجهة RTL كاملة، 3 ثيمات (داكن، فاتح، ذهبي)، أيقونات واضحة، وتجربة سلسة على الهاتف والحاسوب.','RTL complet, 3 thèmes, icônes claires, expérience fluide sur mobile et desktop.')}</p>
+      </div>
+
+      <div class="ll-showcase ll-reveal">
+        <div class="ll-showcase-stage" id="llShowcaseStage">
+          <div class="ll-showcase-screen">
+            <div class="ll-showcase-toolbar">
+              <span class="ll-tb-dot ll-r"></span><span class="ll-tb-dot ll-y"></span><span class="ll-tb-dot ll-g"></span>
+              <span class="ll-tb-url">smartstruct.dz/dashboard</span>
+            </div>
+            <div class="ll-showcase-body">
+              <div class="ll-sc-sidebar">
+                <div class="ll-sc-nav ll-active">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                  <span>${L('لوحة التحكم','Tableau')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  <span>${L('المشاريع','Projets')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                  <span>${L('العمال','Ouvriers')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <span>${L('الفواتير','Factures')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                  <span>${L('التقارير','Rapports')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
+                  <span>SmartAI</span>
+                </div>
+              </div>
+              <div class="ll-sc-content">
+                <div class="ll-sc-stats">
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('المشاريع','Projets')}</div><div class="ll-sc-stat-val">24</div></div>
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('العمال','Ouvriers')}</div><div class="ll-sc-stat-val">92</div></div>
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الإيرادات','Revenus')}</div><div class="ll-sc-stat-val">4.2M</div></div>
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الربح','Bénéfice')}</div><div class="ll-sc-stat-val">1.8M</div></div>
+                </div>
+                <div class="ll-sc-graph">
+                  <svg viewBox="0 0 400 140" preserveAspectRatio="none">
+                    <rect x="20" y="80" width="20" height="50" rx="3" fill="rgba(232,184,75,0.3)"/>
+                    <rect x="55" y="60" width="20" height="70" rx="3" fill="rgba(232,184,75,0.5)"/>
+                    <rect x="90" y="70" width="20" height="60" rx="3" fill="rgba(232,184,75,0.4)"/>
+                    <rect x="125" y="40" width="20" height="90" rx="3" fill="rgba(232,184,75,0.6)"/>
+                    <rect x="160" y="55" width="20" height="75" rx="3" fill="rgba(232,184,75,0.5)"/>
+                    <rect x="195" y="30" width="20" height="100" rx="3" fill="rgba(232,184,75,0.7)"/>
+                    <rect x="230" y="20" width="20" height="110" rx="3" fill="#E8B84B"/>
+                    <rect x="265" y="50" width="20" height="80" rx="3" fill="rgba(232,184,75,0.5)"/>
+                    <rect x="300" y="35" width="20" height="95" rx="3" fill="rgba(232,184,75,0.6)"/>
+                    <rect x="335" y="15" width="20" height="115" rx="3" fill="#F5D07A"/>
+                    <path d="M30,90 Q70,70 100,80 T180,55 T260,40 T340,25" stroke="#E8B84B" stroke-width="2" fill="none" stroke-linecap="round" filter="drop-shadow(0 0 4px #E8B84B)"/>
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- ═══ BENEFITS ═══ -->
+    <section class="ll-section" id="ll-benefits">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('حلول مصممة لقطاعك','Solutions sur mesure')}</span>
+        <h2 class="ll-section-title">${L('من الميدان إلى','Du chantier à la')}<span class="ll-gold"> ${L('غرفة الاجتماعات','salle de réunion')}</span></h2>
+        <p class="ll-section-desc">${L('SmartStruct يغطي كل أبعاد عمل شركة المقاولة الجزائرية — قانونياً، مالياً، وميدانياً.','SmartStruct couvre toutes les dimensions du BTP algérien — légal, financier, terrain.')}</p>
+      </div>
+
+      <div class="ll-benefits">
+
+        <!-- Row 1: PDF -->
+        <div class="ll-benefit-row ll-reveal">
+          <div class="ll-benefit-content">
+            <h3>${L('فواتير و','Factures &')}<span class="ll-gold">${L('عقود قانونية','contrats légaux')}</span> ${L('بنقرة واحدة','en un clic')}</h3>
+            <p>${L('توقَّف عن إعادة تنسيق نفس الفاتورة كل مرة. SmartStruct يولّد فواتير PDF احترافية متوافقة مع القانون الجزائري في ثوانٍ.','Cessez de reformater à chaque fois. SmartStruct génère des factures PDF pro conformes en quelques secondes.')}</p>
+            <ul class="ll-benefit-list">
+              <li><span class="ll-check">✓</span> ${L('NIF / NIS / RC تلقائياً في الترويسة','NIF / NIS / RC auto en en-tête')}</li>
+              <li><span class="ll-check">✓</span> ${L('TVA 19٪ محسوبة بدقة + مكان الختم','TVA 19% calculée + emplacement cachet')}</li>
+              <li><span class="ll-check">✓</span> ${L('عقود عمل حسب قانون العمل الجزائري','Contrats conformes au droit du travail')}</li>
+              <li><span class="ll-check">✓</span> ${L('توقيع إلكتروني عبر رابط فريد للعميل','Signature électronique via lien unique')}</li>
+            </ul>
+          </div>
+          <div class="ll-benefit-visual">
+            <div class="ll-benefit-stage">
+              <div class="ll-pdf-mockup">
+                <div class="ll-pdf-header">
+                  <div>
+                    <div class="ll-pdf-logo">${ssLogo(26, true)}</div>
+                  </div>
+                  <div style="text-align:${isAr?'right':'left'}">
+                    <div class="ll-pdf-co">${L('شركة الإنشاءات الجزائرية','Sté Constructions DZ')}</div>
+                    <div class="ll-pdf-co-sub">NIF: 0987 6543 21 · RC: 16/00-A123</div>
+                  </div>
+                  <div class="ll-pdf-num">
+                    ${L('فاتورة رقم','Facture N°')}
+                    <strong>INV-2026-0142</strong>
+                  </div>
+                </div>
+                <div class="ll-pdf-title">${L('تفاصيل الخدمات','Détails des prestations')}</div>
+                <div class="ll-pdf-line"><span>${L('أعمال خرسانة مسلحة','Béton armé')}</span><span>1,250,000 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-line"><span>${L('تركيب هيكل معدني','Structure métallique')}</span><span>875,000 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-line"><span>${L('أعمال البناء — المرحلة 2','Maçonnerie — Phase 2')}</span><span>620,000 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-line"><span>TVA 19٪</span><span>521,550 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-total"><span>${L('الإجمالي المستحق','Total dû')}</span><span>3,266,550 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-stamp">SmartStruct<br>VERIFIED</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: AI -->
+        <div class="ll-benefit-row ll-reverse ll-reveal">
+          <div class="ll-benefit-content">
+            <h3>${L('مساعدك الذكي يعمل','Votre IA travaille')} <span class="ll-gold">${L('معك 24/7','avec vous 24/7')}</span></h3>
+            <p>${L('SmartAI ليس chatbot عام — هو يعرف بياناتك، يحلل مشاريعك، ويعطيك توصيات قابلة للتنفيذ بالعربية.','SmartAI n\'est pas un chatbot générique — il connaît vos données et donne des recommandations concrètes.')}</p>
+            <ul class="ll-benefit-list">
+              <li><span class="ll-check">✓</span> ${L('تحليل ربحية كل مشروع على حدة','Analyse de rentabilité par projet')}</li>
+              <li><span class="ll-check">✓</span> ${L('تقارير شهرية احترافية تلقائية','Rapports mensuels pro automatiques')}</li>
+              <li><span class="ll-check">✓</span> ${L('تنبيهات للمخاطر المالية مبكراً','Alertes financières précoces')}</li>
+              <li><span class="ll-check">✓</span> ${L('14,400 سؤال يومياً مجاناً','14 400 questions/jour gratuites')}</li>
+            </ul>
+          </div>
+          <div class="ll-benefit-visual">
+            <div class="ll-benefit-stage">
+              <div class="ll-ai-mockup">
+                <div class="ll-ai-mock-header">
+                  <div class="ll-ai-avatar-mock">🤖</div>
+                  <div>
+                    <div class="ll-ai-mock-name">SmartAI</div>
+                    <div class="ll-ai-mock-status">${L('متصل — يحلّل بياناتك','En ligne — analyse en cours')}</div>
+                  </div>
+                </div>
+                <div class="ll-ai-mock-body">
+                  <div class="ll-ai-msg ll-user">${L('ما هو أفضل مشروع من حيث الربحية هذا الشهر؟','Quel projet est le plus rentable ce mois ?')}</div>
+                  <div class="ll-ai-msg ll-bot">${L('مشروع "فيلا حيدرة" حقق هامش ربح 28٪ — الأعلى بين مشاريعك. لكن انتبه: مشروع "مبنى وهران" متأخر 12 يوماً.','Le projet "Villa Hydra" a une marge de 28% — la plus élevée. Attention : "Immeuble Oran" a 12 jours de retard.')}</div>
+                  <div class="ll-ai-msg ll-user">${L('كم سأكسب نهاية الشهر؟','Combien à la fin du mois ?')}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3: Mobile / GPS -->
+        <div class="ll-benefit-row ll-reveal">
+          <div class="ll-benefit-content">
+            <h3>${L('ميدان رقمي','Chantier numérique')}<span class="ll-gold"> ${L('في جيب كل عامل','dans la poche')}</span></h3>
+            <p>${L('وضع الميدان (Mobile Mode) صُمم للعمال على ورشة البناء — ليس للمحاسبين خلف المكاتب.','Le mode Chantier est conçu pour les ouvriers sur le terrain — pas pour les comptables.')}</p>
+            <ul class="ll-benefit-list">
+              <li><span class="ll-check">✓</span> ${L('5 أزرار كبيرة فقط — حضور، مواد، صور، صرف، GPS','5 gros boutons : présence, matériaux, photos, dépense, GPS')}</li>
+              <li><span class="ll-check">✓</span> ${L('تتبع GPS لكل معدة عبر QR code','Suivi GPS de chaque engin via QR')}</li>
+              <li><span class="ll-check">✓</span> ${L('تسجيل الحضور بالموقع الجغرافي','Pointage avec géolocalisation')}</li>
+              <li><span class="ll-check">✓</span> ${L('يعمل بدون إنترنت ويتزامن لاحقاً','Fonctionne offline + sync différée')}</li>
+            </ul>
+          </div>
+          <div class="ll-benefit-visual">
+            <div class="ll-benefit-stage">
+              <div class="ll-gps-pulse"></div>
+              <div class="ll-mobile-mockup">
+                <div class="ll-mobile-screen">
+                  <div class="ll-mobile-notch"></div>
+                  <div class="ll-mobile-time">9:42 ${isAr?'ص':'AM'}</div>
+                  <div class="ll-mobile-greeting">${L('صباح الخير','Bonjour')}</div>
+                  <div class="ll-mobile-name">${L('أحمد بن علي','Ahmed Benali')}</div>
+                  <div class="ll-mobile-grid">
+                    <div class="ll-mobile-btn ll-gold">
+                      <div class="ll-mobile-btn-icon">✓</div>
+                      <div class="ll-mobile-btn-label">${L('حضور','Pointage')}</div>
+                    </div>
+                    <div class="ll-mobile-btn">
+                      <div class="ll-mobile-btn-icon">📦</div>
+                      <div class="ll-mobile-btn-label">${L('مواد','Matériaux')}</div>
+                    </div>
+                    <div class="ll-mobile-btn">
+                      <div class="ll-mobile-btn-icon">📷</div>
+                      <div class="ll-mobile-btn-label">${L('صور','Photos')}</div>
+                    </div>
+                    <div class="ll-mobile-btn">
+                      <div class="ll-mobile-btn-icon">💰</div>
+                      <div class="ll-mobile-btn-label">${L('طلب صرف','Dépense')}</div>
+                    </div>
+                    <div class="ll-mobile-btn" style="grid-column:1/-1">
+                      <div class="ll-mobile-btn-icon">📍</div>
+                      <div class="ll-mobile-btn-label">${L('GPS — موقع المعدة','GPS — Position engin')}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═══ PRICING ═══ -->
+    <section class="ll-section" id="ll-pricing">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('أسعار شفافة','Tarifs transparents')}</span>
+        <h2 class="ll-section-title">${L('اختر الخطة','Choisissez le plan')} <span class="ll-gold">${L('المناسبة لك','qui vous convient')}</span></h2>
+        <p class="ll-section-desc">${L('من المقاول الفردي إلى الشركات الكبرى — جميع الخطط تشمل التجربة المجانية 14 يوماً بدون بطاقة بنكية.','Du contractant individuel aux grandes entreprises — tous les plans incluent 14 jours d\'essai gratuit sans CB.')}</p>
+      </div>
+
+      <div class="ll-pricing-grid">
+        <!-- المبتدئ — للمقاولين الأفراد والشركات الناشئة -->
+        <div class="ll-price-card ll-reveal">
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">👷 ${L('للمقاول الفردي','Contractant individuel')}</div>
+          <div class="ll-price-name">${L('المبتدئ','Starter')}</div>
+          <div class="ll-price-tagline">${L('للشركات الناشئة والمقاولين الأفراد','Pour entrepreneurs individuels')}</div>
+          <div class="ll-price-amount">
+            <span class="ll-price-num">2,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
+          </div>
+          <ul class="ll-price-features">
+            <li><span class="ll-price-check">✓</span> ${L('حتى 3 مشاريع نشطة','Jusqu\'à 3 projets actifs')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 15 عامل','Jusqu\'à 15 ouvriers')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('فواتير PDF احترافية','Factures PDF pro')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('50 بريد إلكتروني/شهر','50 emails/mois')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('دعم بالبريد الإلكتروني','Support par email')}</li>
+          </ul>
+          ${user
+            ? `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
+            : `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ مجاناً','Commencer')}</button>`
+          }
+        </div>
+
+        <!-- الاحترافي — للشركات المتوسطة (المُوصى به) -->
+        <div class="ll-price-card ll-featured ll-reveal">
+          <div class="ll-price-badge">⭐ ${L('الأكثر شيوعاً','Plus populaire')}</div>
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏢 ${L('للشركات المتوسطة','Entreprises moyennes')}</div>
+          <div class="ll-price-name">${L('الاحترافي','Professionnel')}</div>
+          <div class="ll-price-tagline">${L('للشركات النامية','Pour entreprises en croissance')}</div>
+          <div class="ll-price-amount">
+            <span class="ll-price-num ll-gold">7,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
+          </div>
+          <ul class="ll-price-features">
+            <li><span class="ll-price-check">✓</span> ${L('حتى 20 مشروع','Jusqu\'à 20 projets')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 100 عامل','Jusqu\'à 100 ouvriers')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 50 معدة','Jusqu\'à 50 équipements')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('SmartAI كامل + تقارير شهرية','SmartAI complet + rapports')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('500 بريد إلكتروني/شهر','500 emails/mois')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي ذو أولوية','Support prioritaire')}</li>
+          </ul>
+          ${user
+            ? `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
+            : `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ التجربة','Commencer l\'essai')}</button>`
+          }
+        </div>
+
+        <!-- المؤسسي — للشركات الكبرى -->
+        <div class="ll-price-card ll-reveal">
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏛️ ${L('للمؤسسات الكبرى','Grandes entreprises')}</div>
+          <div class="ll-price-name">${L('المؤسسي','Entreprise')}</div>
+          <div class="ll-price-tagline">${L('للشركات الكبرى','Pour les grandes entreprises')}</div>
+          <div class="ll-price-amount">
+            <span class="ll-price-num">19,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
+          </div>
+          <ul class="ll-price-features">
+            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('عمال غير محدودين','Ouvriers illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('معدات غير محدودة','Équipements illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('بريد إلكتروني غير محدود','Emails illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('SLA + تدريب فريقك','SLA + formation équipe')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('مدير حساب مخصص','Account manager dédié')}</li>
+          </ul>
+          <a class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Nous contacter')}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ قبل / بعد ═══ -->
+    <section class="ll-section" style="background:rgba(232,184,75,.03);border-top:1px solid rgba(232,184,75,.08);border-bottom:1px solid rgba(232,184,75,.08)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('الفرق الحقيقي','La vraie différence')}</span>
+        <h2 class="ll-section-title">${L('حياتك','Votre quotidien')} <span class="ll-gold">${L('قبل وبعد SmartStruct','avant & après SmartStruct')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:960px;margin:2.5rem auto 0" class="ll-reveal">
+        <div style="background:rgba(240,78,106,.05);border:1px solid rgba(240,78,106,.2);border-radius:16px;padding:2rem">
+          <div style="font-size:1.1rem;font-weight:900;color:#F04E6A;margin-bottom:1.2rem">😰 ${L('قبل','Avant')}</div>
+          ${[
+            L('دفاتر ورقية تضيع أو تتلف','Carnets papier perdus ou abîmés'),
+            L('Excel يتعطل عند آخر لحظة','Excel qui plante au dernier moment'),
+            L('فواتير بأخطاء جبائية مكلفة','Factures avec erreurs fiscales coûteuses'),
+            L('لا تعرف أين ذهب مال شركتك','Impossible de savoir où va l\'argent'),
+            L('ساعات في إعداد كشف الراتب','Des heures à préparer les fiches de paie'),
+            L('لا تعرف ربحية كل مشروع','Impossible de connaître la marge par projet'),
+          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--muted)"><span style="color:#F04E6A;flex-shrink:0">✗</span>${t}</div>`).join('')}
+        </div>
+        <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.2);border-radius:16px;padding:2rem">
+          <div style="font-size:1.1rem;font-weight:900;color:#34C38F;margin-bottom:1.2rem">🚀 ${L('بعد SmartStruct','Avec SmartStruct')}</div>
+          ${[
+            L('كل البيانات في السحابة — لا تضيع أبداً','Toutes les données dans le cloud — jamais perdues'),
+            L('لوحة تحكم حية بالثانية','Dashboard live actualisé en temps réel'),
+            L('23 وثيقة رسمية بنقرة واحدة','23 documents officiels en un seul clic'),
+            L('تعرف أرباحك لحظة بلحظة','Vos bénéfices en temps réel'),
+            L('كشف راتب كامل في 10 ثوانٍ','Bulletin de paie complet en 10 secondes'),
+            L('تقرير AI ذكي شهري تلقائياً','Rapport IA mensuel automatique'),
+          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--text)"><span style="color:#34C38F;flex-shrink:0">✓</span>${t}</div>`).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ أرقام التأثير ═══ -->
+    <section class="ll-section">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('بالأرقام','En chiffres')}</span>
+        <h2 class="ll-section-title">${L('توفير حقيقي في','Économies réelles de')} <span class="ll-gold">${L('الوقت والمال','temps & d\'argent')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;max-width:1050px;margin:2rem auto 0" class="ll-reveal">
+        ${[
+          {n:'23',u:'',s:L('وثيقة رسمية جاهزة للطباعة','documents officiels imprimables'),i:'📄',c:'#E8B84B'},
+          {n:'80',u:'%',s:L('توفير في وقت الإدارة','du temps administratif économisé'),i:'⏱️',c:'#34C38F'},
+          {n:'100',u:'%',s:L('توافق مع القانون الجزائري','conforme loi algérienne NIF/NIS'),i:'🏛️',c:'#4A90E2'},
+          {n:'14',u:'',s:L('يوم تجربة مجانية كاملة','jours d\'essai gratuit complet'),i:'🎁',c:'#9B6DFF'},
+          {n:'0',u:'',s:L('بيانات تضيع — ضمان مدى الحياة','donnée perdue — garanti à vie'),i:'🔒',c:'#FF7043'},
+          {n:'2',u:'',s:L('لغة — عربي وفرنسي كامل','langues — arabe & français complets'),i:'🌐',c:'#E8B84B'},
+        ].map(s=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1.4rem;text-align:center;transition:transform .2s,border-color .2s" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(232,184,75,.3)'" onmouseout="this.style.transform='';this.style.borderColor='rgba(255,255,255,.07)'">
+          <div style="font-size:1.7rem;margin-bottom:.4rem">${s.i}</div>
+          <div style="font-size:2.4rem;font-weight:900;color:${s.c};font-family:monospace;line-height:1">${s.n}<span style="font-size:1.1rem">${s.u}</span></div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:.4rem;line-height:1.5">${s.s}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ شهادات المقاولين ═══ -->
+    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('يقولون عنا','Ils en parlent')}</span>
+        <h2 class="ll-section-title">${L('مقاولون جزائريون','Des entrepreneurs algériens')} <span class="ll-gold">${L('وثقوا بنا','nous font confiance')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:2.5rem" class="ll-reveal">
+        ${[
+          {name:L('محمد الصالح قاسمي','Mohamed Salah Kasmi'),role:L('مقاول بناء — الجزائر العاصمة','Entrepreneur BTP — Alger'),av:'👷',c:'#E8B84B',
+           t:L('"قبل SmartStruct كنت أضيع 3 ساعات يومياً في الورق. الآن كل شيء في هاتفي — الحضور، الرواتب، الفواتير. وفّرت أكثر من 300,000 دج في 3 أشهر."','"Avant SmartStruct, je perdais 3h/jour dans la paperasse. Maintenant tout est dans mon téléphone. J\'ai économisé plus de 300 000 DA en 3 mois grâce au suivi."')},
+          {name:L('فريدة بن يوسف','Farida Benyoucef'),role:L('مديرة مؤسسة إنجاز — وهران','Directrice Injaaz Ent. — Oran'),av:'👩‍💼',c:'#34C38F',
+           t:L('"أخيراً نظام يفهم العربية ويعمل مع القانون الجزائري. الفواتير مع NIF وNIS في دقيقة. حتى من لا يعرف الكمبيوتر يستخدمه."','"Enfin un système qui comprend l\'arabe et la loi algérienne. Factures avec NIF/NIS en une minute. Même les non-techniciens l\'utilisent facilement."')},
+          {name:L('عماد الدين تيزي','Imad Eddine Tizi'),role:L('مقاول ترميم — قسنطينة','Entrepreneur rénovation — Constantine'),av:'🏗️',c:'#4A90E2',
+           t:L('"استخدمت برامج أجنبية قبلاً — معقدة وبالإنجليزية. SmartStruct صُنع لنا نحن. محضر الاستلام، كشف الرواتب، العقود — كلها بالعربية بلمسة واحدة."','"J\'ai essayé des logiciels étrangers avant — trop complexes. SmartStruct est fait pour nous. PV, bulletins de paie, contrats — tout en arabe en un clic."')},
+        ].map(t=>`<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:1.8rem;display:flex;flex-direction:column;gap:.8rem">
+          <div style="color:#E8B84B;font-size:.9rem;letter-spacing:2px">★★★★★</div>
+          <p style="font-size:.83rem;color:var(--muted);line-height:1.8;font-style:italic;flex:1">${t.t}</p>
+          <div style="display:flex;align-items:center;gap:.8rem;padding-top:.8rem;border-top:1px solid rgba(255,255,255,.06)">
+            <div style="width:40px;height:40px;border-radius:50%;background:${t.c}22;border:1px solid ${t.c}44;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${t.av}</div>
+            <div><div style="font-weight:800;font-size:.84rem">${t.name}</div><div style="font-size:.7rem;color:${t.c};font-weight:600">${t.role}</div></div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ مقارنة مع المنافسين ═══ -->
+    <section class="ll-section">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('لماذا SmartStruct؟','Pourquoi SmartStruct ?')}</span>
+        <h2 class="ll-section-title">${L('صُنع للجزائر','Conçu pour l\'Algérie')} <span class="ll-gold">${L('وليس مُترجَم عنها','non traduit')}</span></h2>
+      </div>
+      <div class="ll-reveal" style="max-width:860px;margin:2rem auto 0;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+          <thead><tr>
+            <th style="padding:.8rem 1rem;text-align:${isAr?'right':'left'};color:var(--muted);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">${L('الميزة','Fonctionnalité')}</th>
+            <th style="padding:.8rem 1rem;text-align:center;color:#E8B84B;font-weight:900;border-bottom:2px solid rgba(232,184,75,.4)">SmartStruct</th>
+            <th style="padding:.8rem 1rem;text-align:center;color:var(--dim);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">Excel</th>
+            <th style="padding:.8rem 1rem;text-align:center;color:var(--dim);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">${L('برامج أجنبية','Logiciels étrangers')}</th>
+          </tr></thead>
+          <tbody>
+            ${[
+              [L('واجهة عربية كاملة','Interface arabe complète'),       '✅','⚠️','❌'],
+              [L('NIF / NIS / RC الجزائري','NIF / NIS / RC algérien'),   '✅','❌','❌'],
+              ['TVA 19% + CNAS + IRG',                                    '✅','❌','⚠️'],
+              [L('23 وثيقة PDF رسمية','23 docs PDF officiels'),           '✅','❌','⚠️'],
+              [L('مزامنة Realtime','Sync Realtime'),                      '✅','❌','⚠️'],
+              [L('ذكاء اصطناعي بالعربية','IA en arabe'),                  '✅','❌','❌'],
+              [L('يعمل بدون إنترنت','Fonctionne offline'),                '✅','✅','⚠️'],
+              [L('دعم باللهجة الجزائرية','Support dialecte algérien'),   '✅','❌','❌'],
+            ].map((r,i)=>`<tr style="background:${i%2===0?'rgba(255,255,255,.02)':'transparent'}">
+              <td style="padding:.7rem 1rem;color:var(--text)">${r[0]}</td>
+              <td style="padding:.7rem 1rem;text-align:center;background:rgba(232,184,75,.04);border-left:2px solid rgba(232,184,75,.12);border-right:2px solid rgba(232,184,75,.12)">${r[1]}</td>
+              <td style="padding:.7rem 1rem;text-align:center;color:var(--muted)">${r[2]}</td>
+              <td style="padding:.7rem 1rem;text-align:center;color:var(--muted)">${r[3]}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="text-align:center;margin-top:.8rem;font-size:.7rem;color:var(--dim)">✅ ${L('متوفر','Disponible')} &nbsp; ⚠️ ${L('جزئياً','Partiel')} &nbsp; ❌ ${L('غير متوفر','Non disponible')}</div>
+      </div>
+    </section>
+
+    <!-- ═══ FAQ ═══ -->
+    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('أسئلة شائعة','FAQ')}</span>
+        <h2 class="ll-section-title">${L('كل ما تريد معرفته','Tout ce que vous voulez savoir')} <span class="ll-gold">?</span></h2>
+      </div>
+      <div style="max-width:720px;margin:2.5rem auto 0;display:flex;flex-direction:column;gap:.7rem" class="ll-reveal">
+        ${[
+          {q:L('هل يحتاج تثبيتاً؟','Faut-il l\'installer ?'),a:L('لا. SmartStruct يعمل من المتصفح مباشرة على أي جهاز — حاسوب، هاتف، تابلت. لا تثبيت ولا تحديثات يدوية.','Non. SmartStruct fonctionne directement depuis le navigateur sur n\'importe quel appareil. Pas d\'installation ni de mises à jour manuelles.')},
+          {q:L('هل بياناتي آمنة؟','Mes données sont-elles sécurisées ?'),a:L('نعم. بياناتك مُشفّرة PBKDF2+SHA-256، محفوظة في Supabase مع Row-Level Security. لا أحد غيرك يصل لها — حتى نحن.','Oui. Chiffrement PBKDF2+SHA-256, hébergement Supabase avec Row-Level Security. Personne d\'autre ne peut y accéder, même nous.')},
+          {q:L('هل يعمل بدون إنترنت؟','Fonctionne-t-il sans internet ?'),a:L('نعم. يحفظ البيانات محلياً ويتزامن تلقائياً عند عودة الإنترنت. مثالي للورشات في المناطق النائية.','Oui. Il sauvegarde localement et se synchronise automatiquement au retour de la connexion. Idéal pour les chantiers éloignés.')},
+          {q:L('هل هو متوافق مع القانون الجزائري؟','Est-il conforme à la loi algérienne ?'),a:L('100٪. كل الوثائق تحتوي NIF, NIS, RC, Article d\'Imposition وTVA 19٪. الرواتب تحتسب CNAS وIRG تلقائياً.','À 100%. Tous les documents incluent NIF, NIS, RC, Article d\'Imposition et TVA 19%. Les salaires calculent CNAS et IRG automatiquement.')},
+          {q:L('كيف أبدأ؟','Comment démarrer ?'),a:L('اضغط "ابدأ التجربة الآن"، سجّل اسمك وبريدك وكلمة مرور — في دقيقتين حسابك جاهز وتجربة 14 يوم مجانية تبدأ فوراً بدون بطاقة بنكية.','Cliquez "Commencer l\'essai", entrez votre nom, email et mot de passe — en 2 minutes votre compte est prêt et votre essai 14 jours commence immédiatement, sans carte bancaire.')},
+        ].map((f,i)=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+          <button onclick="(function(b){var d=b.nextElementSibling,open=d.style.maxHeight&&d.style.maxHeight!=='0px';d.style.maxHeight=open?'0px':'300px';d.style.paddingTop=open?'0':'.8rem';d.style.paddingBottom=open?'0':'.9rem';b.querySelector('span:last-child').style.transform=open?'':'rotate(180deg)'})(this)"
+            style="width:100%;padding:.9rem 1.2rem;background:none;border:none;cursor:pointer;text-align:${isAr?'right':'left'};color:var(--text);font-family:inherit;font-size:.87rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:1rem">
+            <span>${f.q}</span><span style="color:var(--gold);transition:transform .25s;flex-shrink:0;font-size:.8rem">▼</span>
+          </button>
+          <div style="max-height:0;overflow:hidden;transition:all .3s;padding:0 1.2rem;font-size:.81rem;color:var(--muted);line-height:1.8">${f.a}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ CTA ═══ -->
+    <div class="ll-cta ll-reveal">
+      <div class="ll-cta-content">
+        <h2 class="ll-cta-title">${L('جاهز لتحويل طريقة','Prêt à transformer la gestion')} <span class="ll-gold">${L('إدارة شركتك؟','de votre entreprise ?')}</span></h2>
+        <p class="ll-cta-desc">${L('14 يوم تجربة مجانية كاملة. لا بطاقة بنكية. لا التزام. فقط جرّب وقرّر.','14 jours d\'essai complet. Sans CB. Sans engagement. Testez et décidez.')}</p>
+        <div class="ll-hero-actions" style="justify-content:center">
+          ${user
+            ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
+                 ${L('الذهاب للوحة التحكم','Tableau de bord')}
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+               </button>`
+            : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
+                 ${L('ابدأ التجربة الآن','Commencer l\'essai')}
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+               </button>
+               <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showLoginPanel()">${L('لدي حساب — دخول','J\'ai un compte')}</button>`
+          }
+        </div>
+      </div>
     </div>
-  </section>
 
-  <!-- Tech Strip -->
-  <div id="llTechStrip" style="position:relative;z-index:1;padding:1rem 0;overflow:hidden;border-top:1px solid rgba(232,184,75,.07);border-bottom:1px solid rgba(232,184,75,.07)"></div>
-
-  <!-- Stats -->
-  <section id="ll-stats" style="padding:5rem 2rem;position:relative;z-index:1">
-    <div style="max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1.5rem;text-align:center">
-      ${[['500+',L2('مؤسسة تستخدمنا','Entreprises'),500,'+'],[23,L2('نوع وثيقة رسمية','Types de documents'),23,''],[99,L2('دقة IRG 2026','Précision IRG 2026'),99,'%'],[14,L2('يوم تجربة مجانية','Jours d\'essai gratuit'),14,' يوم']].map(([disp,lbl,to,suf])=>`
-      <div style="padding:1.5rem">
-        <div class="ll-stat-number" data-to="${to}" data-suffix="${suf}" style="font-size:2.8rem;font-weight:900;color:#E8B84B;line-height:1;font-variant-numeric:tabular-nums">${disp}</div>
-        <div style="font-size:.82rem;color:rgba(240,237,228,.45);margin-top:.4rem">${lbl}</div>
-      </div>`).join('')}
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section id="ll-features" style="padding:6rem 2rem;position:relative;z-index:1">
-    <div style="text-align:center;color:#E8B84B;font-size:.75rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:.6rem">${L2('المزايا الأساسية','Fonctionnalités')}</div>
-    <h2 style="text-align:center;font-size:clamp(1.6rem,4vw,2.4rem);font-weight:900;margin-bottom:.8rem">${L2('كل ما تحتاجه في مكان واحد','Tout ce dont vous avez besoin')}</h2>
-    <p style="text-align:center;color:rgba(240,237,228,.5);max-width:480px;margin:0 auto 3rem;line-height:1.65;font-size:.92rem">${L2('منصة متكاملة مصممة للمقاولات الجزائرية','Plateforme conçue pour les entreprises BTP algériennes')}</p>
-    <div id="ll-feat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;max-width:1000px;margin:0 auto"></div>
-  </section>
-
-  <!-- Pricing -->
-  <section id="ll-pricing" style="padding:6rem 2rem;position:relative;z-index:1">
-    <div style="text-align:center;color:#E8B84B;font-size:.75rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:.6rem">${L2('الأسعار','Tarifs')}</div>
-    <h2 style="text-align:center;font-size:clamp(1.6rem,4vw,2.4rem);font-weight:900;margin-bottom:.8rem">${L2('اختر خطتك','Choisissez votre plan')}</h2>
-    <p style="text-align:center;color:rgba(240,237,228,.5);max-width:480px;margin:0 auto 3rem;line-height:1.65;font-size:.92rem">${L2('أسعار بالدينار الجزائري، بدون رسوم خفية','Prix en DZD, sans frais cachés')}</p>
-    <div id="ll-price-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;max-width:880px;margin:0 auto">
-      ${plans.map(p=>`
-      <div style="background:rgba(13,26,15,0.7);border:1px solid ${p.featured?'rgba(232,184,75,.4)':'rgba(255,255,255,.08)'};border-radius:14px;padding:1.6rem;${p.featured?'background:rgba(232,184,75,.05);':''};transition:all .4s cubic-bezier(.23,1,.32,1)" onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 20px 50px rgba(0,0,0,.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-        ${p.featured?`<div style="display:inline-block;background:#E8B84B;color:#0D1A0F;font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-bottom:.8rem">${L2('الأكثر شعبية','Populaire')}</div>`:''}
-        <div style="font-size:1rem;font-weight:800;margin-bottom:.3rem">${p.icon} ${p.name}</div>
-        <div style="font-size:2rem;font-weight:900;color:#E8B84B">${p.price.toLocaleString('fr-DZ')}<span style="font-size:.85rem;color:rgba(240,237,228,.4);font-weight:400"> ${L2('دج/شهر','DA/mois')}</span></div>
-        <ul style="list-style:none;margin-top:1.2rem;display:flex;flex-direction:column;gap:.45rem">
-          ${p.features.map(f=>`<li style="font-size:.82rem;color:rgba(240,237,228,.6);display:flex;gap:.4rem"><span style="color:#34C38F;font-weight:700;flex-shrink:0">✓</span>${f}</li>`).join('')}
-        </ul>
-        <button onclick="${p.featured?'showRegisterPanel()':'showRegisterPanel()'}" style="width:100%;margin-top:1.4rem;padding:.7rem;border-radius:9px;font-size:.85rem;font-weight:700;cursor:pointer;border:1px solid rgba(232,184,75,.3);background:${p.featured?'#E8B84B':'rgba(232,184,75,.08)'};color:${p.featured?'#0D1A0F':'#E8B84B'};transition:all .2s" onmouseover="if(!'${p.featured}')this.style.background='rgba(232,184,75,.15)'" onmouseout="if(!'${p.featured}')this.style.background='rgba(232,184,75,.08)'">${p.featured?L2('ابدأ مجاناً ←','Commencer →'):L2('اختر الخطة','Choisir')}</button>
-      </div>`).join('')}
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer style="padding:2.5rem 2rem;text-align:center;border-top:1px solid rgba(232,184,75,.07);position:relative;z-index:1">
-    <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;color:#E8B84B;font-weight:800;font-size:1rem;margin-bottom:.5rem">${ssLogo(20)} SmartStruct</div>
-    <div style="color:rgba(240,237,228,.35);font-size:.78rem">contact@smartstruct.dz · ${L2('جميع الحقوق محفوظة','Tous droits réservés')} © ${new Date().getFullYear()}</div>
-  </footer>
-
-  <style>
-    @keyframes llFadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes llPulse{0%{transform:scale(1) translate(0,0)}100%{transform:scale(1.1) translate(20px,-15px)}}
-    @keyframes ldSceneFloat{0%,100%{transform:rotateX(10deg) rotateY(-4deg) translateY(0)}50%{transform:rotateX(7deg) rotateY(-2deg) translateY(-12px)}}
-    @keyframes ldBarGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-    #landingRoot .ll-feat-card{background:rgba(13,26,15,0.65);border:1px solid rgba(232,184,75,.1);border-radius:14px;padding:1.4rem;position:relative;overflow:hidden;transition:all .4s cubic-bezier(.23,1,.32,1);cursor:default}
-    #landingRoot .ll-feat-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(232,184,75,.08),transparent 60%);opacity:0;transition:opacity .3s;pointer-events:none}
-    #landingRoot .ll-feat-card:hover::before{opacity:1}
-    #landingRoot .ll-feat-card:hover{transform:translateY(-6px);border-color:rgba(232,184,75,.28);box-shadow:0 20px 50px rgba(0,0,0,.4)}
-    #landingRoot .ll-feat-icon{transition:transform .4s cubic-bezier(.23,1,.32,1)}
-    #landingRoot .ll-feat-card:hover .ll-feat-icon{transform:scale(1.15) rotateZ(-5deg)}
-    @media(max-width:640px){
-      #llNav .ll-nav-links{display:none}
-      #llHamburger{display:block!important}
-      #ldDash3D{transform:rotateX(5deg) rotateY(-1deg)!important;animation:none!important}
-    }
-  </style>
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="ll-footer">
+      <div class="ll-footer-grid">
+        <div>
+          <div class="ll-footer-brand">
+            <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+            <div class="ll-nav-logo-text">
+              <div class="ll-nav-logo-name">SmartStruct</div>
+              <div class="ll-nav-logo-sub">v7.3 PRO</div>
+            </div>
+          </div>
+          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
+        </div>
+        <div class="ll-footer-col">
+          <h4>${L('المنتج','Produit')}</h4>
+          <ul>
+            <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
+            <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
+            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
+            <li><a href="#ll-benefits">${L('الفوائد','Avantages')}</a></li>
+          </ul>
+        </div>
+        <div class="ll-footer-col">
+          <h4>${L('الشركة','Entreprise')}</h4>
+          <ul>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('about')">${L('من نحن','À propos')}</a></li>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('تواصل معنا','Contact')}</a></li>
+          </ul>
+        </div>
+        <div class="ll-footer-col">
+          <h4>${L('الدعم','Support')}</h4>
+          <ul>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('مركز التواصل','Centre contact')}</a></li>
+            <li><a href="mailto:support@smartstruct.dz">${L('الدعم التقني','Support technique')}</a></li>
+            <li><a href="mailto:contact@smartstruct.dz">${L('البريد الإلكتروني','Email')}</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="ll-footer-bottom">
+        <div>© 2026 SmartStruct — ${L('صُمم للشركات الجزائرية في قطاع البناء','Conçu pour les entreprises BTP algériennes')}</div>
+        <div>${L('صُنع بـ ♥ في الجزائر','Fait avec ♥ en Algérie')}</div>
+      </div>
+    </footer>
   </div>`;
 };
 
 /* ─── Init dynamic effects after landing renders ─── */
 function initLandingEffects() {
-  // ── Chart Bars ──
-  (function(){
-    const cv=document.getElementById('ldChartArea');if(!cv)return;
-    cv.innerHTML='';
-    [30,55,42,70,88,65,92,78,95].forEach((v,i)=>{
-      const b=document.createElement('div');
-      b.style.cssText=`flex:1;border-radius:4px 4px 0 0;height:${v}%;transition:height .8s ${i*.07}s ease;background:linear-gradient(to top,#34C38F,rgba(52,195,143,.2))`;
-      cv.appendChild(b);
+  // ── ① مكعبات BTP الطافية ──
+  (function spawnCubes() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const scene = document.createElement('div');
+    scene.className = 'll-cubes-scene';
+    const faces = ['front','back','left','right','top','bottom'];
+    const positions = [
+      {l:'8%', t:'15%', s:50, dur:18, delay:0},
+      {l:'88%',t:'20%', s:40, dur:22, delay:3},
+      {l:'5%', t:'65%', s:35, dur:25, delay:6},
+      {l:'92%',t:'70%', s:45, dur:20, delay:2},
+      {l:'50%',t:'8%',  s:30, dur:28, delay:8},
+      {l:'75%',t:'85%', s:55, dur:16, delay:4},
+      {l:'20%',t:'80%', s:38, dur:24, delay:10},
+      {l:'65%',t:'55%', s:28, dur:30, delay:5},
+    ];
+    positions.forEach(p => {
+      const cube = document.createElement('div');
+      cube.className = 'll-cube';
+      cube.style.cssText = `left:${p.l};top:${p.t};width:${p.s}px;height:${p.s}px;animation-duration:${p.dur}s;animation-delay:-${p.delay}s;opacity:.7`;
+      faces.forEach(f => {
+        const face = document.createElement('div');
+        face.className = `ll-cube-face ${f}`;
+        const half = p.s/2;
+        if(f==='front')  face.style.transform=`translateZ(${half}px)`;
+        if(f==='back')   face.style.transform=`rotateY(180deg) translateZ(${half}px)`;
+        if(f==='left')   face.style.transform=`rotateY(-90deg) translateZ(${half}px)`;
+        if(f==='right')  face.style.transform=`rotateY(90deg) translateZ(${half}px)`;
+        if(f==='top')    face.style.transform=`rotateX(90deg) translateZ(${half}px)`;
+        if(f==='bottom') face.style.transform=`rotateX(-90deg) translateZ(${half}px)`;
+        cube.appendChild(face);
+      });
+      scene.appendChild(cube);
+    });
+    hero.appendChild(scene);
+  })();
+
+  // ── ② Aurora blobs خلف الـ hero ──
+  (function addAuroras() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const blobs = [
+      {c:'#E8B84B',w:500,h:500,l:'10%',t:'20%',op:0.07,dur:12},
+      {c:'#9B6DFF',w:400,h:400,l:'60%',t:'10%',op:0.05,dur:15},
+      {c:'#34C38F',w:350,h:350,l:'40%',t:'60%',op:0.04,dur:10},
+      {c:'#4A90E2',w:300,h:300,l:'80%',t:'50%',op:0.05,dur:18},
+    ];
+    blobs.forEach((b,i) => {
+      const el = document.createElement('div');
+      el.className = 'll-aurora ll-blob';
+      el.style.cssText = `width:${b.w}px;height:${b.h}px;left:${b.l};top:${b.t};background:${b.c};opacity:${b.op};animation-duration:${b.dur}s;animation-delay:${-i*2}s;position:absolute;pointer-events:none;filter:blur(90px)`;
+      hero.style.overflow = 'hidden';
+      hero.appendChild(el);
     });
   })();
 
-  // ── Dashboard 3D Parallax ──
-  (function(){
-    const dash=document.getElementById('ldDash3D');if(!dash)return;
-    document.addEventListener('mousemove',e=>{
-      if(!document.getElementById('ldDash'))return;
-      const cx=window.innerWidth/2,cy=window.innerHeight/2;
-      const dx=(e.clientX-cx)/cx,dy=(e.clientY-cy)/cy;
-      dash.style.transform=`rotateX(${8-dy*5}deg) rotateY(${-3+dx*5}deg)`;
-    },{passive:true});
+  // ── ③ تأثير إمالة البطاقات (3D tilt) ──
+  (function initTilt() {
+    function applyTilt(cards) {
+      cards.forEach(card => {
+        if (card._tiltInit) return;
+        card._tiltInit = true;
+        card.classList.add('ll-card-3d');
+        // أضف shine div
+        if (!card.querySelector('.ll-card-shine')) {
+          const shine = document.createElement('div');
+          shine.className = 'll-card-shine';
+          card.style.position = 'relative';
+          card.appendChild(shine);
+        }
+        card.addEventListener('mousemove', e => {
+          const r = card.getBoundingClientRect();
+          const cx = r.left + r.width/2, cy = r.top + r.height/2;
+          const dx = (e.clientX - cx) / (r.width/2);
+          const dy = (e.clientY - cy) / (r.height/2);
+          const ry = dx * 12, rx = -dy * 10;
+          card.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(8px)`;
+          // تحديث موضع الضوء
+          const px = ((e.clientX - r.left)/r.width*100).toFixed(1);
+          const py = ((e.clientY - r.top)/r.height*100).toFixed(1);
+          card.style.setProperty('--mx', px+'%');
+          card.style.setProperty('--my', py+'%');
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = '';
+          card.style.removeProperty('--mx');
+          card.style.removeProperty('--my');
+        });
+      });
+    }
+    // تطبيق على بطاقات الميزات وبطاقات الأسعار
+    const selectors = ['.ll-feat-card','.ll-price-card','.ll-stat-card','.ll-showcase-card'];
+    selectors.forEach(sel => applyTilt(document.querySelectorAll(sel)));
+    // أضف class المحسَّن لبطاقات الميزات
+    document.querySelectorAll('.ll-feat-card').forEach(c => c.classList.add('ll-feat-card-enhanced'));
   })();
 
-  // ── Tech Strip ──
-  (function(){
-    const el=document.getElementById('llTechStrip');if(!el)return;
-    const isAr=document.getElementById('landingRoot')?.style.direction==='rtl';
-    const techs=['🏗️ BTP Algérie','📊 IRG 2026','⚡ Realtime','☁️ Google Drive',
-      '🤖 SmartAI','📱 Mobile','🔒 Supabase','📄 23 وثيقة','💵 رواتب CNAS',
-      '🌍 AR|FR','📋 Gantt Chart','👷 GPS Pointage','🧾 فواتير TVA','🔑 Multi-tenant'];
-    const all=[...techs,...techs];
-    const inner=document.createElement('div');
-    inner.style.cssText='display:flex;gap:1.2rem;animation:ldTechScroll 20s linear infinite;width:max-content';
-    if(isAr)inner.style.animationDirection='reverse';
-    inner.innerHTML=all.map(t=>`<div style="display:flex;align-items:center;gap:.4rem;padding:.4rem .9rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:99px;font-size:.75rem;color:rgba(240,237,228,.55);white-space:nowrap">${t}</div>`).join('');
-    el.appendChild(inner);
-    if(!document.getElementById('ldTechCSS')){
-      const s=document.createElement('style');s.id='ldTechCSS';
-      s.textContent='@keyframes ldTechScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}';
-      document.head.appendChild(s);
+  // ── ④ عداد الأرقام الإحصائية ──
+  (function animateCounters() {
+    const counters = document.querySelectorAll('[data-count]');
+    if (!counters.length) return;
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        const target = parseFloat(el.dataset.count);
+        const isDecimal = String(target).includes('.');
+        const suffix = el.dataset.suffix || '';
+        const duration = 1800;
+        const start = performance.now();
+        function tick(now) {
+          const p = Math.min((now-start)/duration, 1);
+          const ease = 1 - Math.pow(1-p, 4);
+          const val = target * ease;
+          el.textContent = (isDecimal ? val.toFixed(1) : Math.round(val)) + suffix;
+          if (p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+        observer.unobserve(el);
+      });
+    }, {threshold:0.4});
+    counters.forEach(c => observer.observe(c));
+  })();
+
+  // ── ⑤ شريط التقنيات المتحرك ──
+  (function buildTechStrip() {
+    const container = document.getElementById('llTechStrip');
+    if (!container) return;
+    const isAr = document.documentElement.dir === 'rtl';
+    const techs = [
+      {i:'🏗️',l:'BTP Algérie'},
+      {i:'📊',l:'IRG 2026'},
+      {i:'🔒',l:'Supabase'},
+      {i:'📄',l:'23 وثيقة'},
+      {i:'🤖',l:'SmartAI'},
+      {i:'📱',l:'PWA Ready'},
+      {i:'☁️',l:'Google Drive'},
+      {i:'⚡',l:'Realtime'},
+      {i:'💼',l:'Multi-tenant'},
+      {i:'🌍',l:'ثنائي اللغة'},
+    ];
+    // نكرر مرتين للـ scroll لا نهائي
+    const items = [...techs,...techs].map(t =>
+      `<div class="ll-tech-badge"><span>${t.i}</span><span>${t.l}</span></div>`
+    ).join('');
+    container.innerHTML = `<div class="ll-tech-strip-inner">${items}</div>`;
+    if (isAr) {
+      const inner = container.querySelector('.ll-tech-strip-inner');
+      if (inner) inner.style.animationDirection = 'reverse';
     }
   })();
 
-  // ── Features Grid ──
-  (function(){
-    const grid=document.getElementById('ll-feat-grid');if(!grid||grid.children.length)return;
-    const isAr=document.getElementById('landingRoot')?.style.direction==='rtl';
-    const feats=[
-      {i:'📄',c:'rgba(232,184,75,.1)',ar:'23 وثيقة رسمية',fr:'23 Documents officiels',dar:'فواتير، عقود، كشوف رواتب — كل وثائق BTP',dfr:'Factures, contrats, bulletins de paie — tous les documents BTP'},
-      {i:'💵',c:'rgba(52,195,143,.1)',ar:'رواتب IRG 2026',fr:'Salaires IRG 2026',dar:'حساب تلقائي دقيق: CNAS 9٪، منح عائلية، Abattement 40٪',dfr:'Calcul auto: CNAS 9%, allocations familiales, abattement 40%'},
-      {i:'🤖',c:'rgba(155,109,255,.1)',ar:'SmartAI مدمج',fr:'SmartAI intégré',dar:'مساعد ذكاء اصطناعي يفهم السياق الجزائري ويحلّل مشاريعك',dfr:'IA qui comprend le contexte algérien et analyse vos projets'},
-      {i:'📊',c:'rgba(74,144,226,.1)',ar:'Gantt Chart تفاعلي',fr:'Gantt Chart interactif',dar:'جدول زمني بصري لكل مشاريعك مع تنبيهات التأخير التلقائية',dfr:'Planning visuel avec alertes de retard automatiques'},
-      {i:'☁️',c:'rgba(52,195,143,.1)',ar:'Google Drive تلقائي',fr:'Google Drive automatique',dar:'حفظ تلقائي لكل وثائقك في Drive الشخصي بمجلدات منظمة',dfr:'Sauvegarde auto dans votre Drive personnel organisé'},
-      {i:'📱',c:'rgba(232,184,75,.1)',ar:'وضع الميدان GPS',fr:'Mode Terrain GPS',dar:'5 أزرار كبيرة للعامل في الورشة — تسجيل حضور بالموقع الجغرافي',dfr:'5 boutons pour l\'ouvrier sur chantier — pointage par GPS'},
-    ];
-    feats.forEach((f,idx)=>{
-      const card=document.createElement('div');
-      card.className='ll-feat-3d';
-      card.style.animationDelay=idx*.08+'s';
-      card.innerHTML=`<div style="width:44px;height:44px;border-radius:10px;background:${f.c};display:grid;place-items:center;font-size:1.3rem;margin-bottom:1rem;transition:transform .4s cubic-bezier(.23,1,.32,1)">${f.i}</div>
-        <div style="font-weight:700;margin-bottom:.4rem">${isAr?f.ar:f.fr}</div>
-        <div style="font-size:.82rem;color:rgba(240,237,228,.5);line-height:1.6">${isAr?f.dar:f.dfr}</div>`;
-      const icon=card.querySelector('div');
-      card.addEventListener('mousemove',e=>{
-        const r=card.getBoundingClientRect();
-        card.style.setProperty('--mx',((e.clientX-r.left)/r.width*100).toFixed(1)+'%');
-        card.style.setProperty('--my',((e.clientY-r.top)/r.height*100).toFixed(1)+'%');
-        const dx=(e.clientX-r.left-r.width/2)/(r.width/2);
-        const dy=(e.clientY-r.top-r.height/2)/(r.height/2);
-        card.style.transform=`perspective(600px) rotateX(${-dy*7}deg) rotateY(${dx*7}deg) translateY(-6px)`;
-        if(icon)icon.style.transform='scale(1.15) rotateZ(-5deg)';
+  // ── ⑥ scroll reveal للعناصر ──
+  (function initReveal() {
+    const els = document.querySelectorAll('.ll-reveal');
+    if (!els.length) return;
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('ll-in'); obs.unobserve(e.target); }
       });
-      card.addEventListener('mouseleave',()=>{
-        card.style.transform='';
-        card.style.removeProperty('--mx');card.style.removeProperty('--my');
-        if(icon)icon.style.transform='';
+    }, {threshold:0.1, rootMargin:'0px 0px -40px 0px'});
+    els.forEach(el => obs.observe(el));
+  })();
+
+  // ── ⑦ نجوم متلألئة في الخلفية ──
+  (function spawnStars() {
+    const atmo = document.querySelector('.ll-atmosphere');
+    if (!atmo) return;
+    for (let i = 0; i < 60; i++) {
+      const star = document.createElement('div');
+      star.className = 'll-star';
+      const size = Math.random() * 3 + 1;
+      star.style.cssText = `
+        width:${size}px;height:${size}px;
+        left:${Math.random()*100}%;top:${Math.random()*100}%;
+        animation-duration:${2+Math.random()*5}s;
+        animation-delay:${-Math.random()*5}s;
+      `;
+      atmo.appendChild(star);
+    }
+  })();
+
+  // ── ⑧ Parallax خفيف عند تحريك الماوس ──
+  (function initParallax() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const layers = hero.querySelectorAll('.ll-hero-bg, .ll-cubes-scene, .ll-aurora');
+    let ticking = false;
+    document.addEventListener('mousemove', e => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const cx = window.innerWidth/2, cy = window.innerHeight/2;
+        const dx = (e.clientX - cx)/cx, dy = (e.clientY - cy)/cy;
+        layers.forEach((layer, i) => {
+          const factor = (i+1) * 5;
+          layer.style.transform = `translate(${dx*factor*-1}px,${dy*factor*-1}px)`;
+        });
+        ticking = false;
       });
-      grid.appendChild(card);
     });
   })();
 
-  // ── Pricing Grid ──
-  (function(){
-    const grid=document.getElementById('ll-price-grid');if(!grid||grid.children.length)return;
-    const isAr=document.getElementById('landingRoot')?.style.direction==='rtl';
-    const plans=[
-      {ar:'Starter',en:'Starter',price:'2,900',feats:['5 '+( isAr?'مشاريع':'projets'),'10 '+(isAr?'عمال':'ouvriers'),isAr?'الوثائق الأساسية':'Documents de base',isAr?'دعم بريد إلكتروني':'Support email'],featured:false,badge:''},
-      {ar:'Pro',en:'Pro',price:'7,900',feats:[isAr?'مشاريع غير محدودة':'Projets illimités',isAr?'عمال غير محدودون':'Ouvriers illimités','23 '+(isAr?'وثيقة رسمية':'documents officiels'),'SmartAI','Google Drive',isAr?'دعم أولوية':'Support prioritaire'],featured:true,badge:isAr?'الأكثر شعبية':'Populaire'},
-      {ar:'Enterprise',en:'Enterprise',price:'19,900',feats:[isAr?'كل مزايا Pro':'Tout Pro',isAr?'مستخدمون غير محدودون':'Utilisateurs illimités','Multi-tenant','API & Webhooks','SLA 99.9%',isAr?'مدير حساب مخصص':'Account Manager'],featured:false,badge:''},
-    ];
-    plans.forEach(p=>{
-      const card=document.createElement('div');
-      card.className='ll-price-3d'+(p.featured?' featured':'');
-      card.innerHTML=`${p.badge?`<div style="display:inline-block;background:#E8B84B;color:#0D1A0F;font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-bottom:.8rem">${p.badge}</div>`:``}
-        <div style="font-size:1rem;font-weight:700;margin-bottom:.3rem">${isAr?p.ar:p.en}</div>
-        <div style="font-size:2rem;font-weight:900;color:#E8B84B">${p.price}<span style="font-size:.85rem;color:rgba(240,237,228,.4);font-weight:400"> دج/شهر</span></div>
-        <ul style="list-style:none;margin-top:1.2rem;display:flex;flex-direction:column;gap:.5rem">
-          ${p.feats.map(f=>`<li style="font-size:.82rem;color:rgba(240,237,228,.55);display:flex;gap:.4rem;align-items:flex-start"><span style="color:#34C38F;flex-shrink:0;font-weight:700">✓</span>${f}</li>`).join('')}
-        </ul>
-        <button onclick="${p.featured?'showRegisterPanel()':'showRegisterPanel()'}" style="width:100%;margin-top:1.4rem;padding:.7rem;border-radius:9px;font-size:.85rem;font-weight:700;cursor:pointer;border:1px solid rgba(232,184,75,.3);background:${p.featured?'#E8B84B':'rgba(232,184,75,.08)'};color:${p.featured?'#0D1A0F':'#E8B84B'};transition:all .2s">
-          ${isAr?(p.featured?'ابدأ مجاناً ←':'اختر الخطة'):(p.featured?'Commencer →':'Choisir')}
-        </button>`;
-      grid.appendChild(card);
+  // ── ⑨ بطاقة مشروع نموذجية ثلاثية الأبعاد ──
+  (function enhanceShowcase() {
+    const showcase = document.getElementById('llShowcase3D');
+    if (!showcase) return;
+    showcase.classList.add('ll-project-card-3d');
+
+    // أضف progress bars متحركة
+    showcase.querySelectorAll('.ll-progress-bar').forEach(bar => {
+      const pct = bar.dataset.pct || '70';
+      bar.parentElement.className = 'll-progress-glow';
+      bar.className = 'll-progress-glow-bar';
+      bar.style.width = '0';
+      setTimeout(() => { bar.style.width = pct + '%'; }, 500);
     });
   })();
 
-  // ── Scroll Reveal ──
-  (function(){
-    const obs=new IntersectionObserver(entries=>{
-      entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('ll-in');obs.unobserve(e.target);}});
-    },{threshold:.1,rootMargin:'0px 0px -40px 0px'});
-    document.querySelectorAll('.ll-reveal').forEach(el=>obs.observe(el));
+  // ── ⑩ Particles جزيئات ذهبية ──
+  (function spawnParticles() {
+    const container = document.getElementById('llParticles');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 0; i < 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'll-particle';
+      const size = Math.random() * 4 + 2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random()*100}%;
+        bottom:-20px;
+        animation-duration:${8+Math.random()*12}s;
+        animation-delay:${-Math.random()*20}s;
+        opacity:${0.3+Math.random()*0.5};
+      `;
+      container.appendChild(p);
+    }
   })();
 
-  // ── Stats Counter ──
-  (function(){
-    const els=document.querySelectorAll('.ll-stat-number[data-to]');if(!els.length)return;
-    const obs=new IntersectionObserver(entries=>{
-      if(!entries[0].isIntersecting)return;obs.disconnect();
-      els.forEach(el=>{
-        const to=parseFloat(el.dataset.to),suf=el.dataset.suffix||'',dur=1600;
-        const s=performance.now();
-        function tick(now){
-          const p=Math.min((now-s)/dur,1),ease=1-Math.pow(1-p,4);
-          el.textContent=Math.round(to*ease)+suf;
-          if(p<1)requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-      });
-    },{threshold:.3});
-    const sec=document.getElementById('ll-stats');if(sec)obs.observe(sec);
-  })();
-
-  // ── Navbar Scroll ──
-  (function(){
-    const nav=document.getElementById('llNav');if(!nav)return;
-    let last=0;
-    window.addEventListener('scroll',()=>{
-      const y=window.scrollY;
-      if(y>80){nav.style.background='rgba(7,16,10,0.95)';nav.style.boxShadow='0 1px 0 rgba(232,184,75,.1)';
-        nav.style.transform=y>last&&y>200?'translateY(-100%)':'translateY(0)';}
-      else{nav.style.background='';nav.style.boxShadow='';nav.style.transform='';}
-      last=y;
-    },{passive:true});
+  // ── ⑪ Navbar scroll effect ──
+  (function initNavScroll() {
+    const nav = document.getElementById('llNav');
+    if (!nav) return;
+    let lastY = 0;
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY;
+      if (y > 80) {
+        nav.style.background = 'rgba(9,18,10,0.92)';
+        nav.style.backdropFilter = 'blur(20px)';
+        nav.style.boxShadow = '0 1px 0 rgba(232,184,75,.1)';
+        nav.style.transform = y > lastY && y > 200 ? 'translateY(-100%)' : 'translateY(0)';
+      } else {
+        nav.style.background = '';
+        nav.style.backdropFilter = '';
+        nav.style.boxShadow = '';
+        nav.style.transform = '';
+      }
+      lastY = y;
+    }, {passive:true});
   })();
 }
 

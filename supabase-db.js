@@ -294,14 +294,12 @@ const SupabaseClient = {
 
   // SELECT
   async select(table, filters = {}, opts = {}) {
-    // global_settings تستخدم 'key' كـ PK وليس 'id'
-    const pkCol = table === 'global_settings' ? 'key' : 'id';
-    let params = `order=${pkCol}.asc`;
+    let params = 'order=id.asc';
     for (const [k, v] of Object.entries(filters)) {
       if (v !== undefined && v !== null)
         params += `&${k}=eq.${encodeURIComponent(v)}`;
     }
-    if (opts.order) params = `order=${opts.order}` + (params.includes('&') ? params.slice(params.indexOf('&')) : '');
+    if (opts.order) params += `&order=${opts.order}`;
     if (opts.limit) params += `&limit=${opts.limit}`;
     return this._request('GET', table, null, params);
   },
@@ -763,8 +761,7 @@ const DBHybrid = {
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
       'notifications','global_settings','admin_notifications','stock_movements',
-      // audit_log مُستبعَد من الرفع المحلي
-      'custom_roles','equipment_locations','tenders','tender_offers',
+      'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations'
     ]);
     if (!SYNCABLE.has(key)) return;
@@ -1175,8 +1172,7 @@ if (!navigator.onLine || !this._useSupabase) {
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
       'notifications','global_settings','admin_notifications','stock_movements',
-      // audit_log مُستبعَد: يُكتب فقط من الـ backend، IDs كبيرة جداً لـ INTEGER
-      'custom_roles','equipment_locations','tenders','tender_offers',
+      'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations'
     ]);
     if (!SYNCABLE.has(key)) return;
@@ -1411,7 +1407,7 @@ if (!navigator.onLine || !this._useSupabase) {
 
     // ═══ ③ دفع السجلات المحلية الجديدة (التي لم تُرفع بعد) ═══
     console.log('🔼 رفع السجلات المحلية الجديدة...');
-    const allTables = [...globalTables, ...tenantTables].filter(t => t !== 'audit_log');
+    const allTables = [...globalTables, ...tenantTables];
     for (const t of allTables) {
       try {
         const local = this.get(t) || [];
@@ -2004,7 +2000,6 @@ const SmartRealtime = (() => {
       clearTimeout(_reconnTimer);
       clearInterval(_pingTimer);
       clearTimeout(_renderTimer);
-      _stopPollingFallback();
       if (_ws) {
         try { _ws.close(1000, 'logout'); } catch {}
         _ws = null;
@@ -2028,136 +2023,63 @@ const SmartRealtime = (() => {
 
     const wsUrl = _wsUrl();
     if (!wsUrl) {
-      // Supabase غير مُهيَّأ → شغّل polling fallback صامتاً
+      console.warn('⚡ Realtime: Supabase غير مُهيَّأ، لن يعمل Realtime');
       _setBadge('offline');
-      _startPollingFallback();
       return;
     }
 
     _setBadge('connecting');
     _joinedTopics.clear();
 
-    // ✅ Timeout للاتصال الأولي (10 ثوانٍ)
-    let connectTimeout = setTimeout(() => {
-      if (_ws && _ws.readyState === WebSocket.CONNECTING) {
-        console.warn('⚡ Realtime: انتهت مهلة الاتصال → polling fallback');
-        try { _ws.close(); } catch {}
-        _ws = null;
-        _startPollingFallback();
-      }
-    }, 10000);
-
     try {
       _ws = new WebSocket(wsUrl);
     } catch(e) {
-      clearTimeout(connectTimeout);
-      _startPollingFallback();
+      console.warn('⚡ Realtime: فشل إنشاء WebSocket:', e.message);
+      _scheduleReconnect();
       return;
     }
 
     _ws.onopen = () => {
-      clearTimeout(connectTimeout);
+      console.log('⚡ Realtime: WebSocket متصل ✅');
       SmartRealtime.isLive = true;
       _reconnDelay = RECONNECT_DELAY;
       _setBadge('live');
-      _stopPollingFallback(); // أوقف الـ polling إذا كان شغّالاً
-      console.log('⚡ Realtime: WebSocket متصل ✅');
 
+      // Ping دوري لإبقاء الاتصال حياً
       clearInterval(_pingTimer);
       _pingTimer = setInterval(() => {
-        if (_ws && _ws.readyState === WebSocket.OPEN) {
-          _send('phoenix', 'heartbeat', {});
-        }
+        _send('phoenix', 'heartbeat', {});
       }, PING_INTERVAL);
 
+      // الانضمام لجميع الجداول
       WATCHED_TABLES.forEach(t => _joinTable(t));
     };
 
     _ws.onmessage = e => _onMessage(e.data);
 
-    _ws.onerror = () => {
-      // ✅ لا نطبع خطأ في console — نتعامل معه في onclose
+    _ws.onerror = err => {
+      console.warn('⚡ Realtime: خطأ في WebSocket');
     };
 
     _ws.onclose = (e) => {
-      clearTimeout(connectTimeout);
       clearInterval(_pingTimer);
       SmartRealtime.isLive = false;
       _joinedTopics.clear();
       _setBadge('offline');
 
-      if (!_running) return;
-
-      // ✅ إذا كان الخطأ TIMED_OUT أو Connection Refused → polling fallback
-      if (e.code === 1006 || e.code === 1001) {
-        console.warn(`⚡ Realtime: انقطع (${e.code}) → polling fallback مؤقت`);
-        _startPollingFallback();
-        // حاول إعادة WebSocket بعد تأخير أطول
-        _reconnDelay = Math.max(_reconnDelay, 30000);
-      } else {
-        console.log(`⚡ Realtime: انقطع (${e.code}) → إعادة محاولة بعد ${_reconnDelay/1000}ث`);
+      if (_running) {
+        console.log(`⚡ Realtime: انقطع (${e.code}) — إعادة محاولة بعد ${_reconnDelay/1000}ث`);
+        _scheduleReconnect();
       }
-      _scheduleReconnect();
     };
-  }
-
-  // ── Polling Fallback: سحب دوري عند فشل WebSocket ──
-  let _pollTimer = null;
-  let _pollActive = false;
-  let _lastPollTime = 0;
-
-  function _startPollingFallback() {
-    if (_pollActive) return;
-    _pollActive = true;
-    console.log('⚡ Realtime: تشغيل polling fallback (كل 15 ث)');
-
-    _pollTimer = setInterval(async () => {
-      if (!_running || !navigator.onLine) return;
-      if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
-
-      try {
-        // سحب الإشعارات والتحديثات
-        const now = Date.now();
-        if (now - _lastPollTime < 14000) return;
-        _lastPollTime = now;
-
-        // سحب صامت للجداول الأساسية
-        const tid = _tenantId;
-        if (tid) {
-          const tables = ['notifications','projects','workers'];
-          for (const t of tables) {
-            try {
-              const filter = { tenant_id: tid };
-              const remote = await DBHybrid._sb.select(t, filter);
-              if (Array.isArray(remote) && remote.length) {
-                const lsKey = 'sbtp5_' + t;
-                const local = DBHybrid.get(t) || [];
-                const remoteIds = new Set(remote.map(r => Number(r.id)));
-                const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
-                localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
-              }
-            } catch(_) {}
-          }
-        }
-        // إعادة رسم الصفحة إذا تغيّر شيء
-        _scheduleRender();
-      } catch(_) {}
-    }, 15000);
-  }
-
-  function _stopPollingFallback() {
-    if (!_pollActive) return;
-    _pollActive = false;
-    clearInterval(_pollTimer);
-    _pollTimer = null;
-    console.log('⚡ Realtime: إيقاف polling (WebSocket متصل)');
   }
 
   function _scheduleReconnect() {
     clearTimeout(_reconnTimer);
     _reconnTimer = setTimeout(() => {
       if (_running) {
-        _reconnDelay = Math.min(_reconnDelay * 1.5, 120000); // max 2 دقيقة
+        // Exponential backoff
+        _reconnDelay = Math.min(_reconnDelay * 1.5, 60000);
         _connect();
       }
     }, _reconnDelay);
@@ -2275,36 +2197,31 @@ window.AutoSync = {
     if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
     if (typeof Auth === 'undefined' || !Auth.getUser()) return;
 
-    // ✅ إذا كان initial → اكتفِ بـ _flushOfflineQueue فقط (لا تُكرر syncAll)
-    // _initialSync في supabase-db.js يتولى الرفع الأولي بالكامل
-    if (reason === 'initial') {
-      try {
-        const cnt = DBHybrid.getOfflineQueueCount?.() || 0;
-        if (cnt > 0) await DBHybrid._flushOfflineQueue().catch(() => {});
-      } catch(_) {}
-      this._lastSync = Date.now();
-      console.log(`🔄 [AutoSync] تمت المزامنة (${reason})`);
-      return;
-    }
-
     this._isSyncing = true;
     const tablesToSync = Array.from(this._pendingChanges);
     this._pendingChanges.clear();
 
     try {
-      if (tablesToSync.length > 0 && typeof window.syncTablesToSupabase === 'function') {
-        await window.syncTablesToSupabase(tablesToSync, true);
+      // استدعاء syncAllDataToSupabase من app.js إن كانت موجودة (للمزامنة الأولية)
+      if (reason === 'initial' && typeof window.syncAllDataToSupabase === 'function') {
+        await window.syncAllDataToSupabase(true /* silent */);
+      } else if (tablesToSync.length > 0 && typeof window.syncTablesToSupabase === 'function') {
+        // مزامنة جداول محددة
+        await window.syncTablesToSupabase(tablesToSync, true /* silent */);
       } else if (typeof window.syncAllDataToSupabase === 'function') {
+        // افتراضياً مزامنة الكل بصمت
         await window.syncAllDataToSupabase(true);
       }
 
       this._lastSync = Date.now();
       console.log(`🔄 [AutoSync] تمت المزامنة (${reason})`);
 
+      // تحديث badge المزامنة
       const lastSyncEl = document.getElementById('lastSyncTime');
       if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString('fr-DZ');
     } catch (e) {
       console.warn('[AutoSync] فشل:', e.message);
+      // أعد إضافة الجداول المعلّقة
       tablesToSync.forEach(t => this._pendingChanges.add(t));
     } finally {
       this._isSyncing = false;
