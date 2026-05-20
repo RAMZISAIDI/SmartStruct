@@ -1433,7 +1433,7 @@ Pages.contact = function() {
       </div>
       <div class="ll-nav-cta">
         <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+          ${isAr ? 'FR' : 'AR'}
         </button>
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
@@ -1613,7 +1613,7 @@ Pages.about = function() {
       </div>
       <div class="ll-nav-cta">
         <button class="ll-lang-btn" onclick="I18N.setLang(isAr?'fr':'ar')">
-          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+          ${isAr ? 'FR' : 'AR'}
         </button>
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
@@ -1848,7 +1848,7 @@ Pages.landing = function() {
 
       <div class="ll-nav-cta">
         <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
-          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+          ${isAr ? 'FR' : 'AR'}
         </button>
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
@@ -3011,7 +3011,7 @@ Pages.login = function(mode) {
     </button>
 
     <button class="auth-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-      ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+      ${isAr ? 'FR' : 'AR'}
     </button>
 
     <!-- Main grid: Left brand panel + Right form -->
