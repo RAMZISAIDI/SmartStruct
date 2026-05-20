@@ -1365,9 +1365,20 @@ if (!navigator.onLine || !this._useSupabase) {
     // ✅ audit_log لا يُرفع أبداً من العميل (IDs كبيرة + read-only)
     if (table === 'audit_log') return { ok: 0, failed: 0 };
 
+    // ✅ فلترة المؤسسات والبيانات المحذوفة - لا تُرفع أبداً
+    const deletedTenantIds = new Set(
+      JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
+    );
+
     // تنظيف السجلات
     const cleaned = records
       .filter(r => (table === 'global_settings' ? r.key : r.id))
+      // ✅ استبعاد المؤسسات المحذوفة
+      .filter(r => {
+        if (table === 'tenants') return !deletedTenantIds.has(Number(r.id));
+        if (r.tenant_id) return !deletedTenantIds.has(Number(r.tenant_id));
+        return true;
+      })
       .map(r => _cleanForSupabase_INTERNAL(table, r))
       .filter(Boolean);
 
@@ -1468,14 +1479,26 @@ if (!navigator.onLine || !this._useSupabase) {
             const filters = isAdmin ? {} : { tenant_id: tid };
             const remote = await this._sb.select(t, filters);
             if (Array.isArray(remote)) {
+              // ✅ فلترة المؤسسات المحذوفة من البيانات المسحوبة
+              const deletedTids = new Set(
+                JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
+              );
+              const filteredRemote = deletedTids.size ? remote.filter(r => {
+                if (t === 'tenants') return !deletedTids.has(Number(r.id));
+                return !r.tenant_id || !deletedTids.has(Number(r.tenant_id));
+              }) : remote;
+
               // دمج مع المحلي (المحلي الذي ليس له id في البعيد = جديد لم يُرفع)
               const local = this.get(t) || [];
-              const remoteIds = new Set(remote.map(r => Number(r.id)));
+              const remoteIds = new Set(filteredRemote.map(r => Number(r.id)));
               const localUnsynced = local.filter(r =>
                 !remoteIds.has(Number(r.id)) &&
-                (isAdmin || Number(r.tenant_id) === Number(tid))
+                (isAdmin || Number(r.tenant_id) === Number(tid)) &&
+                // ✅ استبعاد المحذوفة من المحلي أيضاً
+                (t !== 'tenants' || !deletedTids.has(Number(r.id))) &&
+                (!r.tenant_id || !deletedTids.has(Number(r.tenant_id)))
               );
-              const merged = [...remote, ...localUnsynced];
+              const merged = [...filteredRemote, ...localUnsynced];
               localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
               if (remote.length || localUnsynced.length) {
                 console.log(`  ✅ ${t}: ${remote.length} من السحابة + ${localUnsynced.length} محلي غير مُرفَع`);
