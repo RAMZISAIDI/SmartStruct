@@ -836,7 +836,7 @@ const DBHybrid = {
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
       'notifications','global_settings','admin_notifications','stock_movements',
-      'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
+      'custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations'
     ]);
     if (!SYNCABLE.has(key)) return;
@@ -1279,7 +1279,7 @@ if (!navigator.onLine || !this._useSupabase) {
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
       'notifications','global_settings','admin_notifications','stock_movements',
-      'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
+      'custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations'
     ]);
     if (!SYNCABLE.has(key)) return;
@@ -1362,6 +1362,9 @@ if (!navigator.onLine || !this._useSupabase) {
 
   async _syncTableToSupabase(table, records) {
     if (!Array.isArray(records) || !records.length) return { ok: 0, failed: 0 };
+
+    // ✅ audit_log لا يُرفع أبداً من العميل (IDs كبيرة + read-only)
+    if (table === 'audit_log') return { ok: 0, failed: 0 };
 
     // تنظيف السجلات
     const cleaned = records
@@ -1518,7 +1521,8 @@ if (!navigator.onLine || !this._useSupabase) {
 
     // ═══ ③ دفع السجلات المحلية الجديدة (التي لم تُرفع بعد) ═══
     console.log('🔼 رفع السجلات المحلية الجديدة...');
-    const allTables = [...globalTables, ...tenantTables];
+    // ملاحظة: audit_log مُستبعَد من الرفع (IDs بحجم timestamp تتجاوز INTEGER)
+    const allTables = [...globalTables, ...tenantTables].filter(t => t !== 'audit_log');
     for (const t of allTables) {
       try {
         const local = this.get(t) || [];
@@ -1898,6 +1902,12 @@ const SmartRealtime = (() => {
   let _joinedTopics = new Set();
   let _notifQueue   = [];           // إشعارات مؤجلة
   let _reconnDelay  = RECONNECT_DELAY;
+  // متغيرات WebSocket / polling fallback
+  let _pollActive     = false;
+  let _pollTimer      = null;
+  let _connectTimeout = null;
+  let _wsAttempts     = 0;
+  const MAX_WS_ATTEMPTS = 3;         // بعد 3 محاولات فاشلة → polling دائم
 
   /* ─── مؤشر الحالة في الواجهة ───────────────── */
   function _setBadge(state) {
@@ -2130,13 +2140,6 @@ const SmartRealtime = (() => {
       setTimeout(() => this.start(tenantId), 500);
     }
   };
-
-  /* ─── State for polling fallback ────────────── */
-  let _pollActive = false;
-  let _pollTimer  = null;
-  let _connectTimeout = null;
-  let _wsAttempts = 0;
-  const MAX_WS_ATTEMPTS = 3; // بعد 3 محاولات فاشلة → polling دائم
 
   /* ─── الاتصال الفعلي بـ WebSocket ──────────── */
   function _connect() {
