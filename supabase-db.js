@@ -854,15 +854,19 @@ const DBHybrid = {
     // INSERT: موجود في الجديد وغير موجود في القديم
     for (const [id, rec] of newMap) {
       if (!prevMap.has(id)) {
-        this._pushToSupabase(key, rec, 'POST');
-        changed = true;
+        if (!this._isDuplicate(key, rec, 'POST')) {
+          this._pushToSupabase(key, rec, 'POST');
+          changed = true;
+        }
         continue;
       }
       // UPDATE: موجود في الاثنين لكن تغيّر
       const prevRec = prevMap.get(id);
       if (JSON.stringify(rec) !== JSON.stringify(prevRec)) {
-        this._pushToSupabase(key, rec, 'PATCH');
-        changed = true;
+        if (!this._isDuplicate(key, rec, 'PATCH')) {
+          this._pushToSupabase(key, rec, 'PATCH');
+          changed = true;
+        }
       }
     }
 
@@ -950,6 +954,7 @@ if (!navigator.onLine || !this._useSupabase) {
         }
 
         this._emitSyncEvent('synced');
+        this._markUploaded(table, record); // ✅ منع الرفع المزدوج
 
         // مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase
         if (!_KEEP_ID_TABLES.has(table) && oldId && resText) {
@@ -1028,6 +1033,7 @@ if (!navigator.onLine || !this._useSupabase) {
         }
 
         this._emitSyncEvent('synced');
+        this._markUploaded(table, record); // ✅ منع الرفع المزدوج
         this._updateAdminSyncUI();
         return;
       }
@@ -1058,9 +1064,86 @@ if (!navigator.onLine || !this._useSupabase) {
     }
   },
 
+  /** يكتشف ويُزيل السجلات المحلية التي tenant_id غير موجود في tenants */
+  _cleanOrphanedLocalData() {
+    try {
+      const tenants = this.get('tenants') || [];
+      if (!tenants.length) return; // لم تُحمَّل البيانات بعد
+
+      const validTids = new Set(tenants.map(t => Number(t.id)));
+      const deletedTids = new Set(
+        JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
+      );
+
+      const tablesToClean = [
+        'projects','workers','equipment','equipment_logs','transactions','attendance',
+        'materials','stock_movements','invoices','salary_records','kanban_tasks',
+        'documents','obligations','notes','notifications','users'
+      ];
+
+      let totalRemoved = 0;
+      for (const t of tablesToClean) {
+        try {
+          const arr = this.get(t);
+          if (!Array.isArray(arr) || !arr.length) continue;
+
+          const cleaned = arr.filter(r => {
+            if (!r.tenant_id) return true; // بدون tenant = احتفظ
+            const tid = Number(r.tenant_id);
+            // احذف إذا: tenant محذوف أو غير موجود في validTids
+            if (deletedTids.has(tid)) return false;
+            if (!validTids.has(tid)) return false;
+            return true;
+          });
+
+          if (cleaned.length < arr.length) {
+            const removed = arr.length - cleaned.length;
+            totalRemoved += removed;
+            localStorage.setItem('sbtp5_' + t, JSON.stringify(cleaned));
+          }
+        } catch(_) {}
+      }
+
+      if (totalRemoved > 0) {
+        console.log(`🧹 نُظِّف ${totalRemoved} سجل يتيم من localStorage`);
+      }
+    } catch(_) {}
+  },
+
   nextId(key) {
     const items = this.get(key);
     return items.length ? Math.max(...items.map(i => i.id || 0)) + 1 : 1;
+  },
+
+
+  // ══════════════════════════════════════════════════════
+  // نظام منع الرفع المزدوج — يحتفظ بـ hash آخر سجل مرفوع
+  // ══════════════════════════════════════════════════════
+  _uploadedHashes: {}, // { 'table:id': 'hash' }
+
+  _hashRecord(record) {
+    // hash بسيط وسريع من JSON
+    const s = JSON.stringify(record);
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) - h) + s.charCodeAt(i);
+      h |= 0;
+    }
+    return String(h);
+  },
+
+  _isDuplicate(table, record, method) {
+    if (method === 'DELETE') return false; // DELETE دائماً مسموح
+    const key = table + ':' + record.id;
+    const hash = this._hashRecord(record);
+    if (this._uploadedHashes[key] === hash) return true; // مرفوع بالفعل
+    return false;
+  },
+
+  _markUploaded(table, record) {
+    if (!record || !record.id) return;
+    const key = table + ':' + record.id;
+    this._uploadedHashes[key] = this._hashRecord(record);
   },
 
   // ══════════════════════════════════════════════════════
@@ -1327,13 +1410,16 @@ if (!navigator.onLine || !this._useSupabase) {
     ]);
     if (!SYNCABLE.has(key)) return;
 
-    // أزل مزامنة قديمة لنفس الجدول
+    // ✅ تجنب إضافة نفس البيانات مرتين للـ queue
+    const existing = this._syncQueue.find(q => q.key === key);
+    if (existing && JSON.stringify(existing.val) === JSON.stringify(val)) return;
+
+    // أزل مزامنة قديمة لنفس الجدول وأضف الجديدة
     this._syncQueue = this._syncQueue.filter(q => q.key !== key);
     this._syncQueue.push({ key, val, time: Date.now() });
 
     if (!this._syncing) {
       clearTimeout(this._syncTimer);
-      // ✅ 500ms بدلاً من 2000ms — أسرع استجابة
       this._syncTimer = setTimeout(() => this._processSyncQueue(), 500);
     }
   },
@@ -1415,6 +1501,11 @@ if (!navigator.onLine || !this._useSupabase) {
     );
     const deletedIds = this._getDeletedIds(table);
 
+    // جلب كل tenant IDs الموجودة في Supabase من localStorage
+    const validTenantIds = new Set(
+      (this.get('tenants') || []).map(t => Number(t.id))
+    );
+
     // تنظيف السجلات
     const cleaned = records
       .filter(r => (table === 'global_settings' ? r.key : r.id))
@@ -1426,6 +1517,13 @@ if (!navigator.onLine || !this._useSupabase) {
       })
       // ✅ استبعاد السجلات التي تم حذفها مسبقاً
       .filter(r => !deletedIds.has(String(r.id)))
+      // ✅ استبعاد أي سجل يُشير لـ tenant غير موجود (يمنع FK violation)
+      .filter(r => {
+        if (!r.tenant_id) return true; // لا FK = مقبول
+        if (table === 'tenants') return true; // tenants نفسها لا تحتاج فحص
+        if (validTenantIds.size === 0) return true; // إذا لم نعرف التinants بعد = اسمح
+        return validTenantIds.has(Number(r.tenant_id));
+      })
       .map(r => _cleanForSupabase_INTERNAL(table, r))
       .filter(Boolean);
 
@@ -1467,6 +1565,10 @@ if (!navigator.onLine || !this._useSupabase) {
     const user = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
     const tid  = user?.tenant_id;
     const isAdmin = user?.is_admin;
+
+    // ✅ تنظيف البيانات اليتيمة من localStorage قبل المزامنة
+    // (سجلات تُشير لـ tenant_id غير موجود → تُسبب FK violations)
+    this._cleanOrphanedLocalData();
 
     // الجداول التي تحتوي tenant_id (تُسحب مفلترة للمستخدم العادي)
     const tenantTables = [

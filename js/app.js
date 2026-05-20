@@ -12899,11 +12899,29 @@ async function deleteTenantAccount(tenantId){
   depTables.forEach(tbl => { try { backup[tbl] = [...(DB.get(tbl) || [])]; } catch{} });
 
   // ── حذف من Supabase أولاً (مصدر الحقيقة) ──
+  // استخدام SupabaseClient المُهيَّأ (يملك الصلاحيات الصحيحة)
+  const sbClient = (typeof SupabaseClient !== 'undefined') ? SupabaseClient : null;
   const sbH = {
     'Content-Type':'application/json',
     'apikey': sbKey,
     'Authorization': `Bearer ${sbKey}`,
     'Prefer': 'return=minimal'
+  };
+
+  const _sbDelete = async (table, filter) => {
+    // استخدام SupabaseClient.delete إذا كان متاحاً
+    if (sbClient && sbClient.delete) {
+      try {
+        await sbClient.delete(table, filter);
+        return true;
+      } catch(e) {
+        console.warn(`⚠️ sbClient.delete ${table}:`, e.message);
+      }
+    }
+    // fallback: fetch مباشر
+    const params = Object.entries(filter).map(([k,v]) => `${k}=eq.${v}`).join('&');
+    const res = await fetch(`${sbUrl}/rest/v1/${table}?${params}`, { method: 'DELETE', headers: sbH });
+    return res.ok || res.status === 404 || res.status === 406;
   };
 
   // الترتيب مهم: الجداول الفرعية أولاً ثم الأم
@@ -12921,23 +12939,15 @@ async function deleteTenantAccount(tenantId){
 
   for (const tbl of sbDepTables) {
     try {
-      const res = await fetch(
-        `${sbUrl}/rest/v1/${tbl}?tenant_id=eq.${tid}`,
-        { method: 'DELETE', headers: sbH }
-      );
-      if (!res.ok) {
-        const errText = await res.text().catch(()=> '');
-        // 404 / 406 مقبولة (الجدول قد يكون فارغاً)
-        if (res.status !== 404 && res.status !== 406) {
-          console.warn(`⚠️ حذف ${tbl} من Supabase فشل (${res.status}):`, errText);
-          failures.push(`${tbl}: HTTP ${res.status}`);
-        }
-      } else {
+      const ok = await _sbDelete(tbl, { tenant_id: tid });
+      if (ok) {
         console.log(`✅ حُذف من ${tbl} (tenant_id=${tid})`);
+      } else {
+        failures.push(`${tbl}: فشل`);
       }
       progress++;
     } catch(e) {
-      console.warn(`⚠️ حذف ${tbl} من Supabase فشل:`, e.message);
+      console.warn(`⚠️ حذف ${tbl} فشل:`, e.message);
       failures.push(`${tbl}: ${e.message}`);
     }
   }
@@ -12953,14 +12963,8 @@ async function deleteTenantAccount(tenantId){
 
   // ── حذف المؤسسة نفسها ──
   try {
-    const res = await fetch(
-      `${sbUrl}/rest/v1/tenants?id=eq.${tid}`,
-      { method: 'DELETE', headers: sbH }
-    );
-    if (!res.ok) {
-      const errText = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status} — ${errText}`);
-    }
+    const ok = await _sbDelete('tenants', { id: tid });
+    if (!ok) throw new Error('فشل حذف المؤسسة');
     console.log(`✅ حُذفت المؤسسة #${tid} من Supabase`);
   } catch(e) {
     // فشل حذف المؤسسة الأم — أعد الاسترجاع
