@@ -1342,9 +1342,9 @@ window.QuickWins = {
             ${steps.map((_,i) => `<div style="width:8px;height:8px;border-radius:50%;background:${i===idx?'#D4AF37':'rgba(255,255,255,.2)'}"></div>`).join('')}
           </div>
           <div style="display:flex;gap:.5rem;justify-content:center">
-            ${idx > 0 ? `<button onclick="document.getElementById('onboarding-step').remove();window._obIdx=${idx-1};QuickWins._obShow()" style="padding:.7rem 1.5rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:8px;cursor:pointer">السابق</button>` : ''}
+            ${idx > 0 ? `<button onclick="document.getElementById('onboarding-step').remove();window._obIdx=${idx-1};window._obShow&&window._obShow()" style="padding:.7rem 1.5rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:8px;cursor:pointer">السابق</button>` : ''}
             ${idx < steps.length-1
-              ? `<button onclick="document.getElementById('onboarding-step').remove();window._obIdx=${idx+1};QuickWins._obShow()" style="padding:.7rem 1.5rem;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;font-weight:700;border-radius:8px;cursor:pointer">التالي →</button>`
+              ? `<button onclick="document.getElementById('onboarding-step').remove();window._obIdx=${idx+1};window._obShow&&window._obShow()" style="padding:.7rem 1.5rem;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;font-weight:700;border-radius:8px;cursor:pointer">التالي →</button>`
               : `<button onclick="document.getElementById('onboarding-step').remove();localStorage.setItem('sbtp_onboarded','1')" style="padding:.7rem 1.5rem;background:linear-gradient(135deg,#34C38F,#2A9F73);border:none;color:#fff;font-weight:700;border-radius:8px;cursor:pointer">🚀 ابدأ!</button>`}
             <button onclick="document.getElementById('onboarding-step').remove();localStorage.setItem('sbtp_onboarded','1')" style="padding:.7rem 1rem;background:none;border:none;color:#888;cursor:pointer">تخطي</button>
           </div>
@@ -1352,6 +1352,7 @@ window.QuickWins = {
       document.body.appendChild(ov);
     };
     window._obShow = () => { idx = window._obIdx || 0; show(); };
+    QuickWins._obShow = window._obShow; // alias للتوافق مع الكود القديم
     show();
   }
 };
