@@ -172,7 +172,7 @@ const Auth = {
     if (u) {
       const parsed = JSON.parse(u);
       // إذا كان المستخدم مسؤولاً ولم يمر من صفحة admin-login، نمسح الجلسة
-      if (parsed.is_admin && !sessionStorage.getItem('sbtp_admin_auth')) {
+      if (parsed.is_admin && !localStorage.getItem('sbtp_admin_auth')) {
         sessionStorage.removeItem('sbtp_user');
         return;
       }
@@ -1061,7 +1061,7 @@ const App = {
     if (user && this.currentPage === 'landing') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
 
     // ── ADMIN GUARD: يمنع دخول المسؤول إلا عبر صفحة admin-login المنفصلة ──
-    if (user && user.is_admin && !sessionStorage.getItem('sbtp_admin_auth')) {
+    if (user && user.is_admin && !localStorage.getItem('sbtp_admin_auth')) {
       Auth.logout();
       window.location.href = 'admin-login.html';
       return;
@@ -4137,7 +4137,7 @@ const TrialManager = {
     document.body.style.overflow = '';
     try {
       sessionStorage.removeItem('sbtp_user');
-      sessionStorage.removeItem('sbtp_admin_auth');
+      localStorage.removeItem('sbtp_admin_auth');
       if (typeof Auth !== 'undefined') Auth.currentUser = null;
     } catch(_) {}
     // العودة لصفحة الدخول
@@ -10873,7 +10873,7 @@ async function doLogin() {
         // ✅ تسجيل دخول ناجح للأدمن بدون Supabase
         Auth.currentUser = localAdmin;
         sessionStorage.setItem('sbtp_user', JSON.stringify(localAdmin));
-        sessionStorage.setItem('sbtp_admin_auth', '1');
+        localStorage.setItem('sbtp_admin_auth', '1');
         if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); }
         App.navigate('admin');
         // مزامنة في الخلفية
@@ -11032,7 +11032,7 @@ async function doLogin() {
     // ── 7. تسجيل الجلسة ──
     Auth.currentUser = sbUser;
     sessionStorage.setItem('sbtp_user', JSON.stringify(sbUser));
-    if (sbUser.is_admin) sessionStorage.setItem('sbtp_admin_auth', '1');
+    if (sbUser.is_admin) localStorage.setItem('sbtp_admin_auth', '1');
 
     resetBtn();
 
@@ -12941,6 +12941,15 @@ async function deleteTenantAccount(tenantId){
       failures.push(`${tbl}: ${e.message}`);
     }
   }
+
+  // ✅ سجّل ID المؤسسة كمحذوفة فوراً — يمنع أي مزامنة لها لاحقاً
+  try {
+    const existDel = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    if (!existDel.includes(tid)) {
+      existDel.push(tid);
+      localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(existDel));
+    }
+  } catch{}
 
   // ── حذف المؤسسة نفسها ──
   try {
@@ -18821,7 +18830,7 @@ patchSmartAIWithSavedConfig();
         return _navigate('dashboard', {});
       }
       // تحقق إضافي من admin flag في session
-      if (!sessionStorage.getItem('sbtp_admin_auth')) {
+      if (!localStorage.getItem('sbtp_admin_auth')) {
         Toast.error('⛔ جلسة المسؤول منتهية. أعد تسجيل الدخول');
         return _navigate('dashboard', {});
       }

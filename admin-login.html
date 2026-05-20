@@ -559,7 +559,7 @@ async function doAdminLogin() {
 
   // Save session (same key as main app)
   sessionStorage.setItem('sbtp_user', JSON.stringify(user));
-  sessionStorage.setItem('sbtp_admin_auth', '1'); // extra admin flag
+  localStorage.setItem('sbtp_admin_auth', '1'); // extra admin flag
 
   setLoading(false);
   showSuccess();
