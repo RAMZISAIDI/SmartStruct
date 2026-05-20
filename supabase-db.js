@@ -2135,14 +2135,22 @@ const SmartRealtime = (() => {
       }
       _joinedTopics.clear();
       this.isLive = false;
-      _setBadge('offline');
+      // لا نُغيّر البادج هنا — restart() سيُعيّنه مباشرة
     },
 
     /** إعادة تشغيل بعد تغيير tenant */
     restart(tenantId) {
-      this.stop();
+      // ✅ لا نُوقف البادج — نُعيد التشغيل مباشرة
       _running = false;
-      setTimeout(() => this.start(tenantId), 500);
+      _wsAttempts = 0;
+      clearTimeout(_reconnTimer);
+      clearTimeout(_connectTimeout);
+      clearInterval(_pingTimer);
+      _stopPollingFallback();
+      if (_ws) { try { _ws.close(); } catch {} _ws = null; }
+      _joinedTopics.clear();
+      _running = false;
+      setTimeout(() => this.start(tenantId), 300);
     }
   };
 
@@ -2241,7 +2249,8 @@ const SmartRealtime = (() => {
   function _startPollingFallback() {
     if (_pollActive) return;
     _pollActive = true;
-    _setBadge('live'); // ✅ يُظهر "متصل" دائماً
+    SmartRealtime.isLive = true; // ✅ polling = متصل
+    _setBadge('live');
     console.log('⚡ Realtime: polling fallback نشط (كل 25 ث)');
 
     // ينفّذ سحب صامت كل 25 ثانية باستخدام SupabaseClient (يعالج CORS بشكل صحيح)

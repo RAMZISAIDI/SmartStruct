@@ -14288,7 +14288,7 @@ function sidebarHTML(active='') {
           border:1px solid ${typeof SmartRealtime!=='undefined'&&SmartRealtime.isLive?'rgba(52,195,143,.3)':'rgba(240,78,106,.25)'};
           cursor:default;width:100%;justify-content:center;
         ">
-          ${typeof SmartRealtime!=='undefined'&&SmartRealtime.isLive?'⚡ Realtime نشط':'⚡ Realtime غير متصل'}
+          ${typeof SmartRealtime!=='undefined'&&(SmartRealtime.isLive||SmartRealtime._pollActive)?'⚡ Realtime نشط':'⚡ غير متصل'}
         </span>
       </div>
       <button class="nav-link logout" onclick="Auth.logout()">🚪 ${L('تسجيل الخروج','Déconnexion')}</button>
