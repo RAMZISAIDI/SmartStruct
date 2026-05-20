@@ -3861,23 +3861,11 @@ const TrialManager = {
   _clientBaseMs: null,    // Date.now() لحظة جلب وقت السيرفر
   _syncInFlight: false,
 
-  // محاولة جلب وقت السيرفر من Supabase (يتطلب View: public.server_time)
+  // وقت السيرفر — معطّل (جدول server_time غير موجود)، يُستخدم وقت الجهاز
   async syncServerNow() {
-    if (this._syncInFlight) return;
-    this._syncInFlight = true;
-    try {
-      if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
-      const rows = await SupabaseClient.select('server_time', {}, { limit: 1 });
-      if (rows && rows[0] && rows[0].now) {
-        this._serverBase = new Date(rows[0].now);
-        this._clientBaseMs = Date.now();
-      }
-    } catch (e) {
-      // fallback silently (يستخدم وقت الجهاز)
-      // console.warn('Server time sync failed:', e);
-    } finally {
-      this._syncInFlight = false;
-    }
+    // لا نستعلم عن server_time لتجنب أخطاء 400
+    // وقت الجهاز كافٍ تماماً للاستخدام العادي
+    return;
   },
 
   // وقت "حقيقي" تقديري: serverBase + (الفرق من وقت الجهاز)

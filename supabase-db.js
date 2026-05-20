@@ -294,12 +294,13 @@ const SupabaseClient = {
 
   // SELECT
   async select(table, filters = {}, opts = {}) {
-    let params = 'order=id.asc';
+    // global_settings مفتاحها 'key' وليس 'id'
+    const pkCol = (table === 'global_settings') ? 'key' : 'id';
+    let params = `order=${pkCol}.asc`;
     for (const [k, v] of Object.entries(filters)) {
       if (v !== undefined && v !== null)
         params += `&${k}=eq.${encodeURIComponent(v)}`;
     }
-    if (opts.order) params += `&order=${opts.order}`;
     if (opts.limit) params += `&limit=${opts.limit}`;
     return this._request('GET', table, null, params);
   },
@@ -2237,36 +2238,33 @@ const SmartRealtime = (() => {
     if (_pollActive) return;
     _pollActive = true;
     _setBadge('live'); // نُظهرها متصلة عبر polling
-    console.log('⚡ Realtime: polling fallback نشط (كل 20 ث)');
+    console.log('⚡ Realtime: polling fallback نشط (كل 25 ث)');
 
-    // ينفّذ سحب صامت كل 20 ثانية
+    // ينفّذ سحب صامت كل 25 ثانية باستخدام SupabaseClient (يعالج CORS بشكل صحيح)
     _pollTimer = setInterval(async () => {
       if (!_running || !navigator.onLine) return;
       if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
       if (!_tenantId) return;
+      if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
 
       try {
-        // سحب الإشعارات فقط (الأهم)
-        const filter = `tenant_id=eq.${_tenantId}`;
-        const url = `${SUPABASE_CONFIG.url}/rest/v1/notifications?${filter}&order=id.desc&limit=20`;
-        const resp = await fetch(url, {
-          headers: {
-            'apikey': SUPABASE_CONFIG.anonKey,
-            'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
-          }
-        });
-        if (resp.ok) {
-          const remote = await resp.json();
-          if (Array.isArray(remote) && remote.length) {
-            const lsKey = 'sbtp5_notifications';
-            const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
-            const remoteIds = new Set(remote.map(r => Number(r.id)));
-            const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
-            localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
-          }
+        // سحب الإشعارات عبر SupabaseClient (نفس آلية باقي التطبيق)
+        const remote = await SupabaseClient.select(
+          'notifications',
+          { tenant_id: _tenantId },
+          { limit: 30 }
+        );
+        if (Array.isArray(remote) && remote.length) {
+          const lsKey = 'sbtp5_notifications';
+          const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
+          const remoteIds = new Set(remote.map(r => Number(r.id)));
+          const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+          localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
         }
-      } catch(_) {}
-    }, 20000);
+      } catch(_) {
+        // فشل صامت — المحاولة التالية بعد 25 ث
+      }
+    }, 25000);
   }
 
   function _stopPollingFallback() {
