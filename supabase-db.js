@@ -1938,12 +1938,9 @@ const SmartRealtime = (() => {
 
   /* ─── بناء URL الـ WebSocket ────────────────── */
   function _wsUrl() {
-    const url = (SUPABASE_CONFIG.url || '').replace(/\/$/, '');
-    const key  = SUPABASE_CONFIG.anonKey || '';
-    if (!url || !key) return null;
-    // Supabase Realtime endpoint
-    const wsBase = url.replace('https://', 'wss://').replace('http://', 'ws://');
-    return `${wsBase}/realtime/v1/websocket?apikey=${key}&vsn=1.0.0`;
+    // ملاحظة: Supabase 2025 ألغى anon key واستبدله بـ publishable key
+    // publishable key لا يعمل مع WebSocket → نستخدم polling fallback فقط
+    return null; // تعطيل WebSocket - polling يعوّض عنه
   }
 
   /* ─── إرسال رسالة Phoenix ───────────────────── */
@@ -2117,7 +2114,12 @@ const SmartRealtime = (() => {
       if (_running) return;
       _running  = true;
       _tenantId = tenantId || null;
-      _connect();
+      _setBadge('live');
+
+      // Supabase 2025: publishable key لا يعمل مع WebSocket
+      // نستخدم polling fallback مباشرة بدون محاولة WebSocket
+      _startPollingFallback();
+      console.log('⚡ Realtime: polling mode نشط (Supabase 2025 key system)');
     },
 
     /** إيقاف الاتصال */
