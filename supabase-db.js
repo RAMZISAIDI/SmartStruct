@@ -869,6 +869,8 @@ const DBHybrid = {
     // DELETE: موجود في القديم وغير موجود في الجديد
     for (const [id] of prevMap) {
       if (!newMap.has(id)) {
+        // ✅ سجّل الحذف فوراً لمنع إعادة السجل عند المزامنة
+        this._markAsDeleted(key, id);
         this._pushToSupabase(key, { id }, 'DELETE');
         changed = true;
       }
@@ -1505,7 +1507,12 @@ if (!navigator.onLine || !this._useSupabase) {
             // دمج ذكي: لا نُلغي السجلات المحلية الجديدة غير المرفوعة بعد
             const local = this.get(t) || [];
             const remoteIds = new Set(filtered.map(r => Number(r.id)));
-            const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+            const deletedCache = this._getDeletedIds(t);
+            const localOnly = local.filter(r =>
+              !remoteIds.has(Number(r.id)) &&
+              !deletedCache.has(String(r.id)) // ✅ لا نُعيد المحذوفة
+            );
+            // ✅ remote هو المصدر الحقيقي — ما ليس فيه ومحذوف محلياً لا يُضاف
             const merged = [...filtered, ...localOnly];
             localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
             console.log(`  ✅ ${t}: ${filtered.length} من السحابة + ${localOnly.length} محلي`);
@@ -1541,12 +1548,13 @@ if (!navigator.onLine || !this._useSupabase) {
               const localUnsynced = local.filter(r =>
                 !remoteIds.has(Number(r.id)) &&
                 (isAdmin || Number(r.tenant_id) === Number(tid)) &&
-                // ✅ استبعاد المحذوفة من المحلي أيضاً
+                // ✅ استبعاد المحذوفة من المحلي
                 (t !== 'tenants' || !deletedTids.has(Number(r.id))) &&
                 (!r.tenant_id || !deletedTids.has(Number(r.tenant_id))) &&
-                // ✅ استبعاد أي سجل تم حذفه مسبقاً
+                // ✅ استبعاد أي سجل تم حذفه مسبقاً من Supabase
                 !deletedIds.has(String(r.id))
               );
+              // ✅ Supabase هو المصدر الحقيقي — remote يحكم
               const merged = [...filteredRemote, ...localUnsynced];
               localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
               if (remote.length || localUnsynced.length) {
