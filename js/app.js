@@ -1423,7 +1423,7 @@ Pages.contact = function() {
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
-          <div class="ll-nav-logo-sub">v7.3 PRO</div>
+          
         </div>
       </a>
       <div class="ll-nav-links">
@@ -1603,7 +1603,7 @@ Pages.about = function() {
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
-          <div class="ll-nav-logo-sub">v7.3 PRO</div>
+          
         </div>
       </a>
       <div class="ll-nav-links">
@@ -1834,7 +1834,7 @@ Pages.landing = function() {
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
-          <div class="ll-nav-logo-sub">v7.3 PRO</div>
+          
         </div>
       </a>
 
@@ -2625,7 +2625,7 @@ Pages.landing = function() {
             <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
             <div class="ll-nav-logo-text">
               <div class="ll-nav-logo-name">SmartStruct</div>
-              <div class="ll-nav-logo-sub">v7.3 PRO</div>
+              
             </div>
           </div>
           <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
