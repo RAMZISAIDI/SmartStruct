@@ -2114,12 +2114,10 @@ const SmartRealtime = (() => {
       if (_running) return;
       _running  = true;
       _tenantId = tenantId || null;
-      _setBadge('live');
 
-      // Supabase 2025: publishable key لا يعمل مع WebSocket
-      // نستخدم polling fallback مباشرة بدون محاولة WebSocket
+      // Supabase 2025: polling mode مباشرة
       _startPollingFallback();
-      console.log('⚡ Realtime: polling mode نشط (Supabase 2025 key system)');
+      console.log('⚡ Realtime: polling mode نشط');
     },
 
     /** إيقاف الاتصال */
@@ -2154,7 +2152,7 @@ const SmartRealtime = (() => {
 
     const wsUrl = _wsUrl();
     if (!wsUrl) {
-      _setBadge('offline');
+      // WebSocket معطَّل → polling يتولى الأمر (لا تُغيّر البادج)
       return;
     }
 
@@ -2243,7 +2241,7 @@ const SmartRealtime = (() => {
   function _startPollingFallback() {
     if (_pollActive) return;
     _pollActive = true;
-    _setBadge('live'); // نُظهرها متصلة عبر polling
+    _setBadge('live'); // ✅ يُظهر "متصل" دائماً
     console.log('⚡ Realtime: polling fallback نشط (كل 25 ث)');
 
     // ينفّذ سحب صامت كل 25 ثانية باستخدام SupabaseClient (يعالج CORS بشكل صحيح)
