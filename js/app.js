@@ -2410,54 +2410,6 @@ Pages.landing = function() {
           </div>
         </div>
 
-        <!-- Row 3: Mobile / GPS -->
-        <div class="ll-benefit-row ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('ميدان رقمي','Chantier numérique')}<span class="ll-gold"> ${L('في جيب كل عامل','dans la poche')}</span></h3>
-            <p>${L('وضع الميدان (Mobile Mode) صُمم للعمال على ورشة البناء — ليس للمحاسبين خلف المكاتب.','Le mode Chantier est conçu pour les ouvriers sur le terrain — pas pour les comptables.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('5 أزرار كبيرة فقط — حضور، مواد، صور، صرف، GPS','5 gros boutons : présence, matériaux, photos, dépense, GPS')}</li>
-              <li><span class="ll-check">✓</span> ${L('تتبع GPS لكل معدة عبر QR code','Suivi GPS de chaque engin via QR')}</li>
-              <li><span class="ll-check">✓</span> ${L('تسجيل الحضور بالموقع الجغرافي','Pointage avec géolocalisation')}</li>
-              <li><span class="ll-check">✓</span> ${L('يعمل بدون إنترنت ويتزامن لاحقاً','Fonctionne offline + sync différée')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-gps-pulse"></div>
-              <div class="ll-mobile-mockup">
-                <div class="ll-mobile-screen">
-                  <div class="ll-mobile-notch"></div>
-                  <div class="ll-mobile-time">9:42 ${isAr?'ص':'AM'}</div>
-                  <div class="ll-mobile-greeting">${L('صباح الخير','Bonjour')}</div>
-                  <div class="ll-mobile-name">${L('أحمد بن علي','Ahmed Benali')}</div>
-                  <div class="ll-mobile-grid">
-                    <div class="ll-mobile-btn ll-gold">
-                      <div class="ll-mobile-btn-icon">✓</div>
-                      <div class="ll-mobile-btn-label">${L('حضور','Pointage')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">📦</div>
-                      <div class="ll-mobile-btn-label">${L('مواد','Matériaux')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">📷</div>
-                      <div class="ll-mobile-btn-label">${L('صور','Photos')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">💰</div>
-                      <div class="ll-mobile-btn-label">${L('طلب صرف','Dépense')}</div>
-                    </div>
-                    <div class="ll-mobile-btn" style="grid-column:1/-1">
-                      <div class="ll-mobile-btn-icon">📍</div>
-                      <div class="ll-mobile-btn-label">${L('GPS — موقع المعدة','GPS — Position engin')}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
       </div>
     </section>

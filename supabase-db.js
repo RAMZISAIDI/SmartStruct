@@ -477,20 +477,18 @@ const SupabaseClient = {
     if (!this._url || !this._key) return false;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
+      const timer = setTimeout(() => controller.abort(), 8000);
       const resp = await fetch(
         `${this._url}/rest/v1/plans?select=id&limit=1`,
         { headers: this.headers(), signal: controller.signal }
       );
       clearTimeout(timer);
-      if (resp.status === 401 || resp.status === 403) {
-        console.warn('🔑 Supabase: خطأ في المصادقة (Key منتهي أو غير صحيح)');
-        return false;
-      }
+      // 502/503 = مشكلة مؤقتة في Supabase — نعتبره "متصل" لتجنب تكرار إعادة الاتصال
+      if (resp.status === 502 || resp.status === 503) return true;
+      if (resp.status === 401 || resp.status === 403) return false;
       return resp.ok;
     } catch (e) {
-      const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError';
-      if (isTimeout) console.warn('⏱️ Supabase: انتهت مهلة الاتصال');
+      // CORS أو شبكة منقطعة → false بهدوء
       return false;
     }
   }
@@ -517,7 +515,7 @@ const DBHybrid = {
   _heartbeatTimer: null,
   _reconnectTimer: null,
   _reconnectAttempts: 0,
-  _heartbeatInterval: 30000,       // ping كل 30 ثانية
+  _heartbeatInterval: 60000,       // ping كل 60 ثانية (تقليل ضغط الشبكة)
   _reconnectBaseDelay: 5000,       // 5 ثوانٍ أول محاولة
   _reconnectMaxDelay: 120000,      // أقصى دقيقتين
   _networkEventsSetup: false,
