@@ -312,41 +312,116 @@ const SupabaseClient = {
   },
 
   // UPSERT (merge-duplicates)
-  async upsert(table, data) {
+  // ✅ كاش للأعمدة المفقودة في Supabase (يُكتشف تلقائياً من رسائل الخطأ)
+  _missingColumns: {}, // { 'tenants': Set('name_fr'), 'users': Set('gdrive_connected') }
+
+  _stripMissingColumns(table, data) {
+    const missing = this._missingColumns[table];
+    if (!missing || !missing.size) return data;
+    if (Array.isArray(data)) {
+      return data.map(r => {
+        const c = { ...r };
+        missing.forEach(col => delete c[col]);
+        return c;
+      });
+    }
+    const c = { ...data };
+    missing.forEach(col => delete c[col]);
+    return c;
+  },
+
+  _detectMissingColumn(errorText, table) {
+    // PGRST204: "Could not find the 'XYZ' column of 'table' in the schema cache"
+    const m = errorText.match(/Could not find the '([^']+)' column/i);
+    if (m) {
+      if (!this._missingColumns[table]) this._missingColumns[table] = new Set();
+      this._missingColumns[table].add(m[1]);
+      console.warn(`🧹 ${table}: عمود مفقود "${m[1]}" — سيُحذف من العمليات التالية`);
+      return m[1];
+    }
+    return null;
+  },
+
+  async upsert(table, data, _retryCount = 0) {
     const url = `${this._url}/rest/v1/${table}`;
+    let cleanData = this._stripMissingColumns(table, data);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this._timeout);
     try {
       const resp = await fetch(url, {
         method: 'POST',
         headers: this.headers({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
-        body: JSON.stringify(data),
+        body: JSON.stringify(cleanData),
         signal: controller.signal
       });
       const text = await resp.text();
-      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      if (!resp.ok) {
+        // ① عمود مفقود → أعد المحاولة بدونه
+        const missingCol = this._detectMissingColumn(text, table);
+        if (missingCol && _retryCount < 5) {
+          clearTimeout(timer);
+          return this.upsert(table, data, _retryCount + 1);
+        }
+        // ② FK violation (23503) → احذف الـ FK المُخلّ وأعد المحاولة
+        if (text.includes('23503') && _retryCount < 6) {
+          const fk = this._detectFKColumn(text);
+          if (fk) {
+            clearTimeout(timer);
+            const fixed = Array.isArray(data)
+              ? data.map(r => ({ ...r, [fk]: null }))
+              : { ...data, [fk]: null };
+            return this.upsert(table, fixed, _retryCount + 1);
+          }
+        }
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
       return text ? JSON.parse(text) : [];
     } finally {
       clearTimeout(timer);
     }
   },
 
+  // يكتشف عمود الـ Foreign Key المُخلّ من رسالة الخطأ
+  _detectFKColumn(errorText) {
+    // مثال: "violates foreign key constraint \"transactions_worker_id_fkey\""
+    // نريد استخراج "worker_id"
+    const m = errorText.match(/_([a-z]+_id)_fkey/i);
+    return m ? m[1] : null;
+  },
+
   // ⚡ BATCH UPSERT — رفع مجموعة سجلات في طلب HTTP واحد (أسرع بكثير)
-  async batchUpsert(table, records) {
+  async batchUpsert(table, records, _retryCount = 0) {
     if (!records || !records.length) return [];
-    // ✅ on_conflict=id ضروري لـ Supabase ليعرف كيف يدمج السجلات المكررة
     const url = `${this._url}/rest/v1/${table}?on_conflict=id`;
+    const cleanRecords = this._stripMissingColumns(table, records);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this._timeout * 2);
     try {
       const resp = await fetch(url, {
         method: 'POST',
         headers: this.headers({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
-        body: JSON.stringify(records),
+        body: JSON.stringify(cleanRecords),
         signal: controller.signal
       });
       const text = await resp.text();
-      if (!resp.ok) throw new Error(`batchUpsert ${table}: ${text || resp.status}`);
+      if (!resp.ok) {
+        // ① عمود مفقود → أعد المحاولة
+        const missingCol = this._detectMissingColumn(text, table);
+        if (missingCol && _retryCount < 5) {
+          clearTimeout(timer);
+          return this.batchUpsert(table, records, _retryCount + 1);
+        }
+        // ② FK violation → احذف الـ FK المُخلّ وأعد المحاولة
+        if (text.includes('23503') && _retryCount < 6) {
+          const fk = this._detectFKColumn(text);
+          if (fk) {
+            clearTimeout(timer);
+            const fixed = records.map(r => ({ ...r, [fk]: null }));
+            return this.batchUpsert(table, fixed, _retryCount + 1);
+          }
+        }
+        throw new Error(`batchUpsert ${table}: ${text || resp.status}`);
+      }
       return [];
     } finally {
       clearTimeout(timer);
@@ -836,22 +911,32 @@ if (!navigator.onLine || !this._useSupabase) {
 
     try {
       if (method === 'POST') {
-        const body = { ...clean };
+        // ✅ احذف الأعمدة المعروف غيابها من Supabase
+        const cleanForPost = this._sb._stripMissingColumns
+          ? this._sb._stripMissingColumns(table, clean)
+          : clean;
+        const body = { ...cleanForPost };
         const oldId = record && record.id;
         if (!_KEEP_ID_TABLES.has(table)) delete body.id;
 
         let postUrl = baseUrl;
         let postHeaders = { ...headers };
-        // ✅ استخدم upsert دائماً لتجنب duplicate key
         postUrl += '?on_conflict=id';
         postHeaders['Prefer'] = 'resolution=merge-duplicates,return=minimal';
 
         const res = await fetch(postUrl, { method: 'POST', headers: postHeaders, body: JSON.stringify(body) });
-        const resText = await res.text(); // ✅ نقرأ مرة واحدة فقط
+        const resText = await res.text();
 
         if (!res.ok) {
+          // ✅ اكتشف العمود المفقود وأعد المحاولة
+          if (this._sb._detectMissingColumn) {
+            const missingCol = this._sb._detectMissingColumn(resText, table);
+            if (missingCol) {
+              return this._pushToSupabase(table, record, method, opts);
+            }
+          }
+
           console.warn(`⚠️ POST ${table}:`, resText);
-          // إذا فشل POST → حاول PATCH
           if (record && record.id) {
             await this._pushToSupabase(table, record, 'PATCH', opts).catch(() => {
               if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
@@ -863,7 +948,6 @@ if (!navigator.onLine || !this._useSupabase) {
           return;
         }
 
-        console.log(`✅ AutoSync [POST ${table}]`);
         this._emitSyncEvent('synced');
 
         // مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase
@@ -889,18 +973,35 @@ if (!navigator.onLine || !this._useSupabase) {
       if (method === 'PATCH') {
         if (!record || !record.id) return;
 
+        // ✅ احذف الأعمدة المعروف غيابها من Supabase
+        const cleanForPatch = this._sb._stripMissingColumns
+          ? this._sb._stripMissingColumns(table, clean)
+          : clean;
+
         const patchRes = await fetch(`${baseUrl}?id=eq.${record.id}`, {
           method: 'PATCH',
           headers,
-          body: JSON.stringify(clean)
+          body: JSON.stringify(cleanForPatch)
         });
 
         if (!patchRes.ok) {
           const errText = await patchRes.text().catch(() => '');
+
+          // ✅ اكتشف الأعمدة المفقودة
+          if (this._sb._detectMissingColumn) {
+            const missingCol = this._sb._detectMissingColumn(errText, table);
+            if (missingCol) {
+              // أعد المحاولة بدون العمود المفقود
+              return this._pushToSupabase(table, record, method, opts);
+            }
+          }
+
           console.warn(`⚠️ PATCH ${table} #${record.id}: ${errText}`);
 
-          // ✅ إذا فشل PATCH (السجل غير موجود) → حاول UPSERT (POST + on_conflict)
-          const upsertBody = { ...clean };
+          // إذا فشل PATCH (السجل غير موجود) → حاول UPSERT
+          const upsertBody = this._sb._stripMissingColumns
+            ? this._sb._stripMissingColumns(table, { ...clean })
+            : { ...clean };
           const upsertRes = await fetch(`${baseUrl}?on_conflict=id`, {
             method: 'POST',
             headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -909,7 +1010,14 @@ if (!navigator.onLine || !this._useSupabase) {
 
           if (!upsertRes.ok) {
             const upsertErr = await upsertRes.text().catch(() => '');
-            console.warn(`⚠️ UPSERT fallback ${table} #${record.id}: ${upsertErr}`);
+
+            if (this._sb._detectMissingColumn) {
+              const mc = this._sb._detectMissingColumn(upsertErr, table);
+              if (mc) {
+                return this._pushToSupabase(table, record, method, opts);
+              }
+            }
+
             this._emitSyncEvent('error');
             if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
             this._updateAdminSyncUI();
@@ -918,7 +1026,6 @@ if (!navigator.onLine || !this._useSupabase) {
           }
         }
 
-        console.log(`✅ AutoSync [PATCH→UPSERT ${table} #${record.id}]`);
         this._emitSyncEvent('synced');
         this._updateAdminSyncUI();
         return;
@@ -1270,9 +1377,9 @@ if (!navigator.onLine || !this._useSupabase) {
       return { ok: cleaned.length, failed: 0 };
     } catch(batchErr) {
       // fallback: إذا فشل الـ batch → رفع متوازٍ
-      console.warn(`⚠️ batch failed for ${table}, falling back to parallel:`, batchErr.message);
       const CONCURRENCY = 5;
       let ok = 0, failCount = 0;
+      const errors = [];
       for (let i = 0; i < cleaned.length; i += CONCURRENCY) {
         const slice = cleaned.slice(i, i + CONCURRENCY);
         await Promise.all(slice.map(async rec => {
@@ -1281,9 +1388,13 @@ if (!navigator.onLine || !this._useSupabase) {
             ok++;
           } catch(e) {
             failCount++;
-            console.warn(`⚠️ upsert ${table} [${rec.id||rec.key}]:`, e.message);
+            errors.push(e.message);
           }
         }));
+      }
+      // اطبع خطأ واحداً ملخصاً بدل مئات الأسطر
+      if (failCount > 0) {
+        console.warn(`⚠️ ${table}: نجح ${ok}، فشل ${failCount} — ${errors[0]?.slice(0,120) || ''}`);
       }
       return { ok, failed: failCount };
     }
