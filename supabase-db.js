@@ -1704,15 +1704,29 @@ if (!navigator.onLine || !this._useSupabase) {
 
     // ═══ ③ دفع السجلات المحلية الجديدة (التي لم تُرفع بعد) ═══
     console.log('🔼 رفع السجلات المحلية الجديدة...');
-    // الترتيب مهم: workers و projects أولاً لأن جداول أخرى تعتمد عليها (FK)
-    const priorityTables = ['tenants','users','projects','workers','equipment'];
-    const dependentTables = [...globalTables, ...tenantTables]
-      .filter(t => t !== 'audit_log' && !priorityTables.includes(t));
+
+    // ✅ الأدمن: يرفع فقط tenants وusers (الجداول العامة)
+    // المستخدم العادي: يرفع فقط بياناته (tenant_id = مؤسسته)
+    const priorityTables = isAdmin
+      ? ['tenants', 'users']  // الأدمن: فقط الجداول العامة
+      : ['projects','workers','equipment'];
+
+    const dependentTables = isAdmin
+      ? []  // الأدمن لا يرفع بيانات تشغيلية
+      : [...tenantTables].filter(t => t !== 'audit_log');
+
     const orderedTables = [...priorityTables, ...dependentTables];
 
     for (const t of orderedTables) {
       try {
-        const local = this.get(t) || [];
+        const allLocal = this.get(t) || [];
+        if (!allLocal.length) continue;
+
+        // ✅ فلترة: المستخدم العادي يرفع فقط بيانات مؤسسته
+        const local = (!isAdmin && tid)
+          ? allLocal.filter(r => !r.tenant_id || Number(r.tenant_id) === Number(tid))
+          : allLocal;
+
         if (!local.length) continue;
         await this._syncTableToSupabase(t, local).catch(() => {});
       } catch(_) {}

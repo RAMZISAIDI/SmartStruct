@@ -1719,7 +1719,7 @@ Pages.about = function() {
           ${[
             { icon: '🇩🇿', color: '#E8B84B', title: L('جزائريون بالكامل','100% algérien'), desc: L('كل سطر كود كُتب مع مراعاة الواقع الجزائري — القانون، العملة، اللغة.','Chaque ligne de code tient compte de la réalité algérienne — loi, monnaie, langue.') },
             { icon: '🤝', color: '#34C38F', title: L('شراكة حقيقية','Vrai partenariat'), desc: L('لسنا بائعي برنامج — نحن شركاء نجاح للمقاولين. نستمع ونبني ما تحتاج.','Nous ne sommes pas des vendeurs de logiciel — nous sommes des partenaires de succès.') },
-            { icon: '🔒', color: '#4A90E2', title: L('أمان لا تنازل عنه','Sécurité absolue'), desc: L('RLS + PBKDF2 + تشفير كامل. بياناتك لك فقط — لا أحد يصل لمعلومات مؤسستك.','RLS + PBKDF2 + chiffrement complet. Vos données vous appartiennent.') },
+            { icon: '🔒', color: '#4A90E2', title: L('حماية كاملة لبياناتك','Protection complète de vos données'), desc: L('Row-Level Security مع Supabase. بياناتك محمية ولا يصل إليها أحد غيرك.','Row-Level Security avec Supabase. Vos données sont protégées et accessibles uniquement par vous.') },
             { icon: '⚡', color: '#9B6DFF', title: L('بساطة في الاستخدام','Simplicité d\'usage'), desc: L('مقاول متوسط يتقن المنصة كاملاً في يوم واحد — بدون تدريب طويل.','Un entrepreneur moyen maîtrise la plateforme en une journée — sans longue formation.') },
             { icon: '🌱', color: '#27AE60', title: L('نمو مستمر','Amélioration continue'), desc: L('كل أسبوعين نُصدر تحديثاً جديداً بناءً على ملاحظات المستخدمين الحقيقيين.','Toutes les deux semaines, une mise à jour basée sur les retours réels des utilisateurs.') },
             { icon: '💡', color: '#E8593C', title: L('ابتكار محلي','Innovation locale'), desc: L('ذكاء اصطناعي يفهم سياق البناء الجزائري ويقدم توصيات بالعربية والفرنسية.','Une IA qui comprend le contexte algérien du BTP et donne des recommandations pertinentes.') },
@@ -2030,7 +2030,7 @@ Pages.landing = function() {
         </div>
         <div class="ll-trust-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('تشفير PBKDF2','Chiffrement PBKDF2')}
+          ${L('حماية بياناتك','Protection des données')}
         </div>
         <div class="ll-trust-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2184,12 +2184,12 @@ Pages.landing = function() {
 
       <div class="ll-features-grid">
         <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('أمان','Sécurité')}</span>
+          <span class="ll-feature-tag">${L('تحليل','Analyse')}</span>
           <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
           </div>
-          <h3 class="ll-feature-title">${L('تشفير عسكري','Chiffrement militaire')}</h3>
-          <p class="ll-feature-desc">${L('PBKDF2 + SHA-256 + 100,000 تكرار · Row-Level Security · سجل تدقيق كامل لكل تعديل.','PBKDF2 + SHA-256 + 100k itérations · RLS · audit log complet.')}</p>
+          <h3 class="ll-feature-title">${L('تقارير EVM احترافية','Rapports EVM professionnels')}</h3>
+          <p class="ll-feature-desc">${L('مؤشرات الأداء الدولية: SPI · CPI · BCWP · EAC — معايير إدارة المشاريع العالمية مُكيَّفة للسوق الجزائرية.','Indicateurs internationaux : SPI · CPI · BCWP · EAC — normes mondiales adaptées au marché algérien.')}</p>
         </div>
 
         <div class="ll-feature-card ll-reveal" data-tilt>
@@ -2570,42 +2570,6 @@ Pages.landing = function() {
             <div><div style="font-weight:800;font-size:.84rem">${t.name}</div><div style="font-size:.7rem;color:${t.c};font-weight:600">${t.role}</div></div>
           </div>
         </div>`).join('')}
-      </div>
-    </section>
-
-    <!-- ═══ مقارنة مع المنافسين ═══ -->
-    <section class="ll-section">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('لماذا SmartStruct؟','Pourquoi SmartStruct ?')}</span>
-        <h2 class="ll-section-title">${L('صُنع للجزائر','Conçu pour l\'Algérie')} <span class="ll-gold">${L('وليس مُترجَم عنها','non traduit')}</span></h2>
-      </div>
-      <div class="ll-reveal" style="max-width:860px;margin:2rem auto 0;overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-          <thead><tr>
-            <th style="padding:.8rem 1rem;text-align:${isAr?'right':'left'};color:var(--muted);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">${L('الميزة','Fonctionnalité')}</th>
-            <th style="padding:.8rem 1rem;text-align:center;color:#E8B84B;font-weight:900;border-bottom:2px solid rgba(232,184,75,.4)">SmartStruct</th>
-            <th style="padding:.8rem 1rem;text-align:center;color:var(--dim);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">Excel</th>
-            <th style="padding:.8rem 1rem;text-align:center;color:var(--dim);font-weight:700;border-bottom:1px solid rgba(255,255,255,.08)">${L('برامج أجنبية','Logiciels étrangers')}</th>
-          </tr></thead>
-          <tbody>
-            ${[
-              [L('واجهة عربية كاملة','Interface arabe complète'),       '✅','⚠️','❌'],
-              [L('NIF / NIS / RC الجزائري','NIF / NIS / RC algérien'),   '✅','❌','❌'],
-              ['TVA 19% + CNAS + IRG',                                    '✅','❌','⚠️'],
-              [L('23 وثيقة PDF رسمية','23 docs PDF officiels'),           '✅','❌','⚠️'],
-              [L('مزامنة Realtime','Sync Realtime'),                      '✅','❌','⚠️'],
-              [L('ذكاء اصطناعي بالعربية','IA en arabe'),                  '✅','❌','❌'],
-              [L('يعمل بدون إنترنت','Fonctionne offline'),                '✅','✅','⚠️'],
-              [L('دعم باللهجة الجزائرية','Support dialecte algérien'),   '✅','❌','❌'],
-            ].map((r,i)=>`<tr style="background:${i%2===0?'rgba(255,255,255,.02)':'transparent'}">
-              <td style="padding:.7rem 1rem;color:var(--text)">${r[0]}</td>
-              <td style="padding:.7rem 1rem;text-align:center;background:rgba(232,184,75,.04);border-left:2px solid rgba(232,184,75,.12);border-right:2px solid rgba(232,184,75,.12)">${r[1]}</td>
-              <td style="padding:.7rem 1rem;text-align:center;color:var(--muted)">${r[2]}</td>
-              <td style="padding:.7rem 1rem;text-align:center;color:var(--muted)">${r[3]}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-        <div style="text-align:center;margin-top:.8rem;font-size:.7rem;color:var(--dim)">✅ ${L('متوفر','Disponible')} &nbsp; ⚠️ ${L('جزئياً','Partiel')} &nbsp; ❌ ${L('غير متوفر','Non disponible')}</div>
       </div>
     </section>
 
