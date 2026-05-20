@@ -1036,14 +1036,14 @@ if (!navigator.onLine || !this._useSupabase) {
         const res = await fetch(`${baseUrl}?id=eq.${record.id}`, { method: 'DELETE', headers });
 
         if (!res.ok) {
-          console.warn(`⚠️ AutoSync [DELETE ${table} #${record.id}]:`, await res.text().catch(() => ''));
           if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
           this._updateAdminSyncUI();
           if (opts.fromQueue) throw new Error('DELETE failed while flushing queue');
           return;
         }
 
-        console.log(`✅ AutoSync [DELETE ${table} #${record.id}]`);
+        // ✅ سجّل الحذف الناجح لمنع إعادة السجل عند المزامنة التالية
+        this._markAsDeleted(table, record.id);
         this._emitSyncEvent('synced');
         this._updateAdminSyncUI();
         return;
@@ -1059,6 +1059,44 @@ if (!navigator.onLine || !this._useSupabase) {
   nextId(key) {
     const items = this.get(key);
     return items.length ? Math.max(...items.map(i => i.id || 0)) + 1 : 1;
+  },
+
+  // ══════════════════════════════════════════════════════
+  // نظام تتبع السجلات المحذوفة — يمنع إعادتها عند المزامنة
+  // ══════════════════════════════════════════════════════
+  _DELETED_CACHE_KEY: 'sbtp5_deleted_records',
+
+  /** تسجيل سجل كمحذوف (يُحفظ 48 ساعة) */
+  _markAsDeleted(table, id) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(this._DELETED_CACHE_KEY) || '{}');
+      if (!cache[table]) cache[table] = {};
+      cache[table][String(id)] = Date.now();
+      // تنظيف السجلات القديمة (أكثر من 48 ساعة)
+      const cutoff = Date.now() - 48 * 3600 * 1000;
+      Object.keys(cache).forEach(t => {
+        Object.keys(cache[t]).forEach(i => {
+          if (cache[t][i] < cutoff) delete cache[t][i];
+        });
+      });
+      localStorage.setItem(this._DELETED_CACHE_KEY, JSON.stringify(cache));
+    } catch(_) {}
+  },
+
+  /** هل سبق حذف هذا السجل؟ */
+  _isDeleted(table, id) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(this._DELETED_CACHE_KEY) || '{}');
+      return !!(cache[table] && cache[table][String(id)]);
+    } catch { return false; }
+  },
+
+  /** الحصول على كل IDs المحذوفة لجدول معين */
+  _getDeletedIds(table) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(this._DELETED_CACHE_KEY) || '{}');
+      return new Set(Object.keys(cache[table] || {}));
+    } catch { return new Set(); }
   },
 
   /* ─────────────────────────────────────────────────────
@@ -1193,16 +1231,20 @@ if (!navigator.onLine || !this._useSupabase) {
     catch { return; }
     if (!q.length) return;
 
-    // تصفية عمليات المؤسسات المحذوفة
+    // تصفية عمليات المؤسسات المحذوفة + السجلات المحذوفة
     try {
       const deleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
-      if (deleted.length) {
-        q = q.filter(op => {
-          const tid = op.record?.tenant_id || (op.table==='tenants' ? op.record?.id : null);
-          return !(tid && deleted.includes(Number(tid)));
-        });
-        localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
-      }
+      q = q.filter(op => {
+        // استبعاد عمليات مؤسسات محذوفة
+        const tid = op.record?.tenant_id || (op.table==='tenants' ? op.record?.id : null);
+        if (tid && deleted.includes(Number(tid))) return false;
+        // استبعاد POST/PATCH لسجلات تم حذفها لاحقاً
+        if (op.method !== 'DELETE' && op.record?.id) {
+          if (this._isDeleted(op.table, op.record.id)) return false;
+        }
+        return true;
+      });
+      localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
     } catch(_) {}
     if (!q.length) return;
 
@@ -1369,6 +1411,7 @@ if (!navigator.onLine || !this._useSupabase) {
     const deletedTenantIds = new Set(
       JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
     );
+    const deletedIds = this._getDeletedIds(table);
 
     // تنظيف السجلات
     const cleaned = records
@@ -1379,6 +1422,8 @@ if (!navigator.onLine || !this._useSupabase) {
         if (r.tenant_id) return !deletedTenantIds.has(Number(r.tenant_id));
         return true;
       })
+      // ✅ استبعاد السجلات التي تم حذفها مسبقاً
+      .filter(r => !deletedIds.has(String(r.id)))
       .map(r => _cleanForSupabase_INTERNAL(table, r))
       .filter(Boolean);
 
@@ -1488,6 +1533,8 @@ if (!navigator.onLine || !this._useSupabase) {
                 return !r.tenant_id || !deletedTids.has(Number(r.tenant_id));
               }) : remote;
 
+              const deletedIds = this._getDeletedIds(t);
+
               // دمج مع المحلي (المحلي الذي ليس له id في البعيد = جديد لم يُرفع)
               const local = this.get(t) || [];
               const remoteIds = new Set(filteredRemote.map(r => Number(r.id)));
@@ -1496,7 +1543,9 @@ if (!navigator.onLine || !this._useSupabase) {
                 (isAdmin || Number(r.tenant_id) === Number(tid)) &&
                 // ✅ استبعاد المحذوفة من المحلي أيضاً
                 (t !== 'tenants' || !deletedTids.has(Number(r.id))) &&
-                (!r.tenant_id || !deletedTids.has(Number(r.tenant_id)))
+                (!r.tenant_id || !deletedTids.has(Number(r.tenant_id))) &&
+                // ✅ استبعاد أي سجل تم حذفه مسبقاً
+                !deletedIds.has(String(r.id))
               );
               const merged = [...filteredRemote, ...localUnsynced];
               localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
