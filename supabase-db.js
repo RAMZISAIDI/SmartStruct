@@ -1412,8 +1412,10 @@ if (!navigator.onLine || !this._useSupabase) {
 
     // الجداول التي تحتوي tenant_id (تُسحب مفلترة للمستخدم العادي)
     const tenantTables = [
-      'projects','workers','equipment','equipment_logs',
-      'transactions','attendance','materials','stock_movements',
+      // ① الجداول المستقلة أولاً (لا FK إلى جداول أخرى)
+      'projects','workers','equipment',
+      // ② الجداول التي تعتمد على workers و projects
+      'equipment_logs','transactions','attendance','materials','stock_movements',
       'invoices','salary_records','kanban_tasks','documents',
       'obligations','notes','notifications','audit_log',
       'custom_roles','equipment_locations','tenders','bank_transactions',
@@ -1520,9 +1522,13 @@ if (!navigator.onLine || !this._useSupabase) {
 
     // ═══ ③ دفع السجلات المحلية الجديدة (التي لم تُرفع بعد) ═══
     console.log('🔼 رفع السجلات المحلية الجديدة...');
-    // ملاحظة: audit_log مُستبعَد من الرفع (IDs بحجم timestamp تتجاوز INTEGER)
-    const allTables = [...globalTables, ...tenantTables].filter(t => t !== 'audit_log');
-    for (const t of allTables) {
+    // الترتيب مهم: workers و projects أولاً لأن جداول أخرى تعتمد عليها (FK)
+    const priorityTables = ['tenants','users','projects','workers','equipment'];
+    const dependentTables = [...globalTables, ...tenantTables]
+      .filter(t => t !== 'audit_log' && !priorityTables.includes(t));
+    const orderedTables = [...priorityTables, ...dependentTables];
+
+    for (const t of orderedTables) {
       try {
         const local = this.get(t) || [];
         if (!local.length) continue;
