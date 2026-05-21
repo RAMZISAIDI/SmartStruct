@@ -3217,9 +3217,9 @@ function renderRegisterForm(L) {
       <label class="auth-label">${L('البريد الإلكتروني','Email')} <span class="auth-required">*</span></label>
       <div class="auth-input-wrap" style="position:relative">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email" style="padding-left:${L('2.5rem','2.5rem')};padding-right:${L('8rem','8rem')}">
+        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email" style="padding-left:2.5rem;padding-right:7.5rem">
         <button type="button" id="sendOtpBtn" onclick="sendVerificationCode()"
-          style="position:absolute;${I18N.currentLang==='ar'?'left':'right'}:.4rem;top:50%;transform:translateY(-50%);padding:.3rem .7rem;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:6px;cursor:pointer;white-space:nowrap">
+          style="position:absolute;right:.4rem;top:50%;transform:translateY(-50%);padding:.3rem .7rem;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:6px;cursor:pointer;white-space:nowrap;z-index:2">
           📧 ${L('إرسال كود','Envoyer code')}
         </button>
       </div>
