@@ -7382,7 +7382,8 @@ Pages.settings = function() {
 
             const connected = typeof GDrive !== 'undefined' && GDrive.isConnected();
             const adminCfg  = (typeof DB !== 'undefined') ? DB.get('global_gdrive_config') : null;
-            const isEnabled = !!(adminCfg?.enabled && adminCfg?.client_id);
+            // ✅ نعتبره مُفعَّلاً دائماً — المستخدم يربط Drive مباشرة
+            const isEnabled = true;
             const expiry    = JSON.parse(localStorage.getItem('sbtp_gdrive_token') || 'null')?.expiry;
             const remaining = expiry ? Math.max(0, Math.round((expiry - Date.now()) / 60000)) : 0;
 
@@ -7424,29 +7425,12 @@ Pages.settings = function() {
               statusEl.textContent = window.L ? L('جاهز للربط','Prêt à connecter') : 'Prêt à connecter';
               statusEl.style.color = '#4285F4';
               badgeEl.innerHTML = '';
-              bodyEl.innerHTML = \`
-                <div style="font-size:.8rem;color:var(--dim);line-height:1.7;margin-bottom:.8rem">
-                  \${window.L ? L(
-                    '🔗 اربط حسابك على Google لحفظ وثائقك وفواتيرك تلقائياً في Drive الشخصي. ملفاتك خاصة — لا يصل إليها أحد سواك.',
-                    '🔗 Connectez votre compte Google pour sauvegarder vos documents dans votre Drive personnel. Fichiers privés — accès uniquement à vous.'
-                  ) : ''}
-                </div>
-                <button class="btn btn-blue" style="width:100%;justify-content:center;gap:.6rem"
-                  onclick="GDrive.connect().then(ok=>{ if(ok){ setTimeout(()=>App.navigate('settings'),800); } })">
-                  <svg width="16" height="14" viewBox="0 0 87.3 78" style="flex-shrink:0">
-                    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#fff"/>
-                    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#fff"/>
-                    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#fff"/>
-                    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#fff"/>
-                    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#fff"/>
-                    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#fff"/>
-                  </svg>
-                  \${window.L ? L('ربط حسابي بـ Google Drive','Connecter mon Google Drive') : 'Connecter Google Drive'}
-                </button>
-                <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem;text-align:center">
-                  \${window.L ? L('وثائقك ستُحفظ تلقائياً بعد الربط','Documents sauvegardés automatiquement') : ''}
-                </div>\`;
-            }
+              const _hasId = !!(localStorage.getItem('sbtp_gdrive_client_id')||(typeof DB!=='undefined'&&DB.get('global_gdrive_config')?.client_id));
+              if (_hasId) {
+                bodyEl.innerHTML = '<button class="btn btn-blue" style="width:100%;justify-content:center" onclick="GDrive.connect().then(ok=>{if(ok){setTimeout(function(){App.navigate(\'settings\')},800)}})">' + (window.L?L('☁️ ربط حسابي بـ Google Drive','☁️ Connecter Google Drive'):'☁️ Google Drive') + '</button>';
+              } else {
+                bodyEl.innerHTML = '<div style="background:rgba(255,193,7,.07);border:1px solid rgba(255,193,7,.25);border-radius:10px;padding:.9rem"><div style="font-weight:700;font-size:.82rem;margin-bottom:.4rem">⚙️ Google OAuth Client ID</div><div style="font-size:.73rem;color:var(--dim);margin-bottom:.6rem;line-height:1.6">1. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285F4">Google Cloud Console</a> → Credentials<br>2. Créez OAuth 2.0 Client ID (Web Application)<br>3. Authorized origins: <code>' + window.location.origin + '</code></div><div style="display:flex;gap:.4rem"><input id="gcId" class="form-input" style="flex:1;font-size:.76rem" dir="ltr" placeholder="xxxx.apps.googleusercontent.com"><button class="btn btn-gold btn-sm" onclick="_saveGDriveClientId()">' + (window.L?L('💾 حفظ','Sauvegarder'):'💾') + '</button></div></div>';
+              }
           }
 
           // ننتظر google-drive.js يكتمل التحميل
@@ -17934,6 +17918,21 @@ function uploadInvoiceToDrive(invoiceId) {
 function _generateInvoiceBlob(invoiceId) {
   // للآن نُعيد null ويستخدم fallback
   return null;
+}
+
+// ── حفظ Google Drive Client ID ──
+function _saveGDriveClientId() {
+  const v = document.getElementById('gcId')?.value?.trim();
+  if (!v || !v.includes('googleusercontent')) {
+    Toast.error(L('أدخل Client ID صحيح ينتهي بـ .apps.googleusercontent.com','Client ID invalide'));
+    return;
+  }
+  localStorage.setItem('sbtp_gdrive_client_id', v);
+  if (typeof DB !== 'undefined') {
+    DB.set('global_gdrive_config', { enabled: true, client_id: v });
+  }
+  Toast.success(L('✅ تم حفظ Client ID — اضغط "ربط حسابي" الآن','✅ Client ID sauvegardé'));
+  App.navigate('settings');
 }
 
 function exportInvoicesCSV() {
