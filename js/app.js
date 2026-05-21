@@ -20599,26 +20599,27 @@ Pages.bankReport = function() {
 </body>
 </html>`;
 
-  const win = window.open('', '_blank');
-  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة للمتصفح','Autorisez les popups du navigateur')); return; }
-  win.document.write(html);
-  win.document.close();
+  // حفظ HTML في متغير عالمي للوصول من الزر
+  window._bankReportHTML = html;
 
   return layoutHTML('bank_report', L('تقرير بنكي','Rapport bancaire'), `
     <div class="page-header">
       <div>
         <div class="page-title">🏦 ${L('التقرير البنكي الاحترافي','Rapport bancaire professionnel')}</div>
-        <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك — يُفتح في نافذة منفصلة','Rapport financier prêt à soumettre à la banque')}</div>
+        <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك','Rapport financier prêt à soumettre à la banque')}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-gold" onclick="Pages.bankReport()">🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}</button>
+        <button class="btn btn-gold" onclick="(function(){const w=window.open('','_blank');if(!w){alert('السماح بالنوافذ المنبثقة');return;}w.document.write(window._bankReportHTML);w.document.close();})()"}>
+          🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}
+        </button>
       </div>
     </div>
-    <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:2rem;text-align:center;max-width:480px;margin:2rem auto">
-      <div style="font-size:2.5rem;margin-bottom:1rem">🏦</div>
-      <div style="font-size:1rem;font-weight:700;margin-bottom:.5rem">${L('تم فتح التقرير في نافذة جديدة','Rapport ouvert dans un nouvel onglet')}</div>
-      <div style="font-size:.82rem;color:var(--dim);line-height:1.6;margin-bottom:1.2rem">${L('تقرير احترافي جاهز للطباعة أو التحويل لـ PDF','Rapport professionnel prêt à imprimer ou exporter en PDF')}</div>
-      <button class="btn btn-gold" onclick="Pages.bankReport()">🔄 ${L('إعادة فتح التقرير','Rouvrir le rapport')}</button>
+
+    <!-- معاينة مدمجة -->
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:.5rem">
+      <iframe id="bankReportFrame" style="width:100%;height:80vh;border:none"
+        srcdoc="${html.replace(/"/g,'&quot;').replace(/\\/g,'&#92;')}">
+      </iframe>
     </div>
   `);
 };
