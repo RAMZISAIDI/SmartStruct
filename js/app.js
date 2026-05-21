@@ -899,79 +899,79 @@ const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو
 //  false / غياب = محظور تماماً
 const ROLE_PERMISSIONS = {
   admin: {
-    // المسؤول يملك كل شيء — يتحكم عبر لوحة الإدارة
     dashboard:true, analytics:true, projects:true, project_detail:true,
     compare:true, calendar:true, map:true, kanban:true, gantt:true,
-    workers:true, attendance:true, salary:true,
+    workers:true, attendance:true, salary:true, worker_profile:true,
     transactions:true, invoices:true,
     inventory:true, equipment:true, materials:true,
+    suppliers:true, supplier_detail:true,
     documents:true, reports:true, bank_report:true, simulator:true,
     obligations:true, audit_log:true, team:true, settings:true,
-    // Write actions
     write_projects:true, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:true, write_equipment:true, write_documents:true,
     write_notes:true, write_team:true, write_settings:true,
+    write_suppliers:true, write_invoices:true,
   },
   manager: {
-    // مدير المشروع: يدير المشاريع والعمال والمواد والوثائق — يرى المالية فقط
     dashboard:true, analytics:'view', projects:true, project_detail:true,
     compare:'view', calendar:true, map:'view', kanban:true, gantt:true,
-    workers:true, attendance:true, salary:'view',
+    workers:true, attendance:true, salary:'view', worker_profile:true,
     transactions:'view', invoices:'view',
     inventory:true, equipment:true, materials:true,
+    suppliers:true, supplier_detail:true,
     documents:true, reports:'view', bank_report:false, simulator:'view',
     obligations:'view', audit_log:'view', team:'view', settings:'view',
-    // Write actions
     write_projects:true, write_workers:true, write_attendance:true,
     write_salary:false, write_transactions:false, write_invoices:false,
     write_materials:true, write_equipment:true, write_documents:true,
     write_notes:true, write_team:false, write_settings:false,
+    write_suppliers:true,
   },
   accountant: {
-    // المحاسب: يدير المالية الكاملة — يرى المشاريع والعمال فقط
     dashboard:true, analytics:true, projects:'view', project_detail:'view',
     compare:'view', calendar:'view', map:false, kanban:false, gantt:false,
-    workers:'view', attendance:'view', salary:true,
+    workers:'view', attendance:'view', salary:true, worker_profile:'view',
     transactions:true, invoices:true,
     inventory:'view', equipment:'view', materials:'view',
+    suppliers:true, supplier_detail:true,
     documents:'view', reports:true, bank_report:true, simulator:true,
     obligations:true, audit_log:'view', team:'view', settings:'view',
-    // Write actions
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:false, write_equipment:false, write_documents:false,
     write_notes:false, write_team:false, write_settings:false,
+    write_suppliers:true,
   },
   hr: {
-    // الموارد البشرية: يدير العمال والحضور والرواتب — لا يرى المالية
     dashboard:true, analytics:false, projects:'view', project_detail:'view',
     compare:false, calendar:'view', map:false, kanban:false, gantt:false,
-    workers:true, attendance:true, salary:true,
+    workers:true, attendance:true, salary:true, worker_profile:true,
     transactions:false, invoices:false,
     inventory:false, equipment:false, materials:false,
+    suppliers:false, supplier_detail:false,
     documents:false, reports:false, bank_report:false, simulator:false,
     obligations:false, audit_log:false, team:'view', settings:'view',
-    // Write actions
     write_projects:false, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
     write_notes:false, write_team:false, write_settings:false,
+    write_suppliers:false,
   },
   viewer: {
-    // قارئ فقط: يرى كل شيء ولا يعدل شيئاً
     dashboard:true, analytics:'view', projects:'view', project_detail:'view',
     compare:'view', calendar:'view', map:'view', kanban:'view', gantt:'view',
-    workers:'view', attendance:'view', salary:'view',
+    workers:'view', attendance:'view', salary:'view', worker_profile:'view',
     transactions:'view', invoices:'view',
     inventory:'view', equipment:'view', materials:'view',
+    suppliers:'view', supplier_detail:'view',
     documents:'view', reports:'view', bank_report:false, simulator:'view',
     obligations:'view', audit_log:false, team:'view', settings:'view',
-    // Write actions — NONE
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:false, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
     write_notes:false, write_team:false, write_settings:false,
+    write_suppliers:false,
   }
 };
 
@@ -986,6 +986,8 @@ const PAGE_PERM_MAP = {
   bank_report:'bank_report', simulator:'simulator', obligations:'obligations',
   audit_log:'audit_log', team:'team', settings:'settings',
   dz_documents:'documents', archive:'documents',
+  suppliers:'suppliers', supplier_detail:'suppliers',
+  worker_profile:'workers',
 };
 
 // ── Main permission check ─────────────────────────────
