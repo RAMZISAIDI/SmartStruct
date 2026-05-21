@@ -5795,8 +5795,8 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
     <div style="display:flex;justify-content:flex-end;margin-top:20px">
       <div style="min-width:260px">
         ${summaryRows.map((s,i) => i === summaryRows.length-1
-          ? `<div style="display:flex;justify-content:space-between;background:#141414;color:#E8B84B;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px">
-               <span>${s.label}</span><span>${s.value}</span></div>`
+          ? `<div style="display:flex;justify-content:space-between;background:#f5f0e8;border:2px solid #C49030;color:#1a1a1a;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px">
+               <span>${s.label}</span><span style="color:#C49030">${s.value}</span></div>`
           : `<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4">
                <span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
         ).join('')}
@@ -5816,25 +5816,26 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
   .btn-p{padding:9px 22px;background:#E8B84B;color:#1a1000;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
   .btn-c{padding:9px 18px;background:#2a2a2a;color:#ccc;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
   .sheet{background:#fff;max-width:900px;margin:0 auto;border-radius:4px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
-  .hdr{background:#141414;padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
+  .hdr{background:#fff;border-bottom:3px solid #C49030;padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
   .hdr-left{display:flex;align-items:center;gap:14px}
-  .co-name{font-size:13px;font-weight:700;color:#fff;margin-top:4px}
-  .co-sub{font-size:9.5px;color:#888;margin-top:2px}
+  .co-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-top:4px}
+  .co-sub{font-size:9.5px;color:#666;margin-top:2px}
   .doc-label{text-align:${isAr?'left':'right'}}
-  .doc-title{font-size:20px;font-weight:900;color:#fff}
-  .doc-sub{font-size:11px;color:#E8B84B;margin-top:4px;font-weight:600}
-  .gold-bar{height:3px;background:linear-gradient(90deg,#C49030,#E8B84B,#C49030)}
+  .doc-title{font-size:20px;font-weight:900;color:#1a1a1a}
+  .doc-sub{font-size:11px;color:#C49030;margin-top:4px;font-weight:600}
+  .gold-bar{height:3px;background:#C49030}
   .meta{display:flex;justify-content:space-between;align-items:center;padding:14px 32px;border-bottom:1px solid #eee;background:#fafafa}
   .meta-item{font-size:11px;color:#888}
   .meta-item strong{color:#222;font-size:12px}
   .body{padding:24px 32px}
   .section-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
   table{width:100%;border-collapse:collapse}
-  thead tr{background:#141414}
+  thead tr{background:#C49030}
+  thead th{color:#fff!important}
   tbody tr:last-child td{border-bottom:none}
-  .footer{background:#141414;padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
-  .footer span{font-size:10px;color:#666}
-  .footer .gld{color:#E8B84B;font-weight:700}
+  .footer{background:#f8f5ee;border-top:2px solid #C49030;padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
+  .footer span{font-size:10px;color:#555}
+  .footer .gld{color:#C49030;font-weight:700}
   .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid #E8B84B;border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
   @media print{
     body{background:#fff!important;padding:0!important}
@@ -18373,46 +18374,38 @@ function printInvoiceWindow(id, autoPrint = false) {
     box-shadow: 0 4px 24px rgba(0,0,0,.12);
   }
 
-  /* ── Header bande noire ── */
+  /* ── Header بدون خلفية سوداء ── */
   .inv-header {
-    background: #141414;
+    background: #fff;
+    border: 2px solid #C49030;
+    border-bottom: 3px solid #C49030;
     padding: 28px 36px;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
   .brand-name {
-    font-size: 22px; font-weight: 900; color: #E8B84B; letter-spacing: .5px;
+    font-size: 22px; font-weight: 900; color: #C49030; letter-spacing: .5px;
   }
   .brand-sub {
-    font-size: 10px; color: #888; margin-top: 4px;
+    font-size: 10px; color: #666; margin-top: 4px;
   }
   .inv-label {
-    font-size: 28px; font-weight: 900; color: #fff; letter-spacing: 2px;
+    font-size: 28px; font-weight: 900; color: #1a1a1a; letter-spacing: 2px;
     text-align: ${isAr ? 'left' : 'right'};
   }
   .inv-num {
-    font-size: 13px; color: #E8B84B; font-weight: 700; margin-top: 4px;
+    font-size: 13px; color: #C49030; font-weight: 700; margin-top: 4px;
     text-align: ${isAr ? 'left' : 'right'};
   }
 
-  /* ── طباعة: بدون خلفيات داكنة لتوفير الحبر ── */
   @media print {
     body { background: #fff !important; padding: 10px !important; }
     .no-print { display: none !important; }
     .page { box-shadow: none !important; border-radius: 0 !important; }
-    .inv-header {
-      background: #fff !important;
-      border: 2px solid #C49030 !important;
-      border-bottom: 3px solid #C49030 !important;
-    }
-    .brand-name { color: #C49030 !important; }
-    .inv-label  { color: #1a1a1a !important; }
-    .inv-num    { color: #C49030 !important; }
-    .brand-sub  { color: #555 !important; }
-    .gold-bar   { background: #C49030 !important; height: 2px !important; -webkit-print-color-adjust: exact; }
-    .items-header { background: #C49030 !important; -webkit-print-color-adjust: exact; }
-    .total-block  { background: #1a1a1a !important; -webkit-print-color-adjust: exact; }
+    .items-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .total-block  { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .gold-bar     { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { margin: 12mm; }
   }
 
@@ -18457,7 +18450,7 @@ function printInvoiceWindow(id, autoPrint = false) {
   }
   table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   thead th {
-    background: #141414; color: #E8B84B;
+    background: #C49030; color: #fff;
     padding: 10px 14px; text-align: ${isAr ? 'right' : 'left'};
     font-size: 10px; font-weight: 700; letter-spacing: .5px;
   }
@@ -18485,8 +18478,8 @@ function printInvoiceWindow(id, autoPrint = false) {
   .total-final {
     display: flex; justify-content: space-between;
     margin-top: 8px; padding: 12px 16px;
-    background: #141414; border-radius: 8px;
-    font-size: 15px; font-weight: 900; color: #E8B84B;
+    background: #f5f0e8; border: 2px solid #C49030; border-radius: 8px;
+    font-size: 15px; font-weight: 900; color: #C49030;
   }
 
   /* ── Zone cachet + footer ── */
@@ -18497,21 +18490,22 @@ function printInvoiceWindow(id, autoPrint = false) {
   }
   .stamp-box {
     width: 160px; height: 90px;
-    border: 2px solid #E8B84B; border-radius: 4px;
+    border: 2px solid #C49030; border-radius: 4px;
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; color: #C49030; font-weight: 700;
     opacity: .6; text-align: center; line-height: 1.5;
   }
   .legal-note { font-size: 10px; color: #bbb; text-align: ${isAr ? 'left' : 'right'}; line-height: 1.7; }
 
-  /* ── Footer bande ── */
+  /* ── Footer بدون خلفية سوداء ── */
   .inv-footer {
-    background: #141414;
+    background: #f8f5ee;
+    border-top: 2px solid #C49030;
     padding: 12px 36px;
     display: flex; justify-content: space-between; align-items: center;
   }
   .inv-footer span { font-size: 10px; color: #666; }
-  .inv-footer .gold-text { color: #E8B84B; font-weight: 700; }
+  .inv-footer .gold-text { color: #C49030; font-weight: 700; }
 
   /* ── Notes ── */
   .notes-block {
@@ -20218,8 +20212,10 @@ Pages.bankReport = function() {
   const totalSpent  = projects.reduce((s,p)=>s+Number(p.total_spent),0);
   const health = calcHealthScore(projects, txs, workers, DB.get('attendance').filter(a=>workers.find(w=>w.id===a.worker_id)));
   const now = new Date();
+  const isAr = I18N.currentLang === 'ar';
+  const locale = isAr ? 'ar-DZ' : 'fr-DZ';
   const reportNum = `RPT-${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const locale = I18N.currentLang==='ar' ? 'ar-DZ' : 'fr-DZ';
+  const logo = getTenantLogo();
 
   // 6-month cashflow
   const months = [];
@@ -20231,107 +20227,319 @@ Pages.bankReport = function() {
     months.push({ label: d.toLocaleDateString(locale,{month:'short',year:'2-digit'}), rev:mRev, exp:mExp });
   }
 
+  const logoHTML = logo
+    ? `<img src="${logo}" style="height:56px;max-width:150px;object-fit:contain">`
+    : `<div style="font-size:1.3rem;font-weight:900;color:#C49030">▦ SmartStruct</div>`;
+
+  const profitColor = revenue-expense >= 0 ? '#0a6e3f' : '#c0392b';
+  const healthColor = health.score>=75 ? '#0a6e3f' : health.score>=55 ? '#B8902F' : '#c0392b';
+
+  const html = `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr?'التقرير البنكي':'Rapport Bancaire'} — ${escHtml(tenant?.name||'SmartStruct')}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Cairo',Arial,sans-serif;background:#f4f4f6;color:#1a1a1a;padding:24px;direction:${isAr?'rtl':'ltr'};font-size:13px}
+  .no-print{display:flex;gap:10px;margin-bottom:20px}
+  .btn-p{padding:9px 22px;background:#C49030;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
+  .btn-c{padding:9px 18px;background:#e0e0e0;color:#333;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
+  .sheet{background:#fff;max-width:820px;margin:0 auto;border-radius:4px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+
+  /* ── Header ── */
+  .hdr{background:#fff;border-bottom:3px solid #C49030;padding:24px 36px;display:flex;justify-content:space-between;align-items:center}
+  .co-name{font-size:15px;font-weight:900;color:#1a1a1a;margin-top:6px}
+  .co-info{font-size:10px;color:#666;margin-top:2px;line-height:1.7}
+  .rpt-label{text-align:${isAr?'left':'right'}}
+  .rpt-title{font-size:18px;font-weight:900;color:#1a1a1a}
+  .rpt-num{font-size:11px;color:#C49030;font-weight:700;font-family:monospace;margin-top:4px}
+  .rpt-date{font-size:10px;color:#888;margin-top:3px}
+
+  /* ── Gold bar ── */
+  .gold-bar{height:3px;background:#C49030}
+
+  /* ── Sections ── */
+  .body{padding:28px 36px}
+  .section{margin-bottom:24px}
+  .section-title{font-size:11px;font-weight:700;color:#C49030;text-transform:uppercase;letter-spacing:.8px;
+    margin-bottom:12px;padding-bottom:6px;border-bottom:1.5px solid #f0e8d0;display:flex;align-items:center;gap:6px}
+
+  /* ── KPI Cards ── */
+  .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px}
+  .kpi{background:#fafaf7;border:1px solid #e8e0cc;border-radius:8px;padding:14px 16px;text-align:center}
+  .kpi.green{border-color:#a8d5b5;background:#f0faf4}
+  .kpi.red{border-color:#f5b8b8;background:#fef5f5}
+  .kpi.gold{border-color:#e8c87a;background:#faf5e8}
+  .kpi-label{font-size:10px;color:#888;margin-bottom:5px;letter-spacing:.3px}
+  .kpi-value{font-size:16px;font-weight:900;font-family:monospace}
+  .kpi.green .kpi-value{color:#0a6e3f}
+  .kpi.red .kpi-value{color:#c0392b}
+  .kpi.gold .kpi-value{color:#C49030}
+
+  /* ── Info Rows ── */
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .info-row{display:flex;justify-content:space-between;padding:7px 10px;font-size:12px;border-bottom:1px solid #f5f0e8}
+  .info-row:nth-child(odd){background:#fafaf7}
+  .info-row span:first-child{color:#666}
+  .info-row span:last-child{font-weight:700}
+
+  /* ── Table ── */
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  thead th{background:#C49030;color:#fff;padding:9px 10px;font-weight:700;text-align:center}
+  thead th:first-child{text-align:${isAr?'right':'left'}}
+  tbody td{padding:7px 10px;border-bottom:1px solid #f0ede0;text-align:center}
+  tbody td:first-child{text-align:${isAr?'right':'left'};font-weight:600}
+  tbody tr:nth-child(odd) td{background:#fafaf7}
+  tfoot td{padding:9px 10px;font-weight:900;border-top:2px solid #C49030;background:#f5f0e8;text-align:center}
+  tfoot td:first-child{text-align:${isAr?'right':'left'}}
+
+  /* ── Health Score ── */
+  .health-box{display:flex;align-items:center;gap:20px;background:#fafaf7;border:1px solid #e8e0cc;border-radius:8px;padding:16px 20px}
+  .health-score{font-size:42px;font-weight:900;font-family:monospace;line-height:1;color:${healthColor}}
+  .health-bar-wrap{flex:1;height:8px;background:#e8e0cc;border-radius:4px;overflow:hidden;margin-top:6px}
+  .health-bar{height:100%;background:${healthColor};border-radius:4px;width:${health.score}%}
+
+  /* ── Projects Table ── */
+  .proj-row{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #f5f0e8;font-size:12px;align-items:center}
+  .proj-row:nth-child(odd){background:#fafaf7}
+  .proj-badge{padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#e8f0fe;color:#1a3a5c}
+
+  /* ── Footer ── */
+  .rpt-footer{background:#f8f5ee;border-top:2px solid #C49030;padding:12px 36px;display:flex;justify-content:space-between;align-items:center}
+  .rpt-footer span{font-size:10px;color:#666}
+  .rpt-footer .gold{color:#C49030;font-weight:700}
+
+  /* ── Signature ── */
+  .sig-section{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #e8e0cc}
+  .sig-box{text-align:center;min-width:140px}
+  .sig-line{width:140px;height:60px;border-bottom:1.5px solid #1a1a1a;margin-bottom:6px}
+  .sig-label{font-size:10px;color:#666}
+
+  @media print{
+    body{background:#fff!important;padding:0!important}
+    .no-print{display:none!important}
+    .sheet{box-shadow:none!important;border-radius:0!important;max-width:100%!important}
+    .kpi,.health-box,.proj-row:nth-child(odd),tbody tr:nth-child(odd) td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    thead{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    @page{margin:12mm;size:A4}
+  }
+</style>
+</head>
+<body>
+<div class="no-print">
+  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="btn-c" onclick="window.close()">${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<div class="sheet">
+  <!-- Header -->
+  <div class="hdr">
+    <div style="display:flex;align-items:center;gap:14px">
+      ${logoHTML}
+      <div>
+        <div class="co-name">${escHtml(tenant?.name||'SmartStruct')}</div>
+        <div class="co-info">
+          ${tenant?.rc_number?`RC: ${escHtml(tenant.rc_number)}<br>`:''}
+          ${tenant?.nif?`NIF: ${escHtml(tenant.nif)}<br>`:''}
+          ${tenant?.wilaya?escHtml(tenant.wilaya):''}
+        </div>
+      </div>
+    </div>
+    <div class="rpt-label">
+      <div class="rpt-title">${isAr?'التقرير البنكي الاحترافي':'RAPPORT BANCAIRE PROFESSIONNEL'}</div>
+      <div class="rpt-num">${reportNum}</div>
+      <div class="rpt-date">${isAr?'تاريخ الإصدار':'Date d\'émission'}: ${now.toLocaleDateString(locale,{dateStyle:'long'})}</div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="body">
+
+    <!-- KPIs -->
+    <div class="section">
+      <div class="section-title">💰 ${isAr?'الملخص المالي':'Résumé Financier'}</div>
+      <div class="kpi-grid">
+        <div class="kpi green">
+          <div class="kpi-label">${isAr?'إجمالي الإيرادات':'Total Revenus'}</div>
+          <div class="kpi-value">${fmt(revenue)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi red">
+          <div class="kpi-label">${isAr?'إجمالي المصاريف':'Total Dépenses'}</div>
+          <div class="kpi-value">${fmt(expense)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi ${revenue-expense>=0?'green':'red'}">
+          <div class="kpi-label">${isAr?'صافي الربح / الخسارة':'Bénéfice Net'}</div>
+          <div class="kpi-value" style="color:${profitColor}">${fmt(revenue-expense)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+        <div class="kpi gold">
+          <div class="kpi-label">${isAr?'ميزانية المشاريع':'Budget Projets'}</div>
+          <div class="kpi-value">${fmt(totalBudget)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">${isAr?'المنفق الفعلي':'Dépensé Réel'}</div>
+          <div class="kpi-value">${fmt(totalSpent)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">${isAr?'نسبة الاستهلاك':'Taux Consommation'}</div>
+          <div class="kpi-value">${totalBudget>0?Math.round(totalSpent/totalBudget*100):0}%</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${isAr?'من الميزانية':'du budget'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Info -->
+    <div class="section">
+      <div class="section-title">🏢 ${isAr?'معلومات المؤسسة':'Informations de la Société'}</div>
+      <div class="info-grid">
+        <div>
+          ${[
+            [isAr?'اسم المؤسسة':'Raison sociale', tenant?.name||'—'],
+            [isAr?'الولاية':'Wilaya', tenant?.wilaya||'—'],
+            [isAr?'رقم السجل التجاري':'Registre de commerce', tenant?.rc_number||'—'],
+            [isAr?'رقم التعريف الجبائي':'NIF', tenant?.nif||'—'],
+          ].map(([k,v])=>`<div class="info-row"><span>${k}</span><span>${escHtml(String(v))}</span></div>`).join('')}
+        </div>
+        <div>
+          ${[
+            [isAr?'عدد العمال':'Nombre d\'ouvriers', workers.length+' '+(isAr?'عامل':'ouvrier(s)')],
+            [isAr?'عدد المشاريع':'Nombre de projets', projects.length+' '+(isAr?'مشروع':'projet(s)')],
+            [isAr?'الهاتف':'Téléphone', tenant?.phone||'—'],
+            [isAr?'العنوان':'Adresse', tenant?.address||'—'],
+          ].map(([k,v])=>`<div class="info-row"><span>${k}</span><span>${escHtml(String(v))}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Projects -->
+    ${projects.length>0?`
+    <div class="section">
+      <div class="section-title">🏗️ ${isAr?'المشاريع النشطة':'Projets Actifs'} (${projects.length})</div>
+      <div style="border:1px solid #e8e0cc;border-radius:8px;overflow:hidden">
+        <div class="proj-row" style="background:#f5f0e8;font-weight:700;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px">
+          <span>${isAr?'اسم المشروع':'Projet'}</span>
+          <div style="display:flex;gap:20px">
+            <span>${isAr?'الميزانية':'Budget'}</span>
+            <span>${isAr?'الإنجاز':'Avancement'}</span>
+          </div>
+        </div>
+        ${projects.map(p=>`
+        <div class="proj-row">
+          <div>
+            <div style="font-weight:700">${escHtml(p.name)}</div>
+            <div style="font-size:10px;color:#888">${escHtml(p.wilaya||'')} ${p.client_name?'• '+escHtml(p.client_name):''}</div>
+          </div>
+          <div style="display:flex;gap:20px;align-items:center">
+            <span style="font-family:monospace;font-weight:700;color:#C49030">${fmt(p.budget)} ${da}</span>
+            <span class="proj-badge">${p.progress||0}%</span>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`:''} 
+
+    <!-- Cashflow Table -->
+    <div class="section">
+      <div class="section-title">📊 ${isAr?'التدفق النقدي — آخر 6 أشهر':'Flux de Trésorerie — 6 Derniers Mois'}</div>
+      <table>
+        <thead><tr>
+          <th>${isAr?'الشهر':'Mois'}</th>
+          <th>${isAr?'الإيرادات (دج)':'Revenus (DA)'}</th>
+          <th>${isAr?'المصاريف (دج)':'Dépenses (DA)'}</th>
+          <th>${isAr?'الرصيد (دج)':'Solde (DA)'}</th>
+        </tr></thead>
+        <tbody>
+          ${months.map(m=>`<tr>
+            <td>${m.label}</td>
+            <td style="color:#0a6e3f;font-family:monospace">${fmt(m.rev)}</td>
+            <td style="color:#c0392b;font-family:monospace">${fmt(m.exp)}</td>
+            <td style="font-weight:900;font-family:monospace;color:${m.rev-m.exp>=0?'#0a6e3f':'#c0392b'}">${fmt(m.rev-m.exp)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td>${isAr?'الإجمالي':'Total'}</td>
+          <td style="color:#0a6e3f;font-family:monospace">${fmt(revenue)}</td>
+          <td style="color:#c0392b;font-family:monospace">${fmt(expense)}</td>
+          <td style="color:${profitColor};font-family:monospace">${fmt(revenue-expense)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+
+    <!-- Health Score -->
+    <div class="section">
+      <div class="section-title">📈 ${isAr?'مؤشر الصحة المالية':'Indice de Santé Financière'}</div>
+      <div class="health-box">
+        <div style="text-align:center;min-width:80px">
+          <div class="health-score">${health.score}</div>
+          <div style="font-size:10px;color:#888;margin-top:4px">${isAr?'من 100':'/ 100'}</div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:900;color:${healthColor};margin-bottom:8px">${health.label}</div>
+          <div class="health-bar-wrap"><div class="health-bar"></div></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:#666">
+            <span>${isAr?'ربحية':'Rentabilité'}: <strong>${health.breakdown?.profitability||0}%</strong></span>
+            <span>${isAr?'سيولة':'Liquidité'}: <strong>${health.breakdown?.liquidity||0}%</strong></span>
+            <span>${isAr?'تأخير':'Retard'}: <strong>${health.breakdown?.delay||0}%</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="sig-section">
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">${isAr?'المسؤول المالي':'Responsable financier'}</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">${isAr?'المدير العام':'Directeur général'}</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">${isAr?'الختم الرسمي':'Cachet officiel'}</div>
+      </div>
+    </div>
+
+  </div><!-- end body -->
+
+  <!-- Footer -->
+  <div class="rpt-footer">
+    <span>${isAr?'تم إنشاؤه بواسطة':'Généré par'} <span class="gold">SmartStruct</span> | ${now.toLocaleDateString(locale)} ${now.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit'})}</span>
+    <span class="gold">${reportNum} | ${isAr?'وثيقة سرية — للاستخدام البنكي فقط':'Document confidentiel — Usage bancaire uniquement'}</span>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة للمتصفح','Autorisez les popups du navigateur')); return; }
+  win.document.write(html);
+  win.document.close();
+
   return layoutHTML('bank_report', L('تقرير بنكي','Rapport bancaire'), `
     <div class="page-header">
       <div>
         <div class="page-title">🏦 ${L('التقرير البنكي الاحترافي','Rapport bancaire professionnel')}</div>
-        <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك','Rapport financier prêt à soumettre à la banque')}</div>
+        <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك — يُفتح في نافذة منفصلة','Rapport financier prêt à soumettre à la banque')}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-gold" onclick="window.print()">🖨️ ${L('طباعة / PDF','Imprimer / PDF')}</button>
+        <button class="btn btn-gold" onclick="Pages.bankReport()">🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}</button>
       </div>
     </div>
-
-    <!-- Preview -->
-    <div class="bank-report-preview" id="bankReportDoc">
-      <!-- Header -->
-      <div class="bank-report-header">
-        <div>
-          <div class="bank-report-logo">▦ SmartStruct</div>
-          <div style="font-size:.75rem;color:#666;margin-top:3px">${L('نظام الإدارة المالية للمقاولين','Système de gestion financière BTP')}</div>
-        </div>
-        <div style="text-align:left">
-          <div style="font-size:.7rem;color:#888">${L('رقم التقرير','N° du rapport')}</div>
-          <div style="font-weight:900;color:#1a3a5c;font-family:monospace">${reportNum}</div>
-          <div style="font-size:.7rem;color:#888;margin-top:4px">${L('تاريخ الإصدار','Date d\'émission')}: ${now.toLocaleDateString(locale)}</div>
-        </div>
-      </div>
-
-      <!-- Company Info -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">🏢 ${L('معلومات الشركة','Informations de la société')}</div>
-        <div class="bank-report-row"><span>${L('اسم المؤسسة','Nom de l\'entreprise')}</span><span style="font-weight:700">${escHtml(tenant?.name||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('الولاية','Wilaya')}</span><span style="font-weight:700">${escHtml(tenant?.wilaya||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('رقم السجل التجاري','Registre de commerce')}</span><span style="font-weight:700;font-family:monospace">${escHtml(tenant?.rc_number||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('رقم الهاتف','Téléphone')}</span><span style="font-weight:700">${escHtml(tenant?.phone||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('عدد العمال','Nombre d\'ouvriers')}</span><span style="font-weight:700">${workers.length} ${L('عامل','ouvrier(s)')}</span></div>
-      </div>
-
-      <!-- Financial Summary -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">💰 ${L('الملخص المالي','Résumé financier')}</div>
-        <div class="bank-report-row"><span>${L('إجمالي الإيرادات','Total revenus')}</span><span style="font-weight:700;color:green">${fmt(revenue)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('إجمالي المصاريف','Total dépenses')}</span><span style="font-weight:700;color:red">${fmt(expense)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('صافي الربح / الخسارة','Bénéfice / Perte net(te)')}</span><span style="font-weight:900;color:${revenue-expense>=0?'green':'red'};font-size:1rem">${fmt(revenue-expense)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('إجمالي الميزانية المتعاقد عليها','Budget total contracté')}</span><span style="font-weight:700">${fmt(totalBudget)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('المنفق الفعلي','Dépensé réellement')}</span><span style="font-weight:700">${fmt(totalSpent)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('نسبة الاستهلاك','Taux de consommation')}</span><span style="font-weight:700">${totalBudget>0?Math.round(totalSpent/totalBudget*100):0}%</span></div>
-      </div>
-
-      <!-- Projects -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">🏗️ ${L('المشاريع','Projets')} (${projects.length})</div>
-        ${projects.map(p=>`
-          <div class="bank-report-row">
-            <span>${escHtml(p.name)} <small style="color:#888">(${escHtml(p.wilaya||'')})</small></span>
-            <span style="font-weight:700">${fmt(p.budget)} ${da} — ${p.progress}% ✓</span>
-          </div>
-        `).join('')}
-      </div>
-
-      <!-- Cashflow Table -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">📊 ${L('التدفق النقدي (6 أشهر)','Flux de trésorerie (6 mois)')}</div>
-        <table style="width:100%;font-size:.8rem;border-collapse:collapse">
-          <thead><tr style="background:#f5f5f5">
-            <th style="padding:5px;text-align:right">${L('الشهر','Mois')}</th>
-            <th style="padding:5px">${L('الإيرادات','Revenus')}</th>
-            <th style="padding:5px">${L('المصاريف','Dépenses')}</th>
-            <th style="padding:5px">${L('الرصيد','Solde')}</th>
-          </tr></thead>
-          <tbody>
-            ${months.map(m=>`<tr style="border-bottom:1px solid #eee">
-              <td style="padding:5px;font-weight:700">${m.label}</td>
-              <td style="padding:5px;text-align:center;color:green">${fmt(m.rev)}</td>
-              <td style="padding:5px;text-align:center;color:red">${fmt(m.exp)}</td>
-              <td style="padding:5px;text-align:center;font-weight:700;color:${m.rev-m.exp>=0?'green':'red'}">${fmt(m.rev-m.exp)}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Health Score -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">🏥 ${L('مؤشر الصحة المالية','Indice de santé financière')}</div>
-        <div style="display:flex;align-items:center;gap:1rem">
-          <div style="font-size:2.5rem;font-weight:900;color:${health.score>=75?'green':health.score>=55?'orange':'red'}">${health.score}</div>
-          <div>
-            <div style="font-weight:700">${health.label} (${health.score}/100)</div>
-            <div style="font-size:.75rem;color:#666">${L('ربحية','Rentabilité')}: ${health.breakdown?.profitability||0}% | ${L('سيولة','Liquidité')}: ${health.breakdown?.liquidity||0}% | ${L('تأخير','Retard')}: ${health.breakdown?.delay||0}%</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer & Stamp -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2rem;padding-top:1rem;border-top:1px solid #ddd">
-        <div style="font-size:.7rem;color:#888">
-          ${L('تم إنشاؤه بواسطة','Généré par')} SmartStruct v1.0 | ${now.toLocaleDateString(locale)} ${now.toLocaleTimeString(locale)}
-        </div>
-        <div class="bank-report-stamp">SmartStruct<br>${L('تقرير','Rapport')}<br>${L('رسمي','Officiel')}</div>
-      </div>
+    <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:2rem;text-align:center;max-width:480px;margin:2rem auto">
+      <div style="font-size:2.5rem;margin-bottom:1rem">🏦</div>
+      <div style="font-size:1rem;font-weight:700;margin-bottom:.5rem">${L('تم فتح التقرير في نافذة جديدة','Rapport ouvert dans un nouvel onglet')}</div>
+      <div style="font-size:.82rem;color:var(--dim);line-height:1.6;margin-bottom:1.2rem">${L('تقرير احترافي جاهز للطباعة أو التحويل لـ PDF','Rapport professionnel prêt à imprimer ou exporter en PDF')}</div>
+      <button class="btn btn-gold" onclick="Pages.bankReport()">🔄 ${L('إعادة فتح التقرير','Rouvrir le rapport')}</button>
     </div>
-
-    <style>@media print { body * { visibility: hidden } #bankReportDoc, #bankReportDoc * { visibility: visible; color: #1a1a1a !important; } #bankReportDoc { position: fixed; top: 0; left: 0; width: 100%; background: white; } }</style>
   `);
 };
 
