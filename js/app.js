@@ -3215,9 +3215,31 @@ function renderRegisterForm(L) {
 
     <div class="auth-field">
       <label class="auth-label">${L('البريد الإلكتروني','Email')} <span class="auth-required">*</span></label>
-      <div class="auth-input-wrap">
+      <div class="auth-input-wrap" style="position:relative">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email">
+        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email" style="padding-left:${L('2.5rem','2.5rem')};padding-right:${L('8rem','8rem')}">
+        <button type="button" id="sendOtpBtn" onclick="sendVerificationCode()"
+          style="position:absolute;${I18N.currentLang==='ar'?'left':'right'}:.4rem;top:50%;transform:translateY(-50%);padding:.3rem .7rem;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:6px;cursor:pointer;white-space:nowrap">
+          📧 ${L('إرسال كود','Envoyer code')}
+        </button>
+      </div>
+      <div id="otpStatus" style="display:none;margin-top:.4rem;font-size:.75rem"></div>
+    </div>
+
+    <!-- حقل كود التحقق - يظهر بعد إرسال الكود -->
+    <div class="auth-field" id="otpField" style="display:none">
+      <label class="auth-label">🔐 ${L('كود التحقق','Code de vérification')} <span class="auth-required">*</span></label>
+      <div class="auth-input-wrap">
+        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input class="auth-input" id="regOtp" type="text" maxlength="6" placeholder="XXXXXX" dir="ltr"
+          style="letter-spacing:.3rem;font-size:1.1rem;font-weight:700;text-align:center"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">
+        <span id="otpTimer" style="font-size:.72rem;color:var(--dim)"></span>
+        <button type="button" onclick="sendVerificationCode(true)" style="font-size:.72rem;color:#D4AF37;background:none;border:none;cursor:pointer;padding:0">
+          🔄 ${L('إعادة إرسال','Renvoyer')}
+        </button>
       </div>
     </div>
 
@@ -3292,6 +3314,113 @@ function switchAuthMode(mode) {
   }
 }
 
+// ══════════════════════════════════════════════════════
+//  نظام التحقق من البريد الإلكتروني — OTP 6 أرقام
+// ══════════════════════════════════════════════════════
+const _OTP = {
+  code: '',
+  email: '',
+  expiry: 0,
+  timerInterval: null,
+
+  generate() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  },
+
+  isValid(inputCode) {
+    if (!this.code || !inputCode) return false;
+    if (Date.now() > this.expiry) return false; // انتهت صلاحية الكود (10 دقائق)
+    return this.code === String(inputCode).trim();
+  },
+
+  isVerified(email) {
+    // تحقق إذا كان البريد مُؤكَّداً في هذه الجلسة
+    return sessionStorage.getItem('otp_verified') === email;
+  },
+
+  markVerified(email) {
+    sessionStorage.setItem('otp_verified', email);
+  },
+
+  startTimer() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    const timerEl = document.getElementById('otpTimer');
+    if (!timerEl) return;
+    const end = this.expiry;
+    this.timerInterval = setInterval(() => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      if (timerEl) timerEl.textContent = left > 0
+        ? L(`⏳ ينتهي خلال ${left} ثانية`, `⏳ Expire dans ${left}s`)
+        : L('❌ انتهى الكود — أعد الإرسال', '❌ Code expiré — Renvoyer');
+      if (left <= 0) clearInterval(this.timerInterval);
+    }, 1000);
+  }
+};
+
+async function sendVerificationCode(isResend = false) {
+  const email = (document.getElementById('regEmail')?.value || '').trim().toLowerCase();
+  const statusEl = document.getElementById('otpStatus');
+  const otpField = document.getElementById('otpField');
+  const sendBtn  = document.getElementById('sendOtpBtn');
+
+  // ── تحقق من صيغة البريد ──
+  const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email)) {
+    if (statusEl) { statusEl.style.display='block'; statusEl.style.color='var(--red)'; statusEl.textContent = L('❌ أدخل بريداً إلكترونياً صحيحاً','❌ Email invalide'); }
+    return;
+  }
+
+  // ── حظر domains وهمية معروفة ──
+  const fakedomains = ['mailinator.com','guerrillamail.com','tempmail.com','10minutemail.com',
+    'throwam.com','yopmail.com','sharklasers.com','guerrillamailblock.com','grr.la',
+    'spam4.me','trashmail.com','dispostable.com','maildrop.cc','fakeinbox.com'];
+  const domain = email.split('@')[1];
+  if (fakedomains.includes(domain)) {
+    if (statusEl) { statusEl.style.display='block'; statusEl.style.color='var(--red)'; statusEl.textContent = L('❌ هذا البريد الإلكتروني غير مقبول','❌ Ce domaine email n\'est pas accepté'); }
+    return;
+  }
+
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = L('⏳ جاري الإرسال...','⏳ Envoi...'); }
+  if (statusEl) { statusEl.style.display='block'; statusEl.style.color='var(--dim)'; statusEl.textContent = L('⏳ جاري إرسال كود التحقق...','⏳ Envoi du code...'); }
+
+  // ── توليد الكود ──
+  const code = _OTP.generate();
+  _OTP.code   = code;
+  _OTP.email  = email;
+  _OTP.expiry = Date.now() + 10 * 60 * 1000; // 10 دقائق
+
+  try {
+    // إرسال الكود عبر EmailJS
+    await emailjs.send(
+      EMAILJS.SERVICE_ID,
+      EMAILJS.TEMPLATE_USER,
+      {
+        to_email:    email,
+        to_name:     email.split('@')[0],
+        user_email:  email,
+        user_name:   email.split('@')[0],
+        company_name:'SmartStruct',
+        new_password: code, // نستخدم حقل new_password لإرسال الكود
+        plan_name:   'التحقق من البريد',
+        date:        new Date().toLocaleString('ar-DZ'),
+        message:     `كود التحقق الخاص بك هو: ${code}\n\nهذا الكود صالح لمدة 10 دقائق فقط.\nلا تشاركه مع أحد.`
+      }
+    );
+
+    // ── إظهار حقل الكود ──
+    if (otpField) otpField.style.display = 'block';
+    if (statusEl) { statusEl.style.color='var(--green)'; statusEl.textContent = L(`✅ تم إرسال كود إلى ${email}`,`✅ Code envoyé à ${email}`); }
+    if (sendBtn)  { sendBtn.textContent = L('✅ أُرسل','✅ Envoyé'); sendBtn.style.background='rgba(52,195,143,.2)'; sendBtn.style.color='var(--green)'; }
+    document.getElementById('regOtp')?.focus();
+    _OTP.startTimer();
+
+  } catch(e) {
+    if (statusEl) { statusEl.style.color='var(--red)'; statusEl.textContent = L('❌ فشل إرسال الكود — تحقق من البريد','❌ Échec envoi — vérifiez l\'email'); }
+    if (sendBtn)  { sendBtn.disabled = false; sendBtn.textContent = L('📧 إرسال كود','Envoyer code'); }
+    console.warn('OTP send error:', e);
+  }
+}
+
 function showRegisterPanel() {
   sessionStorage.setItem('auth_mode', 'register');
   App.navigate('login', {mode:'register'});
@@ -3344,6 +3473,35 @@ async function doRegister() {
   if (!email || !email.includes('@')) return showErr(L('❌ البريد الإلكتروني غير صالح','❌ Email invalide'));
   if (pass.length < 6) return showErr(L('❌ كلمة المرور 6 أحرف على الأقل','❌ 6 caractères minimum'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
+
+  // ── تحقق من كود البريد الإلكتروني ──
+  const otpInput = (document.getElementById('regOtp')?.value || '').trim();
+
+  // إذا لم يُرسَل الكود بعد
+  if (!_OTP.code && !_OTP.isVerified(email)) {
+    return showErr(L('❌ يجب إرسال كود التحقق للبريد الإلكتروني أولاً — اضغط "إرسال كود"',
+                     '❌ Vous devez d\'abord envoyer un code de vérification à votre email'));
+  }
+
+  // إذا أُرسل الكود لكن لم يُدخَل بعد
+  if (_OTP.code && !otpInput && !_OTP.isVerified(email)) {
+    return showErr(L('❌ أدخل كود التحقق المرسل إلى بريدك الإلكتروني',
+                     '❌ Entrez le code de vérification envoyé à votre email'));
+  }
+
+  // التحقق من صحة الكود
+  if (_OTP.code && !_OTP.isVerified(email)) {
+    if (!_OTP.isValid(otpInput)) {
+      if (Date.now() > _OTP.expiry) {
+        return showErr(L('❌ انتهت صلاحية الكود — اضغط "إعادة إرسال"',
+                         '❌ Code expiré — Cliquez sur "Renvoyer"'));
+      }
+      return showErr(L('❌ كود التحقق غير صحيح — تحقق من بريدك',
+                       '❌ Code incorrect — Vérifiez votre email'));
+    }
+    // ✅ الكود صحيح — سجّل التحقق
+    _OTP.markVerified(email);
+  }
 
   // ── عرض حالة التحميل ──
   if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = '⏳ جاري التسجيل...'; }
@@ -12663,11 +12821,20 @@ function adminExportAllData() {
     Toast.error(L('المتصفح لا يدعم التصدير','Export non supporté'));
     return;
   }
-  const allKeys = ['tenants','users','projects','workers','equipment','transactions','attendance',
-                   'salary_records','materials','invoices','documents','notifications','kanban_tasks','plans'];
+  const allKeys = [
+    'plans','tenants','users',
+    'projects','workers','equipment','equipment_logs',
+    'transactions','invoices','salary_records','bank_transactions',
+    'attendance','materials','stock_movements',
+    'documents','kanban_tasks','notifications','obligations','notes',
+    'leave_requests','worker_warnings','worker_overtime',
+    'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+    'ai_conversations','signatures','tenders','tender_offers',
+    'equipment_locations','custom_roles','global_settings'
+  ];
   const exportData = {};
   allKeys.forEach(k => { exportData[k] = DB.get(k) || []; });
-  exportData._meta = { exported_at: new Date().toISOString(), app: 'SmartStruct', version: '7.3' };
+  exportData._meta = { exported_at: new Date().toISOString(), app: 'SmartStruct', version: '7.4', type: 'admin_full' };
 
   const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -21532,56 +21699,148 @@ function globalSearch(query) {
 function userExportBackup() {
   const tid = Auth.getUser()?.tenant_id;
   if (!tid) { Toast.error(L('يجب تسجيل الدخول','Connexion requise')); return; }
-  const tables = ['projects','workers','equipment','transactions','attendance',
-    'salary_records','materials','stock_movements','invoices','documents',
-    'kanban_tasks','notifications','obligations'];
+
+  // ✅ كل الجداول بما فيها الجديدة (HR + Suppliers + Invoices)
+  const tables = [
+    // المشاريع والعمال
+    'projects','workers','equipment','equipment_logs',
+    // المالية
+    'transactions','invoices','salary_records','bank_transactions',
+    // الحضور والمواد
+    'attendance','materials','stock_movements',
+    // الوثائق والمهام
+    'documents','kanban_tasks','notifications','obligations','notes',
+    // HR الجديدة
+    'leave_requests','worker_warnings','worker_overtime',
+    // الموردين الجديدة
+    'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+    // أخرى
+    'ai_conversations','signatures','tenders','tender_offers',
+    'equipment_locations','custom_roles',
+  ];
+
   const data = {};
+  let totalRecords = 0;
   tables.forEach(t => {
     const all = DB.get(t) || [];
-    data[t] = all.filter(r => r.tenant_id === tid || !r.tenant_id);
+    const filtered = all.filter(r => r.tenant_id === tid || !r.tenant_id);
+    data[t] = filtered;
+    totalRecords += filtered.length;
   });
-  data._meta = { tenant: Auth.getTenant(), exported_at: new Date().toISOString(), version: 'v7.3', user: Auth.getUser()?.email };
+
+  // بيانات المؤسسة نفسها
+  const tenant = Auth.getTenant();
+  data._tenant = tenant;
+  data._meta = {
+    tenant_id: tid,
+    tenant_name: tenant?.name || '',
+    exported_at: new Date().toISOString(),
+    version: 'v7.4',
+    user: Auth.getUser()?.email,
+    total_records: totalRecords,
+    tables: Object.keys(data).filter(k => !k.startsWith('_')).length
+  };
+
   const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob(['\uFEFF' + json], { type: 'application/json;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url;
-  a.download = `SmartStruct_backup_${tid}_${new Date().toISOString().split('T')[0]}.json`;
+  a.download = `SmartStruct_${(tenant?.name||'backup').replace(/\s/g,'_')}_${new Date().toISOString().split('T')[0]}.json`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  Toast.success(L('✅ تم تصدير البيانات بنجاح','✅ Données exportées avec succès'));
-  if (typeof AuditLog !== 'undefined') AuditLog.log('export', 'backup', null, null, { type: 'user_backup' });
+  Toast.success(L(`✅ تم تصدير ${totalRecords} سجل من ${tables.length} جدول`,`✅ ${totalRecords} enregistrements exportés`));
+  if (typeof AuditLog !== 'undefined') AuditLog.log('export', 'backup', null, null, { type: 'user_backup', records: totalRecords });
 }
 
 function userImportBackup(input) {
   const file = input.files?.[0];
   if (!file) return;
+
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data._meta) throw new Error('ملف غير صالح');
+
+      // ── تحقق من صحة الملف ──
+      if (!data._meta) throw new Error(L('ملف غير صالح — لا يوجد _meta','Fichier invalide — pas de _meta'));
+
       const tid = Auth.getUser()?.tenant_id;
-      if (!tid) throw new Error('يجب تسجيل الدخول');
+      if (!tid) throw new Error(L('يجب تسجيل الدخول','Connexion requise'));
+
+      // ── إحصاءات الاستعادة ──
+      const tables = Object.keys(data).filter(k => !k.startsWith('_'));
+      const totalRecords = tables.reduce((s,t) => s + (Array.isArray(data[t]) ? data[t].length : 0), 0);
+      const exportedAt = data._meta.exported_at ? new Date(data._meta.exported_at).toLocaleString('ar-DZ') : '—';
+      const tenantName = data._meta.tenant_name || data._meta.tenant?.name || '—';
+
       if (!confirm(L(
-        `⚠️ استعادة البيانات ستستبدل بياناتك الحالية.\n\nنسخة احتياطية من: ${data._meta.exported_at}\n\nهل تريد المتابعة؟`,
-        `⚠️ La restauration remplacera vos données actuelles.\n\nSauvegarde du: ${data._meta.exported_at}\n\nContinuer?`
+        `⚠️ استعادة النسخة الاحتياطية\n\nالمؤسسة: ${tenantName}\nتاريخ النسخة: ${exportedAt}\nعدد السجلات: ${totalRecords}\n\n⚠️ ستُستبدل بياناتك الحالية بهذه النسخة.\n\nهل تريد المتابعة؟`,
+        `⚠️ Restauration de sauvegarde\n\nEntreprise: ${tenantName}\nDate: ${exportedAt}\nEnregistrements: ${totalRecords}\n\n⚠️ Vos données actuelles seront remplacées.\n\nContinuer?`
       ))) return;
-      const tables = ['projects','workers','equipment','transactions','attendance',
-        'salary_records','materials','stock_movements','invoices','documents',
-        'kanban_tasks','notifications','obligations'];
-      tables.forEach(t => {
-        if (data[t]) DB.set(t, data[t]);
+
+      // ── استعادة كل الجداول ──
+      const allTables = [
+        'projects','workers','equipment','equipment_logs',
+        'transactions','invoices','salary_records','bank_transactions',
+        'attendance','materials','stock_movements',
+        'documents','kanban_tasks','notifications','obligations','notes',
+        'leave_requests','worker_warnings','worker_overtime',
+        'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+        'ai_conversations','signatures','tenders','tender_offers',
+        'equipment_locations','custom_roles',
+      ];
+
+      let restored = 0;
+      let skipped  = 0;
+
+      allTables.forEach(t => {
+        if (data[t] && Array.isArray(data[t])) {
+          // تأكد أن السجلات تنتمي للمستخدم الحالي أو بدون tenant_id
+          const safe = data[t].filter(r =>
+            !r.tenant_id || Number(r.tenant_id) === Number(tid) ||
+            // إذا كانت نسخة قديمة قد تختلف tenant_id — نُعيد تعيينه
+            Number(data._meta?.tenant_id) === Number(r.tenant_id)
+          ).map(r => ({
+            ...r,
+            tenant_id: r.tenant_id ? tid : r.tenant_id // نُعيد تعيين tenant_id للحالي
+          }));
+          DB.setSilent ? DB.setSilent(t, safe) : DB.set(t, safe);
+          restored += safe.length;
+        } else {
+          skipped++;
+        }
       });
-      Toast.success(L('✅ تمت استعادة البيانات بنجاح! سيتم إعادة التحميل.','✅ Données restaurées! Rechargement...'));
-      setTimeout(() => { App.navigate('dashboard'); }, 1500);
+
+      // استعادة بيانات المؤسسة إن وُجدت
+      if (data._tenant && typeof DB !== 'undefined') {
+        const tenants = DB.get('tenants') || [];
+        const idx = tenants.findIndex(t => t.id === tid);
+        if (idx >= 0) {
+          // تحديث فقط — لا نغيّر الـ id
+          const restored_tenant = { ...tenants[idx], ...data._tenant, id: tid };
+          tenants[idx] = restored_tenant;
+          DB.setSilent ? DB.setSilent('tenants', tenants) : DB.set('tenants', tenants);
+        }
+      }
+
+      Toast.success(L(
+        `✅ تمت الاستعادة — ${restored} سجل من ${allTables.length - skipped} جدول`,
+        `✅ Restauré — ${restored} enregistrements`
+      ));
+      setTimeout(() => {
+        location.reload(); // إعادة تحميل كاملة للتأكد من تطبيق كل البيانات
+      }, 1500);
+
     } catch(err) {
-      Toast.error(L('❌ ملف غير صالح: ' + err.message, '❌ Fichier invalide: ' + err.message));
+      Toast.error(L('❌ خطأ في الاستعادة: ' + err.message, '❌ Erreur: ' + err.message));
     }
   };
-  reader.readAsText(file);
-  input.value = '';
+
+  reader.onerror = () => Toast.error(L('❌ فشل قراءة الملف','❌ Erreur lecture fichier'));
+  reader.readAsText(file, 'utf-8');
+  input.value = ''; // إعادة تعيين input للسماح بإعادة رفع نفس الملف
 }
 
 // ════════════════════════════════════════════════════════════════════
