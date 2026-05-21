@@ -316,14 +316,14 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 .ll-feature-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at var(--mx,50%) var(--my,0%),rgba(232,184,75,0.12),transparent 60%);opacity:0;transition:opacity 0.4s;pointer-events:none}
 .ll-feature-card:hover{border-color:rgba(232,184,75,0.35);box-shadow:0 20px 50px rgba(0,0,0,0.4),0 0 40px rgba(232,184,75,0.08)}
 .ll-feature-card:hover::before{opacity:1}
-.ll-feature-icon{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:1.3rem;margin-top:1.8rem;font-size:1.5rem;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#09120A;box-shadow:0 6px 20px rgba(232,184,75,0.3);position:relative;transform:translateZ(20px)}
+.ll-feature-icon{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:1.3rem;font-size:1.5rem;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#09120A;box-shadow:0 6px 20px rgba(232,184,75,0.3);position:relative;transform:translateZ(20px)}
 .ll-feature-icon.ll-purple{background:linear-gradient(135deg,var(--purple),#6D45D9);color:#fff;box-shadow:0 6px 20px rgba(155,109,255,0.3)}
 .ll-feature-icon.ll-green{background:linear-gradient(135deg,var(--green),#1F8B65);color:#fff;box-shadow:0 6px 20px rgba(52,195,143,0.3)}
 .ll-feature-icon.ll-blue{background:linear-gradient(135deg,var(--blue),#2E6BB8);color:#fff;box-shadow:0 6px 20px rgba(74,144,226,0.3)}
 .ll-feature-icon.ll-red{background:linear-gradient(135deg,var(--red),#C13954);color:#fff;box-shadow:0 6px 20px rgba(240,78,106,0.3)}
 .ll-feature-title{font-size:1.2rem;font-weight:800;margin-bottom:0.6rem;color:var(--text);transform:translateZ(15px)}
 .ll-feature-desc{font-size:0.9rem;color:var(--muted);line-height:1.7;transform:translateZ(10px)}
-.ll-feature-tag{position:absolute;top:1.2rem;inset-inline-start:1.2rem;font-size:0.62rem;font-weight:800;color:var(--gold);background:rgba(232,184,75,0.1);border:1px solid rgba(232,184,75,0.25);padding:3px 9px;border-radius:20px;letter-spacing:0.5px}
+.ll-feature-tag{position:absolute;top:1.2rem;left:1.2rem;font-size:0.62rem;font-weight:800;color:var(--gold);background:rgba(232,184,75,0.1);border:1px solid rgba(232,184,75,0.25);padding:3px 9px;border-radius:20px;letter-spacing:0.5px}
 
 /* Showcase */
 .ll-showcase{perspective:1800px;margin-top:2rem}
@@ -918,14 +918,32 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 
 .auth-input-eye{
   position:absolute;
-  left:0.6rem;
+  left:0.5rem;
+  top:50%;
+  transform:translateY(-50%);
   background:none; border:none; cursor:pointer;
   color:var(--dim);
-  padding:6px; border-radius:6px;
+  padding:5px; border-radius:6px;
   transition:all 0.2s;
+  z-index:2;
+  display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px;
 }
 .auth-input-eye:hover{background:rgba(232,184,75,0.08); color:var(--gold)}
-[dir="ltr"] .auth-input-eye{left:auto; right:0.6rem}
+[dir="ltr"] .auth-input-eye{left:auto; right:0.5rem}
+
+/* حقل كلمة المرور — padding إضافي لتجنب تداخل العين مع النص */
+.auth-input[type="password"],
+.auth-input[id$="Pass"],
+.auth-input[id$="pass"]{
+  padding-left:2.8rem;
+}
+[dir="ltr"] .auth-input[type="password"],
+[dir="ltr"] .auth-input[id$="Pass"],
+[dir="ltr"] .auth-input[id$="pass"]{
+  padding-left:1rem;
+  padding-right:2.8rem;
+}
 
 /* Password strength */
 .auth-pass-strength{
