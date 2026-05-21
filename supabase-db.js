@@ -836,7 +836,9 @@ const DBHybrid = {
       'kanban_tasks','documents','obligations','notes',
       'notifications','global_settings','admin_notifications','stock_movements',
       'custom_roles','equipment_locations','tenders','tender_offers',
-      'bank_transactions','signatures','ai_conversations'
+      'bank_transactions','signatures','ai_conversations',
+      'leave_requests','worker_warnings','worker_overtime',
+      'supplier_prices','supplier_obligations','supplier_purchases'
     ]);
     if (!SYNCABLE.has(key)) return;
     if (!Array.isArray(newVal) || !Array.isArray(prevVal)) {
@@ -1078,7 +1080,9 @@ if (!navigator.onLine || !this._useSupabase) {
       const tablesToClean = [
         'projects','workers','equipment','equipment_logs','transactions','attendance',
         'materials','stock_movements','invoices','salary_records','kanban_tasks',
-        'documents','obligations','notes','notifications','users'
+        'documents','obligations','notes','notifications','users',
+        'leave_requests','worker_warnings','worker_overtime',
+        'supplier_purchases','supplier_prices','supplier_obligations'
       ];
 
       let totalRemoved = 0;
@@ -1406,7 +1410,9 @@ if (!navigator.onLine || !this._useSupabase) {
       'kanban_tasks','documents','obligations','notes',
       'notifications','global_settings','admin_notifications','stock_movements',
       'custom_roles','equipment_locations','tenders','tender_offers',
-      'bank_transactions','signatures','ai_conversations'
+      'bank_transactions','signatures','ai_conversations',
+      'leave_requests','worker_warnings','worker_overtime',
+      'supplier_prices','supplier_obligations','supplier_purchases'
     ]);
     if (!SYNCABLE.has(key)) return;
 
@@ -1579,7 +1585,11 @@ if (!navigator.onLine || !this._useSupabase) {
       'invoices','salary_records','kanban_tasks','documents',
       'obligations','notes','notifications','audit_log',
       'custom_roles','equipment_locations','tenders','bank_transactions',
-      'signatures','ai_conversations'
+      'signatures','ai_conversations',
+      // ③ جداول الموارد البشرية
+      'leave_requests','worker_warnings','worker_overtime',
+      // ④ جداول الموردين
+      'supplier_purchases','supplier_prices','supplier_obligations'
     ];
     // الجداول العامة (تُسحب كاملاً للجميع)
     const globalTables = ['plans','tenants','users'];

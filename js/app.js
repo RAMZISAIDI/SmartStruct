@@ -97,6 +97,13 @@ if (!DB.init) DB.init = function() {
     _set('stock_movements', []);
     _set('invoices',        []);
     _set('salary_records',  []);
+    _set('leave_requests',  []);
+    _set('suppliers',       []);
+    _set('supplier_purchases',  []);
+    _set('supplier_prices',     []);
+    _set('supplier_obligations',[]);
+    _set('worker_warnings', []);
+    _set('worker_overtime', []);
     _set('kanban_tasks',    []);
     _set('documents',       []);
     _set('obligations',     []);
@@ -314,6 +321,7 @@ const I18N = {
     'nav.transactions': {ar:'المعاملات',       fr:'Transactions'},
     'nav.invoices':     {ar:'الفواتير',        fr:'Factures'},
     'nav.inventory':    {ar:'المخزون',         fr:'Stock'},
+    'nav.suppliers':    {ar:'الموردون',        fr:'Fournisseurs'},
     'nav.materials':    {ar:'المواد',          fr:'Matériaux'},
     'nav.documents':    {ar:'الوثائق',         fr:'Documents'},
     'nav.reports':      {ar:'التقارير',        fr:'Rapports'},
@@ -1111,11 +1119,13 @@ const App = {
 
     const pages = { landing:Pages.landing, login:(()=>Pages.login(App.params&&App.params.mode)), dashboard:Pages.dashboard,
       projects:Pages.projects, workers:Pages.workers, equipment:Pages.equipment,
+      worker_profile:Pages.worker_profile,
       transactions:Pages.transactions, attendance:Pages.attendance, reports:Pages.reports,
       settings:Pages.settings, admin:Pages.admin,
       project_detail:Pages.project_detail, materials:Pages.materials,
       analytics:Pages.analytics, kanban:Pages.kanban, gantt:Pages.gantt,
       salary:Pages.salary, invoices:Pages.invoices, inventory:Pages.inventory,
+      suppliers:Pages.suppliers, supplier_detail:Pages.supplier_detail,
       documents:Pages.documents, team:Pages.team,
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
@@ -5844,15 +5854,45 @@ Pages.workers = function() {
   const maxW = plan?.max_workers||-1;
   const pct = maxW>0?Math.min(Math.round(workers.length/maxW*100),100):0;
   const contractLabels = {daily:L('يومي','Journalier'),monthly:L('شهري','Mensuel'),seasonal:L('موسمي','Saisonnier'),contract:L('مقاول','Sous-traitant')};
+
+  // تنبيهات انتهاء العقود
+  const now = new Date(); now.setHours(0,0,0,0);
+  const expiringContracts = workers.filter(w=>{
+    if (!w.contract_end) return false;
+    const daysLeft = Math.floor((new Date(w.contract_end)-now)/(1000*60*60*24));
+    return daysLeft >= 0 && daysLeft <= 30;
+  });
+  const expiredContracts = workers.filter(w=>{
+    if (!w.contract_end) return false;
+    return new Date(w.contract_end) < now;
+  });
+
+  // تقرير الغياب الشهري
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const att = DB.get('attendance')||[];
+  const attThisMonth = att.filter(a=>(a.date||'').startsWith(thisMonth) && workers.find(w=>w.id===a.worker_id));
+  const totalAtt = attThisMonth.length;
+  const presentCount = attThisMonth.filter(a=>a.status==='present').length;
+  const absentCount  = attThisMonth.filter(a=>a.status==='absent').length;
+  const globalRate   = totalAtt>0 ? Math.round(presentCount/totalAtt*100) : 0;
+
+  // تكلفة الغياب
+  const absentCost = workers.reduce((s,w)=>{
+    const wAbsent = attThisMonth.filter(a=>a.worker_id===w.id && a.status==='absent').length;
+    return s + wAbsent * Number(w.daily_salary||0);
+  },0);
+
   const rows = workers.map(w=>{
     const proj=projects.find(p=>p.id===w.project_id);
     const typeLabel=contractLabels[w.contract_type]||w.contract_type;
+    const daysLeft = w.contract_end ? Math.floor((new Date(w.contract_end)-now)/(1000*60*60*24)) : null;
+    const contractBadge = daysLeft!==null && daysLeft<0 ? '🔴 ' : daysLeft!==null && daysLeft<=30 ? '⚠️ ' : '';
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:50%;background:${w.color||'#4A90E2'};display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:.8rem">${(w.full_name||'?')[0]}</div><div><div style="font-weight:700">${escHtml(w.full_name)}</div><div style="font-size:.72rem;color:var(--dim)">📞 ${escHtml(w.phone||'')}</div></div></div></td>
       <td>${escHtml(w.role)}</td>
       <td style="color:var(--dim);font-size:.82rem">${escHtml(proj?.name||'—')}</td>
       <td><span style="font-weight:700;font-family:monospace">${fmt(w.daily_salary)}</span> <span style="font-size:.72rem;color:var(--dim)">${L('دج','DA')}</span></td>
-      <td><span class="badge" style="background:rgba(74,144,226,.1);color:#60A5FA;border:1px solid rgba(74,144,226,.2)">${typeLabel}</span></td>
+      <td><span class="badge" style="background:rgba(74,144,226,.1);color:#60A5FA;border:1px solid rgba(74,144,226,.2)">${contractBadge}${typeLabel}</span></td>
       <td style="color:var(--dim);font-size:.82rem">${fmtDate(w.hire_date)}</td>
       <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
         <div style="position:relative;display:inline-block" class="dz-dd">
@@ -5866,6 +5906,7 @@ Pages.workers = function() {
           </div>
         </div>
         <button class="btn btn-blue btn-sm" onclick="editWorker(${w.id})">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('worker_profile',{id:${w.id}})">👤 ${L('الملف','Profil')}</button>
         <button class="btn btn-red btn-sm" onclick="deleteWorker(${w.id},'${escHtml(w.full_name)}')">🗑️</button>
       </div></td>
     </tr>`;
@@ -5880,6 +5921,35 @@ Pages.workers = function() {
         <button class="btn btn-gold" data-modal-open="addWorkerModal">+ ${L('إضافة عامل','Ajouter ouvrier')}</button>
       </div>
     </div>
+
+    <!-- تنبيهات العقود -->
+    ${expiredContracts.length>0?`<div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.3);border-radius:10px;padding:.8rem 1.1rem;margin-bottom:.8rem">
+      <div style="font-weight:700;color:var(--red);margin-bottom:.4rem">🔴 ${L('عقود منتهية الصلاحية','Contrats expirés')} (${expiredContracts.length})</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">${expiredContracts.map(w=>`<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(240,78,106,.3)" onclick="App.navigate('worker_profile',{id:${w.id},tab:'info'})">${escHtml(w.full_name)}</button>`).join('')}</div>
+    </div>`:''}
+    ${expiringContracts.length>0?`<div style="background:rgba(255,112,67,.07);border:1px solid rgba(255,112,67,.3);border-radius:10px;padding:.8rem 1.1rem;margin-bottom:.8rem">
+      <div style="font-weight:700;color:var(--orange);margin-bottom:.4rem">⚠️ ${L('تنتهي عقودهم خلال 30 يوم','Contrats expirant dans 30j')} (${expiringContracts.length})</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">${expiringContracts.map(w=>{
+        const d=Math.floor((new Date(w.contract_end)-now)/(1000*60*60*24));
+        return `<button class="btn btn-ghost btn-sm" style="color:var(--orange);border-color:rgba(255,112,67,.3)" onclick="App.navigate('worker_profile',{id:${w.id},tab:'info'})">${escHtml(w.full_name)} (${d} ${L('يوم','j')})</button>`;
+      }).join('')}</div>
+    </div>`:''}
+
+    <!-- تقرير الغياب الشهري -->
+    ${totalAtt>0?`<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem">
+      <div>
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.3rem">📊 ${L('تقرير الغياب','Rapport absences')} — ${thisMonth}</div>
+        <div style="display:flex;gap:1.2rem;font-size:.8rem">
+          <span style="color:var(--green)">✅ ${L('حضور','Présent')}: <strong>${presentCount}</strong></span>
+          <span style="color:var(--red)">❌ ${L('غياب','Absent')}: <strong>${absentCount}</strong></span>
+          <span style="color:var(--gold)">📈 ${L('نسبة','Taux')}: <strong>${globalRate}%</strong></span>
+        </div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:.75rem;color:var(--dim)">${L('تكلفة الغياب','Coût absences')}</div>
+        <div style="font-size:1rem;font-weight:800;color:var(--red);font-family:monospace">${fmt(absentCost)} ${L('دج','DA')}</div>
+      </div>
+    </div>`:''}
     ${maxW>0?`<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem">
       <span style="font-size:.78rem;color:var(--muted);font-weight:700;white-space:nowrap">${L('الطاقة الاستيعابية:','Capacité :')}</span>
       <div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden"><div style="height:100%;border-radius:3px;background:${pct>=90?'var(--red)':pct>=70?'var(--gold)':'var(--green)'};width:${pct}%"></div></div>
@@ -5929,6 +5999,7 @@ Pages.workers = function() {
           </select></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="wProject"><option value="">${L('بدون مشروع','Sans projet')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('تاريخ التعيين','Date embauche')}</label><input class="form-input" id="wHire" type="date" value="${todayStr()}"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ انتهاء العقد','Fin de contrat')} <span style="font-size:.7rem;color:var(--dim)">${L('(للعقود المحددة المدة)','(CDD seulement)')}</span></label><input class="form-input" id="wContractEnd" type="date"></div>
         </div>
         <div class="form-group"><label class="form-label">${L('العنوان / الإقامة','Adresse / Résidence')}</label><input class="form-input" id="wAddress" placeholder="${L('حي...، بلدية...','Cité..., Commune...')}"></div>
         <div class="form-group"><label class="form-label">${L('جهة الاتصال في الطوارئ','Contact urgence')}</label><input class="form-input" id="wEmergency" placeholder="${L('الاسم - الهاتف','Nom - Tél')}"></div>
@@ -10005,7 +10076,14 @@ const SB_SCHEMA = {
   equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
   transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
   attendance:      ['id','tenant_id','worker_id','project_id','date','status','hours','note'],
-  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
+  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date','allowances','deductions'],
+  leave_requests:  ['id','tenant_id','worker_id','type','start_date','end_date','days','reason','status','approved_by','created_at'],
+  suppliers:       ['id','tenant_id','name','name_fr','phone','phone2','email','address','wilaya','nif','nis','rc','activity','category','rating','notes','is_active','created_at'],
+  supplier_purchases:  ['id','tenant_id','supplier_id','project_id','date','description','amount','payment_method','payment_status','due_date','receipt_number','notes'],
+  supplier_prices:     ['id','tenant_id','supplier_id','item_name','unit','unit_price','date','project_id','note'],
+  supplier_obligations:['id','tenant_id','supplier_id','type','description','amount','due_date','ref','status','done_date','created_at'],
+  worker_warnings: ['id','tenant_id','worker_id','date','type','reason','action','created_at'],
+  worker_overtime: ['id','tenant_id','worker_id','date','hours','rate','amount','project_id'],
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
   invoices:        ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method'],
@@ -11429,6 +11507,7 @@ function addWorker() {
     contract_type:document.getElementById('wContract')?.value||'daily',
     project_id:   Number(document.getElementById('wProject')?.value)||null,
     hire_date:    document.getElementById('wHire')?.value||'',
+    contract_end: document.getElementById('wContractEnd')?.value||'',
     color:        document.getElementById('wColor')?.value||'#4A90E2',
     marital_status:  document.getElementById('wMarital')?.value||'single',
     children_count:  Number(document.getElementById('wChildren')?.value)||0,
@@ -14196,6 +14275,7 @@ function sidebarHTML(active='') {
     // ── Stock Section ──
     const stockLinks = [
       navLink('inventory','📦',__('nav.inventory')),
+      navLink('suppliers','🏪',__('nav.suppliers')),
       navLink('equipment','🚜',__('nav.equipment')),
     ].filter(Boolean).join('');
 
@@ -15244,6 +15324,983 @@ function initAnalyticsCharts() {
 }
 
 /* ── SALARY PAGE ── */
+/* ════════════════════════════════════════════════════════════
+   👤 WORKER PROFILE — ملف العامل التفصيلي
+════════════════════════════════════════════════════════════ */
+Pages.worker_profile = function() {
+  const tid = Auth.getUser().tenant_id;
+  const wid = Number(App.params.id);
+  const worker = (DB.get('workers')||[]).find(w=>w.id===wid && w.tenant_id===tid);
+  if (!worker) return layoutHTML('workers', L('العمال','Ouvriers'), `<div class="empty"><div class="empty-icon">❌</div><div class="empty-title">${L('العامل غير موجود','Ouvrier introuvable')}</div></div>`);
+
+  const att = (DB.get('attendance')||[]).filter(a=>a.worker_id===wid);
+  const leaves = (DB.get('leave_requests')||[]).filter(l=>l.worker_id===wid);
+  const warnings = (DB.get('worker_warnings')||[]).filter(w=>w.worker_id===wid);
+  const overtime = (DB.get('worker_overtime')||[]).filter(o=>o.worker_id===wid);
+  const salRecs = (DB.get('salary_records')||[]).filter(r=>r.worker_id===wid);
+  const projects = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid);
+
+  // إحصاءات الحضور
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const attThisMonth = att.filter(a=>(a.date||'').startsWith(thisMonth));
+  const presentDays = att.filter(a=>a.status==='present').length;
+  const absentDays  = att.filter(a=>a.status==='absent').length;
+  const halfDays    = att.filter(a=>a.status==='halfday').length;
+  const totalAtt    = presentDays + absentDays + halfDays;
+  const attRate     = totalAtt>0 ? Math.round((presentDays+halfDays*.5)/totalAtt*100) : 0;
+
+  // إجازات مُعتمدة
+  const approvedLeaves = leaves.filter(l=>l.status==='approved');
+  const usedLeaveDays  = approvedLeaves.reduce((s,l)=>s+Number(l.days||0),0);
+  const annualLeave    = 30; // القانون الجزائري
+  const remainLeave    = Math.max(0, annualLeave - usedLeaveDays);
+
+  // انتهاء العقد
+  const contractEnd = worker.contract_end || '';
+  let contractAlert = '';
+  if (contractEnd) {
+    const daysLeft = Math.floor((new Date(contractEnd)-now)/(1000*60*60*24));
+    if (daysLeft <= 30 && daysLeft >= 0) contractAlert = `<div style="background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.3);border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.8rem;color:var(--red)">⚠️ ${L('ينتهي العقد خلال','Le contrat expire dans')} <strong>${daysLeft} ${L('يوم','jours')}</strong></div>`;
+    else if (daysLeft < 0) contractAlert = `<div style="background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.3);border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.8rem;color:var(--red)">🔴 ${L('انتهى العقد منذ','Contrat expiré depuis')} <strong>${Math.abs(daysLeft)} ${L('يوم','jours')}</strong></div>`;
+  }
+
+  return layoutHTML('workers', escHtml(worker.full_name), `
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('workers')">← ${L('رجوع','Retour')}</button>
+        <div>${avatarHtml(worker.full_name, worker.color, 48)}</div>
+        <div>
+          <div class="page-title" style="font-size:1.1rem">${escHtml(worker.full_name)}</div>
+          <div class="page-sub">${escHtml(worker.role)} • ${escHtml(projects.find(p=>p.id===worker.project_id)?.name||L('بدون مشروع','Sans projet'))}</div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editWorker(${worker.id})">✏️ ${L('تعديل','Modifier')}</button>
+        <button class="btn btn-gold btn-sm" data-modal-open="leaveModal">+ ${L('طلب إجازة','Congé')}</button>
+        <button class="btn btn-ghost btn-sm" data-modal-open="warnModal">⚠️ ${L('إنذار','Avertissement')}</button>
+      </div>
+    </div>
+
+    ${contractAlert}
+
+    <!-- KPIs -->
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:1.5rem">
+      <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-value" style="color:var(--green)">${attRate}%</div>
+        <div class="stat-label">${L('نسبة الحضور','Taux présence')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${presentDays} ${L('يوم حضور','j. présent')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏖️</div>
+        <div class="stat-value" style="color:var(--blue)">${remainLeave}</div>
+        <div class="stat-label">${L('إجازة متبقية','Congé restant')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${usedLeaveDays}/${annualLeave} ${L('يوم','j.')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-value" style="color:var(--gold)">${overtime.reduce((s,o)=>s+Number(o.hours||0),0)}</div>
+        <div class="stat-label">${L('ساعات إضافية','Heures sup.')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-value" style="color:var(--orange)">${warnings.length}</div>
+        <div class="stat-label">${L('إنذارات','Avertissements')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💵</div>
+        <div class="stat-value" style="color:var(--green);font-size:.95rem">${fmt(worker.daily_salary)}</div>
+        <div class="stat-label">${L('أجر يومي (دج)','Salaire/j (DA)')}</div>
+      </div>
+    </div>
+
+    <!-- محتوى بالتابات -->
+    <div style="display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:.5rem">
+      ${['info','attendance','leaves','salary','warnings','overtime'].map((tab,i)=>{
+        const labels = [L('المعلومات','Infos'), L('الحضور','Présence'), L('الإجازات','Congés'), L('الرواتب','Salaires'), L('الإنذارات','Avertissements'), L('الإضافي','Heures sup.')];
+        const active = (App.params.tab||'info')===tab;
+        return `<button class="btn ${active?'btn-gold':'btn-ghost'} btn-sm" onclick="App.navigate('worker_profile',{id:${wid},tab:'${tab}'})">${labels[i]}</button>`;
+      }).join('')}
+    </div>
+
+    ${(()=>{
+      const tab = App.params.tab||'info';
+
+      if (tab==='info') return `
+        <div class="form-grid-2" style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.2rem;gap:1rem">
+          ${[
+            [L('الاسم الكامل','Nom complet'), worker.full_name],
+            [L('الاسم بالفرنسية','Nom FR'), worker.full_name_fr||'—'],
+            [L('المهنة','Métier'), worker.role],
+            [L('الهاتف','Téléphone'), worker.phone||'—'],
+            ['رقم الهوية / NIF', worker.national_id||'—'],
+            [L('رقم CNAS','N° CNAS'), worker.cnas_number||'—'],
+            [L('تاريخ الميلاد','Date naissance'), fmtDate(worker.dob)||'—'],
+            [L('نوع العقد','Type contrat'), worker.contract_type||'—'],
+            [L('تاريخ التعيين','Date embauche'), fmtDate(worker.hire_date)||'—'],
+            [L('تاريخ انتهاء العقد','Fin contrat'), worker.contract_end?fmtDate(worker.contract_end):'—'],
+            [L('الحالة الاجتماعية','Situation familiale'), worker.marital_status==='married'?L('متزوج','Marié'):L('أعزب','Célibataire')],
+            [L('عدد الأطفال','Nb enfants'), worker.children_count||0],
+            [L('الأجر الشهري الأساسي','Salaire mensuel'), fmt(worker.monthly_base||worker.daily_salary*26)+' دج'],
+            [L('العنوان','Adresse'), worker.address||'—'],
+            [L('جهة الاتصال للطوارئ','Contact urgence'), worker.emergency_contact||'—'],
+          ].map(([k,v])=>`<div><div style="font-size:.72rem;color:var(--dim);margin-bottom:.2rem">${k}</div><div style="font-weight:600;font-size:.88rem">${escHtml(String(v))}</div></div>`).join('')}
+        </div>`;
+
+      if (tab==='attendance') {
+        const months = [...new Set(att.map(a=>(a.date||'').substring(0,7)))].sort().reverse().slice(0,6);
+        return `<div style="display:flex;flex-direction:column;gap:1rem">
+          ${months.length===0?`<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">${L('لا يوجد سجل حضور','Aucun pointage')}</div></div>`:''}
+          ${months.map(m=>{
+            const mAtt = att.filter(a=>(a.date||'').startsWith(m));
+            const p=mAtt.filter(a=>a.status==='present').length;
+            const h=mAtt.filter(a=>a.status==='halfday').length;
+            const ab=mAtt.filter(a=>a.status==='absent').length;
+            const rate=mAtt.length>0?Math.round((p+h*.5)/mAtt.length*100):0;
+            return `<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+              <div style="font-weight:700">${m}</div>
+              <div style="display:flex;gap:1rem;font-size:.82rem">
+                <span style="color:var(--green)">✅ ${p} ${L('حضور','présent')}</span>
+                <span style="color:var(--gold)">½ ${h}</span>
+                <span style="color:var(--red)">❌ ${ab} ${L('غياب','absent')}</span>
+              </div>
+              <div style="font-weight:800;font-size:.9rem;color:${rate>=85?'var(--green)':rate>=70?'var(--gold)':'var(--red)'}">${rate}%</div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }
+
+      if (tab==='leaves') return `
+        <div style="display:flex;flex-direction:column;gap:.8rem">
+          <div style="background:rgba(74,144,226,.08);border:1px solid rgba(74,144,226,.2);border-radius:10px;padding:.8rem 1.1rem;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:.82rem">${L('رصيد الإجازة السنوية المتبقية','Solde congé annuel restant')}</span>
+            <span style="font-size:1.1rem;font-weight:900;color:var(--gold)">${remainLeave} ${L('يوم','jours')}</span>
+          </div>
+          ${leaves.length===0?`<div class="empty"><div class="empty-icon">🏖️</div><div class="empty-title">${L('لا توجد طلبات إجازة','Aucune demande de congé')}</div></div>`:
+          `<div class="table-wrap"><table>
+            <thead><tr><th>${L('النوع','Type')}</th><th>${L('من','Du')}</th><th>${L('إلى','Au')}</th><th>${L('الأيام','Jours')}</th><th>${L('السبب','Motif')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
+            <tbody>${leaves.sort((a,b)=>b.id-a.id).map(l=>{
+              const typeLabel = {annual:L('سنوية','Annuel'),sick:L('مرضية','Maladie'),maternity:L('أمومة','Maternité'),unpaid:L('بدون أجر','Sans solde'),other:L('أخرى','Autre')}[l.type]||l.type;
+              const stBadge = l.status==='approved'?`<span class="badge badge-active">✅ ${L('مُعتمد','Approuvé')}</span>`:
+                              l.status==='rejected'?`<span class="badge badge-delayed">❌ ${L('مرفوض','Refusé')}</span>`:
+                              `<span class="badge badge-paused">⏳ ${L('بانتظار','En attente')}</span>`;
+              return `<tr>
+                <td>${typeLabel}</td>
+                <td style="font-size:.8rem">${fmtDate(l.start_date)}</td>
+                <td style="font-size:.8rem">${fmtDate(l.end_date)}</td>
+                <td style="font-weight:700;color:var(--gold)">${l.days}</td>
+                <td style="font-size:.78rem;color:var(--dim)">${escHtml(l.reason||'—')}</td>
+                <td>${stBadge}</td>
+                <td><div style="display:flex;gap:.3rem">
+                  ${l.status==='pending'?`<button class="btn btn-green btn-sm" onclick="approveLeave(${l.id},${wid})">✅</button><button class="btn btn-red btn-sm" onclick="rejectLeave(${l.id},${wid})">❌</button>`:
+                  `<button class="btn btn-red btn-sm" onclick="deleteLeave(${l.id},${wid})">🗑️</button>`}
+                </div></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`}
+        </div>`;
+
+      if (tab==='salary') return `
+        <div class="table-wrap"><table>
+          <thead><tr><th>${L('الشهر','Mois')}</th><th>${L('الإجمالي','Brut')}</th><th>${L('العلاوات','Primes')}</th><th>${L('الخصومات','Déductions')}</th><th>${L('الصافي','Net')}</th><th>${L('تاريخ الصرف','Date paiement')}</th></tr></thead>
+          <tbody>${salRecs.length===0?`<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا يوجد سجل رواتب','Aucun bulletin')}</td></tr>`:
+            salRecs.sort((a,b)=>b.month_key?.localeCompare(a.month_key)).map(r=>`<tr>
+              <td style="font-weight:700">${r.month_key||'—'}</td>
+              <td style="font-family:monospace">${fmt(r.amount)} دج</td>
+              <td style="color:var(--green);font-family:monospace">${r.allowances?'+'+fmt(r.allowances)+' دج':'—'}</td>
+              <td style="color:var(--red);font-family:monospace">${r.deductions?'-'+fmt(r.deductions)+' دج':'—'}</td>
+              <td style="font-weight:800;font-family:monospace;color:var(--gold)">${fmt(Number(r.amount||0)+Number(r.allowances||0)-Number(r.deductions||0))} دج</td>
+              <td style="font-size:.8rem;color:var(--dim)">${fmtDate(r.paid_date)||'—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+
+      if (tab==='warnings') return `
+        <div style="display:flex;flex-direction:column;gap:.7rem">
+          ${warnings.length===0?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">${L('لا توجد إنذارات','Aucun avertissement')}</div></div>`:
+          warnings.sort((a,b)=>b.id-a.id).map(w=>{
+            const typeColor = w.type==='written'?'var(--orange)':w.type==='final'?'var(--red)':'var(--gold)';
+            const typeLabel = {verbal:L('شفوي','Verbal'),written:L('كتابي','Écrit'),final:L('إنذار نهائي','Final')}[w.type]||w.type;
+            return `<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-left:3px solid ${typeColor};border-radius:10px;padding:.9rem 1.1rem">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+                <span style="font-weight:700;color:${typeColor}">⚠️ ${typeLabel}</span>
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <span style="font-size:.75rem;color:var(--dim)">${fmtDate(w.date)}</span>
+                  <button class="btn btn-red btn-sm" onclick="deleteWarning(${w.id},${wid})">🗑️</button>
+                </div>
+              </div>
+              <div style="font-size:.82rem;color:var(--text)">${escHtml(w.reason)}</div>
+              ${w.action?`<div style="font-size:.75rem;color:var(--dim);margin-top:.3rem">📋 ${L('الإجراء','Action')}: ${escHtml(w.action)}</div>`:''}
+            </div>`;
+          }).join('')}
+        </div>`;
+
+      if (tab==='overtime') return `
+        <div class="table-wrap"><table>
+          <thead><tr><th>${L('التاريخ','Date')}</th><th>${L('الساعات','Heures')}</th><th>${L('النسبة','Taux')}</th><th>${L('المبلغ','Montant')}</th><th>${L('المشروع','Projet')}</th><th>🗑️</th></tr></thead>
+          <tbody>${overtime.length===0?`<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد ساعات إضافية','Aucune heure supplémentaire')}</td></tr>`:
+            overtime.sort((a,b)=>b.id-a.id).map(o=>`<tr>
+              <td>${fmtDate(o.date)}</td>
+              <td style="font-weight:700;color:var(--gold)">${o.hours}h</td>
+              <td>${o.rate||125}%</td>
+              <td style="font-family:monospace;color:var(--green)">${fmt(o.amount)} دج</td>
+              <td style="font-size:.78rem;color:var(--dim)">${escHtml(projects.find(p=>p.id===o.project_id)?.name||'—')}</td>
+              <td><button class="btn btn-red btn-sm" onclick="deleteOvertime(${o.id},${wid})">🗑️</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+
+      return '';
+    })()}
+
+    <!-- Modal إجازة -->
+    <div class="modal-overlay" id="leaveModal">
+      <div class="modal">
+        <div class="modal-title">🏖️ ${L('طلب إجازة','Demande de congé')}</div>
+        <div class="form-grid-2">
+          <div class="form-group"><label class="form-label">${L('نوع الإجازة *','Type *')}</label>
+            <select class="form-select" id="leaveType">
+              <option value="annual">${L('سنوية (30 يوم)','Annuel (30j)')}</option>
+              <option value="sick">${L('مرضية','Maladie')}</option>
+              <option value="maternity">${L('أمومة','Maternité')}</option>
+              <option value="unpaid">${L('بدون أجر','Sans solde')}</option>
+              <option value="other">${L('أخرى','Autre')}</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label>
+            <select class="form-select" id="leaveSt">
+              <option value="pending">${L('بانتظار الموافقة','En attente')}</option>
+              <option value="approved">${L('مُعتمد','Approuvé')}</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">${L('من','Du *')}</label><input class="form-input" id="leaveStart" type="date" value="${todayStr()}" oninput="calcLeaveDays()"></div>
+          <div class="form-group"><label class="form-label">${L('إلى','Au *')}</label><input class="form-input" id="leaveEnd" type="date" value="${todayStr()}" oninput="calcLeaveDays()"></div>
+          <div class="form-group"><label class="form-label">${L('عدد الأيام','Nb jours')}</label><input class="form-input" id="leaveDays" type="number" min="1" value="1" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">${L('السبب','Motif')}</label><input class="form-input" id="leaveReason" placeholder="${L('سبب الإجازة...','Motif...')}"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveLeave(${wid})">💾 ${L('حفظ','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal إنذار -->
+    <div class="modal-overlay" id="warnModal">
+      <div class="modal">
+        <div class="modal-title">⚠️ ${L('تسجيل إنذار','Enregistrer avertissement')}</div>
+        <div class="form-grid-2">
+          <div class="form-group"><label class="form-label">${L('نوع الإنذار *','Type *')}</label>
+            <select class="form-select" id="warnType">
+              <option value="verbal">${L('شفوي','Verbal')}</option>
+              <option value="written">${L('كتابي رسمي','Écrit officiel')}</option>
+              <option value="final">${L('إنذار نهائي','Avertissement final')}</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">${L('التاريخ','Date')}</label><input class="form-input" id="warnDate" type="date" value="${todayStr()}"></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">${L('السبب *','Motif *')}</label><textarea class="form-textarea" id="warnReason" placeholder="${L('وصف المخالفة...','Description...')}"></textarea></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">${L('الإجراء المتخذ','Action prise')}</label><input class="form-input" id="warnAction" placeholder="${L('تحذير كتابي، توقيف...','Avertissement écrit, suspension...')}"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveWarning(${wid})">💾 ${L('حفظ','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+/* ════════════════════════════════════════════════════════════
+   🏪 SUPPLIERS — صفحة الموردين
+════════════════════════════════════════════════════════════ */
+Pages.suppliers = function() {
+  const tid = Auth.getUser().tenant_id;
+  const suppliers = (DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid);
+  const purchases = (DB.get('supplier_purchases')||[]).filter(p=>p.tenant_id===tid);
+
+  // إحصاءات
+  const totalSpent   = purchases.reduce((s,p)=>s+Number(p.amount||0),0);
+  const unpaid       = purchases.filter(p=>p.payment_status==='unpaid').reduce((s,p)=>s+Number(p.amount||0),0);
+  const activeCount  = suppliers.filter(s=>s.is_active!==false).length;
+
+  // فلتر
+  const filterCat = sessionStorage.getItem('sup_filter_cat')||'all';
+  const searchQ   = sessionStorage.getItem('sup_search')||'';
+  let filtered = suppliers;
+  if (filterCat!=='all') filtered = filtered.filter(s=>s.category===filterCat);
+  if (searchQ)           filtered = filtered.filter(s=>
+    (s.name||'').toLowerCase().includes(searchQ.toLowerCase()) ||
+    (s.phone||'').includes(searchQ) ||
+    (s.activity||'').toLowerCase().includes(searchQ.toLowerCase())
+  );
+
+  const categories = [
+    {v:'materials',  l:L('مواد بناء','Matériaux')},
+    {v:'equipment',  l:L('معدات وآليات','Engins')},
+    {v:'labor',      l:L('مقاول فرعي','Sous-traitant')},
+    {v:'services',   l:L('خدمات','Services')},
+    {v:'transport',  l:L('نقل','Transport')},
+    {v:'other',      l:L('أخرى','Autre')},
+  ];
+  const catLabel = v => categories.find(c=>c.v===v)?.l || v;
+
+  // تنبيه المستحقات
+  const overdueItems = purchases.filter(p=>{
+    if(p.payment_status==='paid') return false;
+    if(!p.due_date) return false;
+    return new Date(p.due_date) < new Date();
+  });
+
+  return layoutHTML('suppliers', L('الموردون','Fournisseurs'), `
+    <div class="page-header">
+      <div>
+        <div class="page-title">🏪 ${L('الموردون','Fournisseurs')}</div>
+        <div class="page-sub">${suppliers.length} ${L('مورد مسجل','fournisseur(s)')}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="exportSuppliersCSV()">📥 CSV</button>
+        <button class="btn btn-gold" data-modal-open="addSupModal">+ ${L('إضافة مورد','Ajouter fournisseur')}</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card">
+        <div class="stat-icon">🏪</div>
+        <div class="stat-value">${activeCount}</div>
+        <div class="stat-label">${L('موردون نشطون','Fournisseurs actifs')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(74,144,226,.2)">
+        <div class="stat-icon">💸</div>
+        <div class="stat-value" style="color:var(--blue);font-size:1rem">${fmt(totalSpent)}</div>
+        <div class="stat-label">${L('إجمالي المشتريات (دج)','Total achats (DA)')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${purchases.length} ${L('عملية','opération(s)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(240,78,106,.2)">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" style="color:var(--red);font-size:1rem">${fmt(unpaid)}</div>
+        <div class="stat-label">${L('مستحقات غير مدفوعة (دج)','Dettes fournisseurs (DA)')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${purchases.filter(p=>p.payment_status==='unpaid').length} ${L('فاتورة','facture(s)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:${overdueItems.length?'rgba(240,78,106,.3)':'rgba(255,255,255,.07)'}">
+        <div class="stat-icon">🔴</div>
+        <div class="stat-value" style="color:${overdueItems.length?'var(--red)':'var(--text)'}">${overdueItems.length}</div>
+        <div class="stat-label">${L('التزامات متأخرة','Échéances dépassées')}</div>
+      </div>
+    </div>
+
+    <!-- تنبيه المستحقات المتأخرة -->
+    ${overdueItems.length?`
+    <div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);border-radius:10px;padding:.8rem 1.1rem;margin-bottom:1rem">
+      <div style="font-weight:700;color:var(--red);margin-bottom:.4rem">🔴 ${L('التزامات متأخرة السداد','Dettes en retard')} — ${fmt(overdueItems.reduce((s,p)=>s+Number(p.amount),0))} ${L('دج','DA')}</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        ${overdueItems.map(p=>{
+          const sup = suppliers.find(s=>s.id===p.supplier_id);
+          const days = Math.floor((new Date()-new Date(p.due_date))/(1000*60*60*24));
+          return `<span style="background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.2);border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer;color:var(--red)" onclick="App.navigate('supplier_detail',{id:${p.supplier_id}})">${escHtml(sup?.name||'—')} — ${fmt(p.amount)} دج (${days}j)</span>`;
+        }).join('')}
+      </div>
+    </div>`:``}
+
+    <!-- فلاتر + بحث -->
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+      <input class="form-input" style="max-width:220px;padding:.4rem .8rem;font-size:.82rem"
+        placeholder="${L('🔍 بحث...','🔍 Rechercher...')}"
+        value="${escHtml(searchQ)}"
+        oninput="sessionStorage.setItem('sup_search',this.value);App.navigate('suppliers')">
+      <button class="btn ${filterCat==='all'?'btn-gold':'btn-ghost'} btn-sm"
+        onclick="sessionStorage.setItem('sup_filter_cat','all');App.navigate('suppliers')">${L('الكل','Tous')} (${suppliers.length})</button>
+      ${categories.map(cat=>{
+        const n = suppliers.filter(s=>s.category===cat.v).length;
+        if(!n) return '';
+        return `<button class="btn ${filterCat===cat.v?'btn-blue':'btn-ghost'} btn-sm"
+          onclick="sessionStorage.setItem('sup_filter_cat','${cat.v}');App.navigate('suppliers')">${cat.l} (${n})</button>`;
+      }).join('')}
+    </div>
+
+    <!-- Grid الموردين -->
+    ${filtered.length===0?`<div class="empty"><div class="empty-icon">🏪</div>
+      <div class="empty-title">${L('لا يوجد موردون','Aucun fournisseur')}</div>
+      <div class="empty-desc">${L('أضف موردك الأول لتتبع مشترياتك والتزاماتك','Ajoutez votre premier fournisseur')}</div></div>`:
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:1rem">
+      ${filtered.map(s=>{
+        const sPurchases = purchases.filter(p=>p.supplier_id===s.id);
+        const sTotal  = sPurchases.reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const sUnpaid = sPurchases.filter(p=>p.payment_status==='unpaid').reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const sOverdue = sPurchases.filter(p=>p.payment_status==='unpaid'&&p.due_date&&new Date(p.due_date)<new Date()).length;
+        const stars = '★'.repeat(Number(s.rating||0))+'☆'.repeat(5-Number(s.rating||0));
+        return `<div style="background:var(--card-bg,#0e1720);border:1px solid ${sOverdue?'rgba(240,78,106,.35)':'var(--border)'};border-radius:14px;overflow:hidden;transition:all .2s;cursor:pointer"
+          onmouseover="this.style.borderColor='rgba(232,184,75,.4)';this.style.transform='translateY(-2px)'"
+          onmouseout="this.style.borderColor='${sOverdue?'rgba(240,78,106,.35)':'var(--border)'}'  ;this.style.transform=''"
+          onclick="App.navigate('supplier_detail',{id:${s.id}})">
+          <div style="height:3px;background:${s.color||'#4A90E2'}"></div>
+          <div style="padding:1rem 1.1rem">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
+              <div>
+                <div style="font-weight:800;font-size:.92rem">${escHtml(s.name)}</div>
+                <div style="font-size:.72rem;color:var(--gold)">${catLabel(s.category)}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.2rem">
+                <span class="badge" style="background:${s.is_active!==false?'rgba(52,195,143,.1)':'rgba(255,255,255,.05)'};color:${s.is_active!==false?'var(--green)':'var(--dim)'}">
+                  ${s.is_active!==false?L('✅ نشط','✅ Actif'):L('⛔ غير نشط','⛔ Inactif')}
+                </span>
+                <span style="color:var(--gold);font-size:.78rem">${stars}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.2rem;font-size:.76rem;color:var(--dim);margin-bottom:.8rem">
+              ${s.phone?`<div>📞 ${escHtml(s.phone)}</div>`:''}
+              ${s.wilaya?`<div>📍 ${escHtml(s.wilaya)}</div>`:''}
+              ${s.activity?`<div>🔧 ${escHtml(s.activity)}</div>`:''}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;background:rgba(255,255,255,.03);border-radius:8px;padding:.6rem">
+              <div style="text-align:center">
+                <div style="font-size:.68rem;color:var(--dim)">${L('إجمالي الشراء','Total achats')}</div>
+                <div style="font-family:monospace;font-weight:700;font-size:.82rem;color:var(--blue)">${fmt(sTotal)}</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:.68rem;color:var(--dim)">${L('المستحق','Solde dû')}</div>
+                <div style="font-family:monospace;font-weight:700;font-size:.82rem;color:${sUnpaid>0?'var(--red)':'var(--green)'}">${sUnpaid>0?fmt(sUnpaid)+' ⚠️':'✅ 0'}</div>
+              </div>
+            </div>
+            ${sOverdue?`<div style="margin-top:.5rem;font-size:.7rem;color:var(--red);font-weight:700">🔴 ${sOverdue} ${L('التزام متأخر','échéance(s) dépassée(s)')}</div>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`}
+
+    <!-- Modal إضافة مورد -->
+    <div class="modal-overlay" id="addSupModal">
+      <div class="modal modal-lg" style="max-width:700px">
+        <div class="modal-title">🏪 ${L('إضافة مورد جديد','Nouveau fournisseur')}</div>
+        <div style="font-size:.75rem;color:var(--dim);margin-bottom:1rem">
+          🇩🇿 ${L('المعلومات الشخصية والقانونية','Informations personnelles et légales')}
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('اسم المورد / المؤسسة *','Nom fournisseur *')}</label>
+            <input class="form-input" id="supName" placeholder="${L('مؤسسة بن علي للبناء','Ets. Benali Construction')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 ${L('الاسم بالفرنسية','Nom en français')}</label>
+            <input class="form-input" id="supNameFr" placeholder="Ets. Benali Construction" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('نشاط المورد / التخصص *','Activité / Spécialité *')}</label>
+            <input class="form-input" id="supActivity" placeholder="${L('حديد، أسمنت، خشب...','Fer, ciment, bois...')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الفئة *','Catégorie *')}</label>
+            <select class="form-select" id="supCat">
+              <option value="materials">${L('مواد بناء','Matériaux')}</option>
+              <option value="equipment">${L('معدات وآليات','Engins/Équipements')}</option>
+              <option value="labor">${L('مقاول فرعي','Sous-traitant')}</option>
+              <option value="services">${L('خدمات','Services')}</option>
+              <option value="transport">${L('نقل','Transport')}</option>
+              <option value="other">${L('أخرى','Autre')}</option>
+            </select>
+          </div>
+
+          <!-- معلومات الاتصال -->
+          <div class="form-group">
+            <label class="form-label">📞 ${L('رقم الهاتف *','Téléphone *')}</label>
+            <input class="form-input" id="supPhone" type="tel" placeholder="0550 000 000" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📞 ${L('هاتف 2 (اختياري)','Tél. 2 (optionnel)')}</label>
+            <input class="form-input" id="supPhone2" type="tel" placeholder="0770 000 000" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📧 ${L('البريد الإلكتروني','Email')}</label>
+            <input class="form-input" id="supEmail" type="email" placeholder="contact@fournisseur.dz" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📍 ${L('الولاية','Wilaya')}</label>
+            <select class="form-select" id="supWilaya">
+              <option value="">— ${L('اختر الولاية','Choisir wilaya')} —</option>
+              ${WILAYAS.map(w=>`<option value="${escHtml(w)}">${escHtml(w)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">🏠 ${L('العنوان التفصيلي','Adresse détaillée')}</label>
+            <input class="form-input" id="supAddress" placeholder="${L('رقم، شارع، حي...','N°, rue, quartier...')}">
+          </div>
+
+          <!-- المعلومات القانونية -->
+          <div class="form-group">
+            <label class="form-label">NIF <span style="font-size:.7rem;color:var(--dim)">${L('(الرقم الجبائي)','(Numéro fiscal)')}</span></label>
+            <input class="form-input" id="supNif" placeholder="000 111 222 333 444" dir="ltr" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">NIS <span style="font-size:.7rem;color:var(--dim)">${L('(الرقم الإحصائي)','(Numéro stat.)')}</span></label>
+            <input class="form-input" id="supNis" placeholder="0000000000000000000" dir="ltr" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">RC <span style="font-size:.7rem;color:var(--dim)">${L('(السجل التجاري)','(Registre commercial)')}</span></label>
+            <input class="form-input" id="supRc" placeholder="00/00-0000000 B 00" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">⭐ ${L('التقييم','Évaluation')}</label>
+            <select class="form-select" id="supRating">
+              <option value="5">⭐⭐⭐⭐⭐ ${L('ممتاز','Excellent')}</option>
+              <option value="4">⭐⭐⭐⭐ ${L('جيد جداً','Très bien')}</option>
+              <option value="3" selected>⭐⭐⭐ ${L('جيد','Bien')}</option>
+              <option value="2">⭐⭐ ${L('متوسط','Moyen')}</option>
+              <option value="1">⭐ ${L('ضعيف','Faible')}</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">📝 ${L('ملاحظات مهمة','Notes importantes')}</label>
+            <textarea class="form-textarea" id="supNotes" placeholder="${L('شروط الدفع، أوقات التسليم، ملاحظات خاصة...','Conditions paiement, délais livraison, notes...')}"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('اللون المميز','Couleur')}</label>
+            <input class="form-input" id="supColor" type="color" value="#4A90E2" style="height:42px;padding:4px">
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:.8rem;padding-top:1.5rem">
+            <input type="checkbox" id="supActive" checked style="width:18px;height:18px;accent-color:var(--gold)">
+            <label for="supActive" style="font-weight:600">${L('مورد نشط','Fournisseur actif')}</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveSupplier()">💾 ${L('حفظ المورد','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+/* ════════════════════════════════════════════════════════════
+   👤 SUPPLIER DETAIL — ملف المورد التفصيلي
+════════════════════════════════════════════════════════════ */
+Pages.supplier_detail = function() {
+  const tid = Auth.getUser().tenant_id;
+  const sid = Number(App.params.id);
+  const s   = (DB.get('suppliers')||[]).find(x=>x.id===sid && x.tenant_id===tid);
+  if (!s) return layoutHTML('suppliers', L('الموردون','Fournisseurs'),
+    `<div class="empty"><div class="empty-icon">❌</div><div class="empty-title">${L('المورد غير موجود','Fournisseur introuvable')}</div></div>`);
+
+  const purchases = (DB.get('supplier_purchases')||[]).filter(p=>p.supplier_id===sid);
+  const projects  = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid);
+
+  const totalSpent = purchases.reduce((x,p)=>x+Number(p.amount||0),0);
+  const paid       = purchases.filter(p=>p.payment_status==='paid').reduce((x,p)=>x+Number(p.amount||0),0);
+  const unpaid     = totalSpent - paid;
+  const overdue    = purchases.filter(p=>p.payment_status==='unpaid'&&p.due_date&&new Date(p.due_date)<new Date());
+
+  const categories = {materials:L('مواد بناء','Matériaux'),equipment:L('معدات','Engins'),labor:L('مقاول فرعي','Sous-traitant'),services:L('خدمات','Services'),transport:L('نقل','Transport'),other:L('أخرى','Autre')};
+  const stars = '★'.repeat(Number(s.rating||0))+'☆'.repeat(5-Number(s.rating||0));
+  const tab   = App.params.tab||'purchases';
+
+  return layoutHTML('suppliers', escHtml(s.name), `
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('suppliers')">← ${L('رجوع','Retour')}</button>
+        <div style="width:46px;height:46px;border-radius:12px;background:${s.color||'#4A90E2'};display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:900;color:#fff;flex-shrink:0">${(s.name||'?')[0]}</div>
+        <div>
+          <div class="page-title" style="font-size:1rem">${escHtml(s.name)}</div>
+          <div class="page-sub">${categories[s.category]||s.category} • <span style="color:var(--gold)">${stars}</span></div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editSupplier(${s.id})">✏️ ${L('تعديل','Modifier')}</button>
+        <button class="btn btn-gold btn-sm" data-modal-open="addPurchaseModal">+ ${L('إضافة عملية','Nouvelle opération')}</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.2rem">
+      <div class="stat-card" style="border-color:rgba(74,144,226,.2)">
+        <div class="stat-icon">💸</div>
+        <div class="stat-value" style="color:var(--blue);font-size:1rem">${fmt(totalSpent)}</div>
+        <div class="stat-label">${L('إجمالي المشتريات (دج)','Total achats (DA)')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${purchases.length} ${L('عملية','opération(s)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(52,195,143,.2)">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" style="color:var(--green);font-size:1rem">${fmt(paid)}</div>
+        <div class="stat-label">${L('مدفوع (دج)','Payé (DA)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(240,78,106,.2)">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" style="color:var(--red);font-size:1rem">${fmt(unpaid)}</div>
+        <div class="stat-label">${L('مستحق (دج)','Solde dû (DA)')}</div>
+        ${overdue.length?`<div style="font-size:.7rem;color:var(--red)">${overdue.length} ${L('متأخر','en retard')}</div>`:''}
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-value">${new Set(purchases.map(p=>p.description?.split(' ')[0])).size||0}</div>
+        <div class="stat-label">${L('أنواع المواد','Types matériaux')}</div>
+      </div>
+    </div>
+
+    <!-- تنبيه متأخر -->
+    ${overdue.length?`<div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--red);font-weight:700">
+      🔴 ${L('التزامات متأخرة','Dettes en retard')}: ${fmt(overdue.reduce((s,p)=>s+Number(p.amount),0))} ${L('دج','DA')} — ${overdue.length} ${L('فاتورة','facture(s)')}
+    </div>`:''}
+
+    <!-- تابات -->
+    <div style="display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:.5rem">
+      ${['purchases','prices','obligations','info','notes'].map((t,i)=>{
+        const labels = [
+          L('سجل العمليات','Historique'),
+          L('قائمة الأسعار','Tarifs'),
+          L('الالتزامات','Obligations'),
+          L('المعلومات','Informations'),
+          L('الملاحظات','Notes')
+        ];
+        const counts = [
+          purchases.length,
+          (DB.get('supplier_prices')||[]).filter(p=>p.supplier_id===sid).length,
+          (DB.get('supplier_obligations')||[]).filter(o=>o.supplier_id===sid&&o.status!=='done').length,
+          null, null
+        ];
+        return `<button class="btn ${tab===t?'btn-gold':'btn-ghost'} btn-sm" onclick="App.navigate('supplier_detail',{id:${sid},tab:'${t}'})">${labels[i]}${counts[i]!==null&&counts[i]>0?` (${counts[i]})`:''}</button>`;
+      }).join('')}
+    </div>
+
+    ${(()=>{
+      const prices = (DB.get('supplier_prices')||[]).filter(p=>p.supplier_id===sid).sort((a,b)=>b.id-a.id);
+      const obligations = (DB.get('supplier_obligations')||[]).filter(o=>o.supplier_id===sid).sort((a,b)=>b.id-a.id);
+
+      if (tab==='prices') return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <div>
+            <div style="font-weight:700">${L('قائمة الأسعار المرجعية','Tarifs de référence')}</div>
+            <div style="font-size:.75rem;color:var(--dim)">${L('أسعار تاريخية لمقارنة عروض المورد','Historique des prix pour comparaison')}</div>
+          </div>
+          <button class="btn btn-gold btn-sm" data-modal-open="addPriceModal">+ ${L('إضافة سعر','Ajouter prix')}</button>
+        </div>
+
+        ${prices.length===0?`<div class="empty"><div class="empty-icon">💰</div><div class="empty-title">${L('لا توجد أسعار مسجلة','Aucun prix enregistré')}</div><div class="empty-desc">${L('سجّل أسعار هذا المورد لمقارنتها لاحقاً','Enregistrez les prix pour comparaison future')}</div></div>`:
+        `<div class="table-wrap"><table>
+          <thead><tr>
+            <th>${L('المادة / الخدمة','Produit / Service')}</th>
+            <th>${L('الوحدة','Unité')}</th>
+            <th>${L('السعر (دج)','Prix (DA)')}</th>
+            <th>${L('التاريخ','Date')}</th>
+            <th>${L('المشروع','Projet')}</th>
+            <th>${L('ملاحظة','Note')}</th>
+            <th>🗑️</th>
+          </tr></thead>
+          <tbody>${prices.map(p=>{
+            const proj = projects.find(x=>x.id===p.project_id);
+            return `<tr>
+              <td style="font-weight:700">${escHtml(p.item_name)}</td>
+              <td style="color:var(--dim);font-size:.8rem">${escHtml(p.unit||'—')}</td>
+              <td style="font-family:monospace;font-weight:700;color:var(--gold)">${fmt(p.unit_price)} دج</td>
+              <td style="font-size:.8rem;color:var(--dim)">${fmtDate(p.date)}</td>
+              <td style="font-size:.78rem;color:var(--dim)">${proj?escHtml(proj.name.substring(0,18)):'—'}</td>
+              <td style="font-size:.76rem;color:var(--muted)">${escHtml(p.note||'—')}</td>
+              <td><button class="btn btn-red btn-sm" onclick="deleteSupplierPrice(${p.id},${sid})">🗑️</button></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>`}
+
+        <!-- Modal إضافة سعر -->
+        <div class="modal-overlay" id="addPriceModal">
+          <div class="modal" style="max-width:480px">
+            <div class="modal-title">💰 ${L('إضافة سعر مرجعي','Ajouter prix de référence')}</div>
+            <div style="font-size:.78rem;color:var(--gold);margin-bottom:.8rem">📌 ${escHtml(s.name)}</div>
+            <div class="form-grid-2">
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">${L('المادة / الخدمة *','Produit / Service *')}</label>
+                <input class="form-input" id="priceItem" placeholder="${L('حديد HA 10، أسمنت CPJ، نقل...','Fer HA 10, Ciment CPJ, Transport...')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('الوحدة','Unité')}</label>
+                <input class="form-input" id="priceUnit" placeholder="${L('طن، كيس، م²، رحلة...','tonne, sac, m², voyage...')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('السعر للوحدة (دج) *','Prix unitaire (DA) *')}</label>
+                <input class="form-input" id="priceUnit_price" type="number" min="0" dir="ltr" inputmode="decimal">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('تاريخ السعر','Date du prix')}</label>
+                <input class="form-input" id="priceDate" type="date" value="${todayStr()}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('المشروع (للمرجعية)','Projet (référence)')}</label>
+                <select class="form-select" id="priceProj">
+                  <option value="">—</option>
+                  ${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">${L('ملاحظة (شروط، جودة...)','Note (conditions, qualité...')}</label>
+                <input class="form-input" id="priceNote" placeholder="${L('توصيل مجاني، جودة عالية، يتفاوض...','Livraison incluse, qualité A, négociable...')}">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+              <button class="btn btn-gold" onclick="saveSupplierPrice(${sid})">💾 ${L('حفظ السعر','Enregistrer')}</button>
+            </div>
+          </div>
+        </div>`;
+
+      if (tab==='obligations') {
+        const pending = obligations.filter(o=>o.status!=='done');
+        const done    = obligations.filter(o=>o.status==='done');
+        const now2    = new Date(); now2.setHours(0,0,0,0);
+        const overdue2 = pending.filter(o=>o.due_date&&new Date(o.due_date)<now2);
+        const totalObl = pending.reduce((s,o)=>s+Number(o.amount||0),0);
+
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+          <div>
+            <div style="font-weight:700">${L('الالتزامات المستحقة','Obligations et échéances')}</div>
+            <div style="font-size:.75rem;color:var(--dim)">${L('سجّل ديونك، فواتير آجلة، شيكات، ضمانات...','Dettes, factures à terme, chèques, garanties...')}</div>
+          </div>
+          <div style="display:flex;gap:.4rem;align-items:center">
+            ${totalObl>0?`<span style="font-size:.82rem;font-weight:700;color:var(--red);font-family:monospace">${L('المستحق:','Solde dû:')} ${fmt(totalObl)} دج</span>`:''}
+            <button class="btn btn-gold btn-sm" data-modal-open="addOblModal">+ ${L('التزام جديد','Nouvelle obligation')}</button>
+          </div>
+        </div>
+
+        ${overdue2.length?`<div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--red)">
+          🔴 <strong>${overdue2.length}</strong> ${L('التزام متأخر بمبلغ','obligation(s) en retard:')} <strong>${fmt(overdue2.reduce((s,o)=>s+Number(o.amount||0),0))} دج</strong>
+        </div>`:''}
+
+        <div style="display:flex;flex-direction:column;gap:.7rem">
+          ${pending.length===0?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">${L('لا توجد التزامات معلقة','Aucune obligation en attente')}</div></div>`:
+          pending.map(o=>{
+            const isOvd = o.due_date && new Date(o.due_date)<now2;
+            const daysLeft = o.due_date ? Math.ceil((new Date(o.due_date)-now2)/(1000*60*60*24)) : null;
+            const typeLabel = {
+              invoice: L('فاتورة آجلة','Facture à terme'),
+              check:   L('شيك مستحق','Chèque'),
+              deposit: L('ضمان/عربون','Caution/Acompte'),
+              loan:    L('قرض/سلفة','Prêt'),
+              other:   L('أخرى','Autre')
+            }[o.type]||o.type;
+            return `<div style="background:var(--card-bg,#0e1720);border:1px solid ${isOvd?'rgba(240,78,106,.35)':'var(--border)'};border-radius:12px;padding:.9rem 1.1rem;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+                  <span style="background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);color:var(--gold);border-radius:6px;padding:1px 7px;font-size:.72rem;font-weight:700">${typeLabel}</span>
+                  ${isOvd?`<span style="color:var(--red);font-size:.72rem;font-weight:700">🔴 ${L('متأخر','En retard')} ${Math.abs(daysLeft)} ${L('يوم','j')}</span>`:
+                  daysLeft!==null&&daysLeft<=7?`<span style="color:var(--orange);font-size:.72rem">⚠️ ${daysLeft} ${L('يوم متبقي','j restants')}</span>`:''}
+                </div>
+                <div style="font-weight:700;font-size:.9rem;margin-bottom:.2rem">${escHtml(o.description||'—')}</div>
+                <div style="font-size:.76rem;color:var(--dim)">${o.due_date?`📅 ${fmtDate(o.due_date)}`:''} ${o.ref?`• 🧾 ${escHtml(o.ref)}`:''}</div>
+              </div>
+              <div style="text-align:center;flex-shrink:0">
+                <div style="font-size:1.1rem;font-weight:900;color:${isOvd?'var(--red)':'var(--text)'};font-family:monospace">${fmt(o.amount)} دج</div>
+                <div style="display:flex;gap:.3rem;margin-top:.4rem;justify-content:flex-end">
+                  <button class="btn btn-green btn-sm" onclick="markOblDone(${o.id},${sid})" title="${L('تأشير كمنجز','Marquer accompli')}">✅</button>
+                  <button class="btn btn-red btn-sm" onclick="deleteObligation(${o.id},${sid})">🗑️</button>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+          ${done.length>0?`
+          <div style="margin-top:1rem">
+            <div style="font-size:.75rem;color:var(--dim);margin-bottom:.5rem;font-weight:700">✅ ${L('منجزة','Réalisées')} (${done.length})</div>
+            ${done.slice(0,3).map(o=>`<div style="background:rgba(52,195,143,.04);border:1px solid rgba(52,195,143,.1);border-radius:8px;padding:.5rem .8rem;margin-bottom:.3rem;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:.78rem;color:var(--dim)">${escHtml(o.description||'—')}</span>
+              <span style="font-family:monospace;font-size:.78rem;color:var(--green)">${fmt(o.amount)} دج</span>
+            </div>`).join('')}
+          </div>`:''}
+        </div>
+
+        <!-- Modal إضافة التزام -->
+        <div class="modal-overlay" id="addOblModal">
+          <div class="modal" style="max-width:480px">
+            <div class="modal-title">📋 ${L('إضافة التزام جديد','Nouvelle obligation')}</div>
+            <div style="font-size:.78rem;color:var(--gold);margin-bottom:.8rem">📌 ${escHtml(s.name)}</div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">${L('نوع الالتزام *','Type *')}</label>
+                <select class="form-select" id="oblType">
+                  <option value="invoice">${L('فاتورة آجلة','Facture à terme')}</option>
+                  <option value="check">${L('شيك مستحق','Chèque à encaisser')}</option>
+                  <option value="deposit">${L('ضمان / عربون','Caution / Acompte')}</option>
+                  <option value="loan">${L('قرض / سلفة','Prêt / Avance')}</option>
+                  <option value="other">${L('أخرى','Autre')}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('المبلغ (دج) *','Montant (DA) *')}</label>
+                <input class="form-input" id="oblAmount" type="number" min="0" dir="ltr" inputmode="decimal">
+              </div>
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">${L('الوصف *','Description *')}</label>
+                <input class="form-input" id="oblDesc" placeholder="${L('فاتورة حديد، شيك ضمان، سلفة مشروع X...','Facture fer, chèque caution, avance projet X...')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('تاريخ الاستحقاق','Date d\'échéance')}</label>
+                <input class="form-input" id="oblDue" type="date">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('المرجع (رقم الشيك، الفاتورة...)','Référence')}</label>
+                <input class="form-input" id="oblRef" placeholder="${L('رقم الشيك، رقم الفاتورة...','N° chèque, N° facture...')}" dir="ltr">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+              <button class="btn btn-gold" onclick="saveObligation(${sid})">💾 ${L('حفظ','Enregistrer')}</button>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      if (tab==='info') return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+          <!-- معلومات الاتصال -->
+          <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.1rem">
+            <div style="font-weight:700;margin-bottom:.8rem;color:var(--gold)">📞 ${L('معلومات الاتصال','Contact')}</div>
+            ${[
+              [L('الاسم','Nom'), s.name],
+              [L('الاسم FR','Nom FR'), s.name_fr||'—'],
+              [L('الهاتف','Tél.'), s.phone||'—'],
+              [L('هاتف 2','Tél. 2'), s.phone2||'—'],
+              [L('البريد','Email'), s.email||'—'],
+              [L('الولاية','Wilaya'), s.wilaya||'—'],
+              [L('العنوان','Adresse'), s.address||'—'],
+            ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem">
+              <span style="color:var(--dim)">${k}</span>
+              <span style="font-weight:600;text-align:${L('right','left')}">${escHtml(String(v))}</span>
+            </div>`).join('')}
+          </div>
+          <!-- المعلومات القانونية -->
+          <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.1rem">
+            <div style="font-weight:700;margin-bottom:.8rem;color:var(--gold)">📋 ${L('المعلومات القانونية','Informations légales')}</div>
+            ${[
+              ['NIF', s.nif||'—'],
+              ['NIS', s.nis||'—'],
+              ['RC', s.rc||'—'],
+              [L('النشاط','Activité'), s.activity||'—'],
+              [L('الفئة','Catégorie'), categories[s.category]||s.category||'—'],
+              [L('التقييم','Évaluation'), '★'.repeat(Number(s.rating||0))+'☆'.repeat(5-Number(s.rating||0))],
+              [L('الحالة','Statut'), s.is_active!==false?L('✅ نشط','✅ Actif'):L('⛔ غير نشط','⛔ Inactif')],
+            ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem">
+              <span style="color:var(--dim)">${k}</span>
+              <span style="font-weight:600">${escHtml(String(v))}</span>
+            </div>`).join('')}
+          </div>
+        </div>`;
+
+      if (tab==='notes') return `
+        <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.2rem">
+          <div style="font-weight:700;margin-bottom:.6rem;color:var(--gold)">📝 ${L('ملاحظات خاصة','Notes personnelles')}</div>
+          <div style="font-size:.88rem;line-height:1.8;white-space:pre-wrap;color:var(--text)">${escHtml(s.notes||L('لا توجد ملاحظات','Aucune note'))}</div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:1rem" onclick="editSupplierNotes(${s.id})">✏️ ${L('تعديل الملاحظات','Modifier notes')}</button>
+        </div>`;
+
+      // tab === purchases
+      const methodLabel = {cash:L('نقداً','Espèces'),bank:L('تحويل بنكي','Virement'),check:L('شيك','Chèque'),credit:L('آجل','Crédit')}
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>${L('التاريخ','Date')}</th>
+              <th>${L('الوصف','Description')}</th>
+              <th>${L('المشروع','Projet')}</th>
+              <th>${L('المبلغ','Montant')}</th>
+              <th>${L('طريقة الدفع','Mode paie.')}</th>
+              <th>${L('تاريخ الاستحقاق','Échéance')}</th>
+              <th>${L('الحالة','Statut')}</th>
+              <th>${L('إجراء','Action')}</th>
+            </tr></thead>
+            <tbody>
+              ${purchases.length===0?`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد عمليات شراء','Aucun achat enregistré')}</td></tr>`:
+              purchases.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(p=>{
+                const proj = projects.find(x=>x.id===p.project_id);
+                const isOverdueP = p.payment_status==='unpaid'&&p.due_date&&new Date(p.due_date)<new Date();
+                const daysLate = isOverdueP?Math.floor((new Date()-new Date(p.due_date))/(1000*60*60*24)):0;
+                return `<tr ${isOverdueP?'style="background:rgba(240,78,106,.04)"':''}>
+                  <td style="font-size:.8rem">${fmtDate(p.date)}</td>
+                  <td style="font-weight:600;max-width:180px">
+                    <div>${escHtml(p.description||'—')}</div>
+                    ${p.receipt_number?`<div style="font-size:.7rem;color:var(--dim)">🧾 ${escHtml(p.receipt_number)}</div>`:''}
+                  </td>
+                  <td style="font-size:.78rem;color:var(--dim)">${proj?escHtml(proj.name.substring(0,18)):'—'}</td>
+                  <td style="font-family:monospace;font-weight:700">${fmt(p.amount)} ${L('دج','DA')}</td>
+                  <td style="font-size:.78rem">${methodLabel[p.payment_method]||p.payment_method||'—'}</td>
+                  <td style="font-size:.78rem;color:${isOverdueP?'var(--red)':'var(--dim)'};font-weight:${isOverdueP?'700':'400'}">
+                    ${p.due_date?fmtDate(p.due_date)+(isOverdueP?` <span style="font-size:.7rem">(${daysLate}j)</span>`:''):'—'}
+                  </td>
+                  <td>${p.payment_status==='paid'
+                    ?`<span class="badge badge-active">✅ ${L('مدفوع','Payé')}</span>`
+                    :isOverdueP
+                    ?`<span class="badge badge-delayed">🔴 ${L('متأخر','Retard')}</span>`
+                    :`<span class="badge badge-paused">⏳ ${L('معلق','En attente')}</span>`}
+                  </td>
+                  <td><div style="display:flex;gap:.25rem">
+                    ${p.payment_status!=='paid'?`<button class="btn btn-green btn-sm" onclick="markPurchasePaid(${p.id},${sid})" title="${L('تأشير كمدفوع','Marquer payé')}">✅</button>`:''}
+                    <button class="btn btn-red btn-sm" onclick="deletePurchase(${p.id},${sid})">🗑️</button>
+                  </div></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    })()}
+
+    <!-- Modal إضافة عملية شراء -->
+    <div class="modal-overlay" id="addPurchaseModal">
+      <div class="modal modal-lg" style="max-width:600px">
+        <div class="modal-title">🛒 ${L('إضافة عملية شراء','Nouvelle opération d\'achat')}</div>
+        <div style="font-size:.78rem;color:var(--gold);margin-bottom:.8rem">📌 ${escHtml(s.name)}</div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">${L('التاريخ *','Date *')}</label>
+            <input class="form-input" id="purDate" type="date" value="${todayStr()}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المشروع','Projet')}</label>
+            <select class="form-select" id="purProj">
+              <option value="">— ${L('بدون مشروع','Sans projet')} —</option>
+              ${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('وصف المشتريات *','Description *')}</label>
+            <input class="form-input" id="purDesc" placeholder="${L('حديد 10 أطنان، أسمنت 200 كيس...','Fer 10T, ciment 200 sacs...')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المبلغ الإجمالي (دج) *','Montant total (DA) *')}</label>
+            <input class="form-input" id="purAmt" type="number" min="0" dir="ltr" inputmode="decimal">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('رقم الوصل / الفاتورة','N° Bon / Facture')}</label>
+            <input class="form-input" id="purRef" placeholder="BC-2025-001" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('طريقة الدفع','Mode paiement')}</label>
+            <select class="form-select" id="purMethod">
+              <option value="cash">${L('نقداً','Espèces')}</option>
+              <option value="bank">${L('تحويل بنكي','Virement')}</option>
+              <option value="check">${L('شيك','Chèque')}</option>
+              <option value="credit">${L('آجل','Crédit / terme')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('حالة الدفع','Statut paiement')}</label>
+            <select class="form-select" id="purStatus">
+              <option value="unpaid">${L('غير مدفوع (مستحق)','Non payé')}</option>
+              <option value="paid">${L('مدفوع','Payé')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ الاستحقاق','Date d\'échéance')}</label>
+            <input class="form-input" id="purDue" type="date">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('ملاحظات','Notes')}</label>
+            <textarea class="form-textarea" id="purNotes" placeholder="${L('شروط خاصة، تفاصيل...','Conditions particulières...')}"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="savePurchase(${sid})">💾 ${L('حفظ العملية','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+
 Pages.salary = function() {
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w => w.tenant_id===tid);
@@ -15305,6 +16362,16 @@ Pages.salary = function() {
           w.marital_status==='divorced'?L('مطلق','Divorcé(e)'):
           w.marital_status==='widowed'?L('أرمل','Veuf/Veuve'):
           L('أعزب','Célibataire');
+
+        // علاوات وخصومات من السجل
+        const salRec = records.find(r=>r.worker_id===w.id&&r.month_key===selectedMonthKey);
+        const allowances  = Number(salRec?.allowances||0);
+        const deductions  = Number(salRec?.deductions||0);
+        // ساعات إضافية هذا الشهر
+        const otThisMonth = (DB.get('worker_overtime')||[]).filter(o=>o.worker_id===w.id&&(o.date||'').startsWith(selectedMonthKey));
+        const otTotal = otThisMonth.reduce((s,o)=>s+Number(o.amount||0),0);
+        const finalNet = calc.net + allowances + otTotal - deductions;
+
         return `<div class="salary-card">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
             <div style="display:flex;align-items:center;gap:.8rem">
@@ -15315,12 +16382,14 @@ Pages.salary = function() {
               </div>
             </div>
             <div style="text-align:${L('left','right')}">
-              <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(calc.net)} دج <span style="font-size:.7rem;font-weight:500;color:var(--dim)">${L('صافي','NET')}</span></div>
-              <div style="font-size:.7rem;color:var(--dim);font-family:monospace;margin-top:2px">${L('إجمالي','Brut')}: ${fmt(calc.gross)} | CNAS: −${fmt(calc.cnas)} | IRG: −${fmt(calc.irg_net)}${calc.allocations>0?' | '+L('منح','Alloc.')+': +'+fmt(calc.allocations):''}</div>
-              <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.4rem">
-                <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.gross},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}',cnas:${calc.cnas},irg:${calc.irg_net},allocations:${calc.allocations},netSalary:${calc.net}})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 ${L('كشف PDF','Bulletin PDF')}</button>
-                <button class="btn btn-ghost btn-sm" onclick="printWorkerHistory(${w.id})" title="${L('كشف حساب كل الأشهر','Relevé annuel de salaires')}">📊 ${L('الأشهر','Historique')}</button>
-                ${paid?`<span class="badge badge-active">✅ ${L('تم الصرف','Payé')}</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${calc.net})">💳 ${L('صرف','Payer')}</button>`:`<span class="badge">${L('معلق','En attente')}</span>`}
+              <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(finalNet)} دج <span style="font-size:.7rem;font-weight:500;color:var(--dim)">${L('صافي','NET')}</span></div>
+              <div style="font-size:.7rem;color:var(--dim);font-family:monospace;margin-top:2px">${L('إجمالي','Brut')}: ${fmt(calc.gross)} | CNAS: −${fmt(calc.cnas)} | IRG: −${fmt(calc.irg_net)}${calc.allocations>0?' | '+L('منح','Alloc.')+': +'+fmt(calc.allocations):''}${allowances>0?' | '+L('علاوات','Primes')+': +'+fmt(allowances):''}${otTotal>0?' | '+L('إضافي','H.Sup.')+': +'+fmt(otTotal):''}${deductions>0?' | '+L('خصومات','Déduct.')+': −'+fmt(deductions):''}</div>
+              <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.4rem;flex-wrap:wrap">
+                <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.gross},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}',cnas:${calc.cnas},irg:${calc.irg_net},allocations:${calc.allocations},netSalary:${finalNet}})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 PDF</button>
+                <button class="btn btn-ghost btn-sm" onclick="addAllowanceModal(${w.id},'${selectedMonthKey}')" title="${L('علاوات وخصومات','Primes/Déductions')}">💰 ${L('علاوات','Primes')}</button>
+                <button class="btn btn-ghost btn-sm" onclick="addOvertime(${w.id})" title="${L('ساعات إضافية','Heures sup.')}">⏰</button>
+                <button class="btn btn-ghost btn-sm" onclick="printWorkerHistory(${w.id})" title="${L('كشف حساب كل الأشهر','Relevé annuel')}">📊</button>
+                ${paid?`<span class="badge badge-active">✅ ${L('تم الصرف','Payé')}</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${finalNet})">💳 ${L('صرف','Payer')}</button>`:`<span class="badge">${L('معلق','En attente')}</span>`}
               </div>
             </div>
           </div>
@@ -15328,12 +16397,12 @@ Pages.salary = function() {
             <div class="salary-line"><span>${L('أيام الحضور','Jours présence')}</span><span>${calc.present} ${L('يوم','j')}${calc.half?' + '+calc.half+' '+L('نصف','demi'):''}</span></div>
             <div class="salary-line"><span>${L('الأجر الإجمالي (Brut)','Salaire brut')}</span><span>${fmt(calc.gross)} ${L('دج','DA')}</span></div>
             <div class="salary-line" style="color:var(--red)"><span>− CNAS 9%</span><span>${fmt(calc.cnas)} ${L('دج','DA')}</span></div>
-            <div class="salary-line"><span>${L('الوعاء الخاضع (Imposable)','Base imposable')}</span><span>${fmt(calc.taxableBase)} ${L('دج','DA')}</span></div>
-            ${calc.irg_raw>0?`<div class="salary-line" style="font-size:.75rem;color:var(--dim)"><span>IRG ${L('خام','brut')}</span><span>${fmt(calc.irg_raw)} ${L('دج','DA')}</span></div>
-            <div class="salary-line" style="font-size:.75rem;color:var(--green)"><span>${L('تخفيض 40%','Abattement 40%')} (${L('حد أقصى','max')} 1500)</span><span>− ${fmt(calc.abattement)} ${L('دج','DA')}</span></div>`:''}
             <div class="salary-line" style="color:var(--red)"><span>− IRG ${L('صافي','net')}</span><span>${fmt(calc.irg_net)} ${L('دج','DA')}</span></div>
             ${calc.allocations>0?`<div class="salary-line" style="color:var(--green)"><span>+ ${L('منح عائلية','Allocations familiales')}</span><span>${fmt(calc.allocations)} ${L('دج','DA')}</span></div>`:''}
-            <div class="salary-line total-line"><span>${L('الراتب الصافي للدفع','Net à payer')}</span><span>${fmt(calc.net)} ${L('دج','DA')}</span></div>
+            ${allowances>0?`<div class="salary-line" style="color:var(--green)"><span>+ ${L('علاوات وبدلات','Primes et indemnités')}</span><span>${fmt(allowances)} ${L('دج','DA')}</span></div>`:''}
+            ${otTotal>0?`<div class="salary-line" style="color:var(--blue)"><span>+ ${L('ساعات إضافية','Heures supp.')} (${otThisMonth.reduce((s,o)=>s+Number(o.hours||0),0)}h)</span><span>${fmt(otTotal)} ${L('دج','DA')}</span></div>`:''}
+            ${deductions>0?`<div class="salary-line" style="color:var(--red)"><span>− ${L('خصومات','Déductions')}</span><span>${fmt(deductions)} ${L('دج','DA')}</span></div>`:''}
+            <div class="salary-line total-line"><span>${L('الراتب الصافي للدفع','Net à payer')}</span><span>${fmt(finalNet)} ${L('دج','DA')}</span></div>
           </div>
         </div>`;
       }).join('')}
@@ -15637,9 +16706,23 @@ Pages.invoices = function() {
 
   const filterStatus = sessionStorage.getItem('inv_filter_status')||'all';
   let filtered = invoices;
-  if(filterStatus==='paid') filtered=invoices.filter(i=>i.status==='paid');
+  if(filterStatus==='paid')    filtered=invoices.filter(i=>i.status==='paid');
+  else if(filterStatus==='partial') filtered=invoices.filter(i=>i.status==='partial');
+  else if(filterStatus==='draft')   filtered=invoices.filter(i=>i.status==='draft');
   else if(filterStatus==='pending') filtered=invoices.filter(i=>i.status==='pending'&&(!i.due_date||new Date(i.due_date)>=today));
-  else if(filterStatus==='overdue') filtered=invoices.filter(i=>i.status!=='paid'&&i.due_date&&new Date(i.due_date)<today);
+  else if(filterStatus==='overdue') filtered=invoices.filter(i=>i.status!=='paid'&&i.status!=='draft'&&i.due_date&&new Date(i.due_date)<today);
+
+  // ── حساب الذمم المدينة (Aging) ──
+  const aging = {d30:0, d60:0, d90:0, d90p:0};
+  invoices.filter(i=>i.status!=='paid'&&i.status!=='draft'&&i.due_date).forEach(i=>{
+    const days = Math.floor((today - new Date(i.due_date))/(1000*60*60*24));
+    const bal = Number(i.amount) - Number(i.paid_amount||0);
+    if(days<=0) return;
+    if(days<=30) aging.d30+=bal;
+    else if(days<=60) aging.d60+=bal;
+    else if(days<=90) aging.d90+=bal;
+    else aging.d90p+=bal;
+  });
 
   const nextNum = 'FAC-'+(new Date().getFullYear())+'-'+String(invoices.length+1).padStart(3,'0');
 
@@ -15671,7 +16754,7 @@ Pages.invoices = function() {
     </div>
 
     <!-- Stats Cards -->
-    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
       <div class="stat-card" style="border-color:rgba(52,195,143,0.2)">
         <div class="stat-icon">✅</div>
         <div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total_paid)}</div>
@@ -15698,11 +16781,39 @@ Pages.invoices = function() {
       </div>
     </div>
 
+    <!-- تقرير الذمم المدينة (Aging Report) -->
+    ${(aging.d30+aging.d60+aging.d90+aging.d90p)>0?`
+    <div style="background:rgba(240,78,106,0.05);border:1px solid rgba(240,78,106,0.2);border-radius:12px;padding:1rem 1.2rem;margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem">
+        <div style="font-weight:700;font-size:.9rem">📊 ${L('تقرير الذمم المدينة — تحليل التأخر','Rapport Aging — Analyse des retards')}</div>
+        <span style="font-size:.72rem;color:var(--dim)">${L('المبالغ غير المحصّلة بحسب مدة التأخر','Montants non encaissés par ancienneté')}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem">
+        ${[
+          [L('1-30 يوم','1-30 jours'), aging.d30, 'var(--orange)'],
+          [L('31-60 يوم','31-60 jours'), aging.d60, '#e67e22'],
+          [L('61-90 يوم','61-90 jours'), aging.d90, '#e74c3c'],
+          [L('+90 يوم','+90 jours'), aging.d90p, '#c0392b'],
+        ].map(([lbl,val,clr])=>val>0?`
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:.6rem .8rem;text-align:center">
+            <div style="font-size:.7rem;color:var(--dim);margin-bottom:.2rem">${lbl}</div>
+            <div style="font-size:.95rem;font-weight:800;color:${clr};font-family:monospace">${fmt(val)}</div>
+            <div style="font-size:.65rem;color:var(--dim)">${L('دج','DA')}</div>
+          </div>`:``).join('')}
+      </div>
+      <div style="margin-top:.7rem;padding-top:.7rem;border-top:1px solid rgba(240,78,106,0.15);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.8rem;color:var(--muted)">${L('إجمالي الذمم المدينة','Total créances')}:</span>
+        <span style="font-size:1rem;font-weight:900;color:var(--red);font-family:monospace">${fmt(aging.d30+aging.d60+aging.d90+aging.d90p)} ${L('دج','DA')}</span>
+      </div>
+    </div>`:``}
+
     <!-- Filter Tabs -->
     <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
       <button class="btn ${filterStatus==='all'?'btn-gold':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','all');App.navigate('invoices')">${L('الكل','Tout')} (${invoices.length})</button>
-      <button class="btn ${filterStatus==='paid'?'btn-green':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','paid');App.navigate('invoices')">✅ ${L('مدفوعة','Payées')} (${invoices.filter(i=>i.status==='paid').length})</button>
+      <button class="btn ${filterStatus==='draft'?'btn-blue':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','draft');App.navigate('invoices')">📝 ${L('مسودة','Brouillon')} (${invoices.filter(i=>i.status==='draft').length})</button>
       <button class="btn ${filterStatus==='pending'?'btn-blue':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','pending');App.navigate('invoices')">⏳ ${L('معلقة','En attente')} (${invoices.filter(i=>i.status==='pending').length})</button>
+      <button class="btn ${filterStatus==='partial'?'btn-blue':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','partial');App.navigate('invoices')">💰 ${L('جزئية','Partiel')} (${invoices.filter(i=>i.status==='partial').length})</button>
+      <button class="btn ${filterStatus==='paid'?'btn-green':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','paid');App.navigate('invoices')">✅ ${L('مدفوعة','Payées')} (${invoices.filter(i=>i.status==='paid').length})</button>
       <button class="btn ${filterStatus==='overdue'?'btn-red':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','overdue');App.navigate('invoices')">🔴 ${L('متأخرة','En retard')} (${total_count_overdue})</button>
     </div>
 
@@ -15714,20 +16825,29 @@ Pages.invoices = function() {
           <th>${L('العميل','Client')}</th>
           <th>${L('المشروع','Projet')}</th>
           <th>${L('المبلغ TTC','Montant TTC')}</th>
+          <th>${L('المدفوع','Payé')}</th>
+          <th>${L('الرصيد','Solde')}</th>
           <th>${L('تاريخ الإصدار','Date émission')}</th>
           <th>${L('تاريخ الاستحقاق','Date échéance')}</th>
           <th>${L('الحالة','Statut')}</th>
           <th>${L('الإجراءات','Actions')}</th>
         </tr></thead>
-        <tbody>${filtered.length===0?`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد فواتير','Aucune facture')}</td></tr>`:filtered.map(inv=>{
+        <tbody>${filtered.length===0?`<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد فواتير','Aucune facture')}</td></tr>`:filtered.map(inv=>{
           const proj=projects.find(p=>p.id===inv.project_id);
-          const isOverdue = inv.status!=='paid' && inv.due_date && new Date(inv.due_date)<today;
+          const isOverdue = inv.status!=='paid'&&inv.status!=='draft'&&inv.due_date&&new Date(inv.due_date)<today;
           const tvaRate=tenant?.tva_rate||19;
           const amountHT=Math.round(Number(inv.amount)/(1+tvaRate/100));
+          const paidAmt = Number(inv.paid_amount||0);
+          const balance = Number(inv.amount) - paidAmt;
+          const daysLate = inv.due_date&&isOverdue ? Math.floor((today-new Date(inv.due_date))/(1000*60*60*24)) : 0;
+
           let statusBadge='';
-          if(inv.status==='paid') statusBadge=`<span class="badge badge-active">✅ ${L('مدفوعة','Payée')}</span>`;
-          else if(isOverdue) statusBadge=`<span class="badge badge-delayed">🔴 ${L('متأخرة','En retard')}</span>`;
+          if(inv.status==='draft')    statusBadge=`<span class="badge" style="background:rgba(74,144,226,.15);color:#4A90E2">📝 ${L('مسودة','Brouillon')}</span>`;
+          else if(inv.status==='paid') statusBadge=`<span class="badge badge-active">✅ ${L('مدفوعة','Payée')}</span>`;
+          else if(inv.status==='partial') statusBadge=`<span class="badge" style="background:rgba(232,184,75,.15);color:var(--gold)">💰 ${L('جزئية','Partiel')} ${Math.round(paidAmt/Number(inv.amount)*100)}%</span>`;
+          else if(isOverdue) statusBadge=`<span class="badge badge-delayed" title="${daysLate} ${L('يوم تأخر','jours retard')}">🔴 ${L('متأخرة','En retard')} (${daysLate}j)</span>`;
           else statusBadge=`<span class="badge badge-paused">⏳ ${L('معلقة','En attente')}</span>`;
+
           return `<tr ${isOverdue?'style="background:rgba(240,78,106,0.04)"':''}>
             <td style="font-family:monospace;color:var(--gold);font-size:.82rem;font-weight:700">${escHtml(inv.number)}</td>
             <td style="font-weight:700">${escHtml(inv.client)}</td>
@@ -15736,6 +16856,8 @@ Pages.invoices = function() {
               <div style="font-family:monospace;font-weight:700">${fmt(inv.amount)} ${L('دج','DA')}</div>
               <div style="font-size:.72rem;color:var(--dim)">HT: ${fmt(amountHT)}</div>
             </td>
+            <td style="font-family:monospace;color:var(--green)">${paidAmt>0?fmt(paidAmt)+' '+L('دج','DA'):'—'}</td>
+            <td style="font-family:monospace;font-weight:700;color:${balance>0?'var(--red)':'var(--green)'}">${inv.status==='paid'?'✅':fmt(balance)+' '+L('دج','DA')}</td>
             <td style="font-size:.8rem;color:var(--dim)">${fmtDate(inv.date)}</td>
             <td style="font-size:.8rem;color:${isOverdue?'var(--red)':'var(--dim)'};font-weight:${isOverdue?'700':'400'}">${inv.due_date?fmtDate(inv.due_date):'—'}</td>
             <td>${statusBadge}</td>
@@ -15743,7 +16865,9 @@ Pages.invoices = function() {
               <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
               ${inv.status==='paid'?`<button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForInvoice('quittance',${inv.id})" title="${L('وصل تسديد PDF','Quittance PDF')}">🧾</button>`:''}
-              ${inv.status!=='paid'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة','Marquer payée')}">✅</button>`:''}
+              ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة كلياً','Marquer payée')}">✅</button>`:''}
+              ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-gold btn-sm" onclick="recordPartialPayment(${inv.id})" title="${L('تسجيل دفع جزئي','Paiement partiel')}">💰</button>`:''}
+              ${inv.status==='draft'&&canDo('transactions')?`<button class="btn btn-blue btn-sm" onclick="confirmInvoice(${inv.id})" title="${L('تأكيد الفاتورة','Confirmer facture')}">📤</button>`:''}
               ${canDo('transactions')?`<button class="btn btn-red btn-sm" onclick="deleteInvoiceItem(${inv.id})">🗑️</button>`:''}
             </div></td>
           </tr>`;
@@ -15778,7 +16902,8 @@ Pages.invoices = function() {
           <div class="form-group">
             <label class="form-label">${L('الحالة','Statut')}</label>
             <select class="form-select" id="invSt">
-              <option value="pending">${L('معلقة','En attente')}</option>
+              <option value="draft">${L('مسودة (غير مؤكدة)','Brouillon')}</option>
+              <option value="pending" selected>${L('معلقة','En attente')}</option>
               <option value="paid">${L('مدفوعة','Payée')}</option>
             </select>
           </div>
@@ -16084,6 +17209,569 @@ function markInvoicePaid(id) {
   Toast.success(L('✅ تم تأشير الفاتورة كمدفوعة','✅ Facture marquée comme payée'));
   App.navigate('invoices');
 }
+
+// ── تأكيد الفاتورة (من مسودة → معلقة) ──
+function confirmInvoice(id) {
+  if (!canDo('write_invoices')) return;
+  if (!confirm(L('تأكيد الفاتورة وإرسالها؟','Confirmer et émettre la facture ?'))) return;
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  invs[idx].status = 'pending';
+  invs[idx].confirmed_date = todayStr();
+  DB.set('invoices', invs);
+  sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('تم تأكيد الفاتورة','Facture confirmée'));
+  App.navigate('invoices');
+}
+
+// ── تسجيل دفع جزئي ──
+function recordPartialPayment(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية','Permission refusée')); return; }
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  const inv = invs[idx];
+  const remaining = Number(inv.amount) - Number(inv.paid_amount||0);
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:420px;width:90%">
+      <div class="modal-title">💰 ${L('تسجيل دفع جزئي','Enregistrer paiement partiel')}</div>
+      <div style="background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.2);border-radius:8px;padding:.8rem;margin-bottom:1rem;display:flex;justify-content:space-between">
+        <span style="font-size:.8rem;color:var(--muted)">${L('الرصيد المتبقي','Solde restant')}</span>
+        <span style="font-family:monospace;font-weight:800;color:var(--gold)">${fmt(remaining)} ${L('دج','DA')}</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('المبلغ المدفوع *','Montant payé *')}</label>
+        <input class="form-input" id="_partialAmt" type="number" min="1" max="${remaining}" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('طريقة الدفع','Mode paiement')}</label>
+        <select class="form-select" id="_partialMethod">
+          <option value="cash">${L('نقداً','Espèces')}</option>
+          <option value="bank">${L('تحويل بنكي','Virement')}</option>
+          <option value="check">${L('شيك','Chèque')}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('مرجع / رقم الشيك','Réf. / N° Chèque')}</label>
+        <input class="form-input" id="_partialRef" placeholder="${L('اختياري','Optionnel')}" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('تاريخ الدفع','Date paiement')}</label>
+        <input class="form-input" id="_partialDate" type="date" value="${todayStr()}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_savePartialPayment(${id},${remaining})">${L('حفظ','Enregistrer')}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function _savePartialPayment(id, remaining) {
+  const amount = parseFloat(document.getElementById('_partialAmt')?.value)||0;
+  if(!amount||amount<=0) { Toast.error(L('أدخل مبلغاً صحيحاً','Montant invalide')); return; }
+  if(amount>remaining+0.01) { Toast.error(L('المبلغ أكبر من الرصيد','Montant dépasse le solde')); return; }
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  const inv = invs[idx];
+  const newPaid = Number(inv.paid_amount||0) + amount;
+  const newBalance = Number(inv.amount) - newPaid;
+  if(!inv.payment_history) inv.payment_history = [];
+  inv.payment_history.push({
+    amount,
+    date: document.getElementById('_partialDate')?.value||todayStr(),
+    method: document.getElementById('_partialMethod')?.value||'cash',
+    ref: document.getElementById('_partialRef')?.value||''
+  });
+  invs[idx].paid_amount = newPaid;
+  invs[idx].status = newBalance<=0.01 ? 'paid' : 'partial';
+  if(newBalance<=0.01) invs[idx].paid_date = todayStr();
+  DB.set('invoices', invs);
+  sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(newBalance<=0.01
+    ? L('تم سداد الفاتورة كاملاً','Facture soldée intégralement')
+    : L('تم تسجيل الدفع الجزئي','Paiement partiel enregistré')
+  );
+  App.navigate('invoices');
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   دوال الموارد البشرية — HR Functions
+════════════════════════════════════════════════════════════ */
+
+// ── حساب أيام الإجازة تلقائياً ──
+function calcLeaveDays() {
+  const s = document.getElementById('leaveStart')?.value;
+  const e = document.getElementById('leaveEnd')?.value;
+  if (s && e) {
+    const days = Math.max(1, Math.round((new Date(e)-new Date(s))/(1000*60*60*24))+1);
+    const el = document.getElementById('leaveDays');
+    if (el) el.value = days;
+  }
+}
+
+// ── حفظ طلب إجازة ──
+function saveLeave(workerId) {
+  const start = document.getElementById('leaveStart')?.value;
+  const end   = document.getElementById('leaveEnd')?.value;
+  const days  = Number(document.getElementById('leaveDays')?.value)||1;
+  if (!start||!end) { Toast.error(L('أدخل تواريخ الإجازة','Renseignez les dates')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const leaves = DB.get('leave_requests')||[];
+  const rec = {
+    id: DB.nextId('leave_requests'),
+    tenant_id: tid, worker_id: workerId,
+    type:   document.getElementById('leaveType')?.value||'annual',
+    status: document.getElementById('leaveSt')?.value||'pending',
+    start_date: start, end_date: end, days,
+    reason: document.getElementById('leaveReason')?.value||'',
+    created_at: todayStr()
+  };
+  leaves.push(rec);
+  DB.set('leave_requests', leaves);
+  sbSync('leave_requests', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل طلب الإجازة','✅ Congé enregistré'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── موافقة على إجازة ──
+function approveLeave(leaveId, workerId) {
+  const leaves = DB.get('leave_requests')||[];
+  const idx = leaves.findIndex(l=>l.id===leaveId);
+  if(idx<0) return;
+  leaves[idx].status = 'approved';
+  leaves[idx].approved_by = Auth.getUser().full_name||'';
+  DB.set('leave_requests', leaves);
+  sbSync('leave_requests', leaves[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم اعتماد الإجازة','✅ Congé approuvé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── رفض إجازة ──
+function rejectLeave(leaveId, workerId) {
+  const leaves = DB.get('leave_requests')||[];
+  const idx = leaves.findIndex(l=>l.id===leaveId);
+  if(idx<0) return;
+  leaves[idx].status = 'rejected';
+  DB.set('leave_requests', leaves);
+  sbSync('leave_requests', leaves[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('تم رفض الإجازة','Congé refusé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── حذف إجازة ──
+function deleteLeave(leaveId, workerId) {
+  if (!confirm(L('حذف هذه الإجازة؟','Supprimer ce congé ?'))) return;
+  DB.set('leave_requests', (DB.get('leave_requests')||[]).filter(l=>l.id!==leaveId));
+  sbSyncDelete('leave_requests', leaveId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── حفظ إنذار ──
+function saveWarning(workerId) {
+  const reason = document.getElementById('warnReason')?.value?.trim();
+  if (!reason) { Toast.error(L('أدخل سبب الإنذار','Renseignez le motif')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const warnings = DB.get('worker_warnings')||[];
+  const rec = {
+    id: DB.nextId('worker_warnings'),
+    tenant_id: tid, worker_id: workerId,
+    type:   document.getElementById('warnType')?.value||'verbal',
+    date:   document.getElementById('warnDate')?.value||todayStr(),
+    reason,
+    action: document.getElementById('warnAction')?.value||'',
+    created_at: todayStr()
+  };
+  warnings.push(rec);
+  DB.set('worker_warnings', warnings);
+  sbSync('worker_warnings', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل الإنذار','✅ Avertissement enregistré'));
+  App.navigate('worker_profile', {id: workerId, tab: 'warnings'});
+}
+
+// ── حذف إنذار ──
+function deleteWarning(warnId, workerId) {
+  if (!confirm(L('حذف هذا الإنذار؟','Supprimer cet avertissement ?'))) return;
+  DB.set('worker_warnings', (DB.get('worker_warnings')||[]).filter(w=>w.id!==warnId));
+  sbSyncDelete('worker_warnings', warnId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'warnings'});
+}
+
+// ── حذف ساعات إضافية ──
+function deleteOvertime(otId, workerId) {
+  if (!confirm(L('حذف هذا السجل؟','Supprimer ?'))) return;
+  DB.set('worker_overtime', (DB.get('worker_overtime')||[]).filter(o=>o.id!==otId));
+  sbSyncDelete('worker_overtime', otId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'overtime'});
+}
+
+// ── تسجيل ساعات إضافية من صفحة الحضور ──
+function addOvertime(workerId) {
+  const tid = Auth.getUser().tenant_id;
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:380px;width:90%">
+      <div class="modal-title">⏰ ${L('ساعات إضافية','Heures supplémentaires')}</div>
+      <div style="font-size:.8rem;color:var(--gold);margin-bottom:.8rem">${escHtml(worker.full_name)}</div>
+      <div class="form-grid-2">
+        <div class="form-group"><label class="form-label">${L('التاريخ','Date')}</label><input class="form-input" id="_otDate" type="date" value="${todayStr()}"></div>
+        <div class="form-group"><label class="form-label">${L('عدد الساعات','Nb heures')}</label><input class="form-input" id="_otHours" type="number" min=".5" step=".5" value="1" dir="ltr" oninput="_calcOT(${worker.daily_salary})"></div>
+        <div class="form-group"><label class="form-label">${L('نسبة المكافأة','Taux')}</label>
+          <select class="form-select" id="_otRate" onchange="_calcOT(${worker.daily_salary})">
+            <option value="125">125% ${L('(عادي)','(normal)')}</option>
+            <option value="150">150% ${L('(ليلي/أسبوعي)','(nuit/hebdo)')}</option>
+            <option value="200">200% ${L('(عيد)','(férié)')}</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">${L('المبلغ المحسوب','Montant calculé')}</label><input class="form-input" id="_otAmt" dir="ltr" readonly style="color:var(--gold);font-weight:700"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_saveOT(${workerId}, ${tid})">💾 ${L('حفظ','Enregistrer')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  _calcOT(worker.daily_salary);
+}
+
+function _calcOT(dailySalary) {
+  const hours = parseFloat(document.getElementById('_otHours')?.value)||0;
+  const rate  = parseFloat(document.getElementById('_otRate')?.value)||125;
+  const hourly = dailySalary / 8;
+  const amount = Math.round(hours * hourly * rate / 100);
+  const el = document.getElementById('_otAmt');
+  if (el) el.value = fmt(amount) + ' دج';
+}
+
+function _saveOT(workerId, tid) {
+  const hours = parseFloat(document.getElementById('_otHours')?.value)||0;
+  if (!hours) { Toast.error(L('أدخل عدد الساعات','Renseignez les heures')); return; }
+  const rate    = parseFloat(document.getElementById('_otRate')?.value)||125;
+  const worker  = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  const hourly  = (worker?.daily_salary||0) / 8;
+  const amount  = Math.round(hours * hourly * rate / 100);
+  const ots = DB.get('worker_overtime')||[];
+  const rec = {
+    id: DB.nextId('worker_overtime'), tenant_id: tid, worker_id: workerId,
+    date: document.getElementById('_otDate')?.value||todayStr(),
+    hours, rate, amount
+  };
+  ots.push(rec);
+  DB.set('worker_overtime', ots);
+  sbSync('worker_overtime', rec, 'POST').catch(()=>{});
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(L('✅ تم تسجيل الساعات الإضافية','✅ Heures supplémentaires enregistrées'));
+  App.navigate('worker_profile', {id: workerId, tab: 'overtime'});
+}
+
+
+// ── modal العلاوات والخصومات ──
+function addAllowanceModal(workerId, monthKey) {
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+  const records = DB.get('salary_records')||[];
+  const rec = records.find(r=>r.worker_id===workerId&&r.month_key===monthKey);
+  const modal = document.createElement('div');
+  modal.className='modal-overlay';
+  modal.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML=`
+    <div class="modal" style="max-width:400px;width:90%">
+      <div class="modal-title">💰 ${L('علاوات وخصومات','Primes et Déductions')}</div>
+      <div style="font-size:.8rem;color:var(--gold);margin-bottom:.8rem">${escHtml(worker.full_name)} — ${monthKey}</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label">+ ${L('بدل نقل','Indemnité transport')}</label>
+          <input class="form-input" id="_allowTransport" type="number" min="0" value="${rec?.allowance_transport||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">+ ${L('علاوة إنتاجية','Prime productivité')}</label>
+          <input class="form-input" id="_allowProd" type="number" min="0" value="${rec?.allowance_prod||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">+ ${L('بدل إقامة','Indemnité logement')}</label>
+          <input class="form-input" id="_allowHousing" type="number" min="0" value="${rec?.allowance_housing||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">− ${L('خصم تأخير','Retard')}</label>
+          <input class="form-input" id="_dedLate" type="number" min="0" value="${rec?.ded_late||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">− ${L('خصم سلفة','Avance')}</label>
+          <input class="form-input" id="_dedAdvance" type="number" min="0" value="${rec?.ded_advance||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">− ${L('خصومات أخرى','Autres')}</label>
+          <input class="form-input" id="_dedOther" type="number" min="0" value="${rec?.ded_other||0}" dir="ltr">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_saveAllowances(${workerId},'${monthKey}')">${L('💾 حفظ','Enregistrer')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _saveAllowances(workerId, monthKey) {
+  const t = parseFloat; const g = id => parseFloat(document.getElementById(id)?.value)||0;
+  const allowances = g('_allowTransport') + g('_allowProd') + g('_allowHousing');
+  const deductions = g('_dedLate') + g('_dedAdvance') + g('_dedOther');
+  const tid = Auth.getUser().tenant_id;
+  const records = DB.get('salary_records')||[];
+  const idx = records.findIndex(r=>r.worker_id===workerId&&r.month_key===monthKey);
+  const data = {
+    allowances, deductions,
+    allowance_transport: g('_allowTransport'),
+    allowance_prod: g('_allowProd'),
+    allowance_housing: g('_allowHousing'),
+    ded_late: g('_dedLate'),
+    ded_advance: g('_dedAdvance'),
+    ded_other: g('_dedOther')
+  };
+  if (idx>=0) {
+    Object.assign(records[idx], data);
+    DB.set('salary_records', records);
+    sbSync('salary_records', records[idx], 'PATCH').catch(()=>{});
+  } else {
+    const rec = {id:DB.nextId('salary_records'), tenant_id:tid, worker_id:workerId, month_key:monthKey, amount:0, ...data};
+    records.push(rec);
+    DB.set('salary_records', records);
+    sbSync('salary_records', rec, 'POST').catch(()=>{});
+  }
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(L('✅ تم حفظ العلاوات والخصومات','✅ Primes et déductions enregistrées'));
+  App.navigate('salary', {monthKey});
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   دوال الموردين — Supplier Functions
+════════════════════════════════════════════════════════════ */
+
+function saveSupplier() {
+  const name = document.getElementById('supName')?.value?.trim();
+  const phone = document.getElementById('supPhone')?.value?.trim();
+  const activity = document.getElementById('supActivity')?.value?.trim();
+  if (!name) { Toast.error(L('اسم المورد مطلوب','Nom fournisseur requis')); return; }
+  if (!phone) { Toast.error(L('رقم الهاتف مطلوب','Téléphone requis')); return; }
+
+  const tid = Auth.getUser().tenant_id;
+  const suppliers = DB.get('suppliers') || [];
+  const rec = {
+    id:         DB.nextId('suppliers'),
+    tenant_id:  tid,
+    name,
+    name_fr:    document.getElementById('supNameFr')?.value?.trim()||'',
+    activity,
+    category:   document.getElementById('supCat')?.value||'materials',
+    phone,
+    phone2:     document.getElementById('supPhone2')?.value?.trim()||'',
+    email:      document.getElementById('supEmail')?.value?.trim()||'',
+    wilaya:     document.getElementById('supWilaya')?.value||'',
+    address:    document.getElementById('supAddress')?.value?.trim()||'',
+    nif:        document.getElementById('supNif')?.value?.trim()||'',
+    nis:        document.getElementById('supNis')?.value?.trim()||'',
+    rc:         document.getElementById('supRc')?.value?.trim()||'',
+    rating:     Number(document.getElementById('supRating')?.value)||3,
+    notes:      document.getElementById('supNotes')?.value||'',
+    color:      document.getElementById('supColor')?.value||'#4A90E2',
+    is_active:  document.getElementById('supActive')?.checked !== false,
+    created_at: todayStr()
+  };
+  suppliers.push(rec);
+  DB.set('suppliers', suppliers);
+  sbSync('suppliers', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم إضافة المورد','✅ Fournisseur ajouté'));
+  App.navigate('supplier_detail', {id: rec.id});
+}
+
+function editSupplier(id) {
+  const suppliers = DB.get('suppliers')||[];
+  const s = suppliers.find(x=>x.id===id);
+  if (!s) return;
+  // نعيد فتح modal الإضافة محمّلاً بالبيانات
+  App.navigate('supplier_edit', {id});
+}
+
+function editSupplierNotes(id) {
+  const suppliers = DB.get('suppliers')||[];
+  const idx = suppliers.findIndex(x=>x.id===id);
+  if (idx<0) return;
+  const newNotes = prompt(L('تعديل الملاحظات:','Modifier les notes:'), suppliers[idx].notes||'');
+  if (newNotes === null) return;
+  suppliers[idx].notes = newNotes;
+  DB.set('suppliers', suppliers);
+  sbSync('suppliers', suppliers[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم حفظ الملاحظات','✅ Notes enregistrées'));
+  App.navigate('supplier_detail', {id, tab:'notes'});
+}
+
+function savePurchase(supplierId) {
+  const desc   = document.getElementById('purDesc')?.value?.trim();
+  const amount = parseFloat(document.getElementById('purAmt')?.value)||0;
+  if (!desc)   { Toast.error(L('أدخل وصف العملية','Renseignez la description')); return; }
+  if (!amount) { Toast.error(L('أدخل المبلغ','Renseignez le montant')); return; }
+
+  const tid = Auth.getUser().tenant_id;
+  const purchases = DB.get('supplier_purchases')||[];
+  const rec = {
+    id:             DB.nextId('supplier_purchases'),
+    tenant_id:      tid,
+    supplier_id:    supplierId,
+    project_id:     Number(document.getElementById('purProj')?.value)||null,
+    date:           document.getElementById('purDate')?.value||todayStr(),
+    description:    desc,
+    amount,
+    payment_method: document.getElementById('purMethod')?.value||'cash',
+    payment_status: document.getElementById('purStatus')?.value||'unpaid',
+    due_date:       document.getElementById('purDue')?.value||'',
+    receipt_number: document.getElementById('purRef')?.value?.trim()||'',
+    notes:          document.getElementById('purNotes')?.value||''
+  };
+  purchases.push(rec);
+  DB.set('supplier_purchases', purchases);
+  sbSync('supplier_purchases', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل العملية','✅ Opération enregistrée'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+function markPurchasePaid(purchaseId, supplierId) {
+  const purchases = DB.get('supplier_purchases')||[];
+  const idx = purchases.findIndex(p=>p.id===purchaseId);
+  if (idx<0) return;
+  purchases[idx].payment_status = 'paid';
+  purchases[idx].paid_date = todayStr();
+  DB.set('supplier_purchases', purchases);
+  sbSync('supplier_purchases', purchases[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم تأشير العملية كمدفوعة','✅ Marqué comme payé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+function deletePurchase(purchaseId, supplierId) {
+  if (!confirm(L('حذف هذه العملية؟','Supprimer cette opération ?'))) return;
+  DB.set('supplier_purchases', (DB.get('supplier_purchases')||[]).filter(p=>p.id!==purchaseId));
+  sbSyncDelete('supplier_purchases', purchaseId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+function deletePurchase(purchaseId, supplierId) {
+  if (!confirm(L('حذف هذه العملية؟','Supprimer cette opération ?'))) return;
+  DB.set('supplier_purchases', (DB.get('supplier_purchases')||[]).filter(p=>p.id!==purchaseId));
+  sbSyncDelete('supplier_purchases', purchaseId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+// ── حفظ سعر مرجعي ──
+function saveSupplierPrice(supplierId) {
+  const item = document.getElementById('priceItem')?.value?.trim();
+  const price = parseFloat(document.getElementById('priceUnit_price')?.value)||0;
+  if (!item) { Toast.error(L('أدخل اسم المادة','Renseignez le produit')); return; }
+  if (!price) { Toast.error(L('أدخل السعر','Renseignez le prix')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const prices = DB.get('supplier_prices')||[];
+  const rec = {
+    id: DB.nextId('supplier_prices'),
+    tenant_id: tid, supplier_id: supplierId,
+    item_name: item,
+    unit:       document.getElementById('priceUnit')?.value||'',
+    unit_price: price,
+    date:       document.getElementById('priceDate')?.value||todayStr(),
+    project_id: Number(document.getElementById('priceProj')?.value)||null,
+    note:       document.getElementById('priceNote')?.value||''
+  };
+  prices.push(rec);
+  DB.set('supplier_prices', prices);
+  sbSync('supplier_prices', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم حفظ السعر','✅ Prix enregistré'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'prices'});
+}
+
+function deleteSupplierPrice(priceId, supplierId) {
+  if (!confirm(L('حذف هذا السعر؟','Supprimer ce prix ?'))) return;
+  DB.set('supplier_prices', (DB.get('supplier_prices')||[]).filter(p=>p.id!==priceId));
+  sbSyncDelete('supplier_prices', priceId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'prices'});
+}
+
+// ── حفظ التزام ──
+function saveObligation(supplierId) {
+  const desc   = document.getElementById('oblDesc')?.value?.trim();
+  const amount = parseFloat(document.getElementById('oblAmount')?.value)||0;
+  if (!desc)   { Toast.error(L('أدخل وصف الالتزام','Renseignez la description')); return; }
+  if (!amount) { Toast.error(L('أدخل المبلغ','Renseignez le montant')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const obls = DB.get('supplier_obligations')||[];
+  const rec = {
+    id: DB.nextId('supplier_obligations'),
+    tenant_id: tid, supplier_id: supplierId,
+    type:        document.getElementById('oblType')?.value||'invoice',
+    description: desc,
+    amount,
+    due_date:    document.getElementById('oblDue')?.value||'',
+    ref:         document.getElementById('oblRef')?.value||'',
+    status:      'pending',
+    created_at:  todayStr()
+  };
+  obls.push(rec);
+  DB.set('supplier_obligations', obls);
+  sbSync('supplier_obligations', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل الالتزام','✅ Obligation enregistrée'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'obligations'});
+}
+
+function markOblDone(oblId, supplierId) {
+  const obls = DB.get('supplier_obligations')||[];
+  const idx  = obls.findIndex(o=>o.id===oblId);
+  if (idx<0) return;
+  obls[idx].status   = 'done';
+  obls[idx].done_date = todayStr();
+  DB.set('supplier_obligations', obls);
+  sbSync('supplier_obligations', obls[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم تأشير الالتزام كمنجز','✅ Obligation accomplie'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'obligations'});
+}
+
+function deleteObligation(oblId, supplierId) {
+  if (!confirm(L('حذف هذا الالتزام؟','Supprimer cette obligation ?'))) return;
+  DB.set('supplier_obligations', (DB.get('supplier_obligations')||[]).filter(o=>o.id!==oblId));
+  sbSyncDelete('supplier_obligations', oblId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'obligations'});
+}
+
+function exportSuppliersCSV() {
+  const tid = Auth.getUser().tenant_id;
+  const suppliers = (DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid);
+  const header = [L('الاسم','Nom'),L('النشاط','Activité'),L('الهاتف','Téléphone'),'NIF','RC',L('الولاية','Wilaya'),'Email',L('التقييم','Évaluation'),L('الملاحظات','Notes')];
+  const rows = suppliers.map(s=>[s.name,s.activity||'',s.phone||'',s.nif||'',s.rc||'',s.wilaya||'',s.email||'',(s.rating||0)+'/5',s.notes||'']);
+  const csv = [header,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Fournisseurs_SmartStruct_'+todayStr()+'.csv';
+  a.click();
+  Toast.success(L('✅ تم تصدير CSV','✅ CSV exporté'));
+}
+
 
 function exportInvoicesCSV() {
   const tid=Auth.getUser().tenant_id;
