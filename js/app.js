@@ -17337,6 +17337,8 @@ Pages.invoices = function() {
     <!-- Stats Cards -->
     ${_projectFilterBar(projects,'invoices',projFilter)}
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card" style="border-color:rgba(52,195,143,0.2)">
+        <div class="stat-icon">✅</div>
         <div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total_paid)}</div>
         <div class="stat-label">${L('مدفوعة (دج)','Payées (DA)')}</div>
         <div style="font-size:.7rem;color:var(--dim);margin-top:4px">${invoices.filter(i=>i.status==='paid').length} ${L('فاتورة','facture(s)')}</div>
