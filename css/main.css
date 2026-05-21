@@ -932,17 +932,16 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 .auth-input-eye:hover{background:rgba(232,184,75,0.08); color:var(--gold)}
 [dir="ltr"] .auth-input-eye{left:auto; right:0.5rem}
 
-/* حقل كلمة المرور — padding إضافي لتجنب تداخل العين مع النص */
-.auth-input[type="password"],
-.auth-input[id$="Pass"],
-.auth-input[id$="pass"]{
-  padding-left:2.8rem;
+/* حقل كلمة المرور — padding لتجنب التداخل مع زر العين */
+/* RTL (عربي): زر العين على اليسار → padding-left كبير */
+.auth-input[type="password"]{
+  padding-left: 2.8rem !important;
+  padding-right: 1rem !important;
 }
-[dir="ltr"] .auth-input[type="password"],
-[dir="ltr"] .auth-input[id$="Pass"],
-[dir="ltr"] .auth-input[id$="pass"]{
-  padding-left:1rem;
-  padding-right:2.8rem;
+/* LTR (فرنسي): زر العين على اليمين → padding-right كبير */
+[dir="ltr"] .auth-input[type="password"]{
+  padding-left: 2.8rem !important;  /* للأيقونة القفل */
+  padding-right: 2.8rem !important; /* لزر العين */
 }
 
 /* Password strength */
