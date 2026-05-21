@@ -3339,12 +3339,14 @@ function renderRegisterForm(L) {
 
     <div class="auth-field">
       <label class="auth-label">${L('البريد الإلكتروني','Email')} <span class="auth-required">*</span></label>
-      <div class="auth-input-wrap" style="position:relative">
-        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email" style="padding-left:${L('2.5rem','2.5rem')};padding-right:${L('8rem','8rem')}">
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <div class="auth-input-wrap" style="flex:1">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email">
+        </div>
         <button type="button" id="sendOtpBtn" onclick="sendVerificationCode()"
-          style="position:absolute;${I18N.currentLang==='ar'?'left':'right'}:.4rem;top:50%;transform:translateY(-50%);padding:.3rem .7rem;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:6px;cursor:pointer;white-space:nowrap">
-          📧 ${L('إرسال كود','Envoyer code')}
+          style="flex-shrink:0;padding:.72rem .9rem;font-size:.76rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:11px;cursor:pointer;white-space:nowrap;height:auto">
+          📧 ${L('إرسال كود','Envoyer')}
         </button>
       </div>
       <div id="otpStatus" style="display:none;margin-top:.4rem;font-size:.75rem"></div>
