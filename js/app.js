@@ -11524,12 +11524,124 @@ function addWorker() {
 
 function editWorker(id) {
   if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لتعديل العامل','Permission refusée : ouvrier')); return; }
-  const w=DB.get('workers').find(w=>w.id===id); if(!w) return;
-  document.getElementById('ewId').value=id; document.getElementById('ewName').value=w.full_name;
-  document.getElementById('ewRole').value=w.role; document.getElementById('ewPhone').value=w.phone||'';
-  document.getElementById('ewSalary').value=w.daily_salary; document.getElementById('ewContract').value=w.contract_type;
-  document.getElementById('ewProject').value=w.project_id||'';
-  document.getElementById('editWorkerModal').classList.add('show');
+  const w = DB.get('workers').find(w=>w.id===id);
+  if (!w) return;
+
+  // إذا كان الـ modal غير موجود في الصفحة الحالية → نُنشئه
+  if (!document.getElementById('editWorkerModal')) {
+    const tid = Auth.getUser().tenant_id;
+    const projects = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid&&!p.is_archived);
+    const modalDiv = document.createElement('div');
+    modalDiv.id = 'editWorkerModal';
+    modalDiv.className = 'modal-overlay show';
+    modalDiv.innerHTML = `
+      <div class="modal modal-lg">
+        <div class="modal-title">✏️ ${L('تعديل بيانات العامل','Modifier ouvrier')}</div>
+        <input type="hidden" id="ewId">
+        <div class="form-grid-2">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label>
+            <input class="form-input" id="ewName">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المهنة *','Métier *')}</label>
+            <input class="form-input" id="ewRole">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الهاتف','Téléphone')}</label>
+            <input class="form-input" id="ewPhone" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label>
+            <input class="form-input" id="ewSalary" type="number" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('نوع العقد','Type contrat')}</label>
+            <select class="form-select" id="ewContract">
+              <option value="daily">${L('يومي','Journalier')}</option>
+              <option value="monthly">${L('شهري','Mensuel')}</option>
+              <option value="seasonal">${L('موسمي','Saisonnier')}</option>
+              <option value="contract">${L('مقاول','Sous-traitant')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المشروع','Projet')}</label>
+            <select class="form-select" id="ewProject">
+              <option value="">—</option>
+              ${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ التعيين','Date embauche')}</label>
+            <input class="form-input" id="ewHire" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ انتهاء العقد','Fin contrat')}</label>
+            <input class="form-input" id="ewContractEnd" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الحالة الاجتماعية','Situation familiale')}</label>
+            <select class="form-select" id="ewMarital">
+              <option value="single">${L('أعزب','Célibataire')}</option>
+              <option value="married">${L('متزوج','Marié(e)')}</option>
+              <option value="divorced">${L('مطلق','Divorcé(e)')}</option>
+              <option value="widowed">${L('أرمل','Veuf/Veuve')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('عدد الأطفال','Nb enfants')}</label>
+            <input class="form-input" id="ewChildren" type="number" min="0" value="0" dir="ltr">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="document.getElementById('editWorkerModal').remove()">${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveWorkerEdit()">💾 ${L('حفظ','Enregistrer')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modalDiv);
+  }
+
+  // ملء البيانات
+  document.getElementById('ewId').value = id;
+  document.getElementById('ewName').value = w.full_name || '';
+  document.getElementById('ewRole').value = w.role || '';
+  document.getElementById('ewPhone').value = w.phone || '';
+  document.getElementById('ewSalary').value = w.daily_salary || 0;
+  document.getElementById('ewContract').value = w.contract_type || 'daily';
+  document.getElementById('ewProject').value = w.project_id || '';
+  if(document.getElementById('ewHire')) document.getElementById('ewHire').value = w.hire_date||'';
+  if(document.getElementById('ewContractEnd')) document.getElementById('ewContractEnd').value = w.contract_end||'';
+  if(document.getElementById('ewMarital')) document.getElementById('ewMarital').value = w.marital_status||'single';
+  if(document.getElementById('ewChildren')) document.getElementById('ewChildren').value = w.children_count||0;
+
+  const modal = document.getElementById('editWorkerModal');
+  modal.classList.add('show');
+}
+
+function saveWorkerEdit() {
+  const id = Number(document.getElementById('ewId')?.value);
+  const ws = DB.get('workers');
+  const idx = ws.findIndex(w=>w.id===id);
+  if(idx<0) return;
+  ws[idx] = { ...ws[idx],
+    full_name:    document.getElementById('ewName')?.value||ws[idx].full_name,
+    role:         document.getElementById('ewRole')?.value||ws[idx].role,
+    phone:        document.getElementById('ewPhone')?.value||'',
+    daily_salary: Number(document.getElementById('ewSalary')?.value)||0,
+    contract_type:document.getElementById('ewContract')?.value||'daily',
+    project_id:   Number(document.getElementById('ewProject')?.value)||null,
+    hire_date:    document.getElementById('ewHire')?.value||ws[idx].hire_date||'',
+    contract_end: document.getElementById('ewContractEnd')?.value||'',
+    marital_status: document.getElementById('ewMarital')?.value||'single',
+    children_count: Number(document.getElementById('ewChildren')?.value)||0,
+  };
+  DB.set('workers', ws);
+  sbSync('workers', ws[idx], 'PATCH').catch(()=>{});
+  document.getElementById('editWorkerModal')?.remove();
+  Toast.success(L('✅ تم تحديث العامل','✅ Ouvrier mis à jour'));
+  // إعادة تحميل الصفحة الحالية
+  if(App.currentPage==='worker_profile') App.navigate('worker_profile',{id,tab:'info'});
+  else App.navigate('workers');
 }
 
 function saveWorker() {
@@ -16866,6 +16978,7 @@ Pages.invoices = function() {
             <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
               <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
+              <button class="btn btn-ghost btn-sm" onclick="uploadInvoiceToDrive(${inv.id})" title="${L('رفع لـ Google Drive','Envoyer vers Drive')}">☁️</button>
               ${inv.status==='paid'?`<button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForInvoice('quittance',${inv.id})" title="${L('وصل تسديد PDF','Quittance PDF')}">🧾</button>`:''}
               ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة كلياً','Marquer payée')}">✅</button>`:''}
               ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-gold btn-sm" onclick="recordPartialPayment(${inv.id})" title="${L('تسجيل دفع جزئي','Paiement partiel')}">💰</button>`:''}
@@ -17775,6 +17888,54 @@ function exportSuppliersCSV() {
 }
 
 
+// ── رفع الفاتورة لـ Google Drive ──
+function uploadInvoiceToDrive(invoiceId) {
+  if (typeof SmartDrive === 'undefined') {
+    Toast.error(L('Google Drive غير مُهيَّأ — اذهب للإعدادات','Google Drive non configuré'));
+    return;
+  }
+  if (!SmartDrive.isConnected()) {
+    if (confirm(L('Google Drive غير متصل. هل تريد ربطه الآن؟','Google Drive non connecté. Connecter maintenant ?'))) {
+      App.navigate('settings');
+    }
+    return;
+  }
+
+  const tid = Auth.getUser().tenant_id;
+  const inv = (DB.get('invoices')||[]).find(i=>i.id===invoiceId);
+  if (!inv) return;
+
+  Toast.info(L('⏳ جاري رفع الفاتورة لـ Drive...','⏳ Envoi vers Drive...'));
+
+  // توليد PDF كـ blob ثم رفعه
+  try {
+    // استخدام printInvoiceWindow لتوليد المحتوى
+    const blob = _generateInvoiceBlob(invoiceId);
+    const fileName = `Facture_${inv.number||invoiceId}_${todayStr()}.pdf`;
+
+    if (SmartDrive.uploadFile) {
+      SmartDrive.uploadFile(blob, fileName, 'SmartStruct/Factures').then(result => {
+        if (result?.id) {
+          Toast.success(L(`✅ تم رفع ${fileName} لـ Drive`, `✅ ${fileName} envoyé sur Drive`));
+        }
+      }).catch(() => Toast.error(L('فشل الرفع — حاول مجدداً','Échec de l\'envoi')));
+    } else {
+      // fallback: فتح Drive
+      window.open('https://drive.google.com', '_blank');
+      Toast.info(L('افتح Drive وارفع الملف يدوياً بعد تصدير PDF','Ouvrez Drive et uploadez le PDF manuellement'));
+    }
+  } catch(e) {
+    // fallback: تصدير PDF عادي
+    exportInvoicePDF(invoiceId);
+    Toast.info(L('تم تصدير PDF — ارفعه يدوياً على Drive','PDF exporté — uploadez-le manuellement sur Drive'));
+  }
+}
+
+function _generateInvoiceBlob(invoiceId) {
+  // للآن نُعيد null ويستخدم fallback
+  return null;
+}
+
 function exportInvoicesCSV() {
   const tid=Auth.getUser().tenant_id;
   const invoices=DB.get('invoices').filter(i=>i.tenant_id===tid);
@@ -18204,7 +18365,13 @@ Pages.inventory = function() {
           <div class="form-group"><label class="form-label">الحد الأدنى للتنبيه</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
           <div class="form-group"><label class="form-label">السعر/وحدة (دج)</label><input class="form-input" id="matPrice" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="matProj"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">المورد</label><input class="form-input" id="matSupplier" placeholder="اسم المورد..."></div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('المورد','Fournisseur')}</label>
+            <select class="form-select" id="matSupplier">
+              <option value="">— ${L('بدون مورد','Sans fournisseur')} —</option>
+              ${(DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid&&s.is_active!==false).map(s=>`<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="addMaterialItem()">💾 حفظ</button></div>
       </div>

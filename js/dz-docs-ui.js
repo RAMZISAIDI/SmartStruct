@@ -176,6 +176,78 @@ window.Pages.dz_documents = function() {
   </div>
 </div>
 
+<!-- ═══ Google Drive Section ═══ -->
+<div id="dzdDriveSection" style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:14px;padding:1.1rem 1.3rem;margin-bottom:1.2rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.8rem;margin-bottom:1rem">
+    <div style="display:flex;align-items:center;gap:.8rem">
+      <div style="width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#4285F4,#34A853);display:flex;align-items:center;justify-content:center;font-size:1.3rem">☁️</div>
+      <div>
+        <div style="font-weight:800;font-size:.95rem">Google Drive</div>
+        <div style="font-size:.75rem;color:var(--dim)">${_L('ربط حسابك لحفظ ومزامنة وثائقك تلقائياً','Connectez votre compte pour sauvegarder automatiquement')}</div>
+      </div>
+    </div>
+    <div id="driveConnectArea">
+      <!-- يُحدَّث بـ JS بعد التحميل -->
+      <button class="btn btn-ghost btn-sm" onclick="_checkDriveForDocs()">🔄 ${_L('فحص الاتصال','Vérifier connexion')}</button>
+    </div>
+  </div>
+
+  <!-- ملفات Drive -->
+  <div id="driveFilesArea" style="display:none">
+    <div style="font-size:.8rem;font-weight:700;color:var(--gold);margin-bottom:.6rem">📁 ${_L('آخر الملفات المحفوظة في Drive','Derniers fichiers sauvegardés')}</div>
+    <div id="driveFilesList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem;max-height:200px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<script>
+function _checkDriveForDocs() {
+  const area = document.getElementById('driveConnectArea');
+  const filesArea = document.getElementById('driveFilesArea');
+  if (!area) return;
+
+  if (typeof SmartDrive === 'undefined' || !SmartDrive.isConnected()) {
+    area.innerHTML = \`<button class="btn btn-blue btn-sm" onclick="SmartDrive&&SmartDrive.connect?SmartDrive.connect().then(()=>_checkDriveForDocs()):App.navigate('settings')">
+      🔗 \${typeof L==='function'?L('ربط Google Drive','Connecter Google Drive'):'ربط Google Drive'}
+    </button>\`;
+    return;
+  }
+
+  area.innerHTML = \`<span class="badge badge-active">✅ \${typeof L==='function'?L('متصل','Connecté')}</span>
+    <button class="btn btn-ghost btn-sm" onclick="_loadDriveFiles()" style="margin-right:.4rem">
+      📂 \${typeof L==='function'?L('عرض الملفات','Voir fichiers')}
+    </button>\`;
+}
+
+function _loadDriveFiles() {
+  const filesArea = document.getElementById('driveFilesArea');
+  const list = document.getElementById('driveFilesList');
+  if (!filesArea||!list) return;
+  filesArea.style.display = 'block';
+  list.innerHTML = '<div style="color:var(--dim);font-size:.78rem;padding:.5rem">⏳ جاري التحميل...</div>';
+
+  if (typeof SmartDrive !== 'undefined' && SmartDrive.listFiles) {
+    SmartDrive.listFiles('SmartStruct').then(files => {
+      if (!files||!files.length) {
+        list.innerHTML = '<div style="color:var(--dim);font-size:.78rem;padding:.5rem">لا توجد ملفات محفوظة بعد</div>';
+        return;
+      }
+      list.innerHTML = files.slice(0,12).map(f => \`
+        <a href="\${f.webViewLink||'#'}" target="_blank" style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);font-size:.75rem;overflow:hidden">
+          <span>\${f.mimeType?.includes('pdf')?'📄':'📁'}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">\${f.name}</span>
+        </a>\`).join('');
+    }).catch(() => {
+      list.innerHTML = '<div style="color:var(--red);font-size:.78rem;padding:.5rem">⚠️ تعذّر تحميل الملفات</div>';
+    });
+  } else {
+    list.innerHTML = '<div style="color:var(--dim);font-size:.78rem;padding:.5rem">Drive غير متصل — اذهب للإعدادات</div>';
+  }
+}
+
+// تشغيل تلقائي
+setTimeout(_checkDriveForDocs, 300);
+</script>
+
 <div class="dzd-hero">
   <div>
     <h2>📋 ${totalDocs} ${_L('نوع وثيقة احترافية', 'types de documents pro.')}</h2>
