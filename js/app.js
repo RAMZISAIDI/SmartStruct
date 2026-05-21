@@ -3396,7 +3396,6 @@ async function doRegister() {
       method: 'POST', headers: sbHUpsert,
       body: JSON.stringify({
         name: company.trim(),
-        name_fr: companyFr.trim() || company.trim(),
         plan_id: 2, wilaya: wilaya,
         subscription_status: 'trial',
         trial_start: registrationDate,
@@ -7431,18 +7430,20 @@ Pages.settings = function() {
               } else {
                 bodyEl.innerHTML = '<div style="background:rgba(255,193,7,.07);border:1px solid rgba(255,193,7,.25);border-radius:10px;padding:.9rem"><div style="font-weight:700;font-size:.82rem;margin-bottom:.4rem">⚙️ Google OAuth Client ID</div><div style="font-size:.73rem;color:var(--dim);margin-bottom:.6rem;line-height:1.6">1. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285F4">Google Cloud Console</a> → Credentials<br>2. Créez OAuth 2.0 Client ID (Web Application)<br>3. Authorized origins: <code>' + window.location.origin + '</code></div><div style="display:flex;gap:.4rem"><input id="gcId" class="form-input" style="flex:1;font-size:.76rem" dir="ltr" placeholder="xxxx.apps.googleusercontent.com"><button class="btn btn-gold btn-sm" onclick="_saveGDriveClientId()">' + (window.L?L('💾 حفظ','Sauvegarder'):'💾') + '</button></div></div>';
               }
-          }
+            } // end else (not connected)
 
-          // ننتظر google-drive.js يكتمل التحميل
-          if (typeof GDrive !== 'undefined') {
-            render();
-          } else {
+          // ✅ render فوري — لا نحتاج GDrive لعرض الواجهة
+          render();
+          // إذا GDrive غير محمل بعد، أعد render بعد تحميله
+          if (typeof GDrive === 'undefined') {
             let tries = 0;
             const wait = setInterval(function() {
               tries++;
-              if (typeof GDrive !== 'undefined' || tries > 20) {
+              if (typeof GDrive !== 'undefined') {
                 clearInterval(wait);
-                render();
+                render(); // إعادة render بعد تحميل GDrive
+              } else if (tries > 40) {
+                clearInterval(wait); // 6 ثوانٍ كحد أقصى
               }
             }, 150);
           }
