@@ -16829,6 +16829,7 @@ Pages.salary = function() {
               <div style="font-size:.7rem;color:var(--dim);font-family:monospace;margin-top:2px">${L('إجمالي','Brut')}: ${fmt(calc.gross)} | CNAS: −${fmt(calc.cnas)} | IRG: −${fmt(calc.irg_net)}${calc.allocations>0?' | '+L('منح','Alloc.')+': +'+fmt(calc.allocations):''}${allowances>0?' | '+L('علاوات','Primes')+': +'+fmt(allowances):''}${otTotal>0?' | '+L('إضافي','H.Sup.')+': +'+fmt(otTotal):''}${deductions>0?' | '+L('خصومات','Déduct.')+': −'+fmt(deductions):''}</div>
               <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.4rem;flex-wrap:wrap">
                 <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.gross},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}',cnas:${calc.cnas},irg:${calc.irg_net},allocations:${calc.allocations},netSalary:${finalNet}})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 PDF</button>
+                <button class="btn btn-ghost btn-sm" onclick="editSalaryDays(${w.id},'${selectedMonthKey}')" title="${L('تعديل الأيام','Modifier jours')}">✏️ ${L('أيام','Jours')}</button>
                 <button class="btn btn-ghost btn-sm" onclick="addAllowanceModal(${w.id},'${selectedMonthKey}')" title="${L('علاوات وخصومات','Primes/Déductions')}">💰 ${L('علاوات','Primes')}</button>
                 <button class="btn btn-ghost btn-sm" onclick="addOvertime(${w.id})" title="${L('ساعات إضافية','Heures sup.')}">⏰</button>
                 <button class="btn btn-ghost btn-sm" onclick="printWorkerHistory(${w.id})" title="${L('كشف حساب كل الأشهر','Relevé annuel')}">📊</button>
@@ -16871,8 +16872,9 @@ function printWorkerHistory(wid) {
   allRecords.forEach(r => { if (r.month_key) monthsSet.add(r.month_key); });
 
   if (!monthsSet.size) {
-    Toast.warn(L('لا توجد بيانات أشهر لهذا العامل','Aucune donnée de mois pour cet employé'));
-    return;
+    // إنشاء شهر الحالي كبيانات افتراضية
+    const now2 = new Date();
+    monthsSet.add(`${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`);
   }
 
   // ترتيب الأشهر تصاعدياً
@@ -17086,6 +17088,84 @@ function printWorkerHistory(wid) {
   win.document.write(html);
   win.document.close();
   win.document.title = `Relevé_${worker.full_name.replace(/\s+/g,'_')}.pdf`;
+}
+
+// ── تعديل أيام الحضور يدوياً ──
+function editSalaryDays(workerId, monthKey) {
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+  const att = (DB.get('attendance')||[]).filter(a=>a.worker_id===workerId&&(a.date||'').startsWith(monthKey));
+  const present = att.filter(a=>a.status==='present').length;
+  const halfday = att.filter(a=>a.status==='halfday').length;
+  const absent  = att.filter(a=>a.status==='absent').length;
+  const totalDays = present + halfday * 0.5;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:400px;width:90%">
+      <div class="modal-title">✏️ ${L('تعديل أيام الحضور','Modifier jours de présence')}</div>
+      <div style="font-size:.82rem;color:var(--gold);margin-bottom:.8rem">👷 ${escHtml(worker.full_name)} — ${monthKey}</div>
+      <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:1rem;font-size:.78rem">
+        <div style="color:var(--dim);margin-bottom:.3rem">${L('الحضور الحالي من سجل الحضور:','Présence actuelle depuis le pointage:')}</div>
+        <div style="display:flex;gap:1rem">
+          <span style="color:var(--green)">✅ ${present} ${L('حضور','présent')}</span>
+          <span style="color:var(--gold)">½ ${halfday} ${L('نصف يوم','demi-j.')}</span>
+          <span style="color:var(--red)">❌ ${absent} ${L('غياب','absent')}</span>
+          <span style="font-weight:700">= ${totalDays} ${L('يوم','j.')}</span>
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem">${L('يمكنك تجاوز الأيام المحسوبة يدوياً:','Vous pouvez remplacer les jours calculés manuellement:')}</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label">${L('أيام حضور كاملة','Jours présence')}</label>
+          <input class="form-input" id="_editPresent" type="number" min="0" max="31" value="${present}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${L('أيام نصف يوم','Demi-journées')}</label>
+          <input class="form-input" id="_editHalf" type="number" min="0" max="31" value="${halfday}" dir="ltr">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_saveSalaryDays(${workerId},'${monthKey}')">💾 ${L('حفظ وإعادة الحساب','Sauvegarder')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _saveSalaryDays(workerId, monthKey) {
+  const present = Number(document.getElementById('_editPresent')?.value)||0;
+  const halfday = Number(document.getElementById('_editHalf')?.value)||0;
+  const tid = Auth.getUser().tenant_id;
+  const att = DB.get('attendance')||[];
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+
+  // حذف سجلات الحضور لهذا الشهر ثم إعادة إنشائها
+  const otherAtt = att.filter(a=>!(a.worker_id===workerId&&(a.date||'').startsWith(monthKey)));
+  const [y,m] = monthKey.split('-').map(Number);
+  const newAtt = [];
+  const startDay = new Date(y,m-1,1);
+
+  // إضافة أيام حضور كاملة
+  for(let i=0;i<present;i++){
+    const d = new Date(startDay);
+    d.setDate(d.getDate()+i);
+    newAtt.push({id:DB.nextId('attendance'),tenant_id:tid,worker_id:workerId,project_id:worker.project_id||null,date:d.toISOString().split('T')[0],status:'present',hours:8,note:L('تعديل يدوي','Modif. manuelle'),created_at:new Date().toISOString()});
+  }
+  // إضافة أيام نصف يوم
+  for(let i=0;i<halfday;i++){
+    const d = new Date(startDay);
+    d.setDate(d.getDate()+present+i);
+    newAtt.push({id:DB.nextId('attendance'),tenant_id:tid,worker_id:workerId,project_id:worker.project_id||null,date:d.toISOString().split('T')[0],status:'halfday',hours:4,note:L('تعديل يدوي','Modif. manuelle'),created_at:new Date().toISOString()});
+  }
+
+  DB.set('attendance',[...otherAtt,...newAtt]);
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(L(`✅ تم تحديث الأيام: ${present} حضور + ${halfday} نصف يوم`,`✅ Jours mis à jour: ${present} présent + ${halfday} demi`));
+  App.navigate('salary',{monthKey});
 }
 
 function paySalary(wid, monthKey, amount) {
