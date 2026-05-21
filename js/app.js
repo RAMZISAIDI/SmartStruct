@@ -5837,12 +5837,49 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
   .footer .gld{color:#E8B84B;font-weight:700}
   .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid #E8B84B;border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
   @media print{
-    body{background:#fff;padding:0}
+    body{background:#fff!important;padding:0!important}
     .no-print{display:none!important}
-    .sheet{box-shadow:none;border-radius:0;max-width:100%}
-    thead tr{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .hdr,.footer{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .gold-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .sheet{box-shadow:none!important;border-radius:0!important;max-width:100%!important}
+    /* تحويل الهيدر الأسود لأبيض مع حدود ذهبية */
+    .hdr{
+      background:#fff!important;
+      border-bottom:3px solid #C49030!important;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    }
+    .co-name{color:#1a1a1a!important}
+    .co-sub{color:#555!important}
+    .doc-title{color:#1a1a1a!important}
+    .doc-sub{color:#C49030!important}
+    /* تحويل thead الأسود */
+    thead tr{
+      background:#C49030!important;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    }
+    thead th{color:#fff!important}
+    /* تحويل الفوتر الأسود */
+    .footer{
+      background:#fff!important;
+      border-top:1px solid #e0e0e0!important;
+      -webkit-print-color-adjust:exact;
+    }
+    .footer span{color:#555!important}
+    .footer .gld{color:#C49030!important}
+    /* الشريط الذهبي */
+    .gold-bar{
+      background:#C49030!important;
+      height:2px!important;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    }
+    /* صف الإجمالي الأسود في summaryRows */
+    div[style*="background:#141414"]{
+      background:#f5f0e8!important;
+      color:#1a1a1a!important;
+      border:1px solid #C49030!important;
+    }
+    @page{margin:12mm;size:A4}
   }
 </style>
 </head>
@@ -16943,7 +16980,13 @@ function printWorkerHistory(wid) {
   .sum-lbl  { font-size:.72rem; color:#888; margin-top:3px; }
   .gold-bar { height:4px; background:linear-gradient(90deg,#B8902F,#E8B84B,#B8902F); border-radius:2px; margin:12px 0; }
   .footer   { margin-top:16px; padding-top:10px; border-top:1px solid #e8e0cc; display:flex; justify-content:space-between; font-size:.72rem; color:#999; }
-</style>
+  @media print {
+    .no-print { display:none!important; }
+    body { background:#fff!important; }
+    thead tr { background:#B8902F!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .gold-bar { background:#B8902F!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    @page { size:A4 landscape; margin:12mm; }
+  }
 </head>
 <body>
 <div class="no-print">
@@ -18351,6 +18394,26 @@ function printInvoiceWindow(id, autoPrint = false) {
   .inv-num {
     font-size: 13px; color: #E8B84B; font-weight: 700; margin-top: 4px;
     text-align: ${isAr ? 'left' : 'right'};
+  }
+
+  /* ── طباعة: بدون خلفيات داكنة لتوفير الحبر ── */
+  @media print {
+    body { background: #fff !important; padding: 10px !important; }
+    .no-print { display: none !important; }
+    .page { box-shadow: none !important; border-radius: 0 !important; }
+    .inv-header {
+      background: #fff !important;
+      border: 2px solid #C49030 !important;
+      border-bottom: 3px solid #C49030 !important;
+    }
+    .brand-name { color: #C49030 !important; }
+    .inv-label  { color: #1a1a1a !important; }
+    .inv-num    { color: #C49030 !important; }
+    .brand-sub  { color: #555 !important; }
+    .gold-bar   { background: #C49030 !important; height: 2px !important; -webkit-print-color-adjust: exact; }
+    .items-header { background: #C49030 !important; -webkit-print-color-adjust: exact; }
+    .total-block  { background: #1a1a1a !important; -webkit-print-color-adjust: exact; }
+    @page { margin: 12mm; }
   }
 
   /* ── Bande dorée fine ── */
