@@ -7,7 +7,7 @@ const EMAILJS_DEFAULTS = {
   SERVICE_ID:     'service_37ya8ru',
   TEMPLATE_ADMIN: 'template_haus94b',
   TEMPLATE_USER:  'template_9hzgy4s',
-  TEMPLATE_OTP:   'template_abc123',   // ← ضع هنا Template ID من EmailJS
+  TEMPLATE_OTP:   'template_abc123',   // One-Time Password template
   PUBLIC_KEY:     'hn_PRTs7PuJAgrrDp',
   ADMIN_EMAIL:    'ramzisaidi2018@gmail.com',
 };

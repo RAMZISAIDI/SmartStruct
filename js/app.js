@@ -146,31 +146,31 @@ const Auth = {
     sessionStorage.setItem('sbtp_user', JSON.stringify(user));
     return true;
   },
-  logout() {
-    // تنبيه فقط عند وجود تعديلات/عمليات معلّقة (لا نمنع تسجيل الخروج)
+  // ── خروج مباشر بدون فحص ──
+  _forceLogout() {
+    this.currentUser = null;
+    sessionStorage.removeItem('sbtp_user');
+    if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
+    App.navigate('landing');
+  },
+
+  async logout() {
+    // ── فحص البيانات المعلقة ──
+    let pendingCount = 0;
     try {
-      const dirty = (typeof DBHybrid !== 'undefined' && DBHybrid && typeof DBHybrid.hasUploadRequired === 'function')
-        ? DBHybrid.hasUploadRequired()
-        : (localStorage.getItem('sbtp5_sync_dirty') === '1');
+      pendingCount = (typeof SmartRealtime !== 'undefined' && SmartRealtime.getOfflineQueueCount)
+        ? SmartRealtime.getOfflineQueueCount()
+        : (() => { try { return (JSON.parse(localStorage.getItem('sbtp5_offline_queue')||'[]')||[]).length; } catch { return 0; } })();
+    } catch(e) {}
 
-      const pending = (typeof DBHybrid !== 'undefined' && DBHybrid && typeof DBHybrid.getOfflineQueueCount === 'function')
-        ? DBHybrid.getOfflineQueueCount()
-        : (() => { try { return (JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]') || []).length; } catch { return 0; } })();
-
-      if (dirty || pending) {
-        if (typeof Toast !== 'undefined') {
-          const msg = pending
-            ? `⚠️ تنبيه: لديك عمليات لم تُرفع بعد إلى Supabase (المعلقة: ${pending}). يمكنك رفعها لاحقاً من زر المزامنة.`
-            : `⚠️ تنبيه: لديك تعديلات لم تُرفع بعد إلى Supabase. يمكنك رفعها لاحقاً من زر المزامنة.`;
-          Toast.warn(msg);
-        }
-        // ملاحظة: لا نمنع تسجيل الخروج ولا نُحوّل المستخدم لأي صفحة
-      }
-    } catch (e) {}
+    if (pendingCount > 0) {
+      // ── عرض dialog احترافي ──
+      const confirmed = await _showUnsyncedDialog(pendingCount, false);
+      if (!confirmed) return; // المستخدم اختار البقاء
+    }
 
     this.currentUser = null;
     sessionStorage.removeItem('sbtp_user');
-    // ⚡ إيقاف Realtime عند تسجيل الخروج
     if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
     App.navigate('landing');
   },
@@ -1054,6 +1054,130 @@ function accessDeniedHTML(pageName) {
       <button class="btn btn-gold" onclick="App.navigate('dashboard')">⬅️ ${L('العودة للوحة التحكم','Retour au tableau de bord')}</button>
     </div>
   `);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  🛡️ نظام حماية البيانات — منع فقدان التعديلات غير المرفوعة
+// ══════════════════════════════════════════════════════════════
+
+// ── فحص البيانات المعلقة ──
+function _getPendingCount() {
+  try {
+    if (typeof SmartRealtime !== 'undefined' && SmartRealtime.getOfflineQueueCount)
+      return SmartRealtime.getOfflineQueueCount();
+    const q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
+    return Array.isArray(q) ? q.length : 0;
+  } catch { return 0; }
+}
+
+// ── dialog تحذير قبل الخروج ──
+function _showUnsyncedDialog(count, isWindowClose = false) {
+  return new Promise(resolve => {
+    // حذف أي dialog سابق
+    document.getElementById('_unsyncedDialog')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = '_unsyncedDialog';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+
+    overlay.innerHTML = `
+      <div style="background:#0e1720;border:1px solid rgba(232,184,75,.3);border-radius:16px;padding:2rem;max-width:420px;width:90%;box-shadow:0 30px 80px rgba(0,0,0,.6)">
+        <div style="text-align:center;margin-bottom:1.5rem">
+          <div style="font-size:2.5rem;margin-bottom:.8rem">⚠️</div>
+          <div style="font-size:1.1rem;font-weight:800;color:#F0EDE4;margin-bottom:.5rem">
+            ${L('بيانات لم تُرفع بعد!','Données non synchronisées!')}
+          </div>
+          <div style="font-size:.85rem;color:rgba(240,237,228,.6);line-height:1.6">
+            ${L(`لديك <strong style="color:#E8B84B">${count} عملية</strong> معلقة لم تُرفع لـ Supabase بعد.<br>إذا خرجت الآن قد تفقد هذه التعديلات.`,
+               `Vous avez <strong style="color:#E8B84B">${count} opération(s)</strong> en attente.<br>Quitter maintenant peut entraîner une perte de données.`)}
+          </div>
+        </div>
+
+        <!-- Progress bar مخفي ابتداءً -->
+        <div id="_syncProgress" style="display:none;margin-bottom:1.2rem">
+          <div style="font-size:.78rem;color:rgba(240,237,228,.6);margin-bottom:.4rem;text-align:center" id="_syncProgressText">
+            ${L('جاري الرفع...','Synchronisation...')}
+          </div>
+          <div style="background:rgba(255,255,255,.1);border-radius:99px;height:6px;overflow:hidden">
+            <div id="_syncProgressBar" style="height:100%;background:linear-gradient(90deg,#E8B84B,#D4AF37);border-radius:99px;width:0%;transition:width .3s"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:.6rem" id="_syncBtns">
+          <button id="_btnSyncNow" style="padding:.8rem;background:linear-gradient(135deg,#E8B84B,#D4AF37);border:none;border-radius:10px;color:#0a0e1a;font-weight:800;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem"
+            onclick="_doSyncBeforeExit(${isWindowClose})">
+            ☁️ ${L('ارفع التعديلات ثم اخرج','Synchroniser puis quitter')}
+          </button>
+          <button style="padding:.7rem;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.3);border-radius:10px;color:#F09595;font-weight:600;font-size:.85rem;cursor:pointer"
+            onclick="document.getElementById('_unsyncedDialog').remove();${isWindowClose ? '' : "Auth._forceLogout()"}">
+            🚪 ${L('اخرج بدون رفع (قد تفقد البيانات)','Quitter sans synchroniser')}
+          </button>
+          ${!isWindowClose ? `
+          <button style="padding:.7rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:rgba(240,237,228,.7);font-size:.85rem;cursor:pointer"
+            onclick="document.getElementById('_unsyncedDialog').remove()">
+            ← ${L('رجوع — لا أريد الخروج','Annuler')}
+          </button>` : ''}
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    // resolve(false) = المستخدم اختار البقاء
+    // resolve(true)  = يمكن الخروج
+    overlay._resolve = resolve;
+  });
+}
+
+// ── رفع قبل الخروج ──
+async function _doSyncBeforeExit(isWindowClose) {
+  const progressDiv  = document.getElementById('_syncProgress');
+  const progressBar  = document.getElementById('_syncProgressBar');
+  const progressText = document.getElementById('_syncProgressText');
+  const btnsDiv      = document.getElementById('_syncBtns');
+
+  if (progressDiv) progressDiv.style.display = 'block';
+  if (btnsDiv) btnsDiv.style.display = 'none';
+
+  let progress = 0;
+  const timer = setInterval(() => {
+    progress = Math.min(progress + 8, 90);
+    if (progressBar) progressBar.style.width = progress + '%';
+  }, 150);
+
+  try {
+    // محاولة رفع القائمة
+    if (typeof SmartRealtime !== 'undefined' && SmartRealtime._flushOfflineQueue) {
+      await SmartRealtime._flushOfflineQueue();
+    } else if (typeof SmartRealtime !== 'undefined' && SmartRealtime.forceSync) {
+      await SmartRealtime.forceSync();
+    }
+
+    clearInterval(timer);
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressText) progressText.textContent = L('✅ تم الرفع بنجاح!','✅ Synchronisation réussie!');
+
+    await new Promise(r => setTimeout(r, 800));
+
+  } catch(e) {
+    clearInterval(timer);
+    if (progressText) {
+      progressText.style.color = '#F09595';
+      progressText.textContent = L('⚠️ تعذّر الرفع الكامل — سيتم المحاولة عند تسجيل الدخول التالي',
+                                   '⚠️ Synchronisation partielle — réessai à la prochaine connexion');
+    }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  document.getElementById('_unsyncedDialog')?.remove();
+
+  // إتمام الخروج
+  if (!isWindowClose) {
+    Auth._forceLogout();
+  } else {
+    // للإغلاق: نُبلّغ أن الرفع انتهى
+    const overlay = document.getElementById('_unsyncedDialog');
+    if (overlay?._resolve) overlay._resolve(true);
+  }
 }
 
 const App = {
@@ -3217,9 +3341,9 @@ function renderRegisterForm(L) {
       <label class="auth-label">${L('البريد الإلكتروني','Email')} <span class="auth-required">*</span></label>
       <div class="auth-input-wrap" style="position:relative">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email" style="padding-left:2.5rem;padding-right:7.5rem">
+        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email" style="padding-left:${L('2.5rem','2.5rem')};padding-right:${L('8rem','8rem')}">
         <button type="button" id="sendOtpBtn" onclick="sendVerificationCode()"
-          style="position:absolute;right:.4rem;top:50%;transform:translateY(-50%);padding:.3rem .7rem;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:6px;cursor:pointer;white-space:nowrap;z-index:2">
+          style="position:absolute;${I18N.currentLang==='ar'?'left':'right'}:.4rem;top:50%;transform:translateY(-50%);padding:.3rem .7rem;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:6px;cursor:pointer;white-space:nowrap">
           📧 ${L('إرسال كود','Envoyer code')}
         </button>
       </div>
@@ -21902,6 +22026,32 @@ const SmartNotify = {
 // تشغيل الإشعارات عند تسجيل الدخول
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => { if (Auth.getUser()) SmartNotify.runDaily(); }, 5000);
+});
+
+// ── 🛡️ حماية البيانات عند إغلاق النافذة ──
+window.addEventListener('beforeunload', function(e) {
+  // فقط إذا كان المستخدم مسجلاً دخوله
+  if (!Auth.getUser()) return;
+
+  const pending = _getPendingCount();
+  if (pending > 0) {
+    // رسالة المتصفح القياسية (لا يمكن تخصيصها في المتصفحات الحديثة)
+    const msg = L(
+      `لديك ${pending} تعديل لم يُرفع بعد — هل تريد المغادرة؟`,
+      `Vous avez ${pending} modification(s) non synchronisée(s) — Quitter?`
+    );
+    e.preventDefault();
+    e.returnValue = msg;
+
+    // محاولة رفع في الخلفية قبل الإغلاق (best effort)
+    try {
+      if (typeof SmartRealtime !== 'undefined' && SmartRealtime._flushOfflineQueue) {
+        SmartRealtime._flushOfflineQueue().catch(() => {});
+      }
+    } catch {}
+
+    return msg;
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════
