@@ -38,7 +38,11 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
   set(key, val) { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); },
   nextId(key) {
     const items = this.get(key);
-    return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
+    if (!items.length) return Date.now();
+    const maxId = Math.max(...items.map(i => Number(i.id)||0));
+    // إذا كان الـ ID الأقصى من Supabase BigSerial (أكبر من 2 مليار) نستخدم timestamp بدلاً منه
+    if (maxId > 2_000_000_000) return Date.now();
+    return maxId + 1;
   }
 };
 
@@ -1440,7 +1444,7 @@ function layoutHTML(active, breadcrumb, content) {
     <main class="page-content animate-fade">${content}</main>
     <footer style="padding:.8rem 1.8rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
       <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct — منصة إدارة مشاريع المقاولة الجزائرية</span>
-      <span style="font-size:.7rem;color:var(--dim)">v7.3</span>
+      
     </footer>
   </div></div>`;
 }
@@ -6367,27 +6371,29 @@ Pages.workers = function() {
 
 /* ─── EQUIPMENT ─── */
 
-// ── فلتر المشروع المشترك بين الصفحات ──
 function _getProjectFilter(pageKey) {
   return sessionStorage.getItem('proj_filter_' + pageKey) || 'all';
 }
 function _setProjectFilter(pageKey, projId) {
   sessionStorage.setItem('proj_filter_' + pageKey, projId);
 }
-function _projectFilterBar(projects, pageKey, currentFilter, navigateFn) {
-  const tid = Auth.getUser().tenant_id;
-  const allLabel = L('كل المشاريع','Tous les projets');
-  const opts = projects.map(p =>
-    `<option value="${p.id}" ${currentFilter==p.id?'selected':''}>${escHtml(p.name.substring(0,28))}</option>`
-  ).join('');
-  return `<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem">
-    <span style="font-size:.78rem;color:var(--dim);font-weight:600">🔍 ${L('عرض:','Afficher:')}</span>
-    <select class="form-select" style="width:auto;min-width:180px;font-size:.82rem;padding:.3rem .8rem"
-      onchange="_setProjectFilter('${pageKey}',this.value);App.navigate('${pageKey}')">
-      <option value="all" ${currentFilter==='all'?'selected':''}>${allLabel} (${projects.length})</option>
-      ${opts}
+function _projectFilterBar(projects, pageKey, currentFilter) {
+  if (!projects || projects.length === 0) return '';
+  const hasFilter = currentFilter !== 'all';
+  const selProj = projects.find(p=>String(p.id)===String(currentFilter));
+  return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;padding:.5rem .7rem;background:rgba(232,184,75,.05);border:1px solid rgba(232,184,75,.15);border-radius:10px;flex-wrap:wrap">
+    <span style="font-size:.76rem;color:var(--dim);white-space:nowrap">🔍 ${L('تصفية بالمشروع:','Filtrer par projet:')}</span>
+    <select style="flex:1;min-width:160px;max-width:300px;padding:.3rem .6rem;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:.8rem;cursor:pointer"
+      onchange="(function(v){sessionStorage.setItem('proj_filter_${pageKey}',v);App.navigate('${pageKey}');})(this.value)">
+      <option value="all" ${!hasFilter?'selected':''}>${L('كل المشاريع','Tous les projets')} (${projects.length})</option>
+      ${projects.map(p=>`<option value="${p.id}" ${String(currentFilter)===String(p.id)?'selected':''}>${escHtml(p.name.substring(0,30))}</option>`).join('')}
     </select>
-    ${currentFilter!=='all'?`<button class="btn btn-ghost btn-sm" onclick="_setProjectFilter('${pageKey}','all');App.navigate('${pageKey}')">✕ ${L('إلغاء الفلتر','Effacer filtre')}</button>`:''}
+    ${hasFilter ? `
+    <span style="font-size:.76rem;color:var(--gold);font-weight:600">← ${escHtml(selProj?.name||'')}</span>
+    <button style="padding:.2rem .6rem;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);border-radius:6px;color:var(--red);font-size:.72rem;cursor:pointer"
+      onclick="sessionStorage.setItem('proj_filter_${pageKey}','all');App.navigate('${pageKey}')">
+      ✕ ${L('الكل','Tout')}
+    </button>` : ''}
   </div>`;
 }
 
@@ -10123,7 +10129,7 @@ Pages.admin = function() {
       </main>
       <footer style="padding:.8rem 1.8rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
         <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct Admin Panel</span>
-        <span style="font-size:.7rem;color:var(--dim)">v7.0 Pro Edition</span>
+        
       </footer>
     </div>
   </div>`;

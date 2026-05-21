@@ -1122,8 +1122,11 @@ if (!navigator.onLine || !this._useSupabase) {
   },
 
   nextId(key) {
-    const items = this.get(key);
-    return items.length ? Math.max(...items.map(i => i.id || 0)) + 1 : 1;
+    const items = this.get(key) || [];
+    if (!items.length) return Date.now();
+    const maxId = Math.max(...items.map(i => Number(i.id)||0));
+    if (maxId > 2_000_000_000) return Date.now();
+    return maxId + 1;
   },
 
 
@@ -1580,8 +1583,24 @@ if (!navigator.onLine || !this._useSupabase) {
     const isAdmin = user?.is_admin;
 
     // ✅ تنظيف البيانات اليتيمة من localStorage قبل المزامنة
-    // (سجلات تُشير لـ tenant_id غير موجود → تُسبب FK violations)
     this._cleanOrphanedLocalData();
+
+    // ✅ تنظيف السجلات المحلية ذات IDs تجاوزت حد INTEGER (من Supabase BigSerial)
+    // هذه السجلات تسبب "out of range for type integer" عند POST
+    try {
+      const tablesToCheck = ['documents','notifications','audit_log','kanban_tasks'];
+      tablesToCheck.forEach(t => {
+        const items = this.get(t) || [];
+        const cleaned = items.filter(r => {
+          const id = Number(r.id||0);
+          return id <= 2_147_483_647; // max INT4
+        });
+        if (cleaned.length < items.length) {
+          this.setSilent ? this.setSilent(t, cleaned) : this.set(t, cleaned);
+          console.warn(`🧹 ${t}: حُذف ${items.length-cleaned.length} سجل بـ ID فائق الحجم`);
+        }
+      });
+    } catch(e) {}
 
     // الجداول التي تحتوي tenant_id (تُسحب مفلترة للمستخدم العادي)
     const tenantTables = [
