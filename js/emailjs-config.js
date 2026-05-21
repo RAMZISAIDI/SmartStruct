@@ -2,186 +2,139 @@
 //  EmailJS Configuration — SmartStruct
 // ═══════════════════════════════════════════
 
-// ── القيم الافتراضية ──
+// ── القيم الافتراضية — يمكن تغييرها من صفحة المسؤول وتُحفظ في localStorage ──
 const EMAILJS_DEFAULTS = {
   SERVICE_ID:     'service_37ya8ru',
   TEMPLATE_ADMIN: 'template_haus94b',
   TEMPLATE_USER:  'template_9hzgy4s',
-
-  // ← ضع Template ID الحقيقي من EmailJS
-  TEMPLATE_OTP:   'template_abc123',
-
+  TEMPLATE_OTP:   'template_abc123',   // ← ضع هنا Template ID من EmailJS
   PUBLIC_KEY:     'hn_PRTs7PuJAgrrDp',
   ADMIN_EMAIL:    'ramzisaidi2018@gmail.com',
 };
-
-// ──────────────────────────────────────────
-// حفظ / جلب الإعدادات
-// ──────────────────────────────────────────
 function getEmailJSConfig() {
   try {
     const saved = JSON.parse(localStorage.getItem('sbtp_emailjs_config') || '{}');
     return { ...EMAILJS_DEFAULTS, ...saved };
-  } catch(e) {
-    return { ...EMAILJS_DEFAULTS };
-  }
+  } catch(e) { return { ...EMAILJS_DEFAULTS }; }
 }
-
 function saveEmailJSConfig(cfg) {
   localStorage.setItem('sbtp_emailjs_config', JSON.stringify(cfg));
-
-  try {
-    emailjs.init({
-      publicKey: cfg.PUBLIC_KEY
-    });
-  } catch(e) {}
+  // أعد تهيئة EmailJS بالـ Public Key الجديد
+  try { emailjs.init({ publicKey: cfg.PUBLIC_KEY }); } catch(e) {}
 }
 
-// ──────────────────────────────────────────
-// نظام OTP
-// ──────────────────────────────────────────
-
-// إنشاء كود OTP عشوائي
-function generateOTP(length = 6) {
-  let otp = '';
-
-  for(let i = 0; i < length; i++) {
-    otp += Math.floor(Math.random() * 10);
-  }
-
-  return otp;
-}
-
-// حفظ OTP مؤقتاً
-function saveOTP(email, otp) {
-  const data = {
-    otp,
-    expires: Date.now() + (5 * 60 * 1000) // صالح 5 دقائق
-  };
-
-  localStorage.setItem(`otp_${email}`, JSON.stringify(data));
-}
-
-// التحقق من OTP
-function verifyOTP(email, code) {
-  try {
-    const saved = JSON.parse(localStorage.getItem(`otp_${email}`));
-
-    if(!saved) {
-      return {
-        success: false,
-        message: 'لم يتم العثور على رمز التحقق'
-      };
-    }
-
-    // انتهاء الصلاحية
-    if(Date.now() > saved.expires) {
-      localStorage.removeItem(`otp_${email}`);
-
-      return {
-        success: false,
-        message: 'انتهت صلاحية رمز التحقق'
-      };
-    }
-
-    // تحقق من الكود
-    if(saved.otp !== code) {
-      return {
-        success: false,
-        message: 'رمز التحقق غير صحيح'
-      };
-    }
-
-    // حذف بعد النجاح
-    localStorage.removeItem(`otp_${email}`);
-
-    return {
-      success: true,
-      message: 'تم التحقق بنجاح'
-    };
-
-  } catch(e) {
-    return {
-      success: false,
-      message: 'خطأ أثناء التحقق'
-    };
-  }
-}
-
-// ──────────────────────────────────────────
-// EmailJS API
-// ──────────────────────────────────────────
 const EMAILJS = {
-
   get SERVICE_ID()     { return getEmailJSConfig().SERVICE_ID; },
   get TEMPLATE_ADMIN() { return getEmailJSConfig().TEMPLATE_ADMIN; },
   get TEMPLATE_USER()  { return getEmailJSConfig().TEMPLATE_USER; },
   get TEMPLATE_OTP()   { return getEmailJSConfig().TEMPLATE_OTP; },
   get ADMIN_EMAIL()    { return getEmailJSConfig().ADMIN_EMAIL; },
 
-  // ────────────────────────────────────────
-  // إرسال OTP
-  // ────────────────────────────────────────
-  async sendOTP(email, userName = 'مستخدم') {
-
+  // ── إرسال إشعار للمسؤول عند تسجيل حساب جديد ──
+  async notifyNewAccount(userData) {
     try {
-
-      // إنشاء الكود
-      const otp = generateOTP(6);
-
-      // حفظه مؤقتاً
-      saveOTP(email, otp);
-
       const params = {
-
-        to_email: email,
-        to_name: userName,
-
-        otp_code: otp,
-
-        app_name: 'SmartStruct',
-
-        expiry_time: '5 دقائق',
-
-        message: `
-رمز التحقق الخاص بك هو:
-
-${otp}
-
-صلاحية الرمز: 5 دقائق
-لا تشارك هذا الرمز مع أي شخص.
-        `
+        to_email:    this.ADMIN_EMAIL,
+        to_name:     'المسؤول',
+        user_name:   userData.name,
+        user_email:  userData.email,
+        company_name:userData.company,
+        plan_name:   'تجريبي 14 يوم',
+        wilaya:      userData.wilaya || '—',
+        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}),
+        message:     `تم تسجيل مؤسسة جديدة "${userData.company}" بواسطة ${userData.name} (${userData.email}) من ولاية ${userData.wilaya||'غير محددة'}.`
       };
-
-      await emailjs.send(
-        this.SERVICE_ID,
-        this.TEMPLATE_OTP,
-        params
-      );
-
-      console.log('✅ OTP Sent:', email);
-
-      return {
-        success: true,
-        message: 'تم إرسال رمز التحقق'
-      };
-
+      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_ADMIN, params);
+      console.log('✅ EmailJS: إشعار المسؤول أُرسل');
+      return true;
     } catch(e) {
-
-      console.error('❌ sendOTP:', e);
-
-      return {
-        success: false,
-        message: 'فشل إرسال رمز التحقق'
-      };
+      console.warn('⚠️ EmailJS notifyNewAccount:', e);
+      return false;
     }
   },
 
-  // ────────────────────────────────────────
-  // تحقق من OTP
-  // ────────────────────────────────────────
-  verifyOTP(email, code) {
-    return verifyOTP(email, code);
+  // ── إرسال كلمة المرور الجديدة للمستخدم ──
+  async sendNewPassword(userData, newPassword) {
+    try {
+      const params = {
+        to_email:    userData.email,
+        to_name:     userData.full_name || userData.name,
+        user_email:  userData.email,
+        new_password:newPassword,
+        company_name:userData.company || '',
+        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
+        message:     `تم تعيين كلمة مرور جديدة لحسابك في SmartStruct. يُنصح بتغييرها بعد أول تسجيل دخول.`
+      };
+      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
+      console.log('✅ EmailJS: كلمة المرور أُرسلت للمستخدم');
+      return true;
+    } catch(e) {
+      console.warn('⚠️ EmailJS sendNewPassword:', e);
+      return false;
+    }
   },
 
+  // ── إرسال إشعار طلب إعادة تعيين كلمة المرور للمسؤول ──
+  async notifyResetRequest(userData) {
+    try {
+      const params = {
+        to_email:    this.ADMIN_EMAIL,
+        to_name:     'المسؤول',
+        user_name:   userData.full_name,
+        user_email:  userData.email,
+        company_name:userData.companyName || '',
+        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}),
+        message:     `طلب المستخدم ${userData.full_name} (${userData.email}) إعادة تعيين كلمة المرور الخاصة به.`
+      };
+      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_ADMIN, params);
+      console.log('✅ EmailJS: إشعار طلب كلمة المرور أُرسل للمسؤول');
+      return true;
+    } catch(e) {
+      console.warn('⚠️ EmailJS notifyResetRequest:', e);
+      return false;
+    }
+  },
+
+  // ── إرسال إيميل تفعيل الحساب للمستخدم الجديد ──
+  async sendActivationEmail(userData) {
+    try {
+      const userName   = userData.full_name || userData.name || '';
+      const userEmail  = userData.email || '';
+      const userPass   = userData.password || '';
+      const company    = userData.company || userData.name || '';
+
+      const params = {
+        // ── المُستلِم: إيميل الحساب الجديد فقط ──
+        to_email:    userEmail,
+        to_name:     userName,
+
+        // ── بيانات الحساب للعرض في جسم الإيميل ──
+        user_email:  userEmail,
+        user_name:   userName,
+        new_password:userPass,
+        company_name:company,
+        plan_name:   'تجريبي 14 يوم',
+        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
+
+        // ── نص الرسالة الرئيسية ──
+        message: `مرحباً ${userName}،
+
+تم تفعيل حسابك في SmartStruct بنجاح! 🎉
+
+يمكنك الآن تسجيل الدخول باستخدام:
+• البريد الإلكتروني: ${userEmail}
+• كلمة المرور: ${userPass}
+
+مع تحيات فريق SmartStruct.`
+      };
+
+      // إرسال إلى إيميل الحساب الجديد مباشرةً
+      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
+      console.log(`✅ EmailJS: إيميل التفعيل أُرسل إلى ${userEmail}`);
+      return true;
+    } catch(e) {
+      console.warn('⚠️ EmailJS sendActivationEmail:', e);
+      return false;
+    }
+  }
 };
