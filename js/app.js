@@ -6366,11 +6366,42 @@ Pages.workers = function() {
 };
 
 /* ─── EQUIPMENT ─── */
+
+// ── فلتر المشروع المشترك بين الصفحات ──
+function _getProjectFilter(pageKey) {
+  return sessionStorage.getItem('proj_filter_' + pageKey) || 'all';
+}
+function _setProjectFilter(pageKey, projId) {
+  sessionStorage.setItem('proj_filter_' + pageKey, projId);
+}
+function _projectFilterBar(projects, pageKey, currentFilter, navigateFn) {
+  const tid = Auth.getUser().tenant_id;
+  const allLabel = L('كل المشاريع','Tous les projets');
+  const opts = projects.map(p =>
+    `<option value="${p.id}" ${currentFilter==p.id?'selected':''}>${escHtml(p.name.substring(0,28))}</option>`
+  ).join('');
+  return `<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem">
+    <span style="font-size:.78rem;color:var(--dim);font-weight:600">🔍 ${L('عرض:','Afficher:')}</span>
+    <select class="form-select" style="width:auto;min-width:180px;font-size:.82rem;padding:.3rem .8rem"
+      onchange="_setProjectFilter('${pageKey}',this.value);App.navigate('${pageKey}')">
+      <option value="all" ${currentFilter==='all'?'selected':''}>${allLabel} (${projects.length})</option>
+      ${opts}
+    </select>
+    ${currentFilter!=='all'?`<button class="btn btn-ghost btn-sm" onclick="_setProjectFilter('${pageKey}','all');App.navigate('${pageKey}')">✕ ${L('إلغاء الفلتر','Effacer filtre')}</button>`:''}
+  </div>`;
+}
+
 Pages.equipment = function() {
   const tid      = Auth.getUser().tenant_id;
-  const equip    = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const allEquip = DB.get('equipment').filter(e=>e.tenant_id===tid);
   const logs     = DB.get('equipment_logs')||[];
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('equipment');
+  const equip = projFilter==='all' ? allEquip : allEquip.filter(e=>String(e.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const statusMap = {
     active:      { label:L('نشط','Actif'),       col:'var(--green)' },
     maintenance: { label:L('صيانة','Maintenance'),col:'var(--gold)'  },
@@ -6467,12 +6498,14 @@ Pages.equipment = function() {
 
   return layoutHTML('equipment', L('المعدات','Équipements'), `
     <div class="page-header">
-      <div><div class="page-title">🚜 ${L('المعدات','Équipements')}</div><div class="page-sub">${equip.length} ${L('معدة مسجلة','équipement(s)')}</div></div>
+      <div><div class="page-title">🚜 ${L('المعدات','Équipements')}</div><div class="page-sub">${equip.length}${projFilter!=='all'?` ${L('من','/')} ${allEquip.length}`:''} ${L('معدة مسجلة','équipement(s)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div></div>
       <div class="page-actions">
         <button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة','Imprimer')}</button>
         <button class="btn btn-gold" data-modal-open="addEquipModal">+ ${L('إضافة معدة','Ajouter')}</button>
       </div>
     </div>
+
+    ${_projectFilterBar(projects, 'equipment', projFilter)}
 
     <!-- إحصائيات -->
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
@@ -6570,8 +6603,14 @@ Pages.equipment = function() {
 };
 Pages.transactions = function() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const allTxs = DB.get('transactions').filter(t=>t.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('transactions');
+  const txs = projFilter==='all' ? allTxs : allTxs.filter(t=>String(t.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
 
@@ -6611,9 +6650,10 @@ Pages.transactions = function() {
 
   return layoutHTML('transactions',L('المعاملات المالية','Transactions financières'),`
     <div class="page-header">
-      <div><div class="page-title">💰 ${L('المعاملات المالية','Transactions financières')}</div><div class="page-sub">${txs.length} ${L('معاملة','transaction(s)')}</div></div>
+      <div><div class="page-title">💰 ${L('المعاملات المالية','Transactions financières')}</div><div class="page-sub">${txs.length}${projFilter!=='all'?` ${L('من','/')} ${allTxs.length}`:''} ${L('معاملة','transaction(s)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div></div>
       <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="printTransactions()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button><button class="btn btn-gold" data-modal-open="addTxModal">+ ${L('إضافة معاملة','Ajouter transaction')}</button></div>
     </div>
+    ${_projectFilterBar(projects,'transactions',projFilter)}
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(revenue)}</div><div class="stat-label">${L('الإيرادات (دج)','Revenus (DA)')}</div></div>
       <div class="stat-card"><div class="stat-icon">📉</div><div class="stat-value" style="color:var(--red);font-size:1.1rem">${fmt(expense)}</div><div class="stat-label">${L('المصاريف (دج)','Dépenses (DA)')}</div></div>
@@ -17216,9 +17256,15 @@ function payAllSalaries(monthKey) {
 /* ── INVOICES PAGE ── */
 Pages.invoices = function() {
   const tid = Auth.getUser().tenant_id;
-  const invoices = DB.get('invoices').filter(i=>i.tenant_id===tid);
+  const allInvoices = DB.get('invoices').filter(i=>i.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
   const tenant = Auth.getTenant();
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('invoices');
+  const invoices = projFilter==='all' ? allInvoices : allInvoices.filter(i=>String(i.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const total_paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+Number(i.amount),0);
   const total_pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+Number(i.amount),0);
   const today = new Date(); today.setHours(0,0,0,0);
@@ -17259,7 +17305,7 @@ Pages.invoices = function() {
     <div class="page-header">
       <div>
         <div class="page-title">🧾 ${L('الفواتير','Factures')}</div>
-        <div class="page-sub">${invoices.length} ${L('فاتورة','facture(s)')}</div>
+        <div class="page-sub">${invoices.length}${projFilter!=='all'?` ${L('من','/')} ${allInvoices.length}`:''} ${L('فاتورة','facture(s)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div>
       </div>
       <div class="page-actions">
         ${canDo('transactions')?`<button class="btn btn-gold" data-modal-open="addInvModal">+ ${L('فاتورة جديدة','Nouvelle facture')}</button>`:''}
@@ -17283,9 +17329,8 @@ Pages.invoices = function() {
     </div>
 
     <!-- Stats Cards -->
+    ${_projectFilterBar(projects,'invoices',projFilter)}
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
-      <div class="stat-card" style="border-color:rgba(52,195,143,0.2)">
-        <div class="stat-icon">✅</div>
         <div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total_paid)}</div>
         <div class="stat-label">${L('مدفوعة (دج)','Payées (DA)')}</div>
         <div style="font-size:.7rem;color:var(--dim);margin-top:4px">${invoices.filter(i=>i.status==='paid').length} ${L('فاتورة','facture(s)')}</div>
@@ -18749,13 +18794,19 @@ function printInvoiceWindow(id, autoPrint = false) {
 /* ── INVENTORY PAGE ── */
 Pages.inventory = function() {
   const tid = Auth.getUser().tenant_id;
-  const materials = DB.get('materials').filter(m=>m.tenant_id===tid);
+  const allMaterials = DB.get('materials').filter(m=>m.tenant_id===tid);
   const movements = DB.get('stock_movements').filter(m=>m.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived);
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('inventory');
+  const materials = projFilter==='all' ? allMaterials : allMaterials.filter(m=>String(m.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const lowStock = materials.filter(m=>m.quantity<=m.min_quantity);
   return layoutHTML('inventory', L('المخزون','Stock'), `
     <div class="page-header">
-      <div><div class="page-title">📦 ${L('إدارة المخزون','Gestion du stock')}</div><div class="page-sub">${materials.length} ${L('مادة مسجلة','matériau(x)')}</div></div>
+      <div><div class="page-title">📦 ${L('إدارة المخزون','Gestion du stock')}</div><div class="page-sub">${materials.length}${projFilter!=='all'?` ${L('من','/')} ${allMaterials.length}`:''} ${L('مادة مسجلة','matériau(x)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div></div>
       <div class="page-actions">
         <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>
         <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('commande')" title="${L('وصل طلب جديد','Nouveau bon de commande')}">🛒 ${L('وصل طلب','Bon commande')}</button>
@@ -18764,6 +18815,7 @@ Pages.inventory = function() {
         ${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ ${L('مادة جديدة','Nouveau matériau')}</button>`:''}
       </div>
     </div>
+    ${_projectFilterBar(projects,'inventory',projFilter)}
     ${lowStock.length?`<div class="stock-alert-bar">🔴 ${L('تنبيه:','Alerte :')} ${lowStock.length} ${L('مواد وصلت للحد الأدنى','matériaux en seuil bas')} — ${lowStock.map(m=>escHtml(m.name)).join('، ')}</div>`:''}
     <div class="table-wrap" style="margin-bottom:1.5rem">
       <table><thead><tr><th>${L('المادة','Matériau')}</th><th>${L('المشروع','Projet')}</th><th>${L('الكمية','Quantité')}</th><th>${L('الحد الأدنى','Seuil min')}</th><th>${L('السعر/وحدة','Prix/unité')}</th><th>${L('المورد','Fournisseur')}</th><th>${L('الحالة','Statut')}</th>${canDo('materials')?'<th>الإجراءات</th>':''}</tr></thead>
