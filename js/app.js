@@ -3397,6 +3397,18 @@ function renderRegisterForm(L) {
           </select>
         </div>
       </div>
+      <div class="auth-field">
+        <label class="auth-label">${L('رقم الهاتف','Téléphone')} <span class="auth-required">*</span></label>
+        <div class="auth-input-wrap">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.96-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.5 16.5z"/></svg>
+          <div style="position:absolute;${L('right','left')}:.85rem;top:50%;transform:translateY(-50%);font-size:.8rem;font-weight:700;color:var(--gold);pointer-events:none;user-select:none">+213</div>
+          <input class="auth-input" id="regPhone" type="tel" placeholder="0XX XX XX XX" dir="ltr"
+            style="${L('padding-right','padding-left')}:3.5rem"
+            oninput="this.value=this.value.replace(/[^0-9\s]/g,'').substring(0,14)"
+            maxlength="14">
+        </div>
+        <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('مثال: 0555 12 34 56','Exemple: 0555 12 34 56')}</div>
+      </div>
     </div>
 
     <label class="auth-terms-wrap">
@@ -3579,6 +3591,7 @@ async function doRegister() {
   const email   = ((document.getElementById('regEmail') ||{}).value||'').trim().toLowerCase();
   const pass    = (document.getElementById('regPass')   ||{}).value||'';
   const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
+  const phone   = (document.getElementById('regPhone')  ||{}).value||'';
   const terms   = (document.getElementById('regTerms')  ||{}).checked||false;
   const errEl   = document.getElementById('registerError');
   const btnReg  = document.querySelector('.btn-trial');
@@ -3592,6 +3605,7 @@ async function doRegister() {
   if (!name.trim())    return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
   if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب',"❌ Le nom de l'entreprise est requis"));
   if (!email || !email.includes('@')) return showErr(L('❌ البريد الإلكتروني غير صالح','❌ Email invalide'));
+  if (!phone.trim() || phone.replace(/\s/g,'').length < 9) return showErr(L('❌ رقم الهاتف غير صالح — يجب 9 أرقام على الأقل','❌ Numéro de téléphone invalide — 9 chiffres minimum'));
   if (pass.length < 6) return showErr(L('❌ كلمة المرور 6 أحرف على الأقل','❌ 6 caractères minimum'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
 
@@ -3723,6 +3737,7 @@ async function doRegister() {
         tenant_id: sbTenant.id,
         full_name: name.trim(),
         email: email,
+        phone: phone.trim() ? '+213' + phone.trim().replace(/^0/, '').replace(/\s/g,'') : '',
         password: hashedPass,
         role: 'admin',
         is_admin: false,
