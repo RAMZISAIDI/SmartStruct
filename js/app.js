@@ -3399,15 +3399,18 @@ function renderRegisterForm(L) {
       </div>
       <div class="auth-field">
         <label class="auth-label">${L('رقم الهاتف','Téléphone')} <span class="auth-required">*</span></label>
-        <div class="auth-input-wrap">
-          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.96-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.5 16.5z"/></svg>
-          <div style="position:absolute;${L('right','left')}:.85rem;top:50%;transform:translateY(-50%);font-size:.8rem;font-weight:700;color:var(--gold);pointer-events:none;user-select:none">+213</div>
-          <input class="auth-input" id="regPhone" type="tel" placeholder="0XX XX XX XX" dir="ltr"
-            style="${L('padding-right','padding-left')}:3.5rem"
-            oninput="this.value=this.value.replace(/[^0-9\s]/g,'').substring(0,14)"
-            maxlength="14">
+        <div style="display:flex;gap:.4rem;align-items:stretch">
+          <div style="background:rgba(232,184,75,.08);border:1.5px solid rgba(232,184,75,.25);border-radius:11px;padding:0 .8rem;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:.82rem;font-weight:700;color:#E8B84B;flex-shrink:0;min-width:64px">
+            +213
+          </div>
+          <div class="auth-input-wrap" style="flex:1">
+            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.96-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.5 16.5z"/></svg>
+            <input class="auth-input" id="regPhone" type="tel" placeholder="0XX XX XX XX" dir="ltr"
+              oninput="this.value=this.value.replace(/[^0-9\s]/g,'').substring(0,14)"
+              maxlength="14">
+          </div>
         </div>
-        <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('مثال: 0555 12 34 56','Exemple: 0555 12 34 56')}</div>
+        <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('مثال: 0555 12 34 56 — 9 أرقام على الأقل','Ex: 0555 12 34 56 — 9 chiffres minimum')}</div>
       </div>
     </div>
 
