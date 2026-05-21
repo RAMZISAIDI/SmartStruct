@@ -1046,6 +1046,13 @@ if (!navigator.onLine || !this._useSupabase) {
         const res = await fetch(`${baseUrl}?id=eq.${record.id}`, { method: 'DELETE', headers });
 
         if (!res.ok) {
+          // 404 أو 400 = السجل غير موجود في Supabase أصلاً → نعتبره محذوفاً بنجاح
+          if (res.status === 404 || res.status === 400) {
+            this._markAsDeleted(table, record.id);
+            this._emitSyncEvent('synced');
+            this._updateAdminSyncUI();
+            return;
+          }
           if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
           this._updateAdminSyncUI();
           if (opts.fromQueue) throw new Error('DELETE failed while flushing queue');
