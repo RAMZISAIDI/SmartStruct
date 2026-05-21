@@ -7,6 +7,7 @@ const EMAILJS_DEFAULTS = {
   SERVICE_ID:     'service_37ya8ru',
   TEMPLATE_ADMIN: 'template_haus94b',
   TEMPLATE_USER:  'template_9hzgy4s',
+  TEMPLATE_OTP:   'TEMPLATE_OTP_ID',   // ← ضع هنا Template ID من EmailJS
   PUBLIC_KEY:     'hn_PRTs7PuJAgrrDp',
   ADMIN_EMAIL:    'ramzisaidi2018@gmail.com',
 };
@@ -26,6 +27,7 @@ const EMAILJS = {
   get SERVICE_ID()     { return getEmailJSConfig().SERVICE_ID; },
   get TEMPLATE_ADMIN() { return getEmailJSConfig().TEMPLATE_ADMIN; },
   get TEMPLATE_USER()  { return getEmailJSConfig().TEMPLATE_USER; },
+  get TEMPLATE_OTP()   { return getEmailJSConfig().TEMPLATE_OTP; },
   get ADMIN_EMAIL()    { return getEmailJSConfig().ADMIN_EMAIL; },
 
   // ── إرسال إشعار للمسؤول عند تسجيل حساب جديد ──

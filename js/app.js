@@ -3393,17 +3393,12 @@ async function sendVerificationCode(isResend = false) {
     // إرسال الكود عبر EmailJS
     await emailjs.send(
       EMAILJS.SERVICE_ID,
-      EMAILJS.TEMPLATE_USER,
+      EMAILJS.TEMPLATE_OTP,
       {
         to_email:    email,
         to_name:     email.split('@')[0],
-        user_email:  email,
-        user_name:   email.split('@')[0],
-        company_name:'SmartStruct',
-        new_password: code, // نستخدم حقل new_password لإرسال الكود
-        plan_name:   'التحقق من البريد',
-        date:        new Date().toLocaleString('ar-DZ'),
-        message:     `كود التحقق الخاص بك هو: ${code}\n\nهذا الكود صالح لمدة 10 دقائق فقط.\nلا تشاركه مع أحد.`
+        passcode:    code,
+        time:        '10 minutes'
       }
     );
 
