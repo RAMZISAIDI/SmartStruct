@@ -518,7 +518,7 @@ function _wrap(title, bodyHtml, watermarkText) {
 <head>
 <meta charset="UTF-8">
 <title>${_esc(title)}</title>
-<style>${_SHARED_CSS}
+<style>${typeof applyPrintSettingsToDoc==='function' ? applyPrintSettingsToDoc(_SHARED_CSS) : _SHARED_CSS}
 .btn-lang{padding:9px 16px;background:#fff;color:#B8902F;border:1.5px solid #B8902F;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
 .btn-lang:hover{background:#B8902F;color:#fff}
 .lang-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;background:rgba(184,144,47,.08);border:1px solid rgba(184,144,47,.25);border-radius:6px;padding:5px 10px;color:#B8902F;font-weight:700}

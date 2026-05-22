@@ -7727,6 +7727,159 @@ Pages.settings = function() {
           </div>
         </div>
 
+        <!-- 🖨️ إعدادات الطباعة والوثائق -->
+        <div class="card" style="border:1px solid rgba(232,184,75,.2)">
+          <div style="font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem">
+            🖨️ ${L('إعدادات الطباعة والوثائق','Paramètres d\'impression & documents')}
+          </div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem;line-height:1.6">
+            ${L('تحكم في شكل وثائقك المطبوعة: الحجم، الألوان، الخط، واللغة الافتراضية.','Personnalisez vos documents imprimés: taille, couleurs, police et langue par défaut.')}
+          </div>
+
+          <!-- الخط -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">🔤 ${L('نوع الخط','Police de caractères')}</div>
+            <select id="printFontFamily" class="form-select" onchange="savePrintSettings()">
+              <option value="Cairo" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==='Cairo'||!localStorage.getItem('sbtp_print_settings')?'selected':''}>Cairo ${L('(افتراضي — عربي/فرنسي)','(défaut — arabe/français)')}</option>
+              <option value="Tajawal" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==='Tajawal'?'selected':''}>Tajawal</option>
+              <option value="Arial" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==='Arial'?'selected':''}>Arial</option>
+              <option value="'Times New Roman'" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==="'Times New Roman'"?'selected':''}>Times New Roman</option>
+            </select>
+          </div>
+
+          <!-- حجم الخط -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">📏 ${L('حجم الخط الأساسي','Taille de police')} — <span id="printFontSizeVal">${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontSize||13}px</span></div>
+            <input type="range" id="printFontSize" min="10" max="18" step="1"
+              value="${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontSize||13}"
+              style="width:100%;accent-color:var(--gold)"
+              oninput="document.getElementById('printFontSizeVal').textContent=this.value+'px';savePrintSettings()">
+            <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--dim);margin-top:2px"><span>10px</span><span>14px</span><span>18px</span></div>
+          </div>
+
+          <!-- حجم الورق -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">📄 ${L('حجم الورق','Format du papier')}</div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${['A4','A5','Letter'].map(size=>`
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem;background:${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).pageSize===size?'rgba(232,184,75,.15)':'rgba(255,255,255,.03)'}">
+                <input type="radio" name="printPageSize" value="${size}" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).pageSize===size||(!localStorage.getItem('sbtp_print_settings')&&size==='A4')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                ${size}
+              </label>`).join('')}
+            </div>
+          </div>
+
+          <!-- اتجاه الورق -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">↔️ ${L('اتجاه الورق','Orientation')}</div>
+            <div style="display:flex;gap:.5rem">
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printOrientation" value="portrait"
+                  ${!(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).orientation||((JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).orientation==='portrait')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                📄 ${L('عمودي','Portrait')}
+              </label>
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printOrientation" value="landscape"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).orientation==='landscape'?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                📃 ${L('أفقي','Paysage')}
+              </label>
+            </div>
+          </div>
+
+          <!-- اللون الرئيسي -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">🎨 ${L('اللون الرئيسي للوثائق','Couleur principale des documents')}</div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+              ${['#B8902F','#1a3a5c','#0a6e3f','#c0392b','#6c3483','#1a1a1a'].map(color=>`
+              <label style="cursor:pointer">
+                <input type="radio" name="printAccentColor" value="${color}"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).accentColor===color||(!localStorage.getItem('sbtp_print_settings')&&color==='#B8902F')?'checked':''}
+                  style="display:none" onchange="savePrintSettings()">
+                <div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).accentColor===color||(!localStorage.getItem('sbtp_print_settings')&&color==='#B8902F')?'var(--text)':'transparent'};cursor:pointer;transition:.2s"
+                  onclick="this.previousElementSibling.click();this.style.borderColor='var(--text)'"></div>
+              </label>`).join('')}
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--dim)">
+                <input type="color" id="printCustomColor"
+                  value="${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).accentColor||'#B8902F'}"
+                  style="width:28px;height:28px;padding:0;border:none;cursor:pointer;border-radius:4px"
+                  onchange="savePrintSettings(this.value)">
+                ${L('مخصص','Personnalisé')}
+              </label>
+            </div>
+          </div>
+
+          <!-- اللغة الافتراضية للوثائق -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">🌐 ${L('لغة الوثائق الافتراضية','Langue par défaut des documents')}</div>
+            <div style="display:flex;gap:.5rem">
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printLang" value="ar"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).docLang==='ar'||(!localStorage.getItem('sbtp_print_settings')&&I18N.currentLang==='ar')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                🇩🇿 ${L('عربي','Arabe')}
+              </label>
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printLang" value="fr"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).docLang==='fr'||(!localStorage.getItem('sbtp_print_settings')&&I18N.currentLang==='fr')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                🇫🇷 ${L('فرنسي','Français')}
+              </label>
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printLang" value="both"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).docLang==='both'?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                🌐 ${L('ثنائي','Bilingue')}
+              </label>
+            </div>
+          </div>
+
+          <!-- الهامش -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">📐 ${L('هوامش الصفحة','Marges de page')}</div>
+            <select id="printMargin" class="form-select" onchange="savePrintSettings()">
+              <option value="8mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='8mm'?'selected':''}>8mm — ${L('ضيق','Étroit')}</option>
+              <option value="12mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='12mm'||!localStorage.getItem('sbtp_print_settings')?'selected':''}>12mm — ${L('عادي (افتراضي)','Normal (défaut)')}</option>
+              <option value="18mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='18mm'?'selected':''}>18mm — ${L('واسع','Large')}</option>
+              <option value="25mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='25mm'?'selected':''}>25mm — ${L('واسع جداً','Très large')}</option>
+            </select>
+          </div>
+
+          <!-- واترمارك -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">💧 ${L('الواترمارك (نص خلفي)','Filigrane')}</div>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <input class="form-input" id="printWatermark" style="flex:1"
+                placeholder="${L('مثال: CONFIDENTIEL، سري، مسودة...','Ex: CONFIDENTIEL, BROUILLON...')}"
+                value="${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).watermark||''}"
+                oninput="savePrintSettings()">
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;white-space:nowrap">
+                <input type="checkbox" id="printWatermarkShow"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).showWatermark?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                ${L('تفعيل','Activer')}
+              </label>
+            </div>
+          </div>
+
+          <!-- معاينة -->
+          <div id="printPreview" style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+            <div style="font-size:.7rem;color:var(--dim);margin-bottom:.4rem">👁️ ${L('معاينة سريعة','Aperçu rapide')}</div>
+            <div id="printPreviewBox" style="background:#fff;border-radius:6px;padding:12px 16px;max-height:80px;overflow:hidden;position:relative">
+              <div id="printPreviewContent" style="font-family:Cairo,sans-serif;font-size:13px;color:#B8902F;font-weight:700;border-bottom:2px solid #B8902F;padding-bottom:8px">
+                ${escHtml(Auth.getTenant()?.name||'SmartStruct')} — ${L('وثيقة احترافية','Document professionnel')}
+              </div>
+              <div style="font-size:11px;color:#555;margin-top:6px">${L('هذا مثال على شكل الوثيقة المطبوعة','Aperçu du document imprimé')}</div>
+            </div>
+          </div>
+
+          <button class="btn btn-gold" onclick="savePrintSettings();Toast.success(L('✅ تم حفظ إعدادات الطباعة','✅ Paramètres d\\'impression sauvegardés'))" style="width:100%;justify-content:center">
+            💾 ${L('حفظ إعدادات الطباعة','Enregistrer paramètres')}
+          </button>
+        </div>
+
         <!-- ☁️ Google Drive Integration -->
         <div id="gdriveSettingsCard" style="margin-bottom:1rem">
           <div class="card" style="border:1px solid rgba(66,133,244,.25)">
@@ -22247,6 +22400,81 @@ function globalSearch(query) {
 // ════════════════════════════════════════════════════════════════════
 //  ③ BACKUP / RESTORE — تصدير واسترداد البيانات للمستخدم
 // ════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  🖨️ إعدادات الطباعة — Print Settings
+// ══════════════════════════════════════════════════════════════
+
+function getPrintSettings() {
+  try {
+    return JSON.parse(localStorage.getItem('sbtp_print_settings') || '{}');
+  } catch { return {}; }
+}
+
+function savePrintSettings(customColor) {
+  const s = {
+    fontFamily:   document.getElementById('printFontFamily')?.value || 'Cairo',
+    fontSize:     Number(document.getElementById('printFontSize')?.value) || 13,
+    pageSize:     document.querySelector('input[name="printPageSize"]:checked')?.value || 'A4',
+    orientation:  document.querySelector('input[name="printOrientation"]:checked')?.value || 'portrait',
+    accentColor:  customColor || document.querySelector('input[name="printAccentColor"]:checked')?.value
+                  || document.getElementById('printCustomColor')?.value || '#B8902F',
+    docLang:      document.querySelector('input[name="printLang"]:checked')?.value || I18N.currentLang,
+    margin:       document.getElementById('printMargin')?.value || '12mm',
+    watermark:    document.getElementById('printWatermark')?.value || '',
+    showWatermark:document.getElementById('printWatermarkShow')?.checked || false,
+  };
+
+  localStorage.setItem('sbtp_print_settings', JSON.stringify(s));
+
+  // تحديث المعاينة
+  const preview = document.getElementById('printPreviewContent');
+  if (preview) {
+    preview.style.fontFamily = s.fontFamily;
+    preview.style.fontSize = s.fontSize + 'px';
+    preview.style.color = s.accentColor;
+    preview.style.borderBottomColor = s.accentColor;
+  }
+}
+
+// تطبيق إعدادات الطباعة على CSS المشترك للوثائق
+function applyPrintSettingsToDoc(cssString) {
+  const s = getPrintSettings();
+  if (!s || Object.keys(s).length === 0) return cssString;
+
+  // استبدال الخط
+  if (s.fontFamily) {
+    cssString = cssString.replace(
+      /font-family:\s*['"]?Cairo['"]?,\s*['"]?Tajawal['"]?[^;]+;/g,
+      `font-family: '${s.fontFamily}', Arial, sans-serif;`
+    );
+  }
+
+  // استبدال الحجم الأساسي
+  if (s.fontSize) {
+    cssString = cssString.replace(/font-size:\s*13px/g, `font-size: ${s.fontSize}px`);
+  }
+
+  // استبدال اللون الذهبي الرئيسي
+  if (s.accentColor) {
+    cssString = cssString.replace(/#B8902F/g, s.accentColor);
+    cssString = cssString.replace(/#C49030/g, s.accentColor);
+    cssString = cssString.replace(/#E8B84B/g, s.accentColor);
+  }
+
+  // هوامش الطباعة
+  if (s.margin) {
+    cssString = cssString.replace(/@page\s*\{[^}]*margin:[^;]+;/g,
+      `@page { margin: ${s.margin};`);
+  }
+
+  // حجم الورق
+  if (s.pageSize) {
+    cssString = cssString.replace(/size:\s*A4/g, `size: ${s.pageSize}`);
+  }
+
+  return cssString;
+}
+
 function userExportBackup() {
   const tid = Auth.getUser()?.tenant_id;
   if (!tid) { Toast.error(L('يجب تسجيل الدخول','Connexion requise')); return; }
