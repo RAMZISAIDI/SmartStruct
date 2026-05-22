@@ -469,10 +469,155 @@ const I18N = {
     'cmp.workers':      {ar:'العمال',          fr:'Ouvriers'},
     'cmp.duration':     {ar:'المدة (يوم)',      fr:'Durée (j)'},
     'cmp.efficiency':   {ar:'كفاءة الميزانية', fr:'Efficacité budget'},
+
+    // ── HR ──
+    'hr.leaves':        {ar:'الإجازات',              fr:'Congés'},
+    'hr.leave.annual':  {ar:'إجازة سنوية',           fr:'Congé annuel'},
+    'hr.leave.sick':    {ar:'إجازة مرضية',           fr:'Congé maladie'},
+    'hr.leave.maternity':{ar:'إجازة أمومة',          fr:'Congé maternité'},
+    'hr.leave.unpaid':  {ar:'إجازة بدون أجر',        fr:'Congé sans solde'},
+    'hr.leave.other':   {ar:'إجازة أخرى',            fr:'Autre congé'},
+    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant'},
+    'hr.leave.pending': {ar:'بانتظار الموافقة',       fr:'En attente d\'approbation'},
+    'hr.leave.approved':{ar:'مُعتمد',                fr:'Approuvé'},
+    'hr.leave.rejected':{ar:'مرفوض',                 fr:'Refusé'},
+    'hr.warning':       {ar:'إنذار',                 fr:'Avertissement'},
+    'hr.warning.verbal':{ar:'شفوي',                  fr:'Verbal'},
+    'hr.warning.written':{ar:'كتابي',                fr:'Écrit'},
+    'hr.warning.final': {ar:'إنذار نهائي',           fr:'Avertissement final'},
+    'hr.overtime':      {ar:'ساعات إضافية',          fr:'Heures supplémentaires'},
+    'hr.overtime.rate': {ar:'نسبة المكافأة',         fr:'Taux de majoration'},
+    'hr.profile':       {ar:'الملف التفصيلي',        fr:'Profil détaillé'},
+    'hr.contract.end':  {ar:'تاريخ انتهاء العقد',    fr:'Date de fin de contrat'},
+    'hr.contract.expiring':{ar:'تنتهي عقودهم قريباً',fr:'Contrats bientôt expirés'},
+    'hr.absence.cost':  {ar:'تكلفة الغياب',          fr:'Coût des absences'},
+    'hr.allowances':    {ar:'العلاوات',              fr:'Primes'},
+    'hr.deductions':    {ar:'الخصومات',              fr:'Déductions'},
+    'hr.transport':     {ar:'بدل نقل',               fr:'Indemnité transport'},
+    'hr.housing':       {ar:'بدل إقامة',             fr:'Indemnité logement'},
+    'hr.productivity':  {ar:'علاوة إنتاجية',         fr:'Prime de productivité'},
+
+    // ── Invoices ──
+    'inv.draft':        {ar:'مسودة',               fr:'Brouillon'},
+    'inv.pending':      {ar:'معلقة',               fr:'En attente'},
+    'inv.partial':      {ar:'جزئية',               fr:'Paiement partiel'},
+    'inv.paid':         {ar:'مدفوعة',              fr:'Payée'},
+    'inv.overdue':      {ar:'متأخرة',              fr:'En retard'},
+    'inv.confirm':      {ar:'تأكيد الفاتورة',      fr:'Confirmer la facture'},
+    'inv.partial.pay':  {ar:'تسجيل دفع جزئي',      fr:'Paiement partiel'},
+    'inv.aging':        {ar:'تقرير الذمم المدينة',  fr:'Rapport d\'aging'},
+    'inv.balance':      {ar:'الرصيد المتبقي',       fr:'Solde restant'},
+    'inv.paid_amount':  {ar:'المبلغ المدفوع',       fr:'Montant payé'},
+    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive'},
+
+    // ── Suppliers ──
+    'sup.prices':       {ar:'قائمة الأسعار',       fr:'Tarifs de référence'},
+    'sup.obligations':  {ar:'الالتزامات',          fr:'Obligations'},
+    'sup.obl.invoice':  {ar:'فاتورة آجلة',         fr:'Facture à terme'},
+    'sup.obl.check':    {ar:'شيك مستحق',           fr:'Chèque à encaisser'},
+    'sup.obl.deposit':  {ar:'ضمان/عربون',          fr:'Caution/Acompte'},
+    'sup.obl.loan':     {ar:'قرض/سلفة',            fr:'Prêt/Avance'},
+    'sup.obl.done':     {ar:'تأشير كمنجز',         fr:'Marquer accompli'},
+    'sup.due':          {ar:'تاريخ الاستحقاق',     fr:'Date d\'échéance'},
+    'sup.ref':          {ar:'المرجع',              fr:'Référence'},
+
+    // ── Filter ──
+    'filter.project':   {ar:'تصفية بالمشروع',     fr:'Filtrer par projet'},
+    'filter.all':       {ar:'كل المشاريع',        fr:'Tous les projets'},
+    'filter.clear':     {ar:'إلغاء الفلتر',       fr:'Effacer le filtre'},
+
+    // ── Print ──
+    'print.customize':  {ar:'تخصيص الورقة',      fr:'Personnaliser'},
+    'print.font':       {ar:'نوع الخط',          fr:'Police'},
+    'print.fontSize':   {ar:'حجم الخط',          fr:'Taille police'},
+    'print.color':      {ar:'اللون الرئيسي',     fr:'Couleur principale'},
+    'print.margin':     {ar:'الهوامش',           fr:'Marges'},
+    'print.pageSize':   {ar:'حجم الورق',         fr:'Format papier'},
+    'print.orient':     {ar:'الاتجاه',           fr:'Orientation'},
+    'print.portrait':   {ar:'عمودي',             fr:'Portrait'},
+    'print.landscape':  {ar:'أفقي',              fr:'Paysage'},
+    'print.watermark':  {ar:'نص خلفي',           fr:'Filigrane'},
+    'print.lineHeight': {ar:'تباعد الأسطر',      fr:'Interligne'},
+    'print.save':       {ar:'حفظ الإعدادات',     fr:'Sauvegarder paramètres'},
+    'print.reset':      {ar:'إعادة الإعدادات',   fr:'Réinitialiser'},
+    'print.savePC':     {ar:'حفظ على الحاسوب',   fr:'Enregistrer sur PC'},
+    'print.showLogo':   {ar:'إظهار الشعار',      fr:'Afficher logo'},
+    'print.showFooter': {ar:'إظهار الفوتر',      fr:'Afficher pied de page'},
+    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page'},
+    'print.tableHeader':{ar:'لون رأس الجدول',    fr:'Couleur en-tête tableau'},
+    'print.rowColor':   {ar:'لون الصفوف',        fr:'Couleur des lignes'},
+    'print.headingSize':{ar:'حجم العناوين',      fr:'Taille des titres'},
+
+    // ── Backup ──
+    'bak.export':       {ar:'تصدير نسخة احتياطية',  fr:'Exporter sauvegarde'},
+    'bak.import':       {ar:'استعادة من نسخة',       fr:'Restaurer depuis'},
+    'bak.exportExcel':  {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel'},
+    'bak.exportSalary': {ar:'تصدير الرواتب Excel',   fr:'Exporter salaires Excel'},
+
+    // ── Auth ──
+    'auth.phone':       {ar:'رقم الهاتف',           fr:'Téléphone'},
+    'auth.sendOtp':     {ar:'إرسال كود',             fr:'Envoyer code'},
+    'auth.otp':         {ar:'كود التحقق',            fr:'Code de vérification'},
+    'auth.otpSent':     {ar:'تم إرسال الكود إلى',    fr:'Code envoyé à'},
+    'auth.otpExpiry':   {ar:'ينتهي خلال',            fr:'Expire dans'},
+    'auth.resend':      {ar:'إعادة إرسال',           fr:'Renvoyer'},
+    'auth.register':    {ar:'إنشاء حساب مجاناً',     fr:'Créer un compte gratuit'},
+    'auth.login':       {ar:'تسجيل الدخول',          fr:'Connexion'},
+    'auth.company':     {ar:'اسم المؤسسة',           fr:'Nom de l\'entreprise'},
+    'auth.fullName':    {ar:'الاسم الكامل',          fr:'Nom complet'},
+    'auth.password':    {ar:'كلمة المرور',           fr:'Mot de passe'},
+    'auth.wilaya':      {ar:'الولاية',               fr:'Wilaya'},
+    'auth.terms':       {ar:'أوافق على الشروط',      fr:'J\'accepte les conditions'},
+    'auth.trial':       {ar:'14 يوم مجاناً',         fr:'14 jours gratuits'},
+    'auth.noCard':      {ar:'بدون بطاقة بنكية',      fr:'Sans carte bancaire'},
+
+    // ── Drive ──
+    'drive.connect':    {ar:'ربط Google Drive',      fr:'Connecter Google Drive'},
+    'drive.connected':  {ar:'متصل',                  fr:'Connecté'},
+    'drive.files':      {ar:'آخر الملفات المحفوظة',  fr:'Derniers fichiers sauvegardés'},
+    'drive.clientId':   {ar:'إعداد Client ID',       fr:'Configuration Client ID'},
+
+    // ── Protection ──
+    'prot.unsaved':     {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!'},
+    'prot.syncFirst':   {ar:'ارفع التعديلات ثم اخرج',fr:'Synchroniser puis quitter'},
+    'prot.exitAnyway':  {ar:'اخرج بدون رفع',        fr:'Quitter sans synchroniser'},
+    'prot.stay':        {ar:'رجوع — لا أريد الخروج',fr:'Annuler'},
   }
 };
 // Shortcut
 function __(key) { return I18N.t(key); }
+
+// ── تطبيق الترجمة على عناصر DOM الثابتة ──
+function applyDOMTranslation() {
+  if (I18N.currentLang === 'ar') return;
+  const lang = I18N.currentLang;
+
+  // ترجمة عناصر data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = I18N.t(key);
+    if (val !== key) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = val;
+      } else {
+        el.textContent = val;
+      }
+    }
+  });
+
+  // ترجمة عناصر title/placeholder
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const val = I18N.t(key);
+    if (val !== key) el.title = val;
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = I18N.t(key);
+    if (val !== key) el.placeholder = val;
+  });
+}
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
 function L(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; }
 
@@ -5780,29 +5925,39 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
   const today   = new Date().toLocaleDateString(isAr ? 'ar-DZ' : 'fr-DZ', { dateStyle: 'full' });
   const now     = new Date().toLocaleTimeString(isAr ? 'ar-DZ' : 'fr-DZ', { hour: '2-digit', minute: '2-digit' });
 
+  // قراءة إعدادات الطباعة
+  let _ps = {};
+  try { _ps = JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}'); } catch{}
+  const _font   = _ps.fontFamily    || 'Cairo';
+  const _size   = _ps.fontSize      || 13;
+  const _color  = _ps.accentColor   || '#C49030';
+  const _tc     = _ps.tableHeaderColor || _color;
+  const _rowBg  = _ps.rowBgColor    || '#fafafa';
+  const _margin = _ps.margin        || '12mm';
+  const _lh     = _ps.lineHeight    || 1.6;
+  const _hs     = _ps.headingSize   || 15;
+
   const logoHTML = logo
-    ? `<img src="${logo}" style="height:52px;max-width:140px;object-fit:contain;border-radius:4px;background:#fff;padding:3px">`
-    : `<div style="font-size:1.1rem;font-weight:900;color:#E8B84B;letter-spacing:.5px">▦ SmartStruct</div>`;
+    ? `<img src="${logo}" style="height:52px;max-width:140px;object-fit:contain;border-radius:4px">`
+    : `<div style="font-size:1.1rem;font-weight:900;color:${_color}">▦ SmartStruct</div>`;
 
   const thCells = columns.map(c =>
-    `<th style="padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#E8B84B;text-align:${c.align||'right'}">${c.label}</th>`
+    `<th style="padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:${c.align||'right'}">${c.label}</th>`
   ).join('');
 
   const tbRows = rows.map((row, i) => {
     const cells = columns.map(c =>
       `<td style="padding:9px 12px;font-size:12px;text-align:${c.align||'right'};${c.style||''}">${row[c.key] ?? '—'}</td>`
     ).join('');
-    return `<tr style="background:${i%2===0?'#fafafa':'#fff'};border-bottom:1px solid #f0f0f0">${cells}</tr>`;
+    return `<tr class="${i%2===0?'row-odd':'row-even'}">${cells}</tr>`;
   }).join('');
 
   const summaryHTML = summaryRows.length ? `
     <div style="display:flex;justify-content:flex-end;margin-top:20px">
       <div style="min-width:260px">
         ${summaryRows.map((s,i) => i === summaryRows.length-1
-          ? `<div style="display:flex;justify-content:space-between;background:#f5f0e8;border:2px solid #C49030;color:#1a1a1a;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px">
-               <span>${s.label}</span><span style="color:#C49030">${s.value}</span></div>`
-          : `<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4">
-               <span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
+          ? `<div class="sum-total"><span>${s.label}</span><span>${s.value}</span></div>`
+          : `<div class="sum-row"><span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
         ).join('')}
       </div>
     </div>` : '';
@@ -5811,91 +5966,191 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
 <html dir="${dir}" lang="${isAr?'ar':'fr'}">
 <head>
 <meta charset="UTF-8">
-<title>${title}</title>
+<title>${escHtml(title)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Cairo',Arial,sans-serif;background:#f4f4f6;color:#1a1a1a;padding:24px}
-  .no-print{display:flex;gap:10px;margin-bottom:20px}
-  .btn-p{padding:9px 22px;background:#E8B84B;color:#1a1000;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
-  .btn-c{padding:9px 18px;background:#2a2a2a;color:#ccc;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
-  .sheet{background:#fff;max-width:900px;margin:0 auto;border-radius:4px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
-  .hdr{background:#fff;border-bottom:3px solid #C49030;padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
-  .hdr-left{display:flex;align-items:center;gap:14px}
+  body{font-family:'${_font}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;line-height:${_lh}}
+
+  /* Toolbar */
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;color:#fff;
+    display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:nowrap}
+  .tb-btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;
+    font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:'${_font}',Arial,sans-serif}
+  .tb-primary{background:${_color};color:#fff}
+  .tb-green{background:#27ae60;color:#fff}
+  .tb-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+  .tb-sep{width:1px;height:28px;background:rgba(255,255,255,.2);margin:0 2px}
+
+  /* Edit Panel */
+  .edit-panel{position:fixed;top:52px;${isAr?'left':'right'}:0;bottom:0;width:256px;
+    background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);overflow-y:auto;z-index:999;transition:transform .3s}
+  .edit-panel.hidden{transform:translateX(${isAr?'-100%':'100%'})}
+  .ph{background:#1a1a2e;color:#fff;padding:10px 14px;font-size:13px;font-weight:700;
+    display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1}
+  .pb{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+  .pg label{display:block;font-size:10px;font-weight:700;color:#777;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+  .pg select,.pg input[type=text]{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+  .pg input[type=range]{width:100%;accent-color:${_color}}
+  .swatches{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .sw{width:22px;height:22px;border-radius:4px;cursor:pointer;border:2px solid transparent}
+  .sw.on{border-color:#333!important;transform:scale(1.15)}
+  .save-btn{width:100%;padding:9px;background:${_color};color:#fff;border:none;border-radius:7px;
+    cursor:pointer;font-size:13px;font-weight:700;font-family:'${_font}',Arial,sans-serif}
+  .reset-btn{width:100%;padding:7px;background:#fff;color:#c0392b;border:1px solid #f5b8b8;
+    border-radius:7px;cursor:pointer;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+
+  /* Content */
+  .cw{margin-top:52px;padding:20px;transition:${isAr?'margin-left':'margin-right'} .3s}
+  .cw.open{${isAr?'margin-left':'margin-right'}:260px}
+  .sheet{background:#fff;max-width:900px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+  .hdr{background:#fff;border-bottom:3px solid ${_color};padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
   .co-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-top:4px}
   .co-sub{font-size:9.5px;color:#666;margin-top:2px}
   .doc-label{text-align:${isAr?'left':'right'}}
-  .doc-title{font-size:20px;font-weight:900;color:#1a1a1a}
-  .doc-sub{font-size:11px;color:#C49030;margin-top:4px;font-weight:600}
-  .gold-bar{height:3px;background:#C49030}
-  .meta{display:flex;justify-content:space-between;align-items:center;padding:14px 32px;border-bottom:1px solid #eee;background:#fafafa}
-  .meta-item{font-size:11px;color:#888}
-  .meta-item strong{color:#222;font-size:12px}
-  .body{padding:24px 32px}
-  .section-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+  .doc-title{font-size:${_hs}px;font-weight:900;color:#1a1a1a}
+  .doc-sub{font-size:11px;color:${_color};margin-top:4px;font-weight:600}
+  .gold-bar{height:3px;background:${_color}}
+  .meta{display:flex;justify-content:space-between;align-items:center;padding:12px 32px;border-bottom:1px solid #eee;background:#fafafa;font-size:11px;color:#888}
+  .meta strong{color:#222;font-size:12px}
+  .body{padding:24px 32px;font-size:${_size}px}
   table{width:100%;border-collapse:collapse}
-  thead tr{background:#C49030}
-  thead th{color:#fff!important}
+  thead tr{background:${_tc}}
+  thead th{color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .row-odd td{background:${_rowBg}}
+  .row-even td{background:#fff}
   tbody tr:last-child td{border-bottom:none}
-  .footer{background:#f8f5ee;border-top:2px solid #C49030;padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
+  .sum-row{display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4}
+  .sum-total{display:flex;justify-content:space-between;background:#f5f0e8;border:2px solid ${_color};color:#1a1a1a;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px}
+  .sum-total span:last-child{color:${_color}}
+  .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid ${_color};border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
+  .footer{background:#f8f5ee;border-top:2px solid ${_color};padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
   .footer span{font-size:10px;color:#555}
-  .footer .gld{color:#C49030;font-weight:700}
-  .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid #E8B84B;border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
+  .footer .gld{color:${_color};font-weight:700}
+
   @media print{
-    body{background:#fff!important;padding:0!important}
-    .no-print{display:none!important}
-    .sheet{box-shadow:none!important;border-radius:0!important;max-width:100%!important}
-    /* تحويل الهيدر الأسود لأبيض مع حدود ذهبية */
-    .hdr{
-      background:#fff!important;
-      border-bottom:3px solid #C49030!important;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-    }
-    .co-name{color:#1a1a1a!important}
-    .co-sub{color:#555!important}
-    .doc-title{color:#1a1a1a!important}
-    .doc-sub{color:#C49030!important}
-    /* تحويل thead الأسود */
-    thead tr{
-      background:#C49030!important;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-    }
-    thead th{color:#fff!important}
-    /* تحويل الفوتر الأسود */
-    .footer{
-      background:#fff!important;
-      border-top:1px solid #e0e0e0!important;
-      -webkit-print-color-adjust:exact;
-    }
-    .footer span{color:#555!important}
-    .footer .gld{color:#C49030!important}
-    /* الشريط الذهبي */
-    .gold-bar{
-      background:#C49030!important;
-      height:2px!important;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-    }
-    /* صف الإجمالي الأسود في summaryRows */
-    div[style*="background:#141414"]{
-      background:#f5f0e8!important;
-      color:#1a1a1a!important;
-      border:1px solid #C49030!important;
-    }
-    @page{margin:12mm;size:A4}
+    body{background:#fff!important;padding:0!important;font-size:${_size}px!important}
+    .toolbar,.edit-panel{display:none!important}
+    .cw{margin:0!important;padding:0!important}
+    .sheet{box-shadow:none!important;max-width:100%!important}
+    thead tr{background:${_tc}!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .row-odd td{background:${_rowBg}!important;-webkit-print-color-adjust:exact}
+    @page{margin:${_margin};size:${_ps.pageSize||'A4'} ${_ps.orientation||'portrait'}}
   }
 </style>
 </head>
 <body>
-<div class="no-print">
-  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة':'Imprimer'}</button>
-  <button class="btn-c" onclick="window.close()">${isAr?'إغلاق':'Fermer'}</button>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb-btn tb-green" onclick="_spSave()">💾 ${isAr?'حفظ على PC':'Enregistrer'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" id="tpBtn" onclick="_spToggle()">⚙️ ${isAr?'تخصيص':'Personnaliser'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
-<div class="sheet">
+
+<!-- Panel -->
+<div class="edit-panel hidden" id="spPanel">
+  <div class="ph">
+    <span>⚙️ ${isAr?'تخصيص الطباعة':'Personnaliser impression'}</span>
+    <button onclick="_spToggle()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:15px">✕</button>
+  </div>
+  <div class="pb">
+
+    <div class="pg"><label>🔤 ${isAr?'الخط':'Police'}</label>
+      <select id="spFont" onchange="_spApply()">
+        <option value="Cairo" ${_font==='Cairo'?'selected':''}>Cairo</option>
+        <option value="Tajawal" ${_font==='Tajawal'?'selected':''}>Tajawal</option>
+        <option value="Arial" ${_font==='Arial'?'selected':''}>Arial</option>
+        <option value="'Times New Roman'" ${_font==="'Times New Roman'"?'selected':''}>Times New Roman</option>
+      </select>
+    </div>
+
+    <div class="pg"><label>📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_size}px</strong></label>
+      <input type="range" id="spSz" min="10" max="18" step="1" value="${_size}"
+        oninput="document.getElementById('spSzL').textContent=this.value+'px';_spApply()">
+    </div>
+
+    <div class="pg"><label>🔠 ${isAr?'حجم العناوين':'Titres'} — <strong id="spHsL">${_hs}px</strong></label>
+      <input type="range" id="spHs" min="12" max="24" step="1" value="${_hs}"
+        oninput="document.getElementById('spHsL').textContent=this.value+'px';_spApply()">
+    </div>
+
+    <div class="pg"><label>↕️ ${isAr?'تباعد الأسطر':'Interligne'} — <strong id="spLhL">${_lh}</strong></label>
+      <input type="range" id="spLh" min="1.2" max="2.2" step="0.1" value="${_lh}"
+        oninput="document.getElementById('spLhL').textContent=parseFloat(this.value).toFixed(1);_spApply()">
+    </div>
+
+    <div class="pg"><label>🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
+      <div class="swatches">
+        ${[['#C49030','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="sw ${_color===c?'on':''}" style="background:${c}" title="${n}" onclick="_spColor('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spCC" value="${_color}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spColor(this.value,null)">
+      </div>
+    </div>
+
+    <div class="pg"><label>📊 ${isAr?'لون رأس الجدول':'En-tête tableau'}</label>
+      <div class="swatches">
+        ${[['#C49030','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#555','رمادي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="sw ${_tc===c?'on':''}" style="background:${c}" title="${n}" onclick="_spTC('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spTCC" value="${_tc}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spTC(this.value,null)">
+      </div>
+    </div>
+
+    <div class="pg"><label>🎨 ${isAr?'لون الصفوف':'Lignes'}</label>
+      <div class="swatches">
+        ${[['#fafafa','رمادي'],['#fafaf7','كريمي'],['#f0f7ff','أزرق'],['#f0faf4','أخضر'],['#fff9f0','برتقالي'],['#ffffff','أبيض']].map(([c,n])=>
+          `<div class="sw ${_rowBg===c?'on':''}" style="background:${c};border:1px solid #ddd" title="${n}" onclick="document.getElementById('spRB').value='${c}';_spApply()"></div>`
+        ).join('')}
+        <input type="color" id="spRB" value="${_rowBg}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spApply()">
+      </div>
+    </div>
+
+    <div class="pg"><label>📐 ${isAr?'الهوامش':'Marges'}</label>
+      <select id="spMg" onchange="_spApply()">
+        <option value="8mm" ${_margin==='8mm'?'selected':''}>8mm — ${isAr?'ضيق':'Étroit'}</option>
+        <option value="12mm" ${_margin==='12mm'?'selected':''}>12mm — ${isAr?'عادي':'Normal'}</option>
+        <option value="18mm" ${_margin==='18mm'?'selected':''}>18mm — ${isAr?'واسع':'Large'}</option>
+      </select>
+    </div>
+
+    <div class="pg"><label>📄 ${isAr?'حجم الورق':'Format'}</label>
+      <div style="display:flex;gap:6px">
+        ${['A4','A5','Letter'].map(sz=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spSz2" value="${sz}" ${(_ps.pageSize||'A4')===sz?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">${sz}
+        </label>`).join('')}
+      </div>
+    </div>
+
+    <div class="pg"><label>↔️ ${isAr?'اتجاه':'Orientation'}</label>
+      <div style="display:flex;gap:6px">
+        <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px">
+          <input type="radio" name="spOr" value="portrait" ${(_ps.orientation||'portrait')==='portrait'?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">📄 ${isAr?'عمودي':'Portrait'}
+        </label>
+        <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px">
+          <input type="radio" name="spOr" value="landscape" ${_ps.orientation==='landscape'?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">📃 ${isAr?'أفقي':'Paysage'}
+        </label>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="_spReset()">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+    <button class="save-btn" onclick="_spSaveSettings()">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
+
+  </div>
+</div>
+
+<!-- Content -->
+<div class="cw" id="spCW">
+<div class="sheet" id="spSheet">
   <div class="hdr">
-    <div class="hdr-left">
+    <div class="hdr-left" style="display:flex;align-items:center;gap:14px">
       ${logoHTML}
       <div>
         <div class="co-name">${escHtml(tenant?.name||'SmartStruct')}</div>
@@ -5904,39 +6159,122 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
       </div>
     </div>
     <div class="doc-label">
-      <div class="doc-title">${icon} ${title}</div>
-      ${subtitle?`<div class="doc-sub">${subtitle}</div>`:''}
+      <div class="doc-title" id="spDocTitle">${icon} ${escHtml(title)}</div>
+      ${subtitle?`<div class="doc-sub" id="spDocSub">${escHtml(subtitle)}</div>`:''}
     </div>
   </div>
-  <div class="gold-bar"></div>
+  <div class="gold-bar" id="spGoldBar"></div>
   <div class="meta">
-    <div class="meta-item">${isAr?'تاريخ الطباعة':'Date d\'impression'}: <strong>${today} — ${now}</strong></div>
-    <div class="meta-item">${isAr?'عدد السجلات':'Nombre de lignes'}: <strong>${rows.length}</strong></div>
-    <div class="meta-item">SmartStruct v7.2 Pro</div>
+    <div class="meta-item">${isAr?'تاريخ الطباعة':'Impression'}: <strong>${today} — ${now}</strong></div>
+    <div class="meta-item">${isAr?'عدد السجلات':'Lignes'}: <strong>${rows.length}</strong></div>
+    <div class="meta-item">SmartStruct</div>
   </div>
-  <div class="body">
-    <div class="section-title">${isAr?'قائمة البيانات':'Liste des données'}</div>
-    <table>
+  <div class="body" id="spBody">
+    <table id="spTable">
       <thead><tr>${thCells}</tr></thead>
       <tbody>${tbRows}</tbody>
     </table>
     ${summaryHTML}
     ${notes?`<div class="notes"><strong>${isAr?'ملاحظات:':'Notes :'}</strong> ${notes}</div>`:''}
   </div>
-  <div class="footer">
+  <div class="footer" id="spFooter">
     <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme algérienne de gestion BTP'}</span>
-    <span class="gld">${title} — ${today}</span>
+    <span class="gld">${escHtml(title)} — ${today}</span>
   </div>
 </div>
+</div>
+
+<script>
+var _spColor = '${_color}';
+var _spTColor = '${_tc}';
+var _spDocTitle = ${JSON.stringify(title)};
+
+function _spToggle(){
+  var p=document.getElementById('spPanel'),c=document.getElementById('spCW'),b=document.getElementById('tpBtn');
+  var open=p.classList.contains('hidden');
+  p.classList.toggle('hidden',!open);
+  c.classList.toggle('open',open);
+  b.style.background=open?'rgba(184,144,47,.3)':'';
+}
+function _spColor(c,el){
+  _spColor=c;
+  document.querySelectorAll('[onclick^="_spColor"]~* .sw').forEach(function(s){s.classList.remove('on')});
+  document.querySelectorAll('.swatches:first-of-type .sw').forEach(function(s){s.classList.remove('on')});
+  if(el)el.classList.add('on');
+  document.getElementById('spCC').value=c;
+  _spApply();
+}
+function _spTC(c,el){
+  _spTColor=c;
+  if(el){el.parentElement.querySelectorAll('.sw').forEach(function(s){s.classList.remove('on')});el.classList.add('on');}
+  document.getElementById('spTCC').value=c;
+  _spApply();
+}
+function _spApply(){
+  var font=document.getElementById('spFont').value;
+  var sz=document.getElementById('spSz').value+'px';
+  var hs=document.getElementById('spHs').value+'px';
+  var lh=parseFloat(document.getElementById('spLh').value);
+  var mg=document.getElementById('spMg').value;
+  var rb=document.getElementById('spRB').value;
+  var paper=document.querySelector('input[name="spSz2"]:checked')?.value||'A4';
+  var orient=document.querySelector('input[name="spOr"]:checked')?.value||'portrait';
+  var sheet=document.getElementById('spSheet');
+  if(sheet){sheet.style.fontFamily=font+',Arial,sans-serif';sheet.style.fontSize=sz;sheet.style.lineHeight=lh;}
+  document.querySelectorAll('.doc-title').forEach(function(e){e.style.fontSize=hs;});
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_spTColor;});
+  document.querySelectorAll('.row-odd td').forEach(function(e){e.style.background=rb;});
+  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_spColor;});
+  document.querySelectorAll('.hdr').forEach(function(e){e.style.borderBottomColor=_spColor;});
+  document.querySelectorAll('.footer').forEach(function(e){e.style.borderTopColor=_spColor;});
+  document.querySelectorAll('.gld').forEach(function(e){e.style.color=_spColor;});
+  document.querySelectorAll('.doc-sub').forEach(function(e){e.style.color=_spColor;});
+  document.querySelectorAll('.sum-total').forEach(function(e){e.style.borderColor=_spColor;e.lastElementChild&&(e.lastElementChild.style.color=_spColor);});
+  var sid='sp-live-style';
+  var st=document.getElementById(sid)||document.createElement('style');
+  st.id=sid;
+  st.textContent='@media print{@page{margin:'+mg+';size:'+paper+' '+orient+'}body{font-size:'+sz+'!important;line-height:'+lh+'!important}thead th{background:'+_spTColor+'!important}.row-odd td{background:'+rb+'!important}}';
+  if(!document.getElementById(sid))document.head.appendChild(st);
+}
+function _spSave(){
+  var h=document.documentElement.outerHTML;
+  var b=new Blob([h],{type:'text/html;charset=utf-8'});
+  var u=URL.createObjectURL(b);var a=document.createElement('a');
+  a.href=u;a.download=_spDocTitle.replace(/[\\/:*?"<>|]/g,'_')+'.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(u);},1500);
+}
+function _spReset(){
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){
+    localStorage.removeItem('sbtp_print_settings');location.reload();
+  }
+}
+function _spSaveSettings(){
+  var s={
+    fontFamily:document.getElementById('spFont').value,
+    fontSize:Number(document.getElementById('spSz').value),
+    headingSize:Number(document.getElementById('spHs').value),
+    lineHeight:parseFloat(document.getElementById('spLh').value),
+    accentColor:_spColor,tableHeaderColor:_spTColor,
+    rowBgColor:document.getElementById('spRB').value,
+    margin:document.getElementById('spMg').value,
+    pageSize:document.querySelector('input[name="spSz2"]:checked')?.value||'A4',
+    orientation:document.querySelector('input[name="spOr"]:checked')?.value||'portrait',
+  };
+  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}
+  if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}}
+  var btn=document.querySelector('.save-btn');
+  if(btn){var t=btn.textContent;btn.textContent='✅ ${isAr?'تم!':'Sauvé!'}';btn.style.background='#27ae60';
+    setTimeout(function(){btn.textContent=t;btn.style.background='';},2000);}
+}
+</script>
 </body></html>`;
 
   const w = window.open('', '_blank');
+  if (!w) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
   w.document.write(html);
   w.document.close();
 }
-
-/* ── دوال الطباعة لكل صفحة ── */
-
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
