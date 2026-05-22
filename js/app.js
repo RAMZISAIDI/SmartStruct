@@ -1589,6 +1589,10 @@ function topbarHTML(breadcrumb) {
       <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
         ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
       </button>
+      <button class="lang-toggle-btn" style="padding:.25rem .55rem;font-size:.85rem" title="${L('تبديل المظهر','Changer l\'apparence')}"
+        onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')">
+        ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')?'🌙':'☀️'}
+      </button>
       <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
         <span id="syncLabel">${L('متزامن','Sync')}</span>
@@ -20527,12 +20531,12 @@ Pages.team = function() {
         <span id="themeCheckLight" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem"></span>
       </div>
       <!-- معاينة مصغرة -->
-      <div style="background:#f4f5f7;border-radius:8px;padding:.6rem;display:flex;gap:.4rem;border:1px solid #e3e6eb">
-        <div style="width:30%;background:#ffffff;border-radius:4px;height:42px;border:1px solid #e3e6eb"></div>
+      <div style="background:#e8e6e1;border-radius:8px;padding:.6rem;display:flex;gap:.4rem;border:1px solid #d4d1c8">
+        <div style="width:30%;background:#f7f5f1;border-radius:4px;height:42px;border:1px solid #ddd9cd"></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
-          <div style="background:#ffffff;border-radius:3px;height:10px;border:1px solid #e3e6eb"></div>
-          <div style="background:#b8860b;border-radius:3px;height:8px;width:60%"></div>
-          <div style="background:#e8eaed;border-radius:3px;height:8px;width:80%"></div>
+          <div style="background:#f7f5f1;border-radius:3px;height:10px;border:1px solid #ddd9cd"></div>
+          <div style="background:#a8801a;border-radius:3px;height:8px;width:60%"></div>
+          <div style="background:#dcdad3;border-radius:3px;height:8px;width:80%"></div>
         </div>
       </div>
       <div style="font-size:.72rem;color:var(--dim);margin-top:.6rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>

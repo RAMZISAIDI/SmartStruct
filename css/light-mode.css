@@ -5,39 +5,39 @@
 
 html.light {
   /* ── الخلفيات — تدرّج رمادي دافئ ── */
-  --ss-bg-0:        #f4f5f7;   /* خلفية رئيسية */
-  --ss-bg-1:        #ffffff;   /* بطاقات */
-  --ss-bg-2:        #f0f1f4;   /* عناصر ثانوية */
-  --ss-bg-3:        #e8eaed;   /* عناصر أعمق */
+  --ss-bg-0:        #e8e6e1;   /* خلفية رئيسية */
+  --ss-bg-1:        #f7f5f1;   /* بطاقات */
+  --ss-bg-2:        #e2e0da;   /* عناصر ثانوية */
+  --ss-bg-3:        #dcdad3;   /* عناصر أعمق */
 
-  --bg:             #f4f5f7;
-  --bg2:            #ffffff;
-  --bg3:            #f0f1f4;
-  --bg4:            #e8eaed;
-  --card-bg:        #ffffff;
+  --bg:             #e8e6e1;
+  --bg2:            #f7f5f1;
+  --bg3:            #e2e0da;
+  --bg4:            #dcdad3;
+  --card-bg:        #f7f5f1;
 
   /* ── النصوص — رمادي داكن مريح ── */
-  --ss-fg:          #1a1f2e;
-  --ss-fg-muted:    #4a5160;
-  --ss-fg-dim:      #8a92a3;
+  --ss-fg:          #2d2a26;
+  --ss-fg-muted:    #5c574f;
+  --ss-fg-dim:      #9a948a;
 
-  --text:           #1a1f2e;
-  --muted:          #4a5160;
-  --dim:            #8a92a3;
+  --text:           #2d2a26;
+  --muted:          #5c574f;
+  --dim:            #9a948a;
 
   /* ── الحدود — رمادي ناعم ── */
-  --ss-border:      #e3e6eb;
-  --ss-border-2:    #d4d8e0;
-  --border:         #e3e6eb;
-  --border2:        #d4d8e0;
+  --ss-border:      #d4d1c8;
+  --ss-border-2:    #c4c0b5;
+  --border:         #d4d1c8;
+  --border2:        #c4c0b5;
 
   /* ── الذهبي — أغمق قليلاً للوضوح على الأبيض ── */
-  --ss-gold:        #b8860b;
-  --gold:           #b8860b;
-  --gold2:          #9a7209;
-  --gold3:          #d4a017;
-  --gold-dim:       rgba(184,134,11,.12);
-  --gold-glow:      rgba(184,134,11,.18);
+  --ss-gold:        #a8801a;
+  --gold:           #a8801a;
+  --gold2:          #8a6c14;
+  --gold3:          #c49832;
+  --gold-dim:       rgba(168,128,26,.12);
+  --gold-glow:      rgba(168,128,26,.18);
 
   /* ── ألوان الحالة — متناسقة مع الخلفية الفاتحة ── */
   --green:          #0a8043;
@@ -52,123 +52,123 @@ html.light {
   --ss-orange:      #e8590c;
 
   /* ── الظلال — ناعمة وخفيفة ── */
-  --shadow:         0 4px 20px rgba(26,31,46,.08);
-  --shadow-lg:      0 12px 40px rgba(26,31,46,.12);
+  --shadow:         0 4px 20px rgba(80,70,55,.06);
+  --shadow-lg:      0 12px 40px rgba(80,70,55,.10);
 }
 
 /* ── الجسم ── */
 html.light body {
-  background: #f4f5f7;
-  color: #1a1f2e;
+  background: #e8e6e1;
+  color: #2d2a26;
 }
 
 /* ── الشريط الجانبي ── */
 html.light .sidebar,
 html.light .app-sidebar {
-  background: #ffffff;
-  border-color: #e3e6eb;
-  box-shadow: 0 0 30px rgba(26,31,46,.04);
+  background: #f7f5f1;
+  border-color: #d4d1c8;
+  box-shadow: 0 0 30px rgba(80,70,55,.03);
 }
 
 html.light .nav-link {
-  color: #4a5160;
+  color: #5c574f;
 }
 html.light .nav-link:hover {
-  background: rgba(184,134,11,.07);
-  color: #1a1f2e;
+  background: rgba(168,128,26,.07);
+  color: #2d2a26;
 }
 html.light .nav-link.active {
-  background: linear-gradient(135deg, rgba(184,134,11,.12), rgba(184,134,11,.04));
-  color: #b8860b;
-  border-color: rgba(184,134,11,.25);
+  background: linear-gradient(135deg, rgba(168,128,26,.12), rgba(168,128,26,.04));
+  color: #a8801a;
+  border-color: rgba(168,128,26,.25);
 }
 
 /* ── الشريط العلوي ── */
 html.light .topbar {
-  background: #ffffff;
-  border-color: #e3e6eb;
-  box-shadow: 0 2px 12px rgba(26,31,46,.04);
+  background: #f7f5f1;
+  border-color: #d4d1c8;
+  box-shadow: 0 2px 12px rgba(80,70,55,.03);
 }
 html.light .topbar-breadcrumb {
-  color: #4a5160;
+  color: #5c574f;
 }
 html.light .topbar-avatar {
-  background: linear-gradient(135deg, #b8860b, #d4a017);
+  background: linear-gradient(135deg, #a8801a, #c49832);
   color: #fff;
 }
 
 /* ── البطاقات ── */
 html.light .card,
 html.light .stat-card {
-  background: #ffffff;
-  border-color: #e3e6eb;
-  box-shadow: 0 2px 12px rgba(26,31,46,.05);
+  background: #f7f5f1;
+  border-color: #d4d1c8;
+  box-shadow: 0 2px 12px rgba(80,70,55,.04);
 }
 html.light .card:hover,
 html.light .stat-card:hover {
-  box-shadow: 0 6px 24px rgba(26,31,46,.09);
-  border-color: #d4d8e0;
+  box-shadow: 0 6px 24px rgba(80,70,55,.08);
+  border-color: #c4c0b5;
 }
 
 /* ── الأزرار ── */
 html.light .btn-ghost {
-  background: #f0f1f4;
-  border-color: #d4d8e0;
-  color: #1a1f2e;
+  background: #e2e0da;
+  border-color: #c4c0b5;
+  color: #2d2a26;
 }
 html.light .btn-ghost:hover {
-  background: #e8eaed;
-  color: #1a1f2e;
+  background: #dcdad3;
+  color: #2d2a26;
 }
 html.light .btn-gold {
-  background: linear-gradient(135deg, #b8860b, #d4a017);
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(184,134,11,.25);
+  background: linear-gradient(135deg, #a8801a, #c49832);
+  color: #f7f5f1;
+  box-shadow: 0 2px 10px rgba(168,128,26,.25);
 }
 html.light .btn-gold:hover {
-  box-shadow: 0 4px 16px rgba(184,134,11,.35);
+  box-shadow: 0 4px 16px rgba(168,128,26,.35);
 }
 
 /* ── الحقول ── */
 html.light .form-input,
 html.light .form-select,
 html.light .form-textarea {
-  background: #ffffff;
-  border-color: #d4d8e0;
-  color: #1a1f2e;
+  background: #f7f5f1;
+  border-color: #c4c0b5;
+  color: #2d2a26;
 }
 html.light .form-input:focus,
 html.light .form-select:focus,
 html.light .form-textarea:focus {
-  border-color: #b8860b;
-  box-shadow: 0 0 0 3px rgba(184,134,11,.1);
+  border-color: #a8801a;
+  box-shadow: 0 0 0 3px rgba(168,128,26,.1);
 }
 html.light .form-input::placeholder {
-  color: #a8aeba;
+  color: #a59f94;
 }
 html.light .form-label {
-  color: #4a5160;
+  color: #5c574f;
 }
 
 /* ── الجداول ── */
 html.light table thead th {
-  background: #f0f1f4;
-  color: #4a5160;
-  border-bottom: 2px solid #e3e6eb;
+  background: #e2e0da;
+  color: #5c574f;
+  border-bottom: 2px solid #d4d1c8;
 }
 html.light tbody td {
-  border-bottom-color: #eef0f3;
-  color: #1a1f2e;
+  border-bottom-color: #e5e2db;
+  color: #2d2a26;
 }
 html.light tbody tr:hover td {
-  background: rgba(184,134,11,.04);
+  background: rgba(168,128,26,.04);
 }
 
 /* ── الشارات ── */
 html.light .badge {
-  background: #f0f1f4;
-  color: #4a5160;
-  border-color: #e3e6eb;
+  background: #e2e0da;
+  color: #5c574f;
+  border-color: #d4d1c8;
 }
 html.light .badge-active {
   background: rgba(10,128,67,.1);
@@ -188,58 +188,58 @@ html.light .badge-delayed {
 
 /* ── النوافذ المنبثقة ── */
 html.light .modal {
-  background: #ffffff;
-  border-color: #e3e6eb;
-  box-shadow: 0 20px 60px rgba(26,31,46,.2);
+  background: #f7f5f1;
+  border-color: #d4d1c8;
+  box-shadow: 0 20px 60px rgba(80,70,55,.16);
 }
 html.light .modal-overlay {
   background: rgba(26,31,46,.4);
   backdrop-filter: blur(4px);
 }
 html.light .modal-title {
-  color: #1a1f2e;
+  color: #2d2a26;
 }
 
 /* ── شريط التمرير ── */
 html.light ::-webkit-scrollbar-track {
-  background: #f0f1f4;
+  background: #e2e0da;
 }
 html.light ::-webkit-scrollbar-thumb {
-  background: #c8cdd6;
+  background: #bdb8ab;
   border-radius: 8px;
 }
 html.light ::-webkit-scrollbar-thumb:hover {
-  background: #b0b6c2;
+  background: #a8a294;
 }
 
 /* ── عناوين الصفحات ── */
 html.light .page-title {
-  color: #1a1f2e;
+  color: #2d2a26;
 }
 html.light .page-sub {
-  color: #8a92a3;
+  color: #9a948a;
 }
 
 /* ── العناصر ذات الخلفية البيضاء الشفافة ── */
 html.light [style*="rgba(255,255,255,.03)"],
 html.light [style*="rgba(255,255,255,0.03)"] {
-  background: #f7f8fa !important;
+  background: #ede9e3 !important;
 }
 html.light [style*="rgba(255,255,255,.04)"],
 html.light [style*="rgba(255,255,255,0.04)"] {
-  background: #f4f5f7 !important;
+  background: #e8e6e1 !important;
 }
 html.light [style*="rgba(255,255,255,.05)"],
 html.light [style*="rgba(255,255,255,0.05)"] {
-  background: #f0f1f4 !important;
+  background: #e2e0da !important;
 }
 html.light [style*="rgba(255,255,255,.06)"],
 html.light [style*="rgba(255,255,255,0.06)"] {
-  background: #eef0f3 !important;
+  background: #e5e2db !important;
 }
 html.light [style*="rgba(255,255,255,.08)"],
 html.light [style*="rgba(255,255,255,0.08)"] {
-  background: #e8eaed !important;
+  background: #dcdad3 !important;
 }
 
 /* ── شريط المزامنة ── */
@@ -252,7 +252,7 @@ html.light #syncPill {
 /* ── الرسوم البيانية والحاويات ── */
 html.light .chart-container,
 html.light .table-wrap {
-  background: #ffffff;
+  background: #f7f5f1;
 }
 
 /* ── انتقال سلس عند تبديل الوضع ── */
@@ -304,8 +304,115 @@ html.light .form-input {
 }
 
 html.light .admin-table tbody tr:nth-child(even) td {
-  background: #f7f8fa;
+  background: #ede9e3;
 }
 html.light .modal {
-  box-shadow: 0 24px 64px rgba(26,31,46,.18);
+  box-shadow: 0 24px 64px rgba(80,70,55,.14);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   لمسات احترافية للوضع الفاتح — نعومة وراحة للعين
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* خلفية بتدرّج ناعم بدل لون مسطح */
+html.light body {
+  background: linear-gradient(160deg, #ebe9e3 0%, #e5e3dc 100%) !important;
+  background-attachment: fixed;
+}
+
+/* الشريط الجانبي — كريمي دافئ مع حد خفيف */
+html.light .sidebar,
+html.light .app-sidebar {
+  background: linear-gradient(180deg, #f2f0ea 0%, #ede9e1 100%) !important;
+  border-color: #d8d4c8 !important;
+}
+
+/* الشريط العلوي — نفس النعومة */
+html.light .topbar {
+  background: #f2f0ea !important;
+  border-bottom: 1px solid #d8d4c8 !important;
+}
+
+/* البطاقات — كريمي ناعم مع ظل دافئ */
+html.light .card,
+html.light .stat-card {
+  background: #f9f7f3 !important;
+  border-color: #ddd9cd !important;
+  box-shadow: 0 2px 10px rgba(90,80,60,.05) !important;
+}
+html.light .card:hover,
+html.light .stat-card:hover {
+  box-shadow: 0 6px 20px rgba(90,80,60,.09) !important;
+}
+
+/* الحقول — خلفية كريمية فاتحة */
+html.light .form-input,
+html.light .form-select,
+html.light .form-textarea {
+  background: #fdfcfa !important;
+  border-color: #cfcbbe !important;
+}
+
+/* الجداول — رأس بيج دافئ */
+html.light table thead th {
+  background: #e8e5dd !important;
+  color: #5c574f !important;
+}
+html.light tbody tr:hover td {
+  background: rgba(168,128,26,.05) !important;
+}
+
+/* النوافذ المنبثقة */
+html.light .modal {
+  background: #f9f7f3 !important;
+  border-color: #ddd9cd !important;
+}
+
+/* الأزرار الثانوية — بيج بدل رمادي بارد */
+html.light .btn-ghost {
+  background: #e8e5dd !important;
+  border-color: #cfcbbe !important;
+  color: #2d2a26 !important;
+}
+html.light .btn-ghost:hover {
+  background: #ddd9cd !important;
+}
+
+/* شريط التمرير — بني فاتح */
+html.light ::-webkit-scrollbar-thumb {
+  background: #c4bfb0 !important;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #b0aa98 !important;
+}
+html.light ::-webkit-scrollbar-track {
+  background: #e5e3dc !important;
+}
+
+/* تقليل سطوع العناصر البيضاء الشفافة */
+html.light [style*="rgba(255,255,255,.03)"],
+html.light [style*="rgba(255,255,255,0.03)"] {
+  background: #f2f0ea !important;
+}
+html.light [style*="rgba(255,255,255,.04)"],
+html.light [style*="rgba(255,255,255,0.04)"] {
+  background: #ede9e1 !important;
+}
+html.light [style*="rgba(255,255,255,.05)"],
+html.light [style*="rgba(255,255,255,0.05)"] {
+  background: #e8e5dd !important;
+}
+html.light [style*="rgba(255,255,255,.06)"],
+html.light [style*="rgba(255,255,255,0.06)"] {
+  background: #e3e0d7 !important;
+}
+html.light [style*="rgba(255,255,255,.08)"],
+html.light [style*="rgba(255,255,255,0.08)"] {
+  background: #ddd9cd !important;
+}
+
+/* الروابط النشطة في القائمة */
+html.light .nav-link.active {
+  background: linear-gradient(135deg, rgba(168,128,26,.14), rgba(168,128,26,.05)) !important;
+  color: #8a6c14 !important;
 }
