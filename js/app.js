@@ -4316,21 +4316,21 @@ const TrialManager = {
 
           <div class="tem-plans-title">💎 ${t('اختر خطتك','Choisissez votre plan')}</div>
           <div class="tem-plans">
-            <div class="tem-plan" onclick="TrialManager._requestUpgrade(1)">
+            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(1):TrialManager._requestUpgrade(1)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">👷 ${t('للمقاول الفردي','Contractant indiv.')}</div>
               <div class="tem-plan-name">${t('المبتدئ','Starter')}</div>
               <div class="tem-plan-price">2,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('3 مشاريع · 15 عامل','3 projets · 15 ouvriers')}</div>
             </div>
-            <div class="tem-plan featured" onclick="TrialManager._requestUpgrade(2)">
+            <div class="tem-plan featured" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏢 ${t('للشركات','Entreprises')}</div>
               <div class="tem-plan-name">⭐ ${t('الاحترافي','Pro')}</div>
               <div class="tem-plan-price">7,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('20 مشروع · 100 عامل','20 projets · 100 ouvriers')}</div>
             </div>
-            <div class="tem-plan" onclick="TrialManager._requestUpgrade(3)">
+            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(3):TrialManager._requestUpgrade(3)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏛️ ${t('للمؤسسات الكبرى','Grandes ent.')}</div>
               <div class="tem-plan-name">${t('المؤسسي','Entreprise')}</div>
               <div class="tem-plan-price">19,900</div>
@@ -4340,7 +4340,7 @@ const TrialManager = {
           </div>
 
           <div class="tem-actions">
-            <button class="tem-btn tem-btn-gold" onclick="TrialManager._requestUpgrade(2)">
+            <button class="tem-btn tem-btn-gold" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
               💳 ${t('ادفع إلكترونياً الآن', "Payer en ligne maintenant")}
             </button>
             <button class="tem-btn tem-btn-ghost" onclick="TrialManager._closeAndLogout()">
@@ -7626,23 +7626,156 @@ Pages.settings = function() {
         </div>
 
         <!-- 💎 Subscription Card -->
-        <div class="card" style="margin-bottom:1rem;background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.2)">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+        ${(()=>{
+          const subStatus  = tenant?.subscription_status || '';
+          const trialDays  = TrialManager.getDaysLeft(tenant);
+          const paidDays   = TrialManager.getPaidDaysLeft(tenant);
+          const isExpired  = TrialManager.isExpired(tenant) || subStatus === 'expired';
+          const isTrial    = subStatus === 'trial';
+          const isActive   = subStatus === 'active' && !isExpired;
+          const isMaxPlan  = plan?.id >= 3;
+          // لون البطاقة بحسب الحالة
+          const cardBorder = isExpired
+            ? 'rgba(240,78,106,.35)'
+            : isTrial && trialDays !== null && trialDays <= 3
+              ? 'rgba(232,184,75,.6)'
+              : 'rgba(232,184,75,.2)';
+          const cardBg = isExpired
+            ? 'linear-gradient(135deg,rgba(240,78,106,.08),rgba(240,78,106,.02))'
+            : 'linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02))';
+          const badgeBg    = isActive?'rgba(52,195,143,.15)':isTrial?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)';
+          const badgeColor = isActive?'#34C38F':isTrial?'#E8B84B':'#F04E6A';
+          const badgeLbl   = isActive?L('✅ نشط','✅ Actif'):isTrial?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré');
+
+          // ─── خط زمني للتجربة ───
+          const trialBarHtml = isTrial && trialDays !== null ? (()=>{
+            const total = 14;
+            const used  = Math.max(0, total - Math.max(0, trialDays));
+            const pct   = Math.round((used / total) * 100);
+            const barColor = trialDays <= 0 ? '#F04E6A' : trialDays <= 3 ? '#E8B84B' : '#34C38F';
+            return `
+            <div style="margin-bottom:.85rem">
+              <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--dim);margin-bottom:.3rem">
+                <span>📅 ${L('التجربة المجانية','Essai gratuit')} (14 ${L('يوم','jours')})</span>
+                <span style="color:${barColor};font-weight:800">${trialDays <= 0 ? L('انتهت','Terminé') : L(`${trialDays} ${trialDays===1?'يوم':'أيام'} متبقية`,`${trialDays}j restant`)}</span>
+              </div>
+              <div style="background:rgba(255,255,255,.07);border-radius:99px;height:6px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .5s"></div>
+              </div>
+            </div>`;
+          })() : '';
+
+          // ─── خط زمني للاشتراك المدفوع ───
+          const paidBarHtml = isActive && paidDays !== null ? (()=>{
+            const subStart = tenant?.subscription_start ? new Date(tenant.subscription_start) : null;
+            const subEnd   = tenant?.subscription_end   ? new Date(tenant.subscription_end)   : null;
+            const totalDays = subStart && subEnd ? Math.ceil((subEnd - subStart) / 86400000) : 30;
+            const usedDays  = totalDays - paidDays;
+            const pct       = Math.min(100, Math.round((usedDays / totalDays) * 100));
+            const barColor  = paidDays <= 7 ? '#F04E6A' : paidDays <= 14 ? '#E8B84B' : '#34C38F';
+            const endDateStr = subEnd ? subEnd.toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+            return `
+            <div style="margin-bottom:.85rem">
+              <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--dim);margin-bottom:.3rem">
+                <span>📅 ${L('الاشتراك المدفوع','Abonnement payant')}</span>
+                <span style="color:${barColor};font-weight:800">${paidDays <= 0 ? L('انتهى','Expiré') : L(`${paidDays} ${paidDays===1?'يوم':'أيام'} متبقية`,`${paidDays}j restant`)} — ${L('حتى','jusqu\'au')} ${endDateStr}</span>
+              </div>
+              <div style="background:rgba(255,255,255,.07);border-radius:99px;height:6px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .5s"></div>
+              </div>
+            </div>`;
+          })() : '';
+
+          // ─── قسم الدفع عند انتهاء الاشتراك ───
+          const paymentSectionHtml = isExpired ? `
+          <div style="border-top:1px solid rgba(240,78,106,.2);padding-top:.9rem;margin-top:.2rem">
+            <div style="font-size:.8rem;font-weight:700;color:#F04E6A;margin-bottom:.75rem">
+              ⚠️ ${L('حسابك موقوف — ادفع لتفعيل الوصول','Compte suspendu — payez pour réactiver')}
+            </div>
+            <div style="display:grid;gap:.45rem;margin-bottom:.85rem">
+              ${[{id:1,ar:'المبتدئ',fr:'Starter',p:'2,900',dAr:'3 مشاريع · 15 عامل',dFr:'3 projets · 15 ouvriers',e:'👷'},
+                 {id:2,ar:'الاحترافي',fr:'Professionnel',p:'7,900',dAr:'20 مشروع · 100 عامل',dFr:'20 projets · 100 ouvriers',e:'🏢',f:true},
+                 {id:3,ar:'المؤسسي',fr:'Entreprise',p:'19,900',dAr:'غير محدود · SLA',dFr:'Illimité · SLA',e:'🏛️'}]
+              .map(p=>`
+              <div onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(${p.id}):TrialManager._requestUpgrade(${p.id})"
+                style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem;
+                       background:${p.f?'rgba(232,184,75,.07)':'rgba(255,255,255,.025)'};
+                       border:1px solid ${p.f?'rgba(232,184,75,.3)':'rgba(255,255,255,.07)'};
+                       border-radius:9px;cursor:pointer;transition:all .18s"
+                onmouseover="this.style.background='rgba(232,184,75,.12)';this.style.borderColor='rgba(232,184,75,.4)'"
+                onmouseout="this.style.background='${p.f?'rgba(232,184,75,.07)':'rgba(255,255,255,.025)'}';this.style.borderColor='${p.f?'rgba(232,184,75,.3)':'rgba(255,255,255,.07)'}'">
+                <div style="display:flex;align-items:center;gap:.55rem">
+                  <span style="font-size:1.1rem">${p.e}</span>
+                  <div>
+                    <div style="font-weight:700;font-size:.82rem;color:${p.f?'#E8B84B':'var(--text)'}">
+                      ${L(p.ar,p.fr)}${p.f?' ⭐':''}
+                    </div>
+                    <div style="font-size:.68rem;color:var(--dim)">${L(p.dAr,p.dFr)}</div>
+                  </div>
+                </div>
+                <div style="text-align:end">
+                  <div style="font-weight:800;font-size:.88rem;color:var(--text);font-family:'JetBrains Mono',monospace">
+                    ${p.p} <span style="font-size:.62rem;color:var(--dim);font-weight:400">${L('دج/شهر','DA/mois')}</span>
+                  </div>
+                  <div style="font-size:.62rem;color:#E8B84B;margin-top:.1rem">💳 ${L('ادفع الآن','Payer')}</div>
+                </div>
+              </div>`).join('')}
+            </div>
+            <button class="btn btn-gold" style="width:100%;justify-content:center;padding:.7rem;font-weight:800"
+              onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
+              💳 ${L('ادفع إلكترونياً — EDAHABIA / CIB','Payer en ligne — EDAHABIA / CIB')}
+            </button>
+            <div style="display:flex;align-items:center;justify-content:center;gap:.4rem;margin-top:.6rem;flex-wrap:wrap">
+              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:4px;padding:.12rem .45rem;font-size:.65rem">📮 EDAHABIA</span>
+              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:4px;padding:.12rem .45rem;font-size:.65rem">💳 CIB</span>
+              <span style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.18);border-radius:4px;padding:.12rem .45rem;font-size:.65rem;color:#34C38F">🔒 Chargily Pay™</span>
+            </div>
+          </div>` :
+          isMaxPlan ? `
+          <div style="text-align:center;padding:.5rem;background:rgba(232,184,75,.05);border-radius:8px;border:1px solid rgba(232,184,75,.12)">
+            <div style="color:var(--gold);font-weight:800;font-size:.85rem">🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}</div>
+            <div style="font-size:.7rem;color:var(--dim);margin-top:.25rem">${L('استمتع بكل الميزات بلا حدود','Profitez de toutes les fonctionnalités')}</div>
+          </div>` : `
+          <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:.8rem">
+            <div style="font-size:.76rem;color:var(--dim);margin-bottom:.65rem;line-height:1.6">
+              💡 ${L('هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك إلكترونياً فوراً.','Besoin de plus ? Passez à un plan supérieur en ligne.')}
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-gold btn-sm" style="gap:.35rem"
+                onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(${(plan?.id||1)+1}):TrialManager._requestUpgrade(${(plan?.id||1)+1})">
+                💳 ${L('ادفع إلكترونياً الآن','Payer en ligne maintenant')}
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')">
+                📋 ${L('مقارنة الخطط','Comparer plans')}
+              </button>
+            </div>
+            <div style="display:flex;align-items:center;gap:.35rem;margin-top:.55rem;flex-wrap:wrap">
+              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:.1rem .4rem;font-size:.63rem">📮 EDAHABIA</span>
+              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:.1rem .4rem;font-size:.63rem">💳 CIB</span>
+              <span style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.15);border-radius:4px;padding:.1rem .4rem;font-size:.63rem;color:#34C38F">🔒 Chargily Pay™</span>
+            </div>
+          </div>`;
+
+          return `
+        <div class="card" style="margin-bottom:1rem;background:${cardBg};border:1px solid ${cardBorder}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:${trialBarHtml||paidBarHtml?'.75rem':'1rem'}">
             <div>
               <div style="font-weight:800;margin-bottom:.3rem">💎 ${L('خطتك الحالية','Votre plan actuel')}</div>
               <div style="font-size:.72rem;color:var(--dim)">${L('الاشتراك والميزات','Abonnement & fonctionnalités')}</div>
             </div>
-            <span style="background:${tenant?.subscription_status==='active'?'rgba(52,195,143,.15)':tenant?.subscription_status==='trial'?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)'};color:${tenant?.subscription_status==='active'?'#34C38F':tenant?.subscription_status==='trial'?'#E8B84B':'#F04E6A'};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
-              ${tenant?.subscription_status==='active'?L('✅ نشط','✅ Actif'):tenant?.subscription_status==='trial'?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré')}
+            <span style="background:${badgeBg};color:${badgeColor};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
+              ${badgeLbl}
             </span>
           </div>
 
-          <div style="background:rgba(0,0,0,.2);padding:1rem;border-radius:10px;margin-bottom:1rem">
+          ${trialBarHtml}${paidBarHtml}
+
+          <div style="background:rgba(0,0,0,.2);padding:.9rem 1rem;border-radius:10px;margin-bottom:.9rem">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-              <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
-              <div style="font-size:1.1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.7rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
+              <div style="font-size:1.2rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
+              <div style="font-size:1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.65rem;color:var(--dim);font-weight:400">${L('دج/شهر','DA/mois')}</span></div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;margin-top:.8rem">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.76rem;margin-top:.7rem">
               <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
               <div><span style="color:var(--dim)">👷 ${L('العمال','Ouvriers')}:</span> <strong>${plan?.max_workers===-1?L('غير محدود','Illimité'):(plan?.max_workers||0)}</strong></div>
               <div><span style="color:var(--dim)">🚜 ${L('المعدات','Équipements')}:</span> <strong>${plan?.max_equipment===-1?L('غير محدود','Illimité'):(plan?.max_equipment||0)}</strong></div>
@@ -7650,89 +7783,9 @@ Pages.settings = function() {
             </div>
           </div>
 
-          ${(()=>{
-            const subStatus = tenant?.subscription_status || '';
-            const isExpired = subStatus === 'expired' || (!subStatus && tenant?.is_active === false);
-            const isTrialExpired = subStatus === 'trial' && TrialManager.isExpired(tenant);
-            const needsPayment = isExpired || isTrialExpired;
-            const isMaxPlan = plan?.id >= 3;
-
-            if (needsPayment) {
-              // ── حالة الانتهاء: عرض قسم الدفع بشكل بارز ──
-              return `
-              <div style="background:linear-gradient(135deg,rgba(240,78,106,.1),rgba(240,78,106,.04));border:1px solid rgba(240,78,106,.3);border-radius:12px;padding:1rem;margin-bottom:1rem">
-                <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.75rem">
-                  <span style="font-size:1.4rem">⚠️</span>
-                  <div>
-                    <div style="font-weight:800;color:#F04E6A;font-size:.92rem">${L('الاشتراك منتهي — يُرجى التجديد','Abonnement expiré — Veuillez renouveler')}</div>
-                    <div style="font-size:.72rem;color:var(--dim);margin-top:.15rem">${L('ستُقفَل بعض الميزات حتى إتمام الدفع','Certaines fonctionnalités seront bloquées jusqu\'au paiement')}</div>
-                  </div>
-                </div>
-                <div style="display:grid;gap:.5rem;margin-bottom:1rem">
-                  ${[{id:1,nameAr:'المبتدئ',nameFr:'Starter',price:'2,900',featAr:'3 مشاريع · 15 عامل',featFr:'3 projets · 15 ouvriers',emoji:'👷'},
-                    {id:2,nameAr:'الاحترافي',nameFr:'Professionnel',price:'7,900',featAr:'20 مشروع · 100 عامل',featFr:'20 projets · 100 ouvriers',emoji:'🏢',featured:true},
-                    {id:3,nameAr:'المؤسسي',nameFr:'Entreprise',price:'19,900',featAr:'غير محدود · SLA',featFr:'Illimité · SLA',emoji:'🏛️'}].map(p=>`
-                  <div onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(${p.id}):TrialManager._requestUpgrade(${p.id})"
-                    style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem;background:${p.featured?'rgba(232,184,75,.08)':'rgba(255,255,255,.03)'};border:1px solid ${p.featured?'rgba(232,184,75,.35)':'rgba(255,255,255,.07)'};border-radius:10px;cursor:pointer;transition:all .2s"
-                    onmouseover="this.style.borderColor='rgba(232,184,75,.5)';this.style.background='rgba(232,184,75,.1)'"
-                    onmouseout="this.style.borderColor='${p.featured?'rgba(232,184,75,.35)':'rgba(255,255,255,.07)'}';this.style.background='${p.featured?'rgba(232,184,75,.08)':'rgba(255,255,255,.03)'}'">
-                    <div style="display:flex;align-items:center;gap:.6rem">
-                      <span style="font-size:1.2rem">${p.emoji}</span>
-                      <div>
-                        <div style="font-weight:700;color:${p.featured?'#E8B84B':'var(--text)'};font-size:.85rem">${L(p.nameAr,p.nameFr)}${p.featured?' ⭐':''}</div>
-                        <div style="font-size:.7rem;color:var(--dim)">${L(p.featAr,p.featFr)}</div>
-                      </div>
-                    </div>
-                    <div style="text-align:end">
-                      <div style="font-weight:800;color:var(--text);font-size:.95rem;font-family:'JetBrains Mono',monospace">${p.price} <span style="font-size:.65rem;color:var(--dim);font-weight:400">${L('دج/شهر','DA/mois')}</span></div>
-                      <div style="font-size:.65rem;color:var(--gold);margin-top:.15rem">💳 ${L('ادفع الآن','Payer')}</div>
-                    </div>
-                  </div>`).join('')}
-                </div>
-                <button class="btn btn-gold" style="width:100%;justify-content:center;padding:.75rem;font-size:.95rem;font-weight:800"
-                  onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
-                  💳 ${L('ادفع إلكترونياً عبر EDAHABIA / CIB','Payer en ligne EDAHABIA / CIB')}
-                </button>
-                <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
-                  <span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:.15rem .5rem;font-size:.68rem">📮 EDAHABIA</span>
-                  <span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:.15rem .5rem;font-size:.68rem">💳 CIB</span>
-                  <span style="background:rgba(52,195,143,.07);border:1px solid rgba(52,195,143,.2);border-radius:5px;padding:.15rem .5rem;font-size:.68rem;color:#34C38F">🔒 Chargily Pay™</span>
-                </div>
-              </div>`;
-            } else if (isMaxPlan) {
-              return `
-              <div style="text-align:center;padding:.6rem;background:rgba(232,184,75,.06);border-radius:10px;border:1px solid rgba(232,184,75,.15)">
-                <div style="color:var(--gold);font-weight:800;font-size:.88rem">🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}</div>
-                <div style="font-size:.72rem;color:var(--dim);margin-top:.3rem">${L('استمتع بكل الميزات بلا حدود','Profitez de toutes les fonctionnalités sans limites')}</div>
-              </div>`;
-            } else {
-              // ── حالة الخطة النشطة أو التجريبية: عرض خيار الترقية + زر الدفع ──
-              const nextPlanId = (plan?.id||1) + 1;
-              const nextPlanData = [{},{nameAr:'المبتدئ',price:'2,900'},{nameAr:'الاحترافي',price:'7,900'},{nameAr:'المؤسسي',price:'19,900'}];
-              const next = nextPlanData[nextPlanId] || nextPlanData[2];
-              return `
-              <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:.85rem;margin-top:.25rem">
-                <div style="font-size:.78rem;color:var(--dim);margin-bottom:.75rem;line-height:1.7">
-                  💡 ${L('هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك واحصل على المزيد من الميزات.','Besoin de plus ? Passez à un plan supérieur.')}
-                </div>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-                  <button class="btn btn-gold btn-sm" style="gap:.4rem"
-                    onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(${nextPlanId}):TrialManager._requestUpgrade(${nextPlanId})">
-                    💳 ${L(`ادفع إلكترونياً — ${next.nameAr}`,`Payer — ${next.price} DA/mois`)}
-                  </button>
-                  <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')">
-                    📋 ${L('مقارنة الخطط','Comparer plans')}
-                  </button>
-                </div>
-                <div style="display:flex;align-items:center;gap:.4rem;margin-top:.6rem;flex-wrap:wrap">
-                  <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:.1rem .4rem;font-size:.65rem">📮 EDAHABIA</span>
-                  <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:.1rem .4rem;font-size:.65rem">💳 CIB</span>
-                  <span style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.15);border-radius:4px;padding:.1rem .4rem;font-size:.65rem;color:#34C38F">🔒 Chargily Pay™</span>
-                </div>
-              </div>`;
-            }
-          })()}
-        </div>
+          ${paymentSectionHtml}
+        </div>`;
+        })()}
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🔑 ${L('تغيير كلمة المرور','Changer le mot de passe')}</div>
           <div class="form-group"><label class="form-label">${L('كلمة المرور الحالية','Mot de passe actuel')}</label><input class="form-input" id="pwCurrent" type="password"></div>
@@ -9732,6 +9785,121 @@ Pages.admin = function() {
                 <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td></tr>`;
             }).join('')}</tbody>
           </table></div>
+        </div>
+
+        <!-- ══ 💳 لوحة حالة المدفوعات ══ -->
+        <div class="card" style="margin-top:1rem;padding:0">
+          <div style="padding:1.1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+            <div>
+              <div style="font-weight:800;font-size:.95rem">💳 ${L('حالة المدفوعات والاشتراكات','Statut des paiements & abonnements')}</div>
+              <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">${L('نظرة شاملة على جميع المؤسسات — دفعت / لم تدفع / الوقت المتبقي','Vue d\'ensemble — payé / impayé / temps restant')}</div>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${(()=>{
+                const paid    = tenants.filter(t=>t.id!==1 && t.subscription_status==='active' && t.is_active).length;
+                const trial   = tenants.filter(t=>t.id!==1 && t.subscription_status==='trial').length;
+                const expired = tenants.filter(t=>t.id!==1 && (t.subscription_status==='expired' || !t.is_active)).length;
+                return `
+                <span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.25);color:#34C38F;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">✅ ${L('دفعت','Payé')} (${paid})</span>
+                <span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:#E8B84B;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⏱️ ${L('تجربة','Essai')} (${trial})</span>
+                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>`;
+              })()}
+            </div>
+          </div>
+          <div class="table-wrap" style="border:none;border-radius:0">
+            <table>
+              <thead><tr>
+                <th>${L('المؤسسة','Entreprise')}</th>
+                <th>${L('حالة الدفع','Statut paiement')}</th>
+                <th>${L('الخطة','Plan')}</th>
+                <th>${L('الوقت المتبقي','Temps restant')}</th>
+                <th>${L('تاريخ الانتهاء','Date d\'expiration')}</th>
+                <th>${L('إجراء','Action')}</th>
+              </tr></thead>
+              <tbody>
+                ${(()=>{
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  return tenants
+                    .filter(t => t.id !== 1)
+                    .map(t => {
+                      const pl = plans.find(p=>p.id===t.plan_id);
+                      const st = t.subscription_status || '';
+                      const isTrial   = st === 'trial';
+                      const isPaid    = st === 'active' && t.is_active;
+                      const isExpired = st === 'expired' || (!t.is_active && st !== 'trial' && st !== 'pending');
+                      const isPending = st === 'pending' || (!t.is_active && st === 'trial');
+
+                      // حساب الأيام المتبقية
+                      let daysLeft = null, endDate = null;
+                      if (isTrial) {
+                        const tEnd = t.trial_end || t.trial_ends_at || null;
+                        if (tEnd) { endDate = tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
+                      } else if (isPaid) {
+                        const sEnd = t.subscription_end || t.subscription_ends_at || null;
+                        if (sEnd) { endDate = sEnd; const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
+                      }
+
+                      // عرض الوقت المتبقي
+                      let daysHtml = '<span style="color:var(--dim)">—</span>';
+                      if (daysLeft !== null) {
+                        if (daysLeft < 0) {
+                          daysHtml = `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`;
+                        } else if (daysLeft === 0) {
+                          daysHtml = `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم الأخير!','Dernier jour!')}</span>`;
+                        } else if (daysLeft <= 3) {
+                          daysHtml = `<span style="color:#E8B84B;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`;
+                        } else if (daysLeft <= 7) {
+                          daysHtml = `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`;
+                        } else {
+                          daysHtml = `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
+                        }
+                      }
+
+                      // عرض حالة الدفع
+                      let payHtml;
+                      if (isPaid) {
+                        payHtml = `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`;
+                      } else if (isTrial && daysLeft !== null && daysLeft >= 0) {
+                        payHtml = `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة مجانية','Essai gratuit')}</span>`;
+                      } else if (isPending) {
+                        payHtml = `<span class="badge" style="background:rgba(74,144,226,.12);color:#4A90E2;border:1px solid rgba(74,144,226,.25);font-size:.7rem">⏳ ${L('انتظار','En attente')}</span>`;
+                      } else {
+                        payHtml = `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
+                      }
+
+                      const endStr = endDate
+                        ? new Date(endDate).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'})
+                        : '—';
+
+                      return `<tr>
+                        <td>
+                          <div style="font-weight:700;font-size:.85rem">${escHtml(t.name)}</div>
+                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')}</div>
+                        </td>
+                        <td>${payHtml}</td>
+                        <td>
+                          <span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span>
+                        </td>
+                        <td>${daysHtml}</td>
+                        <td style="font-size:.78rem;color:var(--dim);font-family:monospace">${endStr}</td>
+                        <td>
+                          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+                            ${(!isPaid) ? `<button class="btn btn-sm btn-gold" style="font-size:.7rem;padding:.25rem .6rem"
+                              onclick="editTenantPlan(${t.id})" title="${L('تفعيل الاشتراك المدفوع','Activer l\'abonnement payant')}">
+                              💳 ${L('فعّل','Activer')}
+                            </button>` : ''}
+                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.7rem;padding:.25rem .5rem"
+                              onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">
+                              ${t.is_active?'⏸️':'▶️'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>`;
+                    }).join('')
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         </div><!-- END adminTabContent_tenants -->
