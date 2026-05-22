@@ -3961,7 +3961,7 @@ async function doRegister() {
           // ✅ لا نمرر id — Supabase يولّده تلقائياً (SERIAL/BIGSERIAL)
           type: 'new_account',
           title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
-          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
+          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})${phone.trim()?' — 📞 '+('+213'+phone.trim().replace(/^0/,'').replace(/\s/g,'')):''} — 📍 ${wilaya}`,
           user_id: sbUser.id, tenant_id: sbTenant.id,
           date: now.toISOString(), read: false, status: 'pending',
           extra_data: encodedPass // ✅ كلمة مرور base64 مؤقتة للإيميل
@@ -10310,12 +10310,15 @@ Pages.admin = function() {
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
           // ✅ نعرض كل الإشعارات التي لم تُفعَّل بعد (pending) أو التي تحتاج إجراء
+          // ولكن نستبعد المُخفية (dismissed)
           const allNotifs = DB.get('notifications') || [];
           const notifs = allNotifs.filter(n =>
-            n.status === 'pending' ||
-            n.type === 'new_account' ||
-            n.type === 'reset_password' ||
-            n.type === 'upgrade_request'
+            n.status !== 'dismissed' && (
+              n.status === 'pending' ||
+              n.type === 'new_account' ||
+              n.type === 'reset_password' ||
+              n.type === 'upgrade_request'
+            )
           ).sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
 
           const pendingCount = notifs.filter(n => n.status === 'pending').length;
@@ -10345,9 +10348,16 @@ Pages.admin = function() {
             return `<tr style="${isPending ? 'background:rgba(232,184,75,.04)' : ''}">
               <td><span style="font-size:1.4rem">${icon}</span></td>
               <td style="font-weight:700;font-size:.85rem">${escHtml(n.title)}</td>
-              <td style="font-size:.8rem;color:var(--muted);max-width:250px">
-                ${escHtml(n.body)}
-                ${linkedTenant ? `<div style="font-size:.72rem;color:var(--dim);margin-top:.15rem">🏢 ${escHtml(linkedTenant.name||'')} · 📧 ${escHtml(linkedUser?.email||'')}</div>` : ''}
+              <td style="font-size:.8rem;color:var(--muted);max-width:280px">
+                ${linkedTenant ? `
+                  <div style="display:flex;flex-direction:column;gap:.2rem">
+                    <div style="font-weight:700;color:var(--text)">🏢 ${escHtml(linkedTenant.name||'')}</div>
+                    <div style="font-size:.74rem">👤 ${escHtml(linkedUser?.full_name||'')}</div>
+                    <div style="font-size:.74rem;direction:ltr;text-align:${I18N.currentLang==='ar'?'right':'left'}">📧 ${escHtml(linkedUser?.email||'')}</div>
+                    ${linkedUser?.phone ? `<div style="font-size:.74rem;direction:ltr;text-align:${I18N.currentLang==='ar'?'right':'left'};color:var(--green)">📞 ${escHtml(linkedUser.phone)}</div>` : ''}
+                    ${linkedTenant.wilaya ? `<div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(linkedTenant.wilaya)}</div>` : ''}
+                  </div>
+                ` : escHtml(n.body)}
               </td>
               <td>
                 ${isPending ? `<span class="badge badge-paused">⏳ ${L('بانتظار التفعيل','En attente')}</span>` :
@@ -15106,12 +15116,37 @@ function downloadUpdatedHTML(apiKey, provider, model) {
   }
 }
 
-function dismissNotif(notifId) {
+async function dismissNotif(notifId) {
   const notifs = DB.get('notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
-  DB.set('notifications', notifs);
+  if (ni < 0) { App.navigate('admin'); return; }
+
+  // ① تحديث Supabase
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  if (cfg?.url && cfg?.key) {
+    try {
+      await fetch(`${cfg.url}/rest/v1/notifications?id=eq.${notifId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type':'application/json',
+          'apikey': cfg.key,
+          'Authorization': `Bearer ${cfg.key}`,
+          'Prefer':'return=minimal'
+        },
+        body: JSON.stringify({ read: true, status: 'dismissed' })
+      });
+    } catch(e) { console.warn('dismissNotif Supabase failed:', e); }
+  }
+
+  // ② تحديث محلي
+  notifs[ni].read   = true;
+  notifs[ni].status = 'dismissed';
+  if (typeof DB.setSilent === 'function') DB.setSilent('notifications', notifs);
+  else DB.set('notifications', notifs);
+
+  Toast.success(L('✓ تم إخفاء الإشعار','✓ Notification masquée'));
   App.navigate('admin');
+  setTimeout(() => { try { switchAdminTab('notif'); } catch(_){} }, 300);
 }
 
 // ✅ فتح صفحة الأدمن مباشرةً على تبويب الإشعارات
@@ -20358,6 +20393,27 @@ function deleteDocItem(id){
 }
 
 /* ── TEAM PAGE ── */
+// ── تبديل وضع المظهر (داكن/فاتح) ──
+function setTheme(theme) {
+  try {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+    localStorage.setItem('sbtp_theme', theme);
+    if (typeof Toast !== 'undefined') {
+      Toast.success(theme === 'light'
+        ? L('☀️ تم تفعيل الوضع الفاتح','☀️ Mode clair activé')
+        : L('🌙 تم تفعيل الوضع الداكن','🌙 Mode sombre activé'));
+    }
+    // إعادة رسم الصفحة الحالية لتحديث المعاينة
+    if (typeof App !== 'undefined' && App.currentPage) {
+      App.navigate(App.currentPage);
+    }
+  } catch(e) { console.warn('setTheme failed:', e); }
+}
+
 Pages.team = function() {
   const tid        = Auth.getUser().tenant_id;
   const currentUser= Auth.getUser();
@@ -20435,6 +20491,67 @@ Pages.team = function() {
   <div class="page-actions">
     ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">✉️ ${L('إضافة مستخدم','Ajouter utilisateur')}</button>` : ''}
   </div>
+</div>
+
+<!-- ══════════════ مظهر الموقع (Theme Switcher) ══════════════ -->
+<div class="card" style="margin-bottom:1.2rem;border:1px solid rgba(232,184,75,.2)">
+  <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem">
+    <div style="width:38px;height:38px;border-radius:10px;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);display:flex;align-items:center;justify-content:center;font-size:1.2rem">🎨</div>
+    <div>
+      <div style="font-weight:800;font-size:.92rem">${L('مظهر الموقع','Apparence du site')}</div>
+      <div style="font-size:.74rem;color:var(--dim)">${L('اختر الوضع المريح لعينيك','Choisissez le mode confortable')}</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+    <!-- الوضع الداكن -->
+    <div onclick="setTheme('dark')" id="themeOptDark" style="cursor:pointer;border:2px solid var(--border);border-radius:14px;padding:1rem;transition:all .2s;position:relative;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
+        <span style="font-weight:800;font-size:.88rem">🌙 ${L('الوضع الداكن','Mode sombre')}</span>
+        <span id="themeCheckDark" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem"></span>
+      </div>
+      <!-- معاينة مصغرة -->
+      <div style="background:#0a0e1a;border-radius:8px;padding:.6rem;display:flex;gap:.4rem">
+        <div style="width:30%;background:#131a2a;border-radius:4px;height:42px"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
+          <div style="background:#1a2236;border-radius:3px;height:10px"></div>
+          <div style="background:#E8B84B;border-radius:3px;height:8px;width:60%"></div>
+          <div style="background:#1a2236;border-radius:3px;height:8px;width:80%"></div>
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--dim);margin-top:.6rem">${L('مريح في الإضاءة المنخفضة','Confortable en faible luminosité')}</div>
+    </div>
+    <!-- الوضع الفاتح -->
+    <div onclick="setTheme('light')" id="themeOptLight" style="cursor:pointer;border:2px solid var(--border);border-radius:14px;padding:1rem;transition:all .2s;position:relative;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
+        <span style="font-weight:800;font-size:.88rem">☀️ ${L('الوضع الفاتح','Mode clair')}</span>
+        <span id="themeCheckLight" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem"></span>
+      </div>
+      <!-- معاينة مصغرة -->
+      <div style="background:#f4f5f7;border-radius:8px;padding:.6rem;display:flex;gap:.4rem;border:1px solid #e3e6eb">
+        <div style="width:30%;background:#ffffff;border-radius:4px;height:42px;border:1px solid #e3e6eb"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
+          <div style="background:#ffffff;border-radius:3px;height:10px;border:1px solid #e3e6eb"></div>
+          <div style="background:#b8860b;border-radius:3px;height:8px;width:60%"></div>
+          <div style="background:#e8eaed;border-radius:3px;height:8px;width:80%"></div>
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--dim);margin-top:.6rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var cur = (document.documentElement.classList.contains('light')) ? 'light' : 'dark';
+      var dk = document.getElementById('themeOptDark'), lt = document.getElementById('themeOptLight');
+      var ckD = document.getElementById('themeCheckDark'), ckL = document.getElementById('themeCheckLight');
+      if (cur === 'light') {
+        if(lt){lt.style.borderColor='var(--gold)';lt.style.background='rgba(184,134,11,.04)';}
+        if(ckL){ckL.style.background='var(--gold)';ckL.style.borderColor='var(--gold)';ckL.textContent='✓';ckL.style.color='#fff';}
+      } else {
+        if(dk){dk.style.borderColor='var(--gold)';dk.style.background='rgba(232,184,75,.04)';}
+        if(ckD){ckD.style.background='var(--gold)';ckD.style.borderColor='var(--gold)';ckD.textContent='✓';ckD.style.color='#000';}
+      }
+    })();
+  </script>
 </div>
 
 <!-- ══════════════ قائمة المستخدمين ══════════════ -->

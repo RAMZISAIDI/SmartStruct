@@ -47,6 +47,16 @@
 <link rel="stylesheet" href="css/design-system.css">
 <link rel="stylesheet" href="assets/textures/atmosphere.css">
 <link rel="stylesheet" href="css/main.css?v=1779272139">
+<link rel="stylesheet" href="css/light-mode.css?v=1">
+<script>
+  // تطبيق الوضع المحفوظ فوراً قبل التحميل (تجنب الوميض)
+  (function(){
+    try {
+      var saved = localStorage.getItem('sbtp_theme');
+      if (saved === 'light') document.documentElement.classList.add('light');
+    } catch(e){}
+  })();
+</script>
 </head>
 <body>
 

@@ -838,7 +838,8 @@ const DBHybrid = {
       'custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations',
       'leave_requests','worker_warnings','worker_overtime',
-      'supplier_prices','supplier_obligations','supplier_purchases'
+      'supplier_prices','supplier_obligations','supplier_purchases',
+      'suppliers','subscription_invoices'
     ]);
     if (!SYNCABLE.has(key)) return;
     if (!Array.isArray(newVal) || !Array.isArray(prevVal)) {
@@ -1089,7 +1090,8 @@ if (!navigator.onLine || !this._useSupabase) {
         'materials','stock_movements','invoices','salary_records','kanban_tasks',
         'documents','obligations','notes','notifications','users',
         'leave_requests','worker_warnings','worker_overtime',
-        'supplier_purchases','supplier_prices','supplier_obligations'
+        'supplier_purchases','supplier_prices','supplier_obligations',
+        'suppliers','subscription_invoices'
       ];
 
       let totalRemoved = 0;
@@ -1422,7 +1424,8 @@ if (!navigator.onLine || !this._useSupabase) {
       'custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations',
       'leave_requests','worker_warnings','worker_overtime',
-      'supplier_prices','supplier_obligations','supplier_purchases'
+      'supplier_prices','supplier_obligations','supplier_purchases',
+      'suppliers','subscription_invoices'
     ]);
     if (!SYNCABLE.has(key)) return;
 
@@ -1615,7 +1618,9 @@ if (!navigator.onLine || !this._useSupabase) {
       // ③ جداول الموارد البشرية
       'leave_requests','worker_warnings','worker_overtime',
       // ④ جداول الموردين
-      'supplier_purchases','supplier_prices','supplier_obligations'
+      'supplier_purchases','supplier_prices','supplier_obligations','suppliers',
+      // ⑤ فواتير الاشتراك
+      'subscription_invoices'
     ];
     // الجداول العامة (تُسحب كاملاً للجميع)
     const globalTables = ['plans','tenants','users'];
@@ -2493,18 +2498,34 @@ const SmartRealtime = (() => {
       if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
 
       try {
-        // سحب الإشعارات عبر SupabaseClient (نفس آلية باقي التطبيق)
+        // ✅ الأدمن يسحب كل الإشعارات، المستخدم العادي يسحب إشعارات مؤسسته فقط
+        let isAdminUser = false;
+        try {
+          const u = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
+          isAdminUser = u && u.is_admin === true;
+        } catch(_) {}
+
         const remote = await SupabaseClient.select(
           'notifications',
-          { tenant_id: _tenantId },
-          { limit: 30 }
+          isAdminUser ? {} : { tenant_id: _tenantId },
+          { limit: isAdminUser ? 100 : 30 }
         );
         if (Array.isArray(remote) && remote.length) {
           const lsKey = 'sbtp5_notifications';
           const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
           const remoteIds = new Set(remote.map(r => Number(r.id)));
           const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+          const prevPending = local.filter(r => r.status === 'pending').length;
           localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
+
+          // ✅ إذا الأدمن في صفحة الأدمن ووصل إشعار جديد — حدّث تلقائياً
+          if (isAdminUser && typeof App !== 'undefined' && App.currentPage === 'admin') {
+            const newPending = remote.filter(r => r.status === 'pending').length;
+            if (newPending > prevPending) {
+              if (typeof Toast !== 'undefined') Toast.info('🔔 إشعار جديد وصل');
+              try { App.navigate('admin'); } catch(_) {}
+            }
+          }
         }
       } catch(_) {
         // فشل صامت — المحاولة التالية بعد 25 ث
