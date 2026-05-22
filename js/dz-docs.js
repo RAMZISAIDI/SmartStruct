@@ -614,24 +614,13 @@ body{margin:0;padding:0;background:#e8eaed;font-family:'Cairo',sans-serif}
 <!-- ── Toolbar ── -->
 <div class="toolbar no-print">
   <button class="tb-btn tb-btn-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
-  <button class="tb-btn tb-btn-green" id="saveBtn" onclick="(function(){
-    const h=document.documentElement.outerHTML;
-    const b=new Blob([h],{type:'text/html;charset=utf-8'});
-    const u=URL.createObjectURL(b);const a=document.createElement('a');
-    a.href=u;a.download='${title.replace(/'/g,"\\'")}'+'.html';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(u),1000);
-  })()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="tb-btn tb-btn-green" id="saveBtn" onclick="_saveDocToPC()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
   <div class="tb-sep"></div>
   <button class="tb-btn tb-btn-ghost" id="togglePanel" onclick="toggleEditPanel()">
     ⚙️ ${isAr?'تخصيص الورقة':'Personnaliser'}
   </button>
   <div class="tb-sep"></div>
-  <button class="tb-btn tb-btn-ghost" onclick="(function(){
-    const newLang='${isAr?'fr':'ar'}';
-    if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'rebuildDoc',lang:newLang},'*');window.close();}
-    else{alert('${isAr?'أعد فتح الوثيقة من التطبيق':'Rouvrez depuis l\'application'}');}
-  })()">${isAr?'FR':'التبديل للعربية 🇩🇿'}</button>
+  <button class="tb-btn tb-btn-ghost" onclick="_switchDocLang()">${isAr?'🇫🇷 FR':'🇩🇿 AR'}</button>
   <button class="tb-btn tb-btn-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
 
@@ -827,6 +816,36 @@ body{margin:0;padding:0;background:#e8eaed;font-family:'Cairo',sans-serif}
 </div>
 
 <script>
+// ── حفظ الوثيقة على الحاسوب ──
+var _docTitle = ${JSON.stringify(title)};
+function _saveDocToPC() {
+  try {
+    var h = document.documentElement.outerHTML;
+    var b = new Blob([h], {type:'text/html;charset=utf-8'});
+    var u = URL.createObjectURL(b);
+    var a = document.createElement('a');
+    a.href = u;
+    a.download = _docTitle.replace(/[\\/:*?"<>|]/g,'_') + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 1500);
+  } catch(e) {
+    alert('${isAr?'فشل الحفظ — حاول مجدداً':'Échec — réessayez'}');
+  }
+}
+
+// ── تبديل لغة الوثيقة ──
+function _switchDocLang() {
+  var newLang = '${isAr?'fr':'ar'}';
+  if (window.opener && !window.opener.closed) {
+    window.opener.postMessage({type:'rebuildDoc', lang:newLang}, '*');
+    window.close();
+  } else {
+    alert('${isAr?'أعد فتح الوثيقة من التطبيق الرئيسي':'Rouvrez le document depuis l\'application principale'}');
+  }
+}
+
 // ── متغيرات حية ──
 var _liveColor = '${_color}';
 

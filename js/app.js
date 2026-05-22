@@ -469,10 +469,155 @@ const I18N = {
     'cmp.workers':      {ar:'العمال',          fr:'Ouvriers'},
     'cmp.duration':     {ar:'المدة (يوم)',      fr:'Durée (j)'},
     'cmp.efficiency':   {ar:'كفاءة الميزانية', fr:'Efficacité budget'},
+
+    // ── HR ──
+    'hr.leaves':        {ar:'الإجازات',              fr:'Congés'},
+    'hr.leave.annual':  {ar:'إجازة سنوية',           fr:'Congé annuel'},
+    'hr.leave.sick':    {ar:'إجازة مرضية',           fr:'Congé maladie'},
+    'hr.leave.maternity':{ar:'إجازة أمومة',          fr:'Congé maternité'},
+    'hr.leave.unpaid':  {ar:'إجازة بدون أجر',        fr:'Congé sans solde'},
+    'hr.leave.other':   {ar:'إجازة أخرى',            fr:'Autre congé'},
+    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant'},
+    'hr.leave.pending': {ar:'بانتظار الموافقة',       fr:'En attente d\'approbation'},
+    'hr.leave.approved':{ar:'مُعتمد',                fr:'Approuvé'},
+    'hr.leave.rejected':{ar:'مرفوض',                 fr:'Refusé'},
+    'hr.warning':       {ar:'إنذار',                 fr:'Avertissement'},
+    'hr.warning.verbal':{ar:'شفوي',                  fr:'Verbal'},
+    'hr.warning.written':{ar:'كتابي',                fr:'Écrit'},
+    'hr.warning.final': {ar:'إنذار نهائي',           fr:'Avertissement final'},
+    'hr.overtime':      {ar:'ساعات إضافية',          fr:'Heures supplémentaires'},
+    'hr.overtime.rate': {ar:'نسبة المكافأة',         fr:'Taux de majoration'},
+    'hr.profile':       {ar:'الملف التفصيلي',        fr:'Profil détaillé'},
+    'hr.contract.end':  {ar:'تاريخ انتهاء العقد',    fr:'Date de fin de contrat'},
+    'hr.contract.expiring':{ar:'تنتهي عقودهم قريباً',fr:'Contrats bientôt expirés'},
+    'hr.absence.cost':  {ar:'تكلفة الغياب',          fr:'Coût des absences'},
+    'hr.allowances':    {ar:'العلاوات',              fr:'Primes'},
+    'hr.deductions':    {ar:'الخصومات',              fr:'Déductions'},
+    'hr.transport':     {ar:'بدل نقل',               fr:'Indemnité transport'},
+    'hr.housing':       {ar:'بدل إقامة',             fr:'Indemnité logement'},
+    'hr.productivity':  {ar:'علاوة إنتاجية',         fr:'Prime de productivité'},
+
+    // ── Invoices ──
+    'inv.draft':        {ar:'مسودة',               fr:'Brouillon'},
+    'inv.pending':      {ar:'معلقة',               fr:'En attente'},
+    'inv.partial':      {ar:'جزئية',               fr:'Paiement partiel'},
+    'inv.paid':         {ar:'مدفوعة',              fr:'Payée'},
+    'inv.overdue':      {ar:'متأخرة',              fr:'En retard'},
+    'inv.confirm':      {ar:'تأكيد الفاتورة',      fr:'Confirmer la facture'},
+    'inv.partial.pay':  {ar:'تسجيل دفع جزئي',      fr:'Paiement partiel'},
+    'inv.aging':        {ar:'تقرير الذمم المدينة',  fr:'Rapport d\'aging'},
+    'inv.balance':      {ar:'الرصيد المتبقي',       fr:'Solde restant'},
+    'inv.paid_amount':  {ar:'المبلغ المدفوع',       fr:'Montant payé'},
+    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive'},
+
+    // ── Suppliers ──
+    'sup.prices':       {ar:'قائمة الأسعار',       fr:'Tarifs de référence'},
+    'sup.obligations':  {ar:'الالتزامات',          fr:'Obligations'},
+    'sup.obl.invoice':  {ar:'فاتورة آجلة',         fr:'Facture à terme'},
+    'sup.obl.check':    {ar:'شيك مستحق',           fr:'Chèque à encaisser'},
+    'sup.obl.deposit':  {ar:'ضمان/عربون',          fr:'Caution/Acompte'},
+    'sup.obl.loan':     {ar:'قرض/سلفة',            fr:'Prêt/Avance'},
+    'sup.obl.done':     {ar:'تأشير كمنجز',         fr:'Marquer accompli'},
+    'sup.due':          {ar:'تاريخ الاستحقاق',     fr:'Date d\'échéance'},
+    'sup.ref':          {ar:'المرجع',              fr:'Référence'},
+
+    // ── Filter ──
+    'filter.project':   {ar:'تصفية بالمشروع',     fr:'Filtrer par projet'},
+    'filter.all':       {ar:'كل المشاريع',        fr:'Tous les projets'},
+    'filter.clear':     {ar:'إلغاء الفلتر',       fr:'Effacer le filtre'},
+
+    // ── Print ──
+    'print.customize':  {ar:'تخصيص الورقة',      fr:'Personnaliser'},
+    'print.font':       {ar:'نوع الخط',          fr:'Police'},
+    'print.fontSize':   {ar:'حجم الخط',          fr:'Taille police'},
+    'print.color':      {ar:'اللون الرئيسي',     fr:'Couleur principale'},
+    'print.margin':     {ar:'الهوامش',           fr:'Marges'},
+    'print.pageSize':   {ar:'حجم الورق',         fr:'Format papier'},
+    'print.orient':     {ar:'الاتجاه',           fr:'Orientation'},
+    'print.portrait':   {ar:'عمودي',             fr:'Portrait'},
+    'print.landscape':  {ar:'أفقي',              fr:'Paysage'},
+    'print.watermark':  {ar:'نص خلفي',           fr:'Filigrane'},
+    'print.lineHeight': {ar:'تباعد الأسطر',      fr:'Interligne'},
+    'print.save':       {ar:'حفظ الإعدادات',     fr:'Sauvegarder paramètres'},
+    'print.reset':      {ar:'إعادة الإعدادات',   fr:'Réinitialiser'},
+    'print.savePC':     {ar:'حفظ على الحاسوب',   fr:'Enregistrer sur PC'},
+    'print.showLogo':   {ar:'إظهار الشعار',      fr:'Afficher logo'},
+    'print.showFooter': {ar:'إظهار الفوتر',      fr:'Afficher pied de page'},
+    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page'},
+    'print.tableHeader':{ar:'لون رأس الجدول',    fr:'Couleur en-tête tableau'},
+    'print.rowColor':   {ar:'لون الصفوف',        fr:'Couleur des lignes'},
+    'print.headingSize':{ar:'حجم العناوين',      fr:'Taille des titres'},
+
+    // ── Backup ──
+    'bak.export':       {ar:'تصدير نسخة احتياطية',  fr:'Exporter sauvegarde'},
+    'bak.import':       {ar:'استعادة من نسخة',       fr:'Restaurer depuis'},
+    'bak.exportExcel':  {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel'},
+    'bak.exportSalary': {ar:'تصدير الرواتب Excel',   fr:'Exporter salaires Excel'},
+
+    // ── Auth ──
+    'auth.phone':       {ar:'رقم الهاتف',           fr:'Téléphone'},
+    'auth.sendOtp':     {ar:'إرسال كود',             fr:'Envoyer code'},
+    'auth.otp':         {ar:'كود التحقق',            fr:'Code de vérification'},
+    'auth.otpSent':     {ar:'تم إرسال الكود إلى',    fr:'Code envoyé à'},
+    'auth.otpExpiry':   {ar:'ينتهي خلال',            fr:'Expire dans'},
+    'auth.resend':      {ar:'إعادة إرسال',           fr:'Renvoyer'},
+    'auth.register':    {ar:'إنشاء حساب مجاناً',     fr:'Créer un compte gratuit'},
+    'auth.login':       {ar:'تسجيل الدخول',          fr:'Connexion'},
+    'auth.company':     {ar:'اسم المؤسسة',           fr:'Nom de l\'entreprise'},
+    'auth.fullName':    {ar:'الاسم الكامل',          fr:'Nom complet'},
+    'auth.password':    {ar:'كلمة المرور',           fr:'Mot de passe'},
+    'auth.wilaya':      {ar:'الولاية',               fr:'Wilaya'},
+    'auth.terms':       {ar:'أوافق على الشروط',      fr:'J\'accepte les conditions'},
+    'auth.trial':       {ar:'14 يوم مجاناً',         fr:'14 jours gratuits'},
+    'auth.noCard':      {ar:'بدون بطاقة بنكية',      fr:'Sans carte bancaire'},
+
+    // ── Drive ──
+    'drive.connect':    {ar:'ربط Google Drive',      fr:'Connecter Google Drive'},
+    'drive.connected':  {ar:'متصل',                  fr:'Connecté'},
+    'drive.files':      {ar:'آخر الملفات المحفوظة',  fr:'Derniers fichiers sauvegardés'},
+    'drive.clientId':   {ar:'إعداد Client ID',       fr:'Configuration Client ID'},
+
+    // ── Protection ──
+    'prot.unsaved':     {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!'},
+    'prot.syncFirst':   {ar:'ارفع التعديلات ثم اخرج',fr:'Synchroniser puis quitter'},
+    'prot.exitAnyway':  {ar:'اخرج بدون رفع',        fr:'Quitter sans synchroniser'},
+    'prot.stay':        {ar:'رجوع — لا أريد الخروج',fr:'Annuler'},
   }
 };
 // Shortcut
 function __(key) { return I18N.t(key); }
+
+// ── تطبيق الترجمة على عناصر DOM الثابتة ──
+function applyDOMTranslation() {
+  if (I18N.currentLang === 'ar') return;
+  const lang = I18N.currentLang;
+
+  // ترجمة عناصر data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = I18N.t(key);
+    if (val !== key) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = val;
+      } else {
+        el.textContent = val;
+      }
+    }
+  });
+
+  // ترجمة عناصر title/placeholder
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const val = I18N.t(key);
+    if (val !== key) el.title = val;
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = I18N.t(key);
+    if (val !== key) el.placeholder = val;
+  });
+}
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
 function L(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; }
 
@@ -992,6 +1137,7 @@ const PAGE_PERM_MAP = {
   dz_documents:'documents', archive:'documents',
   suppliers:'suppliers', supplier_detail:'suppliers',
   worker_profile:'workers',
+  subscription:'settings',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -1251,7 +1397,7 @@ const App = {
       projects:Pages.projects, workers:Pages.workers, equipment:Pages.equipment,
       worker_profile:Pages.worker_profile,
       transactions:Pages.transactions, attendance:Pages.attendance, reports:Pages.reports,
-      settings:Pages.settings, admin:Pages.admin,
+      settings:Pages.settings, admin:Pages.admin, subscription:Pages.subscription,
       project_detail:Pages.project_detail, materials:Pages.materials,
       analytics:Pages.analytics, kanban:Pages.kanban, gantt:Pages.gantt,
       salary:Pages.salary, invoices:Pages.invoices, inventory:Pages.inventory,
@@ -4316,21 +4462,21 @@ const TrialManager = {
 
           <div class="tem-plans-title">💎 ${t('اختر خطتك','Choisissez votre plan')}</div>
           <div class="tem-plans">
-            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(1):TrialManager._requestUpgrade(1)">
+            <div class="tem-plan" onclick="TrialManager._requestUpgrade(1)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">👷 ${t('للمقاول الفردي','Contractant indiv.')}</div>
               <div class="tem-plan-name">${t('المبتدئ','Starter')}</div>
               <div class="tem-plan-price">2,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('3 مشاريع · 15 عامل','3 projets · 15 ouvriers')}</div>
             </div>
-            <div class="tem-plan featured" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
+            <div class="tem-plan featured" onclick="TrialManager._requestUpgrade(2)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏢 ${t('للشركات','Entreprises')}</div>
               <div class="tem-plan-name">⭐ ${t('الاحترافي','Pro')}</div>
               <div class="tem-plan-price">7,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('20 مشروع · 100 عامل','20 projets · 100 ouvriers')}</div>
             </div>
-            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(3):TrialManager._requestUpgrade(3)">
+            <div class="tem-plan" onclick="TrialManager._requestUpgrade(3)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏛️ ${t('للمؤسسات الكبرى','Grandes ent.')}</div>
               <div class="tem-plan-name">${t('المؤسسي','Entreprise')}</div>
               <div class="tem-plan-price">19,900</div>
@@ -4340,8 +4486,8 @@ const TrialManager = {
           </div>
 
           <div class="tem-actions">
-            <button class="tem-btn tem-btn-gold" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
-              💳 ${t('ادفع إلكترونياً الآن', "Payer en ligne maintenant")}
+            <button class="tem-btn tem-btn-gold" onclick="TrialManager._requestUpgrade(2)">
+              💎 ${t('اشترك الآن', "S'abonner maintenant")}
             </button>
             <button class="tem-btn tem-btn-ghost" onclick="TrialManager._closeAndLogout()">
               👋 ${t('تسجيل الخروج','Se déconnecter')}
@@ -4350,11 +4496,6 @@ const TrialManager = {
         </div>
 
         <div class="tem-foot">
-          <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.5rem">
-            <span style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.2rem .5rem;font-size:.75rem">📮 EDAHABIA</span>
-            <span style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.2rem .5rem;font-size:.75rem">💳 CIB</span>
-            <span style="background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.2);border-radius:6px;padding:.2rem .5rem;font-size:.75rem;color:#34C38F">🔒 Chargily Pay™</span>
-          </div>
           📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartstruct.dz</strong>
         </div>
       </div>
@@ -4365,36 +4506,51 @@ const TrialManager = {
 
   // طلب ترقية من داخل modal الانتهاء
   _requestUpgrade(planId) {
-    // ══════════════════════════════════════════════
-    //  الدفع الإلكتروني عبر Chargily Pay
-    //  يدعم: EDAHABIA (بريد الجزائر) + CIB (SATIM)
-    // ══════════════════════════════════════════════
     try {
-      // إخفاء modal انتهاء التجربة مؤقتاً (لا نُغلقه كلياً)
-      const expModal = document.getElementById('trial-expired-modal');
-      if (expModal) expModal.style.display = 'none';
-      document.body.style.overflow = '';
+      const tenant = (typeof Auth !== 'undefined' && Auth.getTenant) ? Auth.getTenant() : null;
+      const user   = (typeof Auth !== 'undefined' && Auth.getUser)   ? Auth.getUser()   : null;
+      const company = tenant?.name || '—';
+      const planNames = {1:'المبتدئ', 2:'الاحترافي', 3:'المؤسسي'};
 
-      // فتح نافذة اختيار طريقة الدفع
-      if (typeof ChargilyPayment !== 'undefined') {
-        ChargilyPayment.initiatePayment(planId);
+      // سجّل طلب الترقية في الإشعارات
+      const notifs = DB.get('notifications') || [];
+      notifs.unshift({
+        id: Date.now(),
+        type: 'upgrade_request',
+        title: 'طلب اشتراك بعد انتهاء التجربة',
+        body: `المؤسسة "${company}" تطلب الاشتراك في خطة "${planNames[planId]||'?'}"`,
+        user_id: user?.id || null,
+        tenant_id: tenant?.id || null,
+        tenant_name: company,
+        requested_plan: planId,
+        date: new Date().toISOString(),
+        status: 'pending',
+        read: false
+      });
+      DB.set('notifications', notifs);
+      try { sbSync('notifications', notifs[0], 'POST'); } catch(_) {}
+
+      // بريد إلى المسؤول
+      if (typeof EMAILJS !== 'undefined' && EMAILJS.notifyNewAccount) {
+        EMAILJS.notifyNewAccount({
+          name: user?.full_name || '—',
+          email: user?.email || '—',
+          company,
+          wilaya: tenant?.wilaya || '—',
+          subject: `💎 طلب اشتراك (${planNames[planId]}) — ${company}`
+        }).catch(()=>{});
+      }
+
+      if (typeof Toast !== 'undefined') {
+        Toast.success(L('✅ تم إرسال طلبك — سيتواصل معك المسؤول قريباً عبر البريد','✅ Demande envoyée — l\'administrateur vous contactera bientôt'));
       } else {
-        // Fallback: تحميل الوحدة ثم المحاولة
-        console.error('ChargilyPayment module not loaded');
-        if (typeof Toast !== 'undefined') {
-          Toast.error(L('خطأ في تحميل بوابة الدفع. أعد تحميل الصفحة.','Erreur de chargement de la passerelle. Rechargez la page.'));
-        }
-        // إعادة عرض modal الانتهاء
-        if (expModal) expModal.style.display = '';
-        document.body.style.overflow = 'hidden';
+        alert(L('✅ تم إرسال طلبك بنجاح. سيتواصل معك المسؤول قريباً.','✅ Demande envoyée. L\'administrateur vous contactera bientôt.'));
       }
     } catch(e) {
       console.warn('_requestUpgrade error:', e);
-      // في حالة خطأ، أعد عرض الـ modal
-      const expModal = document.getElementById('trial-expired-modal');
-      if (expModal) expModal.style.display = '';
-      document.body.style.overflow = 'hidden';
     }
+    // نسجّل الخروج بعد الطلب
+    setTimeout(() => this._closeAndLogout(), 1500);
   },
 
   _closeAndLogout() {
@@ -5770,29 +5926,39 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
   const today   = new Date().toLocaleDateString(isAr ? 'ar-DZ' : 'fr-DZ', { dateStyle: 'full' });
   const now     = new Date().toLocaleTimeString(isAr ? 'ar-DZ' : 'fr-DZ', { hour: '2-digit', minute: '2-digit' });
 
+  // قراءة إعدادات الطباعة
+  let _ps = {};
+  try { _ps = JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}'); } catch{}
+  const _font   = _ps.fontFamily    || 'Cairo';
+  const _size   = _ps.fontSize      || 13;
+  const _color  = _ps.accentColor   || '#C49030';
+  const _tc     = _ps.tableHeaderColor || _color;
+  const _rowBg  = _ps.rowBgColor    || '#fafafa';
+  const _margin = _ps.margin        || '12mm';
+  const _lh     = _ps.lineHeight    || 1.6;
+  const _hs     = _ps.headingSize   || 15;
+
   const logoHTML = logo
-    ? `<img src="${logo}" style="height:52px;max-width:140px;object-fit:contain;border-radius:4px;background:#fff;padding:3px">`
-    : `<div style="font-size:1.1rem;font-weight:900;color:#E8B84B;letter-spacing:.5px">▦ SmartStruct</div>`;
+    ? `<img src="${logo}" style="height:52px;max-width:140px;object-fit:contain;border-radius:4px">`
+    : `<div style="font-size:1.1rem;font-weight:900;color:${_color}">▦ SmartStruct</div>`;
 
   const thCells = columns.map(c =>
-    `<th style="padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#E8B84B;text-align:${c.align||'right'}">${c.label}</th>`
+    `<th style="padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:${c.align||'right'}">${c.label}</th>`
   ).join('');
 
   const tbRows = rows.map((row, i) => {
     const cells = columns.map(c =>
       `<td style="padding:9px 12px;font-size:12px;text-align:${c.align||'right'};${c.style||''}">${row[c.key] ?? '—'}</td>`
     ).join('');
-    return `<tr style="background:${i%2===0?'#fafafa':'#fff'};border-bottom:1px solid #f0f0f0">${cells}</tr>`;
+    return `<tr class="${i%2===0?'row-odd':'row-even'}">${cells}</tr>`;
   }).join('');
 
   const summaryHTML = summaryRows.length ? `
     <div style="display:flex;justify-content:flex-end;margin-top:20px">
       <div style="min-width:260px">
         ${summaryRows.map((s,i) => i === summaryRows.length-1
-          ? `<div style="display:flex;justify-content:space-between;background:#f5f0e8;border:2px solid #C49030;color:#1a1a1a;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px">
-               <span>${s.label}</span><span style="color:#C49030">${s.value}</span></div>`
-          : `<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4">
-               <span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
+          ? `<div class="sum-total"><span>${s.label}</span><span>${s.value}</span></div>`
+          : `<div class="sum-row"><span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
         ).join('')}
       </div>
     </div>` : '';
@@ -5801,91 +5967,191 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
 <html dir="${dir}" lang="${isAr?'ar':'fr'}">
 <head>
 <meta charset="UTF-8">
-<title>${title}</title>
+<title>${escHtml(title)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Cairo',Arial,sans-serif;background:#f4f4f6;color:#1a1a1a;padding:24px}
-  .no-print{display:flex;gap:10px;margin-bottom:20px}
-  .btn-p{padding:9px 22px;background:#E8B84B;color:#1a1000;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
-  .btn-c{padding:9px 18px;background:#2a2a2a;color:#ccc;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
-  .sheet{background:#fff;max-width:900px;margin:0 auto;border-radius:4px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
-  .hdr{background:#fff;border-bottom:3px solid #C49030;padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
-  .hdr-left{display:flex;align-items:center;gap:14px}
+  body{font-family:'${_font}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;line-height:${_lh}}
+
+  /* Toolbar */
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;color:#fff;
+    display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:nowrap}
+  .tb-btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;
+    font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:'${_font}',Arial,sans-serif}
+  .tb-primary{background:${_color};color:#fff}
+  .tb-green{background:#27ae60;color:#fff}
+  .tb-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+  .tb-sep{width:1px;height:28px;background:rgba(255,255,255,.2);margin:0 2px}
+
+  /* Edit Panel */
+  .edit-panel{position:fixed;top:52px;${isAr?'left':'right'}:0;bottom:0;width:256px;
+    background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);overflow-y:auto;z-index:999;transition:transform .3s}
+  .edit-panel.hidden{transform:translateX(${isAr?'-100%':'100%'})}
+  .ph{background:#1a1a2e;color:#fff;padding:10px 14px;font-size:13px;font-weight:700;
+    display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1}
+  .pb{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+  .pg label{display:block;font-size:10px;font-weight:700;color:#777;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+  .pg select,.pg input[type=text]{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+  .pg input[type=range]{width:100%;accent-color:${_color}}
+  .swatches{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .sw{width:22px;height:22px;border-radius:4px;cursor:pointer;border:2px solid transparent}
+  .sw.on{border-color:#333!important;transform:scale(1.15)}
+  .save-btn{width:100%;padding:9px;background:${_color};color:#fff;border:none;border-radius:7px;
+    cursor:pointer;font-size:13px;font-weight:700;font-family:'${_font}',Arial,sans-serif}
+  .reset-btn{width:100%;padding:7px;background:#fff;color:#c0392b;border:1px solid #f5b8b8;
+    border-radius:7px;cursor:pointer;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+
+  /* Content */
+  .cw{margin-top:52px;padding:20px;transition:${isAr?'margin-left':'margin-right'} .3s}
+  .cw.open{${isAr?'margin-left':'margin-right'}:260px}
+  .sheet{background:#fff;max-width:900px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+  .hdr{background:#fff;border-bottom:3px solid ${_color};padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
   .co-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-top:4px}
   .co-sub{font-size:9.5px;color:#666;margin-top:2px}
   .doc-label{text-align:${isAr?'left':'right'}}
-  .doc-title{font-size:20px;font-weight:900;color:#1a1a1a}
-  .doc-sub{font-size:11px;color:#C49030;margin-top:4px;font-weight:600}
-  .gold-bar{height:3px;background:#C49030}
-  .meta{display:flex;justify-content:space-between;align-items:center;padding:14px 32px;border-bottom:1px solid #eee;background:#fafafa}
-  .meta-item{font-size:11px;color:#888}
-  .meta-item strong{color:#222;font-size:12px}
-  .body{padding:24px 32px}
-  .section-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+  .doc-title{font-size:${_hs}px;font-weight:900;color:#1a1a1a}
+  .doc-sub{font-size:11px;color:${_color};margin-top:4px;font-weight:600}
+  .gold-bar{height:3px;background:${_color}}
+  .meta{display:flex;justify-content:space-between;align-items:center;padding:12px 32px;border-bottom:1px solid #eee;background:#fafafa;font-size:11px;color:#888}
+  .meta strong{color:#222;font-size:12px}
+  .body{padding:24px 32px;font-size:${_size}px}
   table{width:100%;border-collapse:collapse}
-  thead tr{background:#C49030}
-  thead th{color:#fff!important}
+  thead tr{background:${_tc}}
+  thead th{color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .row-odd td{background:${_rowBg}}
+  .row-even td{background:#fff}
   tbody tr:last-child td{border-bottom:none}
-  .footer{background:#f8f5ee;border-top:2px solid #C49030;padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
+  .sum-row{display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4}
+  .sum-total{display:flex;justify-content:space-between;background:#f5f0e8;border:2px solid ${_color};color:#1a1a1a;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px}
+  .sum-total span:last-child{color:${_color}}
+  .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid ${_color};border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
+  .footer{background:#f8f5ee;border-top:2px solid ${_color};padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
   .footer span{font-size:10px;color:#555}
-  .footer .gld{color:#C49030;font-weight:700}
-  .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid #E8B84B;border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
+  .footer .gld{color:${_color};font-weight:700}
+
   @media print{
-    body{background:#fff!important;padding:0!important}
-    .no-print{display:none!important}
-    .sheet{box-shadow:none!important;border-radius:0!important;max-width:100%!important}
-    /* تحويل الهيدر الأسود لأبيض مع حدود ذهبية */
-    .hdr{
-      background:#fff!important;
-      border-bottom:3px solid #C49030!important;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-    }
-    .co-name{color:#1a1a1a!important}
-    .co-sub{color:#555!important}
-    .doc-title{color:#1a1a1a!important}
-    .doc-sub{color:#C49030!important}
-    /* تحويل thead الأسود */
-    thead tr{
-      background:#C49030!important;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-    }
-    thead th{color:#fff!important}
-    /* تحويل الفوتر الأسود */
-    .footer{
-      background:#fff!important;
-      border-top:1px solid #e0e0e0!important;
-      -webkit-print-color-adjust:exact;
-    }
-    .footer span{color:#555!important}
-    .footer .gld{color:#C49030!important}
-    /* الشريط الذهبي */
-    .gold-bar{
-      background:#C49030!important;
-      height:2px!important;
-      -webkit-print-color-adjust:exact;
-      print-color-adjust:exact;
-    }
-    /* صف الإجمالي الأسود في summaryRows */
-    div[style*="background:#141414"]{
-      background:#f5f0e8!important;
-      color:#1a1a1a!important;
-      border:1px solid #C49030!important;
-    }
-    @page{margin:12mm;size:A4}
+    body{background:#fff!important;padding:0!important;font-size:${_size}px!important}
+    .toolbar,.edit-panel{display:none!important}
+    .cw{margin:0!important;padding:0!important}
+    .sheet{box-shadow:none!important;max-width:100%!important}
+    thead tr{background:${_tc}!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .row-odd td{background:${_rowBg}!important;-webkit-print-color-adjust:exact}
+    @page{margin:${_margin};size:${_ps.pageSize||'A4'} ${_ps.orientation||'portrait'}}
   }
 </style>
 </head>
 <body>
-<div class="no-print">
-  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة':'Imprimer'}</button>
-  <button class="btn-c" onclick="window.close()">${isAr?'إغلاق':'Fermer'}</button>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb-btn tb-green" onclick="_spSave()">💾 ${isAr?'حفظ على PC':'Enregistrer'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" id="tpBtn" onclick="_spToggle()">⚙️ ${isAr?'تخصيص':'Personnaliser'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
-<div class="sheet">
+
+<!-- Panel -->
+<div class="edit-panel hidden" id="spPanel">
+  <div class="ph">
+    <span>⚙️ ${isAr?'تخصيص الطباعة':'Personnaliser impression'}</span>
+    <button onclick="_spToggle()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:15px">✕</button>
+  </div>
+  <div class="pb">
+
+    <div class="pg"><label>🔤 ${isAr?'الخط':'Police'}</label>
+      <select id="spFont" onchange="_spApply()">
+        <option value="Cairo" ${_font==='Cairo'?'selected':''}>Cairo</option>
+        <option value="Tajawal" ${_font==='Tajawal'?'selected':''}>Tajawal</option>
+        <option value="Arial" ${_font==='Arial'?'selected':''}>Arial</option>
+        <option value="'Times New Roman'" ${_font==="'Times New Roman'"?'selected':''}>Times New Roman</option>
+      </select>
+    </div>
+
+    <div class="pg"><label>📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_size}px</strong></label>
+      <input type="range" id="spSz" min="10" max="18" step="1" value="${_size}"
+        oninput="document.getElementById('spSzL').textContent=this.value+'px';_spApply()">
+    </div>
+
+    <div class="pg"><label>🔠 ${isAr?'حجم العناوين':'Titres'} — <strong id="spHsL">${_hs}px</strong></label>
+      <input type="range" id="spHs" min="12" max="24" step="1" value="${_hs}"
+        oninput="document.getElementById('spHsL').textContent=this.value+'px';_spApply()">
+    </div>
+
+    <div class="pg"><label>↕️ ${isAr?'تباعد الأسطر':'Interligne'} — <strong id="spLhL">${_lh}</strong></label>
+      <input type="range" id="spLh" min="1.2" max="2.2" step="0.1" value="${_lh}"
+        oninput="document.getElementById('spLhL').textContent=parseFloat(this.value).toFixed(1);_spApply()">
+    </div>
+
+    <div class="pg"><label>🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
+      <div class="swatches">
+        ${[['#C49030','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="sw ${_color===c?'on':''}" style="background:${c}" title="${n}" onclick="_spColor('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spCC" value="${_color}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spColor(this.value,null)">
+      </div>
+    </div>
+
+    <div class="pg"><label>📊 ${isAr?'لون رأس الجدول':'En-tête tableau'}</label>
+      <div class="swatches">
+        ${[['#C49030','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#555','رمادي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="sw ${_tc===c?'on':''}" style="background:${c}" title="${n}" onclick="_spTC('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spTCC" value="${_tc}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spTC(this.value,null)">
+      </div>
+    </div>
+
+    <div class="pg"><label>🎨 ${isAr?'لون الصفوف':'Lignes'}</label>
+      <div class="swatches">
+        ${[['#fafafa','رمادي'],['#fafaf7','كريمي'],['#f0f7ff','أزرق'],['#f0faf4','أخضر'],['#fff9f0','برتقالي'],['#ffffff','أبيض']].map(([c,n])=>
+          `<div class="sw ${_rowBg===c?'on':''}" style="background:${c};border:1px solid #ddd" title="${n}" onclick="document.getElementById('spRB').value='${c}';_spApply()"></div>`
+        ).join('')}
+        <input type="color" id="spRB" value="${_rowBg}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spApply()">
+      </div>
+    </div>
+
+    <div class="pg"><label>📐 ${isAr?'الهوامش':'Marges'}</label>
+      <select id="spMg" onchange="_spApply()">
+        <option value="8mm" ${_margin==='8mm'?'selected':''}>8mm — ${isAr?'ضيق':'Étroit'}</option>
+        <option value="12mm" ${_margin==='12mm'?'selected':''}>12mm — ${isAr?'عادي':'Normal'}</option>
+        <option value="18mm" ${_margin==='18mm'?'selected':''}>18mm — ${isAr?'واسع':'Large'}</option>
+      </select>
+    </div>
+
+    <div class="pg"><label>📄 ${isAr?'حجم الورق':'Format'}</label>
+      <div style="display:flex;gap:6px">
+        ${['A4','A5','Letter'].map(sz=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spSz2" value="${sz}" ${(_ps.pageSize||'A4')===sz?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">${sz}
+        </label>`).join('')}
+      </div>
+    </div>
+
+    <div class="pg"><label>↔️ ${isAr?'اتجاه':'Orientation'}</label>
+      <div style="display:flex;gap:6px">
+        <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px">
+          <input type="radio" name="spOr" value="portrait" ${(_ps.orientation||'portrait')==='portrait'?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">📄 ${isAr?'عمودي':'Portrait'}
+        </label>
+        <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px">
+          <input type="radio" name="spOr" value="landscape" ${_ps.orientation==='landscape'?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">📃 ${isAr?'أفقي':'Paysage'}
+        </label>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="_spReset()">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+    <button class="save-btn" onclick="_spSaveSettings()">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
+
+  </div>
+</div>
+
+<!-- Content -->
+<div class="cw" id="spCW">
+<div class="sheet" id="spSheet">
   <div class="hdr">
-    <div class="hdr-left">
+    <div class="hdr-left" style="display:flex;align-items:center;gap:14px">
       ${logoHTML}
       <div>
         <div class="co-name">${escHtml(tenant?.name||'SmartStruct')}</div>
@@ -5894,39 +6160,122 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
       </div>
     </div>
     <div class="doc-label">
-      <div class="doc-title">${icon} ${title}</div>
-      ${subtitle?`<div class="doc-sub">${subtitle}</div>`:''}
+      <div class="doc-title" id="spDocTitle">${icon} ${escHtml(title)}</div>
+      ${subtitle?`<div class="doc-sub" id="spDocSub">${escHtml(subtitle)}</div>`:''}
     </div>
   </div>
-  <div class="gold-bar"></div>
+  <div class="gold-bar" id="spGoldBar"></div>
   <div class="meta">
-    <div class="meta-item">${isAr?'تاريخ الطباعة':'Date d\'impression'}: <strong>${today} — ${now}</strong></div>
-    <div class="meta-item">${isAr?'عدد السجلات':'Nombre de lignes'}: <strong>${rows.length}</strong></div>
-    <div class="meta-item">SmartStruct v7.2 Pro</div>
+    <div class="meta-item">${isAr?'تاريخ الطباعة':'Impression'}: <strong>${today} — ${now}</strong></div>
+    <div class="meta-item">${isAr?'عدد السجلات':'Lignes'}: <strong>${rows.length}</strong></div>
+    <div class="meta-item">SmartStruct</div>
   </div>
-  <div class="body">
-    <div class="section-title">${isAr?'قائمة البيانات':'Liste des données'}</div>
-    <table>
+  <div class="body" id="spBody">
+    <table id="spTable">
       <thead><tr>${thCells}</tr></thead>
       <tbody>${tbRows}</tbody>
     </table>
     ${summaryHTML}
     ${notes?`<div class="notes"><strong>${isAr?'ملاحظات:':'Notes :'}</strong> ${notes}</div>`:''}
   </div>
-  <div class="footer">
+  <div class="footer" id="spFooter">
     <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme algérienne de gestion BTP'}</span>
-    <span class="gld">${title} — ${today}</span>
+    <span class="gld">${escHtml(title)} — ${today}</span>
   </div>
 </div>
+</div>
+
+<script>
+var _spColor = '${_color}';
+var _spTColor = '${_tc}';
+var _spDocTitle = ${JSON.stringify(title)};
+
+function _spToggle(){
+  var p=document.getElementById('spPanel'),c=document.getElementById('spCW'),b=document.getElementById('tpBtn');
+  var open=p.classList.contains('hidden');
+  p.classList.toggle('hidden',!open);
+  c.classList.toggle('open',open);
+  b.style.background=open?'rgba(184,144,47,.3)':'';
+}
+function _spColor(c,el){
+  _spColor=c;
+  document.querySelectorAll('[onclick^="_spColor"]~* .sw').forEach(function(s){s.classList.remove('on')});
+  document.querySelectorAll('.swatches:first-of-type .sw').forEach(function(s){s.classList.remove('on')});
+  if(el)el.classList.add('on');
+  document.getElementById('spCC').value=c;
+  _spApply();
+}
+function _spTC(c,el){
+  _spTColor=c;
+  if(el){el.parentElement.querySelectorAll('.sw').forEach(function(s){s.classList.remove('on')});el.classList.add('on');}
+  document.getElementById('spTCC').value=c;
+  _spApply();
+}
+function _spApply(){
+  var font=document.getElementById('spFont').value;
+  var sz=document.getElementById('spSz').value+'px';
+  var hs=document.getElementById('spHs').value+'px';
+  var lh=parseFloat(document.getElementById('spLh').value);
+  var mg=document.getElementById('spMg').value;
+  var rb=document.getElementById('spRB').value;
+  var paper=document.querySelector('input[name="spSz2"]:checked')?.value||'A4';
+  var orient=document.querySelector('input[name="spOr"]:checked')?.value||'portrait';
+  var sheet=document.getElementById('spSheet');
+  if(sheet){sheet.style.fontFamily=font+',Arial,sans-serif';sheet.style.fontSize=sz;sheet.style.lineHeight=lh;}
+  document.querySelectorAll('.doc-title').forEach(function(e){e.style.fontSize=hs;});
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_spTColor;});
+  document.querySelectorAll('.row-odd td').forEach(function(e){e.style.background=rb;});
+  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_spColor;});
+  document.querySelectorAll('.hdr').forEach(function(e){e.style.borderBottomColor=_spColor;});
+  document.querySelectorAll('.footer').forEach(function(e){e.style.borderTopColor=_spColor;});
+  document.querySelectorAll('.gld').forEach(function(e){e.style.color=_spColor;});
+  document.querySelectorAll('.doc-sub').forEach(function(e){e.style.color=_spColor;});
+  document.querySelectorAll('.sum-total').forEach(function(e){e.style.borderColor=_spColor;e.lastElementChild&&(e.lastElementChild.style.color=_spColor);});
+  var sid='sp-live-style';
+  var st=document.getElementById(sid)||document.createElement('style');
+  st.id=sid;
+  st.textContent='@media print{@page{margin:'+mg+';size:'+paper+' '+orient+'}body{font-size:'+sz+'!important;line-height:'+lh+'!important}thead th{background:'+_spTColor+'!important}.row-odd td{background:'+rb+'!important}}';
+  if(!document.getElementById(sid))document.head.appendChild(st);
+}
+function _spSave(){
+  var h=document.documentElement.outerHTML;
+  var b=new Blob([h],{type:'text/html;charset=utf-8'});
+  var u=URL.createObjectURL(b);var a=document.createElement('a');
+  a.href=u;a.download=_spDocTitle.replace(/[\\/:*?"<>|]/g,'_')+'.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(u);},1500);
+}
+function _spReset(){
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){
+    localStorage.removeItem('sbtp_print_settings');location.reload();
+  }
+}
+function _spSaveSettings(){
+  var s={
+    fontFamily:document.getElementById('spFont').value,
+    fontSize:Number(document.getElementById('spSz').value),
+    headingSize:Number(document.getElementById('spHs').value),
+    lineHeight:parseFloat(document.getElementById('spLh').value),
+    accentColor:_spColor,tableHeaderColor:_spTColor,
+    rowBgColor:document.getElementById('spRB').value,
+    margin:document.getElementById('spMg').value,
+    pageSize:document.querySelector('input[name="spSz2"]:checked')?.value||'A4',
+    orientation:document.querySelector('input[name="spOr"]:checked')?.value||'portrait',
+  };
+  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}
+  if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}}
+  var btn=document.querySelector('.save-btn');
+  if(btn){var t=btn.textContent;btn.textContent='✅ ${isAr?'تم!':'Sauvé!'}';btn.style.background='#27ae60';
+    setTimeout(function(){btn.textContent=t;btn.style.background='';},2000);}
+}
+</script>
 </body></html>`;
 
   const w = window.open('', '_blank');
+  if (!w) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
   w.document.write(html);
   w.document.close();
 }
-
-/* ── دوال الطباعة لكل صفحة ── */
-
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
@@ -6854,6 +7203,83 @@ Pages.attendance = function() {
 
 
 /* ─── REPORTS ─── */
+
+Pages.subscription = function() {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant();
+  if (!user || !tenant) return App.navigate('landing');
+
+  const plans = typeof ChargilyPayment !== 'undefined' ? ChargilyPayment.PLANS : {};
+  const isAr = I18N.currentLang === 'ar';
+  const currentPlan = tenant.plan_id || 2;
+  const subStatus = tenant.subscription_status || 'trial';
+  const subEnd = tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString(isAr?'ar-DZ':'fr-FR',{year:'numeric',month:'long',day:'numeric'}) : '—';
+  const da = isAr ? 'دج' : 'DA';
+  const fmt = n => Number(n||0).toLocaleString(isAr?'ar-DZ':'fr-DZ');
+
+  return layoutHTML('subscription', L('الاشتراك','Abonnement'), `
+    <div class="page-header">
+      <div>
+        <div class="page-title">💳 ${L('إدارة الاشتراك','Gestion abonnement')}</div>
+        <div class="page-sub">${L('اختر الخطة المناسبة لمؤسستك','Choisissez le plan adapté à votre entreprise')}</div>
+      </div>
+    </div>
+
+    <!-- حالة الاشتراك الحالي -->
+    <div class="card" style="border:1px solid rgba(232,184,75,.2);margin-bottom:1.2rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+        <div>
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('الاشتراك الحالي','Abonnement actuel')}</div>
+          <div style="font-size:1.1rem;font-weight:800">
+            ${plans[currentPlan]?`${plans[currentPlan].emoji} ${isAr?plans[currentPlan].nameAr:plans[currentPlan].nameFr}`:'—'}
+          </div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('الحالة','Statut')}</div>
+          <span class="badge ${subStatus==='active'?'badge-active':''}" style="font-size:.82rem">
+            ${subStatus==='active'?'✅ '+L('نشط','Actif'):subStatus==='trial'?'⏳ '+L('تجريبي','Essai'):'⚠️ '+L('منتهي','Expiré')}
+          </span>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('صالح حتى','Valide jusqu_au')}</div>
+          <div style="font-size:.88rem;font-weight:700">${subEnd}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- خطط الاشتراك -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem">
+      ${Object.values(plans).map(plan => `
+        <div class="card" style="border:2px solid ${plan.featured?'rgba(232,184,75,.4)':currentPlan===plan.id?'rgba(52,195,143,.3)':'var(--border)'};position:relative;overflow:hidden">
+          ${plan.featured?`<div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8B84B,#C9971B)"></div>`:''}
+          ${currentPlan===plan.id?`<div style="position:absolute;top:.5rem;${isAr?'left':'right'}:.5rem"><span class="badge badge-active" style="font-size:.68rem">✅ ${L('خطتك الحالية','Votre plan')}</span></div>`:''}
+          <div style="text-align:center;padding:.5rem 0 1rem">
+            <div style="font-size:2.5rem;margin-bottom:.5rem">${plan.emoji}</div>
+            <div style="font-size:1.1rem;font-weight:800;color:${plan.color}">${isAr?plan.nameAr:plan.nameFr}</div>
+            <div style="font-size:.8rem;color:var(--dim);margin-top:.3rem">${isAr?plan.descAr:plan.descFr}</div>
+          </div>
+          <div style="text-align:center;margin:1rem 0">
+            <span style="font-size:2rem;font-weight:900;color:var(--text)">${fmt(plan.price)}</span>
+            <span style="font-size:.8rem;color:var(--dim)"> ${da}/${L('شهر','mois')}</span>
+          </div>
+          ${currentPlan===plan.id && subStatus==='active'
+            ? `<button class="btn btn-ghost" style="width:100%;justify-content:center" disabled>✅ ${L('مشترك حالياً','Abonné actuellement')}</button>`
+            : `<button class="btn btn-gold" style="width:100%;justify-content:center" onclick="${typeof ChargilyPayment!=='undefined'?`ChargilyPayment.initiatePayment(${plan.id})`:'Toast.info(L("Chargily غير مُفعَّل","Chargily non activé"))'}">
+                💳 ${L('اشترك الآن','S\'abonner maintenant')}
+              </button>`
+          }
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- ملاحظة -->
+    <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.15);border-radius:10px;padding:.8rem 1rem;font-size:.78rem;color:var(--dim);line-height:1.6">
+      🔒 ${L('الدفع آمن 100% عبر Chargily Pay — يدعم EDAHABIA (بريد الجزائر) و CIB (SATIM)','Paiement 100% sécurisé via Chargily Pay — Supporte EDAHABIA et CIB (SATIM)')}
+      <br>📧 ${L('للدعم:','Support:')} contact@smartstruct.dz
+    </div>
+  `);
+};
+
 Pages.reports = function() {
   const tid = Auth.getUser().tenant_id;
 
@@ -7626,156 +8052,23 @@ Pages.settings = function() {
         </div>
 
         <!-- 💎 Subscription Card -->
-        ${(()=>{
-          const subStatus  = tenant?.subscription_status || '';
-          const trialDays  = TrialManager.getDaysLeft(tenant);
-          const paidDays   = TrialManager.getPaidDaysLeft(tenant);
-          const isExpired  = TrialManager.isExpired(tenant) || subStatus === 'expired';
-          const isTrial    = subStatus === 'trial';
-          const isActive   = subStatus === 'active' && !isExpired;
-          const isMaxPlan  = plan?.id >= 3;
-          // لون البطاقة بحسب الحالة
-          const cardBorder = isExpired
-            ? 'rgba(240,78,106,.35)'
-            : isTrial && trialDays !== null && trialDays <= 3
-              ? 'rgba(232,184,75,.6)'
-              : 'rgba(232,184,75,.2)';
-          const cardBg = isExpired
-            ? 'linear-gradient(135deg,rgba(240,78,106,.08),rgba(240,78,106,.02))'
-            : 'linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02))';
-          const badgeBg    = isActive?'rgba(52,195,143,.15)':isTrial?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)';
-          const badgeColor = isActive?'#34C38F':isTrial?'#E8B84B':'#F04E6A';
-          const badgeLbl   = isActive?L('✅ نشط','✅ Actif'):isTrial?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré');
-
-          // ─── خط زمني للتجربة ───
-          const trialBarHtml = isTrial && trialDays !== null ? (()=>{
-            const total = 14;
-            const used  = Math.max(0, total - Math.max(0, trialDays));
-            const pct   = Math.round((used / total) * 100);
-            const barColor = trialDays <= 0 ? '#F04E6A' : trialDays <= 3 ? '#E8B84B' : '#34C38F';
-            return `
-            <div style="margin-bottom:.85rem">
-              <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--dim);margin-bottom:.3rem">
-                <span>📅 ${L('التجربة المجانية','Essai gratuit')} (14 ${L('يوم','jours')})</span>
-                <span style="color:${barColor};font-weight:800">${trialDays <= 0 ? L('انتهت','Terminé') : L(`${trialDays} ${trialDays===1?'يوم':'أيام'} متبقية`,`${trialDays}j restant`)}</span>
-              </div>
-              <div style="background:rgba(255,255,255,.07);border-radius:99px;height:6px;overflow:hidden">
-                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .5s"></div>
-              </div>
-            </div>`;
-          })() : '';
-
-          // ─── خط زمني للاشتراك المدفوع ───
-          const paidBarHtml = isActive && paidDays !== null ? (()=>{
-            const subStart = tenant?.subscription_start ? new Date(tenant.subscription_start) : null;
-            const subEnd   = tenant?.subscription_end   ? new Date(tenant.subscription_end)   : null;
-            const totalDays = subStart && subEnd ? Math.ceil((subEnd - subStart) / 86400000) : 30;
-            const usedDays  = totalDays - paidDays;
-            const pct       = Math.min(100, Math.round((usedDays / totalDays) * 100));
-            const barColor  = paidDays <= 7 ? '#F04E6A' : paidDays <= 14 ? '#E8B84B' : '#34C38F';
-            const endDateStr = subEnd ? subEnd.toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-            return `
-            <div style="margin-bottom:.85rem">
-              <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--dim);margin-bottom:.3rem">
-                <span>📅 ${L('الاشتراك المدفوع','Abonnement payant')}</span>
-                <span style="color:${barColor};font-weight:800">${paidDays <= 0 ? L('انتهى','Expiré') : L(`${paidDays} ${paidDays===1?'يوم':'أيام'} متبقية`,`${paidDays}j restant`)} — ${L('حتى','jusqu\'au')} ${endDateStr}</span>
-              </div>
-              <div style="background:rgba(255,255,255,.07);border-radius:99px;height:6px;overflow:hidden">
-                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .5s"></div>
-              </div>
-            </div>`;
-          })() : '';
-
-          // ─── قسم الدفع عند انتهاء الاشتراك ───
-          const paymentSectionHtml = isExpired ? `
-          <div style="border-top:1px solid rgba(240,78,106,.2);padding-top:.9rem;margin-top:.2rem">
-            <div style="font-size:.8rem;font-weight:700;color:#F04E6A;margin-bottom:.75rem">
-              ⚠️ ${L('حسابك موقوف — ادفع لتفعيل الوصول','Compte suspendu — payez pour réactiver')}
-            </div>
-            <div style="display:grid;gap:.45rem;margin-bottom:.85rem">
-              ${[{id:1,ar:'المبتدئ',fr:'Starter',p:'2,900',dAr:'3 مشاريع · 15 عامل',dFr:'3 projets · 15 ouvriers',e:'👷'},
-                 {id:2,ar:'الاحترافي',fr:'Professionnel',p:'7,900',dAr:'20 مشروع · 100 عامل',dFr:'20 projets · 100 ouvriers',e:'🏢',f:true},
-                 {id:3,ar:'المؤسسي',fr:'Entreprise',p:'19,900',dAr:'غير محدود · SLA',dFr:'Illimité · SLA',e:'🏛️'}]
-              .map(p=>`
-              <div onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(${p.id}):TrialManager._requestUpgrade(${p.id})"
-                style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem;
-                       background:${p.f?'rgba(232,184,75,.07)':'rgba(255,255,255,.025)'};
-                       border:1px solid ${p.f?'rgba(232,184,75,.3)':'rgba(255,255,255,.07)'};
-                       border-radius:9px;cursor:pointer;transition:all .18s"
-                onmouseover="this.style.background='rgba(232,184,75,.12)';this.style.borderColor='rgba(232,184,75,.4)'"
-                onmouseout="this.style.background='${p.f?'rgba(232,184,75,.07)':'rgba(255,255,255,.025)'}';this.style.borderColor='${p.f?'rgba(232,184,75,.3)':'rgba(255,255,255,.07)'}'">
-                <div style="display:flex;align-items:center;gap:.55rem">
-                  <span style="font-size:1.1rem">${p.e}</span>
-                  <div>
-                    <div style="font-weight:700;font-size:.82rem;color:${p.f?'#E8B84B':'var(--text)'}">
-                      ${L(p.ar,p.fr)}${p.f?' ⭐':''}
-                    </div>
-                    <div style="font-size:.68rem;color:var(--dim)">${L(p.dAr,p.dFr)}</div>
-                  </div>
-                </div>
-                <div style="text-align:end">
-                  <div style="font-weight:800;font-size:.88rem;color:var(--text);font-family:'JetBrains Mono',monospace">
-                    ${p.p} <span style="font-size:.62rem;color:var(--dim);font-weight:400">${L('دج/شهر','DA/mois')}</span>
-                  </div>
-                  <div style="font-size:.62rem;color:#E8B84B;margin-top:.1rem">💳 ${L('ادفع الآن','Payer')}</div>
-                </div>
-              </div>`).join('')}
-            </div>
-            <button class="btn btn-gold" style="width:100%;justify-content:center;padding:.7rem;font-weight:800"
-              onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
-              💳 ${L('ادفع إلكترونياً — EDAHABIA / CIB','Payer en ligne — EDAHABIA / CIB')}
-            </button>
-            <div style="display:flex;align-items:center;justify-content:center;gap:.4rem;margin-top:.6rem;flex-wrap:wrap">
-              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:4px;padding:.12rem .45rem;font-size:.65rem">📮 EDAHABIA</span>
-              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:4px;padding:.12rem .45rem;font-size:.65rem">💳 CIB</span>
-              <span style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.18);border-radius:4px;padding:.12rem .45rem;font-size:.65rem;color:#34C38F">🔒 Chargily Pay™</span>
-            </div>
-          </div>` :
-          isMaxPlan ? `
-          <div style="text-align:center;padding:.5rem;background:rgba(232,184,75,.05);border-radius:8px;border:1px solid rgba(232,184,75,.12)">
-            <div style="color:var(--gold);font-weight:800;font-size:.85rem">🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}</div>
-            <div style="font-size:.7rem;color:var(--dim);margin-top:.25rem">${L('استمتع بكل الميزات بلا حدود','Profitez de toutes les fonctionnalités')}</div>
-          </div>` : `
-          <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:.8rem">
-            <div style="font-size:.76rem;color:var(--dim);margin-bottom:.65rem;line-height:1.6">
-              💡 ${L('هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك إلكترونياً فوراً.','Besoin de plus ? Passez à un plan supérieur en ligne.')}
-            </div>
-            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-              <button class="btn btn-gold btn-sm" style="gap:.35rem"
-                onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(${(plan?.id||1)+1}):TrialManager._requestUpgrade(${(plan?.id||1)+1})">
-                💳 ${L('ادفع إلكترونياً الآن','Payer en ligne maintenant')}
-              </button>
-              <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')">
-                📋 ${L('مقارنة الخطط','Comparer plans')}
-              </button>
-            </div>
-            <div style="display:flex;align-items:center;gap:.35rem;margin-top:.55rem;flex-wrap:wrap">
-              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:.1rem .4rem;font-size:.63rem">📮 EDAHABIA</span>
-              <span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:.1rem .4rem;font-size:.63rem">💳 CIB</span>
-              <span style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.15);border-radius:4px;padding:.1rem .4rem;font-size:.63rem;color:#34C38F">🔒 Chargily Pay™</span>
-            </div>
-          </div>`;
-
-          return `
-        <div class="card" style="margin-bottom:1rem;background:${cardBg};border:1px solid ${cardBorder}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:${trialBarHtml||paidBarHtml?'.75rem':'1rem'}">
+        <div class="card" style="margin-bottom:1rem;background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.2)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
             <div>
               <div style="font-weight:800;margin-bottom:.3rem">💎 ${L('خطتك الحالية','Votre plan actuel')}</div>
               <div style="font-size:.72rem;color:var(--dim)">${L('الاشتراك والميزات','Abonnement & fonctionnalités')}</div>
             </div>
-            <span style="background:${badgeBg};color:${badgeColor};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
-              ${badgeLbl}
+            <span style="background:${tenant?.subscription_status==='active'?'rgba(52,195,143,.15)':tenant?.subscription_status==='trial'?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)'};color:${tenant?.subscription_status==='active'?'#34C38F':tenant?.subscription_status==='trial'?'#E8B84B':'#F04E6A'};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
+              ${tenant?.subscription_status==='active'?L('✅ نشط','✅ Actif'):tenant?.subscription_status==='trial'?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré')}
             </span>
           </div>
 
-          ${trialBarHtml}${paidBarHtml}
-
-          <div style="background:rgba(0,0,0,.2);padding:.9rem 1rem;border-radius:10px;margin-bottom:.9rem">
+          <div style="background:rgba(0,0,0,.2);padding:1rem;border-radius:10px;margin-bottom:1rem">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-              <div style="font-size:1.2rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
-              <div style="font-size:1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.65rem;color:var(--dim);font-weight:400">${L('دج/شهر','DA/mois')}</span></div>
+              <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
+              <div style="font-size:1.1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.7rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.76rem;margin-top:.7rem">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;margin-top:.8rem">
               <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
               <div><span style="color:var(--dim)">👷 ${L('العمال','Ouvriers')}:</span> <strong>${plan?.max_workers===-1?L('غير محدود','Illimité'):(plan?.max_workers||0)}</strong></div>
               <div><span style="color:var(--dim)">🚜 ${L('المعدات','Équipements')}:</span> <strong>${plan?.max_equipment===-1?L('غير محدود','Illimité'):(plan?.max_equipment||0)}</strong></div>
@@ -7783,9 +8076,24 @@ Pages.settings = function() {
             </div>
           </div>
 
-          ${paymentSectionHtml}
-        </div>`;
-        })()}
+          ${(plan?.id < 3) ? `
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:.8rem;line-height:1.7">
+            ${L('💡 هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك واحصل على المزيد من الميزات.','💡 Besoin de plus ? Passez à un plan supérieur.')}
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-gold btn-sm" onclick="TrialManager._requestUpgrade(${(plan?.id||0)+1})">
+              ⬆️ ${L('ترقية الخطة','Mise à niveau')}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')">
+              📋 ${L('مقارنة الخطط','Comparer plans')}
+            </button>
+          </div>
+          ` : `
+          <div style="text-align:center;color:var(--gold);font-weight:700;font-size:.85rem">
+            🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}
+          </div>
+          `}
+        </div>
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🔑 ${L('تغيير كلمة المرور','Changer le mot de passe')}</div>
           <div class="form-group"><label class="form-label">${L('كلمة المرور الحالية','Mot de passe actuel')}</label><input class="form-input" id="pwCurrent" type="password"></div>
@@ -9785,121 +10093,6 @@ Pages.admin = function() {
                 <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td></tr>`;
             }).join('')}</tbody>
           </table></div>
-        </div>
-
-        <!-- ══ 💳 لوحة حالة المدفوعات ══ -->
-        <div class="card" style="margin-top:1rem;padding:0">
-          <div style="padding:1.1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
-            <div>
-              <div style="font-weight:800;font-size:.95rem">💳 ${L('حالة المدفوعات والاشتراكات','Statut des paiements & abonnements')}</div>
-              <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">${L('نظرة شاملة على جميع المؤسسات — دفعت / لم تدفع / الوقت المتبقي','Vue d\'ensemble — payé / impayé / temps restant')}</div>
-            </div>
-            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-              ${(()=>{
-                const paid    = tenants.filter(t=>t.id!==1 && t.subscription_status==='active' && t.is_active).length;
-                const trial   = tenants.filter(t=>t.id!==1 && t.subscription_status==='trial').length;
-                const expired = tenants.filter(t=>t.id!==1 && (t.subscription_status==='expired' || !t.is_active)).length;
-                return `
-                <span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.25);color:#34C38F;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">✅ ${L('دفعت','Payé')} (${paid})</span>
-                <span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:#E8B84B;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⏱️ ${L('تجربة','Essai')} (${trial})</span>
-                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>`;
-              })()}
-            </div>
-          </div>
-          <div class="table-wrap" style="border:none;border-radius:0">
-            <table>
-              <thead><tr>
-                <th>${L('المؤسسة','Entreprise')}</th>
-                <th>${L('حالة الدفع','Statut paiement')}</th>
-                <th>${L('الخطة','Plan')}</th>
-                <th>${L('الوقت المتبقي','Temps restant')}</th>
-                <th>${L('تاريخ الانتهاء','Date d\'expiration')}</th>
-                <th>${L('إجراء','Action')}</th>
-              </tr></thead>
-              <tbody>
-                ${(()=>{
-                  const today = new Date(); today.setHours(0,0,0,0);
-                  return tenants
-                    .filter(t => t.id !== 1)
-                    .map(t => {
-                      const pl = plans.find(p=>p.id===t.plan_id);
-                      const st = t.subscription_status || '';
-                      const isTrial   = st === 'trial';
-                      const isPaid    = st === 'active' && t.is_active;
-                      const isExpired = st === 'expired' || (!t.is_active && st !== 'trial' && st !== 'pending');
-                      const isPending = st === 'pending' || (!t.is_active && st === 'trial');
-
-                      // حساب الأيام المتبقية
-                      let daysLeft = null, endDate = null;
-                      if (isTrial) {
-                        const tEnd = t.trial_end || t.trial_ends_at || null;
-                        if (tEnd) { endDate = tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
-                      } else if (isPaid) {
-                        const sEnd = t.subscription_end || t.subscription_ends_at || null;
-                        if (sEnd) { endDate = sEnd; const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
-                      }
-
-                      // عرض الوقت المتبقي
-                      let daysHtml = '<span style="color:var(--dim)">—</span>';
-                      if (daysLeft !== null) {
-                        if (daysLeft < 0) {
-                          daysHtml = `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`;
-                        } else if (daysLeft === 0) {
-                          daysHtml = `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم الأخير!','Dernier jour!')}</span>`;
-                        } else if (daysLeft <= 3) {
-                          daysHtml = `<span style="color:#E8B84B;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`;
-                        } else if (daysLeft <= 7) {
-                          daysHtml = `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`;
-                        } else {
-                          daysHtml = `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
-                        }
-                      }
-
-                      // عرض حالة الدفع
-                      let payHtml;
-                      if (isPaid) {
-                        payHtml = `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`;
-                      } else if (isTrial && daysLeft !== null && daysLeft >= 0) {
-                        payHtml = `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة مجانية','Essai gratuit')}</span>`;
-                      } else if (isPending) {
-                        payHtml = `<span class="badge" style="background:rgba(74,144,226,.12);color:#4A90E2;border:1px solid rgba(74,144,226,.25);font-size:.7rem">⏳ ${L('انتظار','En attente')}</span>`;
-                      } else {
-                        payHtml = `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
-                      }
-
-                      const endStr = endDate
-                        ? new Date(endDate).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'})
-                        : '—';
-
-                      return `<tr>
-                        <td>
-                          <div style="font-weight:700;font-size:.85rem">${escHtml(t.name)}</div>
-                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')}</div>
-                        </td>
-                        <td>${payHtml}</td>
-                        <td>
-                          <span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span>
-                        </td>
-                        <td>${daysHtml}</td>
-                        <td style="font-size:.78rem;color:var(--dim);font-family:monospace">${endStr}</td>
-                        <td>
-                          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
-                            ${(!isPaid) ? `<button class="btn btn-sm btn-gold" style="font-size:.7rem;padding:.25rem .6rem"
-                              onclick="editTenantPlan(${t.id})" title="${L('تفعيل الاشتراك المدفوع','Activer l\'abonnement payant')}">
-                              💳 ${L('فعّل','Activer')}
-                            </button>` : ''}
-                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.7rem;padding:.25rem .5rem"
-                              onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">
-                              ${t.is_active?'⏸️':'▶️'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>`;
-                    }).join('')
-                })()}
-              </tbody>
-            </table>
-          </div>
         </div>
 
         </div><!-- END adminTabContent_tenants -->
@@ -15159,6 +15352,7 @@ function sidebarHTML(active='') {
     // ── Account Section ──
     const accountLinks = [
       navLink('team','👥',__('nav.team')),
+      navLink('subscription','💳',L('الاشتراك','Abonnement')),
       navLink('settings','⚙️',__('nav.settings')),
     ].filter(Boolean).join('');
 
@@ -17414,10 +17608,12 @@ function printWorkerHistory(wid) {
   }
 </head>
 <body>
-<div class="no-print">
+<div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
   <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=document.title+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
   <button class="btn-close" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
+<div style="margin-top:52px">
 
 <div class="header">
   <div>
@@ -18807,6 +19003,392 @@ function exportInvoicesCSV() {
   Toast.success(L('✅ تم تصدير CSV','✅ CSV exporté'));
 }
 // ── PDF Export — يستخدم نفس قالب الطباعة الاحترافي ──
+// ══════════════════════════════════════════════════════════════
+//  🖨️ _buildPrintShell — Toolbar + Panel لكل نوافذ الطباعة
+// ══════════════════════════════════════════════════════════════
+function _buildPrintShell({ title, bodyHtml, isAr, extraCSS = '', onPrint = '' }) {
+  const ps = getPrintSettings();
+  const _font   = ps.fontFamily    || 'Cairo';
+  const _size   = ps.fontSize      || 13;
+  const _color  = ps.accentColor   || '#B8902F';
+  const _margin = ps.margin        || '12mm';
+  const _lh     = ps.lineHeight    || 1.6;
+  const _tc     = ps.tableHeaderColor || _color;
+  const _rb     = ps.rowBgColor    || '#fafaf7';
+  const _wm     = ps.watermark     || '';
+  const _showWM = ps.showWatermark || false;
+
+  return `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${_font}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;line-height:${_lh};font-size:${_size}px}
+/* Toolbar */
+.toolbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;color:#fff;
+  display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:nowrap;overflow-x:auto}
+.tb-btn{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;
+  font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:'${_font}',Arial,sans-serif;transition:.15s}
+.tb-primary{background:${_color};color:#fff}.tb-primary:hover{filter:brightness(.9)}
+.tb-green{background:#27ae60;color:#fff}.tb-green:hover{background:#229954}
+.tb-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}.tb-ghost:hover{background:rgba(255,255,255,.2)}
+.tb-sep{width:1px;height:28px;background:rgba(255,255,255,.2);margin:0 3px;flex-shrink:0}
+/* Panel */
+.ep{position:fixed;top:52px;${isAr?'left':'right'}:0;bottom:0;width:252px;
+  background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);overflow-y:auto;z-index:999;transition:transform .3s}
+.ep.hidden{transform:translateX(${isAr?'-100%':'100%'})}
+.ph{background:#1a1a2e;color:#fff;padding:10px 14px;font-size:13px;font-weight:700;
+  display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1}
+.pb{padding:12px 14px;display:flex;flex-direction:column;gap:11px}
+.pg>label:first-child{display:block;font-size:10px;font-weight:700;color:#777;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.pg select,.pg input[type=text]{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+.pg input[type=range]{width:100%;accent-color:${_color}}
+.csw{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.csw div{width:20px;height:20px;border-radius:4px;cursor:pointer;border:2px solid transparent}
+.csw div.on{border-color:#333!important;transform:scale(1.12)}
+.sbtn{width:100%;padding:8px;background:${_color};color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_font}',Arial,sans-serif;margin-top:2px}
+.rbtn{width:100%;padding:7px;background:#fff;color:#c0392b;border:1px solid #f5b8b8;border-radius:7px;cursor:pointer;font-size:11.5px;font-family:'${_font}',Arial,sans-serif}
+.hdiv{border-top:1px solid #eee;margin:2px 0}
+/* Content */
+.cw{margin-top:52px;padding:20px;transition:${isAr?'margin-left':'margin-right'} .3s}
+.cw.open{${isAr?'margin-left':'margin-right'}:256px}
+/* Watermark */
+.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);
+  font-size:80px;font-weight:900;color:rgba(0,0,0,.04);pointer-events:none;z-index:998;white-space:nowrap;user-select:none}
+@media print{
+  .toolbar,.ep{display:none!important}
+  .cw{margin:0!important;padding:0!important}
+  body{background:#fff!important;font-size:${_size}px!important}
+  @page{margin:${_margin}}
+  thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+${extraCSS}
+</style></head>
+<body>
+<div class="toolbar">
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb-btn tb-green" onclick="_shellSave()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" id="tbPanel" onclick="_shellToggle()">⚙️ ${isAr?'تخصيص الورقة':'Personnaliser'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<div class="ep hidden" id="shellPanel">
+  <div class="ph">
+    <span>⚙️ ${isAr?'تخصيص الورقة':'Personnaliser'}</span>
+    <button onclick="_shellToggle()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div class="pb">
+    <div class="pg"><label>🔤 ${isAr?'الخط':'Police'}</label>
+      <select id="spF" onchange="_shellApply()">
+        ${['Cairo','Tajawal','Arial',"'Times New Roman'",'Tahoma'].map(f=>`<option value="${f}" ${_font===f?'selected':''}>${f.replace(/'/g,'')}</option>`).join('')}
+      </select></div>
+    <div class="pg"><label>📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_size}px</strong></label>
+      <input type="range" id="spSz" min="10" max="18" step="1" value="${_size}"
+        oninput="document.getElementById('spSzL').textContent=this.value+'px';_shellApply()">
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#aaa"><span>10</span><span>14</span><span>18</span></div>
+    </div>
+    <div class="pg"><label>🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
+      <div class="csw">
+        ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div style="background:${c}" class="${_color===c?'on':''}" title="${n}" onclick="_shellSetColor('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spCC" value="${_color}" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_shellSetColor(this.value,null)">
+      </div></div>
+    <div class="pg"><label>📐 ${isAr?'الهوامش':'Marges'}</label>
+      <select id="spM" onchange="_shellApply()">
+        ${[['8mm',isAr?'ضيق':'Étroit'],['12mm',isAr?'عادي':'Normal'],['18mm',isAr?'واسع':'Large']].map(([v,l])=>
+          `<option value="${v}" ${_margin===v?'selected':''}>${v} — ${l}</option>`
+        ).join('')}
+      </select></div>
+    <div class="pg"><label>📄 ${isAr?'حجم الورق':'Format'}</label>
+      <div style="display:flex;gap:5px">
+        ${['A4','A5','Letter'].map(sz=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spPs" value="${sz}" ${(ps.pageSize||'A4')===sz?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">${sz}
+        </label>`).join('')}
+      </div></div>
+    <div class="pg"><label>↔️ ${isAr?'الاتجاه':'Orientation'}</label>
+      <div style="display:flex;gap:5px">
+        <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spOr" value="portrait" ${(ps.orientation||'portrait')==='portrait'?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">
+          📄 ${isAr?'عمودي':'Portrait'}
+        </label>
+        <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spOr" value="landscape" ${ps.orientation==='landscape'?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">
+          📃 ${isAr?'أفقي':'Paysage'}
+        </label>
+      </div></div>
+    <div class="hdiv"></div>
+    <div class="pg"><label>↕️ ${isAr?'تباعد الأسطر':'Interligne'} — <strong id="spLhL">${_lh}</strong></label>
+      <input type="range" id="spLh" min="1.2" max="2.2" step="0.1" value="${_lh}"
+        oninput="document.getElementById('spLhL').textContent=parseFloat(this.value).toFixed(1);_shellApply()">
+    </div>
+    <div class="pg"><label>📊 ${isAr?'لون رأس الجدول':'En-tête tableau'}</label>
+      <div class="csw">
+        ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#555','رمادي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div style="background:${c}" class="${_tc===c?'on':''}" title="${n}" onclick="document.getElementById('spTC').value='${c}';_shellApply()"></div>`
+        ).join('')}
+        <input type="color" id="spTC" value="${_tc}" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_shellApply()">
+      </div></div>
+    <div class="pg"><label>💧 ${isAr?'واترمارك':'Filigrane'}</label>
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="text" id="spWm" value="${_wm.replace(/"/g,'&quot;')}" placeholder="${isAr?'سري، مسودة...':'CONFIDENTIEL...'}" oninput="_shellApply()">
+        <label style="display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap">
+          <input type="checkbox" id="spSwm" ${_showWM?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">
+          ${isAr?'تفعيل':'Activer'}
+        </label>
+      </div></div>
+    <button class="rbtn" onclick="_shellReset()">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+    <button class="sbtn" onclick="_shellSaveSettings()">💾 ${isAr?'حفظ للمرة القادمة':'Sauvegarder'}</button>
+  </div>
+</div>
+
+<div class="cw" id="shellCW">
+  <div id="shellPage">
+    <div class="watermark" id="shellWM" style="display:${_showWM&&_wm?'block':'none'}">${_wm}</div>
+    ${bodyHtml}
+  </div>
+</div>
+
+<script>
+var _sc = '${_color}', _sdoc = ${JSON.stringify(title)};
+function _shellToggle(){
+  var p=document.getElementById('shellPanel'),w=document.getElementById('shellCW'),b=document.getElementById('tbPanel');
+  var h=p.classList.toggle('hidden');
+  w.classList.toggle('open',!h);
+  if(b) b.style.background=h?'':'rgba(184,144,47,.3)';
+}
+function _shellSetColor(c,el){
+  _sc=c;
+  document.querySelectorAll('.csw div').forEach(function(s){s.classList.remove('on')});
+  if(el)el.classList.add('on');
+  document.getElementById('spCC').value=c;
+  _shellApply();
+}
+function _shellApply(){
+  var f=document.getElementById('spF').value;
+  var sz=document.getElementById('spSz').value;
+  var mg=document.getElementById('spM').value;
+  var lh=document.getElementById('spLh').value;
+  var tc=document.getElementById('spTC').value;
+  var wm=document.getElementById('spWm').value;
+  var swm=document.getElementById('spSwm').checked;
+  var or=document.querySelector('input[name="spOr"]:checked')?.value||'portrait';
+  var ps=document.querySelector('input[name="spPs"]:checked')?.value||'A4';
+  var pg=document.getElementById('shellPage');
+  if(pg){pg.style.fontFamily=f+',Arial,sans-serif';pg.style.fontSize=sz+'px';pg.style.lineHeight=lh;}
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=tc;e.style.color='#fff';});
+  document.querySelectorAll('.gold-bar,[style*="border-bottom:3px solid"],[style*="border-bottom: 3px solid"]').forEach(function(e){
+    e.style.borderBottomColor=_sc;e.style.background=e.classList.contains('gold-bar')?_sc:'';
+  });
+  var wmEl=document.getElementById('shellWM');
+  if(wmEl){wmEl.textContent=wm;wmEl.style.display=(swm&&wm)?'block':'none';}
+  var si='_ssl';var st=document.getElementById(si)||document.createElement('style');st.id=si;
+  st.textContent='@media print{@page{margin:'+mg+';size:'+ps+' '+or+'}body{font-size:'+sz+'px!important;font-family:'+f+',Arial,sans-serif!important}thead th{background:'+tc+'!important;-webkit-print-color-adjust:exact!important}}';
+  if(!document.getElementById(si))document.head.appendChild(st);
+}
+function _shellSave(){
+  try{
+    var h=document.documentElement.outerHTML;
+    var b=new Blob([h],{type:'text/html;charset=utf-8'});
+    var u=URL.createObjectURL(b);var a=document.createElement('a');
+    a.href=u;a.download=_sdoc.replace(/[\/:*?"<>|]/g,'_')+'.html';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(u);},1500);
+  }catch(e){alert('فشل الحفظ');}
+}
+function _shellReset(){
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}
+}
+function _shellSaveSettings(){
+  var s={
+    fontFamily:document.getElementById('spF').value,
+    fontSize:Number(document.getElementById('spSz').value),
+    lineHeight:parseFloat(document.getElementById('spLh').value),
+    accentColor:_sc,
+    tableHeaderColor:document.getElementById('spTC').value,
+    margin:document.getElementById('spM').value,
+    pageSize:document.querySelector('input[name="spPs"]:checked')?.value||'A4',
+    orientation:document.querySelector('input[name="spOr"]:checked')?.value||'portrait',
+    watermark:document.getElementById('spWm').value,
+    showWatermark:document.getElementById('spSwm').checked,
+  };
+  try{
+    localStorage.setItem('sbtp_print_settings',JSON.stringify(s));
+    if(window.opener&&!window.opener.closed){
+      try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch(e){}
+    }
+  }catch(e){}
+  var b=document.querySelector('.sbtn');
+  if(b){var o=b.textContent;b.textContent='✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';b.style.background='#27ae60';setTimeout(function(){b.textContent=o;b.style.background='';},2000);}
+}
+${onPrint ? 'window.addEventListener("load",function(){setTimeout(function(){window.print();},800);});' : ''}
+</script>
+</body></html>`;
+}
+
+
+function buildInvoiceHTML(inv, tenant, proj, items, tvaRate, amountHT, tvaAmount, isAr, isPaid, logo, _ic, _if, _im, _iz) {
+  const fmt2 = n => Number(n||0).toLocaleString(isAr?'ar-DZ':'fr-DZ');
+  const da = isAr ? 'دج' : 'DA';
+  const logoHTML = logo ? `<img src="${logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;background:#fff;padding:4px">` : '';
+
+  return `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr?'فاتورة':'Facture'} ${escHtml(inv.number)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${_if}',Arial,sans-serif;color:#1a1a1a;background:#e8eaed;padding:0;font-size:${_iz}px}
+/* Toolbar */
+.no-print{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap}
+.tb{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_if}',Arial,sans-serif}
+/* Page */
+.page{background:#fff;max-width:820px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow:hidden}
+.inv-header{background:#fff;border-bottom:3px solid ${_ic};padding:28px 36px;display:flex;justify-content:space-between;align-items:center}
+.brand-name{font-size:22px;font-weight:900;color:${_ic};letter-spacing:.5px}
+.brand-sub{font-size:10px;color:#666;margin-top:4px}
+.inv-label{font-size:28px;font-weight:900;color:#1a1a1a;letter-spacing:2px;text-align:${isAr?'left':'right'}}
+.inv-num{font-size:13px;color:${_ic};font-weight:700;margin-top:4px;text-align:${isAr?'left':'right'}}
+.gold-bar{height:3px;background:${_ic}}
+.meta-section{display:grid;grid-template-columns:1fr 1fr 1fr;padding:20px 36px;border-bottom:1px solid #f0f0f0;gap:20px}
+.meta-box{padding:14px;border:1px solid #f0e8d0;border-radius:8px}
+.meta-label{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:6px}
+.meta-val{font-size:13px;font-weight:700;color:#1a1a1a}
+.meta-sub{font-size:11px;color:#666;margin-top:2px}
+.status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:${isPaid?'#d4f5e4':'#fff3cd'};color:${isPaid?'#0a6e3f':'#856404'};border:1px solid ${isPaid?'#a8d5b5':'#ffc107'}}
+.items-section{padding:24px 36px}
+.items-title{font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+thead th{background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:${isAr?'right':'left'}}
+tbody td{padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px}
+tbody tr:nth-child(odd) td{background:#fafaf7}
+.totals-section{padding:16px 36px 24px;display:flex;justify-content:flex-${isAr?'start':'end'}}
+.totals-box{min-width:260px}
+.total-row{display:flex;justify-content:space-between;padding:6px 12px;font-size:13px}
+.total-row.main{background:${_ic};color:#fff;border-radius:6px;font-size:15px;font-weight:900;padding:10px 14px;margin-top:6px}
+.bottom-section{display:flex;justify-content:space-between;align-items:flex-end;padding:20px 36px;border-top:1px solid #f0f0f0}
+.stamp-box{width:140px;height:80px;border:2px solid ${_ic};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:${_ic};font-weight:700;opacity:.5;text-align:center}
+.legal-note{font-size:10px;color:#bbb;line-height:1.7;text-align:${isAr?'left':'right'}}
+.inv-footer{background:#f8f5ee;border-top:2px solid ${_ic};padding:10px 36px;display:flex;justify-content:space-between;align-items:center}
+.inv-footer span{font-size:10px;color:#666}
+.gold-text{color:${_ic};font-weight:700}
+@media print{
+  .no-print{display:none!important}
+  .page{box-shadow:none;max-width:100%}
+  body{background:#fff}
+  @page{margin:${_im}}
+  thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style></head>
+<body>
+
+<!-- Toolbar -->
+<div class="no-print">
+  <button class="tb" style="background:${_ic};color:#fff" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb" style="background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='Facture_${inv.number}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="tb" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<div style="margin-top:52px;padding:20px;background:#e8eaed">
+<div class="page">
+
+  <!-- Header -->
+  <div class="inv-header">
+    <div style="display:flex;align-items:center;gap:18px">
+      ${logoHTML}
+      <div>
+        <div class="brand-name">▦ SmartStruct</div>
+        <div class="brand-sub">${escHtml(tenant?.name || '')}</div>
+        ${tenant?.nif ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>` : ''}
+        ${tenant?.nis ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>` : ''}
+        ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
+      </div>
+    </div>
+    <div>
+      <div class="inv-label">${isAr?'فاتورة':'FACTURE'}</div>
+      <div class="inv-num">${escHtml(inv.number)}</div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <!-- Meta -->
+  <div class="meta-section">
+    <div class="meta-box">
+      <div class="meta-label">${isAr?'تاريخ الإصدار':'Date d\'émission'}</div>
+      <div class="meta-val">${inv.date || new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</div>
+      ${inv.due_date ? `<div class="meta-sub" style="color:${new Date(inv.due_date)<new Date()?'#c0392b':'#666'}">${isAr?'الاستحقاق':'Échéance'}: ${inv.due_date}</div>` : ''}
+    </div>
+    <div class="meta-box">
+      <div class="meta-label">${isAr?'العميل':'Client'}</div>
+      <div class="meta-val">${escHtml(inv.client_name||'—')}</div>
+      ${proj ? `<div class="meta-sub">🏗️ ${escHtml(proj.name)}</div>` : ''}
+      ${inv.payment_method ? `<div class="meta-sub">${escHtml(inv.payment_method)}</div>` : ''}
+    </div>
+    <div class="meta-box">
+      <div class="meta-label">${isAr?'الحالة':'Statut'}</div>
+      <div><span class="status-badge">${inv.status==='paid'?(isAr?'✅ مدفوعة':'✅ Payée'):inv.status==='partial'?(isAr?'🔶 جزئية':'🔶 Partiel'):(isAr?'⏳ معلقة':'⏳ En attente')}</span></div>
+      ${inv.paid_amount ? `<div class="meta-sub" style="margin-top:6px">${isAr?'مدفوع':'Payé'}: ${fmt2(inv.paid_amount)} ${da}</div>` : ''}
+    </div>
+  </div>
+
+  <!-- Items -->
+  <div class="items-section">
+    <div class="items-title">📋 ${isAr?'تفاصيل الفاتورة':'Détails de la facture'}</div>
+    <table>
+      <thead><tr>
+        <th>${isAr?'البيان':'Désignation'}</th>
+        <th style="text-align:center">${isAr?'الكمية':'Qté'}</th>
+        <th style="text-align:center">${isAr?'سعر الوحدة (دج)':'P.U. (DA)'}</th>
+        <th style="text-align:center">${isAr?'الإجمالي HT (دج)':'Total HT (DA)'}</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(item=>`<tr>
+          <td>${escHtml(item.desc||item.designation||'')}</td>
+          <td style="text-align:center">${item.qty||1}</td>
+          <td style="text-align:center">${fmt2(item.price||item.unit_price||0)}</td>
+          <td style="text-align:center;font-weight:700">${fmt2(item.total||0)} ${da}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Totals -->
+  <div class="totals-section">
+    <div class="totals-box">
+      <div class="total-row"><span>${isAr?'المجموع HT':'Sous-total HT'}</span><span>${fmt2(amountHT)} ${da}</span></div>
+      <div class="total-row"><span>TVA (${tvaRate}%)</span><span>${fmt2(tvaAmount)} ${da}</span></div>
+      <div class="total-row main"><span>${isAr?'المجموع TTC':'TOTAL TTC'}</span><span>${fmt2(inv.amount)} ${da}</span></div>
+    </div>
+  </div>
+
+  <!-- Bottom: stamp + legal -->
+  <div class="bottom-section">
+    <div class="legal-note">
+      <strong>${isAr?'ملاحظات قانونية':'Mentions légales'}</strong><br>
+      TVA: ${tvaRate}% | ${tenant?.nif?'NIF: '+escHtml(tenant.nif):''}${tenant?.nis?' | NIS: '+escHtml(tenant.nis):''}<br>
+      ${tenant?.rc_number?'RC: '+escHtml(tenant.rc_number)+' | ':''}${tenant?.address||''}
+    </div>
+    <div class="stamp-box">${isAr?'الختم\nوالتوقيع':'Cachet\net Signature'}</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="inv-footer">
+    <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة':'Plateforme BTP'}</span>
+    <span class="gold-text">${escHtml(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
+  </div>
+
+</div>
+</div>
+</body></html>`;
+}
+
 function exportInvoicePDF(id) {
   // الحل الأفضل: نفتح نافذة الطباعة الجميلة، ثم نطلق print()
   // المتصفح سيعطي المستخدم خيار "Save as PDF" تلقائياً
@@ -18823,7 +19405,6 @@ function exportInvoicePDF(id) {
   // نفس دالة الطباعة لكن مع تشغيل تلقائي لـ print
   printInvoiceWindow(id, /* autoPrint */ true);
 }
-
 function printInvoiceWindow(id, autoPrint = false) {
   const inv    = DB.get('invoices').find(i => i.id === id);
   const tenant = Auth.getTenant();
@@ -18833,349 +19414,38 @@ function printInvoiceWindow(id, autoPrint = false) {
   const tvaRate   = inv.tva_rate   || tenant?.tva_rate || 19;
   const amountHT  = inv.amount_ht  || Math.round(Number(inv.amount) / (1 + tvaRate / 100));
   const tvaAmount = inv.tva_amount || (Number(inv.amount) - amountHT);
-  const items     = inv.items && inv.items.length > 0
+  const items = inv.items && inv.items.length > 0
     ? inv.items
     : [{ desc: inv.description || 'Prestations de service', qty: 1, price: amountHT, total: amountHT }];
 
   const isAr   = I18N.currentLang === 'ar';
   const isPaid = inv.status === 'paid';
+  const logo   = getTenantLogo();
+  const ps     = getPrintSettings ? getPrintSettings() : {};
+  const _ic    = ps.accentColor || '#B8902F';
+  const _if    = ps.fontFamily  || 'Cairo';
+  const _im    = ps.margin      || '12mm';
+  const _iz    = ps.fontSize    || 13;
+
+  // بناء HTML الفاتورة
+  const invHtml = buildInvoiceHTML(inv, tenant, proj, items, tvaRate, amountHT, tvaAmount, isAr, isPaid, logo, _ic, _if, _im, _iz);
 
   const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html>
-<html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}">
-<head>
-<meta charset="UTF-8">
-<title>${isAr ? 'فاتورة' : 'Facture'} ${escHtml(inv.number)}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Cairo', Arial, sans-serif;
-    color: #1a1a1a;
-    background: #f4f4f6;
-    padding: 30px;
-  }
-
-  /* ── Boutons hors impression ── */
-  .no-print {
-    display: flex; gap: 10px; margin-bottom: 24px; justify-content: flex-start;
-  }
-  .btn-print {
-    padding: 10px 24px; background: #E8B84B; color: #1a1000;
-    border: none; border-radius: 8px; cursor: pointer;
-    font-family: inherit; font-size: 14px; font-weight: 700;
-  }
-  .btn-close {
-    padding: 10px 20px; background: #2a2a2a; color: #ccc;
-    border: none; border-radius: 8px; cursor: pointer;
-    font-family: inherit; font-size: 14px;
-  }
-
-  /* ── Feuille A4 ── */
-  .page {
-    background: #fff;
-    max-width: 780px;
-    margin: 0 auto;
-    border-radius: 4px;
-    overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0,0,0,.12);
-  }
-
-  /* ── Header بدون خلفية سوداء ── */
-  .inv-header {
-    background: #fff;
-    border: 2px solid #C49030;
-    border-bottom: 3px solid #C49030;
-    padding: 28px 36px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .brand-name {
-    font-size: 22px; font-weight: 900; color: #C49030; letter-spacing: .5px;
-  }
-  .brand-sub {
-    font-size: 10px; color: #666; margin-top: 4px;
-  }
-  .inv-label {
-    font-size: 28px; font-weight: 900; color: #1a1a1a; letter-spacing: 2px;
-    text-align: ${isAr ? 'left' : 'right'};
-  }
-  .inv-num {
-    font-size: 13px; color: #C49030; font-weight: 700; margin-top: 4px;
-    text-align: ${isAr ? 'left' : 'right'};
-  }
-
-  @media print {
-    body { background: #fff !important; padding: 10px !important; }
-    .no-print { display: none !important; }
-    .page { box-shadow: none !important; border-radius: 0 !important; }
-    .items-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .total-block  { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .gold-bar     { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { margin: 12mm; }
-  }
-
-  /* ── Bande dorée fine ── */
-  .gold-bar { height: 3px; background: linear-gradient(90deg,#C49030,#E8B84B,#C49030); }
-
-  /* ── Bloc infos ── */
-  .info-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0;
-    border-bottom: 1px solid #eee;
-  }
-  .info-cell {
-    padding: 18px 24px;
-    border-${isAr ? 'left' : 'right'}: 1px solid #eee;
-  }
-  .info-cell:last-child { border: none; }
-  .info-cell-label {
-    font-size: 9px; font-weight: 700; color: #aaa;
-    text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px;
-  }
-  .info-cell-value { font-size: 13px; font-weight: 700; color: #111; }
-  .info-cell-sub   { font-size: 11px; color: #888; margin-top: 3px; }
-
-  /* ── Badge statut ── */
-  .status-badge {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 20px;
-    font-size: 11px; font-weight: 700;
-    background: ${isPaid ? '#d4f5e2' : '#fff8e1'};
-    color: ${isPaid ? '#0a6e3f' : '#8a6000'};
-    border: 1px solid ${isPaid ? '#a8e6c6' : '#f0d060'};
-  }
-
-  /* ── Tableau articles ── */
-  .table-section { padding: 24px 36px 0; }
-  .table-title {
-    font-size: 11px; font-weight: 700; color: #888;
-    text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
-  }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  thead th {
-    background: #C49030; color: #fff;
-    padding: 10px 14px; text-align: ${isAr ? 'right' : 'left'};
-    font-size: 10px; font-weight: 700; letter-spacing: .5px;
-  }
-  thead th:last-child { text-align: ${isAr ? 'left' : 'right'}; }
-  tbody td { padding: 11px 14px; border-bottom: 1px solid #f0f0f0; color: #222; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:nth-child(even) td { background: #fafafa; }
-  .td-right { text-align: ${isAr ? 'left' : 'right'}; font-variant-numeric: tabular-nums; }
-  .td-center { text-align: center; }
-
-  /* ── Totaux ── */
-  .totals-section {
-    display: flex;
-    justify-content: flex-end;
-    padding: 20px 36px;
-    border-top: 1px solid #f0f0f0;
-  }
-  .totals-box { width: 280px; }
-  .total-row {
-    display: flex; justify-content: space-between;
-    padding: 7px 0; font-size: 12.5px; color: #555;
-    border-bottom: 1px solid #f4f4f4;
-  }
-  .total-row:last-child { border: none; }
-  .total-final {
-    display: flex; justify-content: space-between;
-    margin-top: 8px; padding: 12px 16px;
-    background: #f5f0e8; border: 2px solid #C49030; border-radius: 8px;
-    font-size: 15px; font-weight: 900; color: #C49030;
-  }
-
-  /* ── Zone cachet + footer ── */
-  .bottom-section {
-    display: flex; justify-content: space-between; align-items: flex-end;
-    padding: 20px 36px 28px;
-    border-top: 1px solid #f0f0f0;
-  }
-  .stamp-box {
-    width: 160px; height: 90px;
-    border: 2px solid #C49030; border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; color: #C49030; font-weight: 700;
-    opacity: .6; text-align: center; line-height: 1.5;
-  }
-  .legal-note { font-size: 10px; color: #bbb; text-align: ${isAr ? 'left' : 'right'}; line-height: 1.7; }
-
-  /* ── Footer بدون خلفية سوداء ── */
-  .inv-footer {
-    background: #f8f5ee;
-    border-top: 2px solid #C49030;
-    padding: 12px 36px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .inv-footer span { font-size: 10px; color: #666; }
-  .inv-footer .gold-text { color: #C49030; font-weight: 700; }
-
-  /* ── Notes ── */
-  .notes-block {
-    margin: 0 36px 0;
-    padding: 12px 16px;
-    background: #fafafa;
-    border-left: 3px solid #E8B84B;
-    border-radius: 0 4px 4px 0;
-    font-size: 11.5px; color: #555; line-height: 1.7;
-  }
-
-  @media print {
-    body { background: #fff; padding: 0; }
-    .no-print { display: none !important; }
-    .page { box-shadow: none; border-radius: 0; }
-    .inv-header img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-</style>
-</head>
-<body>
-
-<!-- Boutons -->
-<div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ ${isAr ? 'طباعة' : 'Imprimer'}</button>
-  <button class="btn-close" onclick="window.close()">${isAr ? 'إغلاق' : 'Fermer'}</button>
-</div>
-
-<div class="page">
-
-  <!-- Header -->
-  <div class="inv-header">
-    <div style="display:flex;align-items:center;gap:18px">
-      ${(()=>{ const _logo=getTenantLogo(); return _logo?`<img src="${_logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;background:#fff;padding:4px">`:'' })()}
-      <div>
-        <div class="brand-name">▦ SmartStruct</div>
-        <div class="brand-sub">${escHtml(tenant?.name || 'إدارة مشاريع المقاولة')}</div>
-        ${tenant?.nif    ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>`    : ''}
-        ${tenant?.nis    ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>`    : ''}
-        ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
-        ${tenant?.address? `<div class="brand-sub">📍 ${escHtml(tenant.address)}</div>` : ''}
-      </div>
-    </div>
-    <div>
-      <div class="inv-label">${isAr ? 'فاتورة' : 'FACTURE'}</div>
-      <div class="inv-num">${escHtml(inv.number)}</div>
-    </div>
-  </div>
-
-  <!-- Bande dorée -->
-  <div class="gold-bar"></div>
-
-  <!-- Infos : dates | client | statut -->
-  <div class="info-section">
-    <div class="info-cell">
-      <div class="info-cell-label">${isAr ? 'تاريخ الإصدار' : "Date d'émission"}</div>
-      <div class="info-cell-value">${fmtDate(inv.date)}</div>
-      ${inv.due_date ? `
-        <div class="info-cell-label" style="margin-top:10px">${isAr ? 'تاريخ الاستحقاق' : "Date d'échéance"}</div>
-        <div class="info-cell-value" style="color:#c0392b">${fmtDate(inv.due_date)}</div>` : ''}
-    </div>
-    <div class="info-cell">
-      <div class="info-cell-label">${isAr ? 'العميل' : 'Client'}</div>
-      <div class="info-cell-value">${escHtml(inv.client)}</div>
-      ${proj ? `<div class="info-cell-sub">📁 ${escHtml(proj.name)}</div>` : ''}
-      ${inv.payment_method ? `<div class="info-cell-sub">💳 ${escHtml(inv.payment_method)}</div>` : ''}
-    </div>
-    <div class="info-cell">
-      <div class="info-cell-label">${isAr ? 'الحالة' : 'Statut'}</div>
-      <div style="margin-top:4px">
-        <span class="status-badge">${isPaid ? (isAr ? '✅ مدفوعة' : '✅ Payée') : (isAr ? '⏳ معلقة' : '⏳ En attente')}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tableau articles -->
-  <div class="table-section">
-    <div class="table-title">${isAr ? 'تفاصيل الفاتورة' : 'Détail des prestations'}</div>
-    <table>
-      <thead>
-        <tr>
-          <th>${isAr ? 'البيان' : 'Description'}</th>
-          <th class="td-center" style="width:60px">${isAr ? 'الكمية' : 'Qté'}</th>
-          <th class="td-right" style="width:130px">${isAr ? 'سعر الوحدة (دج)' : 'Prix unit. (DA)'}</th>
-          <th class="td-right" style="width:140px">${isAr ? 'الإجمالي HT (دج)' : 'Total HT (DA)'}</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items.map(it => `<tr>
-          <td>${escHtml(it.desc || '—')}</td>
-          <td class="td-center">${it.qty || 1}</td>
-          <td class="td-right">${Number(it.price || 0).toLocaleString('fr-DZ')}</td>
-          <td class="td-right" style="font-weight:700">${Number(it.total || 0).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Totaux -->
-  <div class="totals-section">
-    <div class="totals-box">
-      <div class="total-row">
-        <span>${isAr ? 'المجموع HT' : 'Sous-total HT'}</span>
-        <span>${Number(amountHT).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
-      </div>
-      <div class="total-row">
-        <span>TVA (${tvaRate}%)</span>
-        <span>${Number(tvaAmount).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
-      </div>
-      <div class="total-final">
-        <span>${isAr ? 'المجموع TTC' : 'Total TTC'}</span>
-        <span>${Number(inv.amount).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
-      </div>
-    </div>
-  </div>
-
-  ${inv.description ? `
-  <!-- Notes -->
-  <div class="notes-block">
-    <strong>${isAr ? 'ملاحظات:' : 'Notes / Conditions :'}</strong><br>
-    ${escHtml(inv.description)}
-  </div>
-  <div style="height:16px"></div>` : ''}
-
-  <!-- Cachet + mentions légales -->
-  <div class="bottom-section">
-    <div class="stamp-box">${isAr ? 'الختم\nوالتوقيع' : 'Cachet &\nSignature'}</div>
-    <div class="legal-note">
-      ${isAr ? 'مطابق للقانون الجزائري' : 'Conforme à la législation algérienne'}<br>
-      TVA ${tvaRate}%&nbsp;&nbsp;|&nbsp;&nbsp;NIF / NIS / RC
-      ${tenant?.nif ? `<br>NIF : ${escHtml(tenant.nif)}` : ''}
-      ${tenant?.nis ? `<br>NIS : ${escHtml(tenant.nis)}` : ''}
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div class="inv-footer">
-    <span>SmartStruct — ${isAr ? 'منصة إدارة مشاريع المقاولة الجزائرية' : 'Plateforme algérienne de gestion BTP'}</span>
-    <span class="gold-text">${escHtml(inv.number)}&nbsp;&nbsp;|&nbsp;&nbsp;${new Date().toLocaleDateString(isAr ? 'ar-DZ' : 'fr-DZ')}</span>
-  </div>
-
-</div>
-</body></html>`);
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); return; }
+  win.document.write(invHtml);
   win.document.close();
-  
-  // إذا طُلب الطباعة التلقائية (من زر PDF) — انتظر تحميل الصورة (الشعار) ثم اطبع
+  win.document.title = (isAr?'فاتورة':'Facture') + ' ' + inv.number;
+
   if (autoPrint) {
     win.addEventListener('load', function() {
-      // ننتظر قليلاً للتأكد أن الـ CSS و الخطوط حُمّلت
-      setTimeout(() => {
-        try { win.focus(); win.print(); } catch (e) { console.error(e); }
-      }, 800);
+      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
     });
-    // fallback إذا event load لم يُطلق (الصفحة جاهزة بالفعل)
     if (win.document.readyState === 'complete') {
-      setTimeout(() => {
-        try { win.focus(); win.print(); } catch (e) { console.error(e); }
-      }, 800);
+      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
     }
   }
 }
-/* ── INVENTORY PAGE ── */
+
 Pages.inventory = function() {
   const tid = Auth.getUser().tenant_id;
   const allMaterials = DB.get('materials').filter(m=>m.tenant_id===tid);
@@ -20844,12 +21114,12 @@ Pages.bankReport = function() {
 </style>
 </head>
 <body>
-<div class="no-print">
+<div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
   <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
-  <button class="btn-c" onclick="window.close()">${isAr?'إغلاق':'Fermer'}</button>
+  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='rapport-bancaire.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="btn-c" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
-
-<div class="sheet">
+<div style="margin-top:52px">
   <!-- Header -->
   <div class="hdr">
     <div style="display:flex;align-items:center;gap:14px">
