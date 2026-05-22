@@ -1525,6 +1525,42 @@ function topbarHTML(breadcrumb) {
   const tid = user?.tenant_id;
   const projects = tid ? DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived) : [];
   const alertCount = projects.filter(p=>p.total_spent >= p.budget*0.9 && p.budget>0).length;
+
+  // ── بادج حالة الاشتراك ──
+  let subBadge = '';
+  if (user && !user.is_admin && typeof TrialManager !== 'undefined') {
+    const tenant = Auth.getTenant();
+    if (tenant) {
+      const isExpired   = TrialManager.isExpired(tenant);
+      const status      = tenant.subscription_status || 'trial';
+      const daysLeft    = TrialManager.getDaysLeft(tenant);
+      const paidDays    = TrialManager.getPaidDaysLeft(tenant);
+
+      if (isExpired || status === 'expired' || tenant.is_active === false) {
+        subBadge = `<button onclick="typeof TrialManager!=='undefined'&&TrialManager.showExpiredModal('${escHtml(tenant.name||'')}')"
+          style="padding:4px 10px;background:rgba(240,78,106,.15);border:1px solid rgba(240,78,106,.4);border-radius:20px;color:#F04E6A;font-size:.72rem;font-weight:800;cursor:pointer;animation:pulse 1.5s infinite;white-space:nowrap">
+          ⛔ ${L('الحساب منتهي — اشترك','Compte expiré — S\'abonner')}
+        </button>
+        <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}</style>`;
+      } else if (status === 'trial' && daysLeft !== null) {
+        const color = daysLeft <= 2 ? '#F04E6A' : daysLeft <= 5 ? '#E8B84B' : '#34C38F';
+        subBadge = `<button onclick="App.navigate('subscription')"
+          style="padding:4px 10px;background:${color}15;border:1px solid ${color}44;border-radius:20px;color:${color};font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">
+          ⏳ ${daysLeft} ${L('يوم مجاني','j. essai')}
+        </button>`;
+      } else if (status === 'active' && paidDays !== null && paidDays <= 10) {
+        subBadge = `<button onclick="App.navigate('subscription')"
+          style="padding:4px 10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.3);border-radius:20px;color:var(--gold);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">
+          🔔 ${paidDays} ${L('يوم للتجديد','j. renouvellement')}
+        </button>`;
+      } else if (status === 'active') {
+        subBadge = `<span style="padding:3px 9px;background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.2);border-radius:20px;color:#34C38F;font-size:.7rem;font-weight:700;white-space:nowrap">
+          ✅ ${L('مشترك','Abonné')}
+        </span>`;
+      }
+    }
+  }
+
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:.8rem;flex:1">
       <button class="hamburger">☰</button>
@@ -1541,7 +1577,8 @@ function topbarHTML(breadcrumb) {
           onblur="this.style.borderColor='rgba(255,255,255,.1)'">
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+      ${subBadge}
       <!-- زر وضع الميدان -->
       <button onclick="showMobileMode()" title="${L('وضع الميدان','Mode Terrain')}"
         style="padding:5px 10px;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:8px;color:#34C38F;cursor:pointer;font-size:.75rem;font-weight:700;white-space:nowrap">
@@ -4919,28 +4956,89 @@ Pages.dashboard = function() {
   const recent = [...projects].sort((a,b)=>b.id-a.id).slice(0,4);
   const plan = Auth.getPlan();
   const tenant = Auth.getTenant();
-  // Trial banner
+
+  // ── نظام حالة الاشتراك الاحترافي ──
   let trialBannerHTML = '';
-  if (tenant && tenant.subscription_status === 'trial' && tenant.trial_end) {
-    const daysLeft = Math.max(0, TrialManager.getDaysLeft(tenant) ?? 0);
-    const pct = Math.round((daysLeft / 14) * 100);
-  
-    const urgency = daysLeft <= 3 ? 'var(--red)' : daysLeft <= 7 ? 'var(--gold)' : 'var(--green)';
-    trialBannerHTML = `<div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.2);border-radius:14px;padding:.9rem 1.2rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
-      <div style="display:flex;align-items:center;gap:.8rem">
-        <div style="font-size:1.6rem;font-weight:900;color:${urgency};font-family:'JetBrains Mono',monospace">${daysLeft}</div>
-        <div>
-          <div style="font-size:.82rem;font-weight:800;color:var(--text)">${L('يوم متبقي من التجربة المجانية','Jours restants d\'essai gratuit')}</div>
-          <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;width:180px;margin-top:4px">
-            <div style="height:4px;background:${urgency};border-radius:4px;width:${pct}%;transition:width 1s ease"></div>
+  if (tenant && !user.is_admin) {
+    const daysLeftTrial = TrialManager.getDaysLeft(tenant);
+    const daysLeftPaid  = TrialManager.getPaidDaysLeft(tenant);
+    const isExpired     = TrialManager.isExpired(tenant);
+    const status        = tenant.subscription_status || 'trial';
+    const now           = new Date();
+
+    if (isExpired || status === 'expired' || tenant.is_active === false) {
+      // ── ① حساب منتهي ← تنبيه حمراء + عرض الخطط ──
+      trialBannerHTML = `
+      <div id="expiredBanner" style="background:linear-gradient(135deg,rgba(240,78,106,.1),rgba(240,78,106,.05));border:1.5px solid rgba(240,78,106,.4);border-radius:16px;padding:1.1rem 1.3rem;margin-bottom:1rem;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#F04E6A,#E8B84B,#F04E6A);background-size:200%;animation:shimmerBar 2s linear infinite"></div>
+        <style>@keyframes shimmerBar{0%{background-position:0 0}100%{background-position:200% 0}}</style>
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:.9rem">
+            <div style="font-size:2rem">⏰</div>
+            <div>
+              <div style="font-size:.95rem;font-weight:900;color:#F04E6A">${L('انتهت فترة التجربة المجانية','Période d\'essai expirée')}</div>
+              <div style="font-size:.78rem;color:rgba(240,78,106,.8);margin-top:2px">${L('حسابك محظور حالياً — اشترك لمواصلة الاستخدام','Votre compte est suspendu — Abonnez-vous pour continuer')}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-gold" onclick="typeof TrialManager!=='undefined'&&TrialManager.showExpiredModal('${escHtml(tenant.name||'')}')">
+              🚀 ${L('اشترك الآن','S\'abonner maintenant')}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')">
+              💳 ${L('عرض الخطط','Voir les plans')}
+            </button>
           </div>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:.6rem">
-        <span style="font-size:.75rem;color:var(--dim)">${L('انتهاء التجربة:','Fin de l\'essai:')} ${tenant.trial_end}</span>
-        <button class="btn btn-gold btn-sm" onclick="requestPlanUpgrade()">${L('ترقية الحساب ↑','Mettre à niveau ↑')}</button>
-      </div>
-    </div>`;
+      </div>`;
+
+    } else if (status === 'trial' && daysLeftTrial !== null) {
+      // ── ② حساب تجريبي نشط ← banner حسب عدد الأيام ──
+      const urgencyColor = daysLeftTrial <= 2 ? '#F04E6A' : daysLeftTrial <= 5 ? '#E8B84B' : '#34C38F';
+      const pct = Math.min(100, Math.round((daysLeftTrial / 14) * 100));
+      const endDate = tenant.trial_end ? new Date(tenant.trial_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long'}) : '—';
+
+      trialBannerHTML = `
+      <div style="background:rgba(52,195,143,.04);border:1px solid ${urgencyColor}44;border-radius:14px;padding:.9rem 1.2rem;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
+          <div style="display:flex;align-items:center;gap:.9rem">
+            <div style="width:52px;height:52px;border-radius:12px;background:${urgencyColor}15;border:2px solid ${urgencyColor}44;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="font-size:1.3rem;font-weight:900;color:${urgencyColor};line-height:1">${daysLeftTrial}</div>
+              <div style="font-size:8px;color:${urgencyColor};opacity:.8">${L('يوم','j.')}</div>
+            </div>
+            <div>
+              <div style="font-size:.85rem;font-weight:800;color:var(--text)">${L('تجربة مجانية — يبقى','Essai gratuit — reste')} <strong style="color:${urgencyColor}">${daysLeftTrial} ${L('يوم','jours')}</strong></div>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-top:5px">
+                <div style="height:5px;background:rgba(255,255,255,.08);border-radius:4px;width:140px;overflow:hidden">
+                  <div style="height:5px;background:${urgencyColor};border-radius:4px;width:${pct}%;transition:width 1s"></div>
+                </div>
+                <span style="font-size:.7rem;color:var(--dim)">${L('تنتهي','Expire')} ${endDate}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            ${daysLeftTrial <= 5 ? `<span style="font-size:.72rem;background:${urgencyColor}15;border:1px solid ${urgencyColor}44;color:${urgencyColor};padding:3px 8px;border-radius:20px;font-weight:700">⚡ ${L('عرض خاص — اشترك قبل الانتهاء!','Offre spéciale — Abonnez-vous avant expiration!')}</span>` : ''}
+            <button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">💳 ${L('الترقية','Mettre à niveau')}</button>
+          </div>
+        </div>
+      </div>`;
+
+    } else if (status === 'active' && daysLeftPaid !== null && daysLeftPaid <= 10) {
+      // ── ③ اشتراك مدفوع يقترب من الانتهاء ← تنبيه ذهبي ──
+      const endDate = tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}) : '—';
+      trialBannerHTML = `
+      <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.3);border-radius:14px;padding:.9rem 1.2rem;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
+          <div style="display:flex;align-items:center;gap:.8rem">
+            <div style="font-size:1.6rem">🔔</div>
+            <div>
+              <div style="font-size:.85rem;font-weight:800;color:var(--gold)">${L('اشتراكك ينتهي قريباً','Votre abonnement expire bientôt')}</div>
+              <div style="font-size:.75rem;color:var(--dim)">${L('يبقى','Reste')} <strong style="color:var(--gold)">${daysLeftPaid} ${L('يوم','jours')}</strong> — ${endDate}</div>
+            </div>
+          </div>
+          <button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">🔄 ${L('تجديد الاشتراك','Renouveler')}</button>
+        </div>
+      </div>`;
+    }
   }
   const health = calcHealthScore(projects, txs, workers, attendance);
 
