@@ -133,11 +133,15 @@ const _SHARED_CSS = `
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: 'Cairo', 'Tajawal', 'Segoe UI', Arial, sans-serif;
-  color: #3a3a3a; background: #fafafa; padding: 24px;
+  color: #3a3a3a; background: #f4f4f6; padding: 16px;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .no-print {
-  display: flex; gap: 10px; margin-bottom: 18px; justify-content: flex-start; flex-wrap: wrap;
+  display: flex; gap: 8px; margin-bottom: 14px; justify-content: flex-start;
+  flex-wrap: wrap; align-items: center;
+  background: #fff; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid #e5e5e5; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  max-width: 820px; margin-left: auto; margin-right: auto; margin-bottom: 12px;
 }
 .btn-print {
   padding: 9px 22px; background: #B8902F; color: #fff;
@@ -528,7 +532,7 @@ function _wrap(title, bodyHtml, watermarkText) {
     const blob=new Blob([html],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download=${JSON.stringify(title)}+'.html';
+    a.href=url;a.download='${title.replace(/'/g,"\\'")}'+'.html';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   })()">💾 ${btnSave}</button>

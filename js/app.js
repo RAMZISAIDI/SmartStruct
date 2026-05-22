@@ -6381,9 +6381,9 @@ function _projectFilterBar(projects, pageKey, currentFilter) {
   if (!projects || projects.length === 0) return '';
   const hasFilter = currentFilter !== 'all';
   const selProj = projects.find(p=>String(p.id)===String(currentFilter));
-  return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;padding:.5rem .7rem;background:rgba(232,184,75,.05);border:1px solid rgba(232,184,75,.15);border-radius:10px;flex-wrap:wrap">
-    <span style="font-size:.76rem;color:var(--dim);white-space:nowrap">🔍 ${L('تصفية بالمشروع:','Filtrer par projet:')}</span>
-    <select style="flex:1;min-width:160px;max-width:300px;padding:.3rem .6rem;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:.8rem;cursor:pointer"
+  return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;padding:.5rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(232,184,75,.2);border-radius:10px;flex-wrap:wrap">
+    <span style="font-size:.76rem;color:var(--dim);white-space:nowrap">🔍 ${L('تصفية:','Filtrer:')}</span>
+    <select style="flex:1;min-width:160px;max-width:280px;padding:.3rem .6rem;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:.8rem;cursor:pointer"
       onchange="(function(v){sessionStorage.setItem('proj_filter_${pageKey}',v);App.navigate('${pageKey}');})(this.value)">
       <option value="all" ${!hasFilter?'selected':''}>${L('كل المشاريع','Tous les projets')} (${projects.length})</option>
       ${projects.map(p=>`<option value="${p.id}" ${String(currentFilter)===String(p.id)?'selected':''}>${escHtml(p.name.substring(0,30))}</option>`).join('')}
