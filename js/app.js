@@ -4462,21 +4462,21 @@ const TrialManager = {
 
           <div class="tem-plans-title">💎 ${t('اختر خطتك','Choisissez votre plan')}</div>
           <div class="tem-plans">
-            <div class="tem-plan" onclick="TrialManager._requestUpgrade(1)">
+            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(1):TrialManager._requestUpgrade(1)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">👷 ${t('للمقاول الفردي','Contractant indiv.')}</div>
               <div class="tem-plan-name">${t('المبتدئ','Starter')}</div>
               <div class="tem-plan-price">2,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('3 مشاريع · 15 عامل','3 projets · 15 ouvriers')}</div>
             </div>
-            <div class="tem-plan featured" onclick="TrialManager._requestUpgrade(2)">
+            <div class="tem-plan featured" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏢 ${t('للشركات','Entreprises')}</div>
               <div class="tem-plan-name">⭐ ${t('الاحترافي','Pro')}</div>
               <div class="tem-plan-price">7,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('20 مشروع · 100 عامل','20 projets · 100 ouvriers')}</div>
             </div>
-            <div class="tem-plan" onclick="TrialManager._requestUpgrade(3)">
+            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(3):TrialManager._requestUpgrade(3)">
               <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏛️ ${t('للمؤسسات الكبرى','Grandes ent.')}</div>
               <div class="tem-plan-name">${t('المؤسسي','Entreprise')}</div>
               <div class="tem-plan-price">19,900</div>
@@ -4486,8 +4486,8 @@ const TrialManager = {
           </div>
 
           <div class="tem-actions">
-            <button class="tem-btn tem-btn-gold" onclick="TrialManager._requestUpgrade(2)">
-              💎 ${t('اشترك الآن', "S'abonner maintenant")}
+            <button class="tem-btn tem-btn-gold" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
+              💳 ${t('ادفع إلكترونياً الآن', "Payer en ligne maintenant")}
             </button>
             <button class="tem-btn tem-btn-ghost" onclick="TrialManager._closeAndLogout()">
               👋 ${t('تسجيل الخروج','Se déconnecter')}
@@ -4496,6 +4496,11 @@ const TrialManager = {
         </div>
 
         <div class="tem-foot">
+          <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.5rem">
+            <span style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.2rem .5rem;font-size:.75rem">📮 EDAHABIA</span>
+            <span style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.2rem .5rem;font-size:.75rem">💳 CIB</span>
+            <span style="background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.2);border-radius:6px;padding:.2rem .5rem;font-size:.75rem;color:#34C38F">🔒 Chargily Pay™</span>
+          </div>
           📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartstruct.dz</strong>
         </div>
       </div>
@@ -4506,51 +4511,36 @@ const TrialManager = {
 
   // طلب ترقية من داخل modal الانتهاء
   _requestUpgrade(planId) {
+    // ══════════════════════════════════════════════
+    //  الدفع الإلكتروني عبر Chargily Pay
+    //  يدعم: EDAHABIA (بريد الجزائر) + CIB (SATIM)
+    // ══════════════════════════════════════════════
     try {
-      const tenant = (typeof Auth !== 'undefined' && Auth.getTenant) ? Auth.getTenant() : null;
-      const user   = (typeof Auth !== 'undefined' && Auth.getUser)   ? Auth.getUser()   : null;
-      const company = tenant?.name || '—';
-      const planNames = {1:'المبتدئ', 2:'الاحترافي', 3:'المؤسسي'};
+      // إخفاء modal انتهاء التجربة مؤقتاً (لا نُغلقه كلياً)
+      const expModal = document.getElementById('trial-expired-modal');
+      if (expModal) expModal.style.display = 'none';
+      document.body.style.overflow = '';
 
-      // سجّل طلب الترقية في الإشعارات
-      const notifs = DB.get('notifications') || [];
-      notifs.unshift({
-        id: Date.now(),
-        type: 'upgrade_request',
-        title: 'طلب اشتراك بعد انتهاء التجربة',
-        body: `المؤسسة "${company}" تطلب الاشتراك في خطة "${planNames[planId]||'?'}"`,
-        user_id: user?.id || null,
-        tenant_id: tenant?.id || null,
-        tenant_name: company,
-        requested_plan: planId,
-        date: new Date().toISOString(),
-        status: 'pending',
-        read: false
-      });
-      DB.set('notifications', notifs);
-      try { sbSync('notifications', notifs[0], 'POST'); } catch(_) {}
-
-      // بريد إلى المسؤول
-      if (typeof EMAILJS !== 'undefined' && EMAILJS.notifyNewAccount) {
-        EMAILJS.notifyNewAccount({
-          name: user?.full_name || '—',
-          email: user?.email || '—',
-          company,
-          wilaya: tenant?.wilaya || '—',
-          subject: `💎 طلب اشتراك (${planNames[planId]}) — ${company}`
-        }).catch(()=>{});
-      }
-
-      if (typeof Toast !== 'undefined') {
-        Toast.success(L('✅ تم إرسال طلبك — سيتواصل معك المسؤول قريباً عبر البريد','✅ Demande envoyée — l\'administrateur vous contactera bientôt'));
+      // فتح نافذة اختيار طريقة الدفع
+      if (typeof ChargilyPayment !== 'undefined') {
+        ChargilyPayment.initiatePayment(planId);
       } else {
-        alert(L('✅ تم إرسال طلبك بنجاح. سيتواصل معك المسؤول قريباً.','✅ Demande envoyée. L\'administrateur vous contactera bientôt.'));
+        // Fallback: تحميل الوحدة ثم المحاولة
+        console.error('ChargilyPayment module not loaded');
+        if (typeof Toast !== 'undefined') {
+          Toast.error(L('خطأ في تحميل بوابة الدفع. أعد تحميل الصفحة.','Erreur de chargement de la passerelle. Rechargez la page.'));
+        }
+        // إعادة عرض modal الانتهاء
+        if (expModal) expModal.style.display = '';
+        document.body.style.overflow = 'hidden';
       }
     } catch(e) {
       console.warn('_requestUpgrade error:', e);
+      // في حالة خطأ، أعد عرض الـ modal
+      const expModal = document.getElementById('trial-expired-modal');
+      if (expModal) expModal.style.display = '';
+      document.body.style.overflow = 'hidden';
     }
-    // نسجّل الخروج بعد الطلب
-    setTimeout(() => this._closeAndLogout(), 1500);
   },
 
   _closeAndLogout() {
@@ -9832,9 +9822,10 @@ Pages.admin = function() {
       })()}</td>
       <td>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap">
-          <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف المؤسسة','Désactiver l\'entreprise'):L('تفعيل المؤسسة','Activer l\'entreprise')}">${t.is_active?'⏸️':'▶️'}</button>
+          <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف المؤسسة','Désactiver'):L('تفعيل المؤسسة','Activer')}">${t.is_active?'⏸️':'▶️'}</button>
           <button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})" title="${L('تعديل الخطة','Modifier le plan')}">⚙️</button>
           <button class="btn btn-sm btn-ghost" onclick="openSubInvoicesModal(${t.id})" title="${L('فواتير الاشتراك','Factures abonnement')}">🧾</button>
+          <button class="btn btn-sm btn-ghost" onclick="printTenantReport(${t.id})" title="${L('طباعة تقرير المؤسسة','Imprimer rapport')}">🖨️</button>
           <button class="btn btn-sm btn-red" onclick="deleteTenantAccount(${t.id})" title="${L('حذف المؤسسة نهائياً','Supprimer définitivement')}">🗑️</button>
         </div>
       </td>
@@ -10093,6 +10084,121 @@ Pages.admin = function() {
                 <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td></tr>`;
             }).join('')}</tbody>
           </table></div>
+        </div>
+
+        <!-- ══ 💳 لوحة حالة المدفوعات ══ -->
+        <div class="card" style="margin-top:1rem;padding:0">
+          <div style="padding:1.1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+            <div>
+              <div style="font-weight:800;font-size:.95rem">💳 ${L('حالة المدفوعات والاشتراكات','Statut des paiements & abonnements')}</div>
+              <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">${L('نظرة شاملة على جميع المؤسسات — دفعت / لم تدفع / الوقت المتبقي','Vue d\'ensemble — payé / impayé / temps restant')}</div>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${(()=>{
+                const paid    = tenants.filter(t=>t.id!==1 && t.subscription_status==='active' && t.is_active).length;
+                const trial   = tenants.filter(t=>t.id!==1 && t.subscription_status==='trial').length;
+                const expired = tenants.filter(t=>t.id!==1 && (t.subscription_status==='expired' || !t.is_active)).length;
+                return `
+                <span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.25);color:#34C38F;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">✅ ${L('دفعت','Payé')} (${paid})</span>
+                <span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:#E8B84B;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⏱️ ${L('تجربة','Essai')} (${trial})</span>
+                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>`;
+              })()}
+            </div>
+          </div>
+          <div class="table-wrap" style="border:none;border-radius:0">
+            <table>
+              <thead><tr>
+                <th>${L('المؤسسة','Entreprise')}</th>
+                <th>${L('حالة الدفع','Statut paiement')}</th>
+                <th>${L('الخطة','Plan')}</th>
+                <th>${L('الوقت المتبقي','Temps restant')}</th>
+                <th>${L('تاريخ الانتهاء','Date d\'expiration')}</th>
+                <th>${L('إجراء','Action')}</th>
+              </tr></thead>
+              <tbody>
+                ${(()=>{
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  return tenants
+                    .filter(t => t.id !== 1)
+                    .map(t => {
+                      const pl = plans.find(p=>p.id===t.plan_id);
+                      const st = t.subscription_status || '';
+                      const isTrial   = st === 'trial';
+                      const isPaid    = st === 'active' && t.is_active;
+                      const isExpired = st === 'expired' || (!t.is_active && st !== 'trial' && st !== 'pending');
+                      const isPending = st === 'pending' || (!t.is_active && st === 'trial');
+
+                      // حساب الأيام المتبقية
+                      let daysLeft = null, endDate = null;
+                      if (isTrial) {
+                        const tEnd = t.trial_end || t.trial_ends_at || null;
+                        if (tEnd) { endDate = tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
+                      } else if (isPaid) {
+                        const sEnd = t.subscription_end || t.subscription_ends_at || null;
+                        if (sEnd) { endDate = sEnd; const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
+                      }
+
+                      // عرض الوقت المتبقي
+                      let daysHtml = '<span style="color:var(--dim)">—</span>';
+                      if (daysLeft !== null) {
+                        if (daysLeft < 0) {
+                          daysHtml = `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`;
+                        } else if (daysLeft === 0) {
+                          daysHtml = `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم الأخير!','Dernier jour!')}</span>`;
+                        } else if (daysLeft <= 3) {
+                          daysHtml = `<span style="color:#E8B84B;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`;
+                        } else if (daysLeft <= 7) {
+                          daysHtml = `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`;
+                        } else {
+                          daysHtml = `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
+                        }
+                      }
+
+                      // عرض حالة الدفع
+                      let payHtml;
+                      if (isPaid) {
+                        payHtml = `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`;
+                      } else if (isTrial && daysLeft !== null && daysLeft >= 0) {
+                        payHtml = `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة مجانية','Essai gratuit')}</span>`;
+                      } else if (isPending) {
+                        payHtml = `<span class="badge" style="background:rgba(74,144,226,.12);color:#4A90E2;border:1px solid rgba(74,144,226,.25);font-size:.7rem">⏳ ${L('انتظار','En attente')}</span>`;
+                      } else {
+                        payHtml = `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
+                      }
+
+                      const endStr = endDate
+                        ? new Date(endDate).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'})
+                        : '—';
+
+                      return `<tr>
+                        <td>
+                          <div style="font-weight:700;font-size:.85rem">${escHtml(t.name)}</div>
+                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')}</div>
+                        </td>
+                        <td>${payHtml}</td>
+                        <td>
+                          <span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span>
+                        </td>
+                        <td>${daysHtml}</td>
+                        <td style="font-size:.78rem;color:var(--dim);font-family:monospace">${endStr}</td>
+                        <td>
+                          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+                            ${(!isPaid) ? `<button class="btn btn-sm btn-gold" style="font-size:.7rem;padding:.25rem .6rem"
+                              onclick="editTenantPlan(${t.id})" title="${L('تفعيل الاشتراك المدفوع','Activer l\'abonnement payant')}">
+                              💳 ${L('فعّل','Activer')}
+                            </button>` : ''}
+                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.7rem;padding:.25rem .5rem"
+                              onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">
+                              ${t.is_active?'⏸️':'▶️'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>`;
+                    }).join('')
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         </div><!-- END adminTabContent_tenants -->
@@ -13608,6 +13714,124 @@ async function adminNukeAllAccounts() {
 }
 
 // ⑤ تصدير كل البيانات كـ JSON
+// ── طباعة تقرير مؤسسة من لوحة الأدمن ──
+function printTenantReport(tenantId) {
+  const tenants = DB.get('tenants') || [];
+  const tenant  = tenants.find(t => t.id === tenantId);
+  if (!tenant) { Toast.error('المؤسسة غير موجودة'); return; }
+
+  const users    = (DB.get('users')    || []).filter(u => u.tenant_id === tenantId);
+  const projects = (DB.get('projects') || []).filter(p => p.tenant_id === tenantId);
+  const workers  = (DB.get('workers')  || []).filter(w => w.tenant_id === tenantId);
+  const txs      = (DB.get('transactions') || []).filter(t => t.tenant_id === tenantId);
+  const invoices = (DB.get('invoices') || []).filter(i => i.tenant_id === tenantId);
+  const revenue  = txs.filter(t => t.type==='revenue').reduce((s,t) => s+Number(t.amount), 0);
+  const expense  = txs.filter(t => t.type==='expense').reduce((s,t) => s+Number(t.amount), 0);
+  const ps       = getPrintSettings ? getPrintSettings() : {};
+  const _ic      = ps.accentColor || '#B8902F';
+  const _if      = ps.fontFamily  || 'Cairo';
+  const fmt      = n => Number(n||0).toLocaleString('ar-DZ');
+  const now      = new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'});
+
+  const planNames = {1:'المبتدئ',2:'الاحترافي',3:'المؤسسي'};
+  const subBadge  = tenant.subscription_status === 'active' ? '#34C38F'
+                  : tenant.subscription_status === 'trial'  ? '#E8B84B' : '#F04E6A';
+  const subLabel  = tenant.subscription_status === 'active' ? '✅ نشط'
+                  : tenant.subscription_status === 'trial'  ? '⏳ تجريبي' : '⛔ منتهي';
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8">
+<title>تقرير مؤسسة — ${escHtml(tenant.name)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${_if}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;direction:rtl}
+.no-print{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.tb{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_if}',Arial,sans-serif}
+.page{background:#fff;max-width:820px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.hdr{background:#fff;border-bottom:3px solid ${_ic};padding:24px 32px;display:flex;justify-content:space-between;align-items:center}
+.kpi{background:#fafaf7;border:1px solid #e8e0cc;border-radius:8px;padding:14px 16px;text-align:center;flex:1}
+.kpi-v{font-size:18px;font-weight:900;font-family:monospace}
+.kpi-l{font-size:10px;color:#888;margin-bottom:4px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:${_ic};color:#fff;padding:8px 12px;text-align:right}
+tbody td{padding:7px 12px;border-bottom:1px solid #f5f0e8}
+tbody tr:nth-child(odd) td{background:#fafaf7}
+.footer-bar{background:#f8f5ee;border-top:2px solid ${_ic};padding:10px 32px;display:flex;justify-content:space-between;font-size:10px;color:#666}
+@media print{.no-print{display:none!important}body{background:#fff}.page{box-shadow:none;max-width:100%}@page{margin:12mm}}
+</style></head>
+<body>
+<div class="no-print">
+  <button class="tb" style="background:${_ic};color:#fff" onclick="window.print()">🖨️ طباعة / PDF</button>
+  <button class="tb" style="background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='Tenant_${tenantId}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 حفظ على الحاسوب</button>
+  <button class="tb" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="window.close()">✕ إغلاق</button>
+</div>
+<div style="margin-top:52px;padding:20px;background:#e8eaed">
+<div class="page">
+  <div class="hdr">
+    <div>
+      <div style="font-size:20px;font-weight:900;color:${_ic}">▦ SmartStruct — تقرير مؤسسة</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">الأدمن · ${now}</div>
+    </div>
+    <div style="text-align:left">
+      <div style="font-size:16px;font-weight:900">${escHtml(tenant.name)}</div>
+      <span style="background:${subBadge}22;border:1px solid ${subBadge}55;color:${subBadge};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">${subLabel}</span>
+    </div>
+  </div>
+
+  <div style="padding:20px 32px;display:flex;gap:10px;flex-wrap:wrap">
+    <div class="kpi"><div class="kpi-l">الخطة</div><div class="kpi-v" style="color:${_ic}">${planNames[tenant.plan_id]||'—'}</div></div>
+    <div class="kpi"><div class="kpi-l">المشاريع</div><div class="kpi-v">${projects.length}</div></div>
+    <div class="kpi"><div class="kpi-l">العمال</div><div class="kpi-v">${workers.length}</div></div>
+    <div class="kpi"><div class="kpi-l">الإيرادات</div><div class="kpi-v" style="color:#0a6e3f">${fmt(revenue)}</div></div>
+    <div class="kpi"><div class="kpi-l">المصاريف</div><div class="kpi-v" style="color:#c0392b">${fmt(expense)}</div></div>
+    <div class="kpi"><div class="kpi-l">الفواتير</div><div class="kpi-v">${invoices.length}</div></div>
+  </div>
+
+  <div style="padding:0 32px 20px">
+    <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:10px">معلومات المؤسسة</div>
+    <table>
+      <tbody>
+        ${[['الولاية',tenant.wilaya],['الهاتف',tenant.phone],['NIF',tenant.nif],['NIS',tenant.nis],
+           ['RC',tenant.rc_number],['البريد',tenant.email],['تاريخ التجربة',tenant.trial_end],
+           ['انتهاء الاشتراك',tenant.subscription_end]].filter(([k,v])=>v).map(([k,v])=>`
+        <tr><td style="font-weight:700;width:150px">${k}</td><td>${escHtml(String(v))}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  ${projects.length ? `
+  <div style="padding:0 32px 20px">
+    <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:10px">المشاريع (${projects.length})</div>
+    <table>
+      <thead><tr><th>اسم المشروع</th><th style="text-align:center">الميزانية</th><th style="text-align:center">الإنجاز</th><th style="text-align:center">الحالة</th></tr></thead>
+      <tbody>
+        ${projects.map(p=>`<tr>
+          <td>${escHtml(p.name)}</td>
+          <td style="text-align:center;font-family:monospace">${fmt(p.budget)} دج</td>
+          <td style="text-align:center">${p.progress||0}%</td>
+          <td style="text-align:center">${p.status==='active'?'🟢 نشط':p.status==='completed'?'✅ مكتمل':'⏸ متوقف'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  <div class="footer-bar">
+    <span>SmartStruct Admin — تقرير مؤسسة</span>
+    <span style="color:${_ic}">ID: ${tenantId} | ${now}</span>
+  </div>
+</div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { Toast.error('السماح بالنوافذ المنبثقة'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `تقرير — ${tenant.name}`;
+}
+
 function adminExportAllData() {
   if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
     Toast.error(L('المتصفح لا يدعم التصدير','Export non supporté'));
@@ -23179,6 +23403,12 @@ const SmartNotify = {
 // تشغيل الإشعارات عند تسجيل الدخول
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => { if (Auth.getUser()) SmartNotify.runDaily(); }, 5000);
+  // معالجة عودة Chargily Pay
+  setTimeout(() => {
+    if (typeof ChargilyPayment !== 'undefined' && ChargilyPayment.handlePaymentReturn) {
+      ChargilyPayment.handlePaymentReturn();
+    }
+  }, 500);
 });
 
 // ── 🛡️ حماية البيانات عند إغلاق النافذة ──
