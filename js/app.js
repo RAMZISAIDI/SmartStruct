@@ -4024,6 +4024,9 @@ async function doRegister() {
     // 6. إرسال إيميل إشعار للأدمن
     EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
 
+    // 6b. إرسال إيميل ترحيبي للمستخدم الجديد
+    EMAILJS.sendWelcomeEmail({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
+
     // 7. عرض شاشة الترحيب وانتظار الموافقة (بدون تسجيل دخول)
     if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
     showPendingActivationScreen(name.trim(), email, company.trim());
@@ -4981,7 +4984,7 @@ Pages.dashboard = function() {
             </div>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button class="btn btn-gold" onclick="typeof TrialManager!=='undefined'&&TrialManager.showExpiredModal('${escHtml(tenant.name||'')}')">
+            <button class="btn btn-gold" onclick="showSubscriptionPlansModal()">
               🚀 ${L('اشترك الآن','S\'abonner maintenant')}
             </button>
             <button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')">
@@ -5017,7 +5020,7 @@ Pages.dashboard = function() {
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
             ${daysLeftTrial <= 5 ? `<span style="font-size:.72rem;background:${urgencyColor}15;border:1px solid ${urgencyColor}44;color:${urgencyColor};padding:3px 8px;border-radius:20px;font-weight:700">⚡ ${L('عرض خاص — اشترك قبل الانتهاء!','Offre spéciale — Abonnez-vous avant expiration!')}</span>` : ''}
-            <button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">💳 ${L('الترقية','Mettre à niveau')}</button>
+            <button class="btn btn-gold btn-sm" onclick="showSubscriptionPlansModal()">💳 ${L('الترقية','Mettre à niveau')}</button>
           </div>
         </div>
       </div>`;
@@ -15548,7 +15551,11 @@ function topbarHTMLv5(title) {
 function buildNotifPanel() {
   const user = Auth.getUser();
   if (!user) return '';
-  const notifs = DB.get('notifications').filter(n => n.tenant_id === user.tenant_id).slice(0, 8);
+  // إشعارات طلبات التسجيل الجديدة (new_account) تُعرض فقط لـ Super Admin — لا تظهر لأدمن المؤسسة
+  const notifs = DB.get('notifications').filter(n => {
+    if (n.type === 'new_account' && !user.is_admin) return false;
+    return n.tenant_id === user.tenant_id;
+  }).slice(0, 8);
   if (!notifs.length) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد إشعارات</div></div>`;
   return `<div class="notif-panel" id="notifPanel" style="display:none">
     <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center">
@@ -15589,6 +15596,139 @@ function markAllNotifsRead() {
 function markNotifRead(id) {
   DB.set('notifications', DB.get('notifications').map(n => n.id === id ? {...n, read:true} : n));
 }
+// ── modal عروض الاشتراك — يظهر عند الضغط على "الترقية" في بانر الأيام التجريبية ──
+// خاص بأدمن المؤسسة فقط (ليس أعضاء الفريق)
+function showSubscriptionPlansModal() {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant();
+  if (!user || !tenant) return;
+  // فقط أدمن المؤسسة (tenant admin)
+  if (user.is_admin) return App.navigate('admin');
+
+  const isAr = I18N.currentLang === 'ar';
+  const t = (a, f) => isAr ? a : f;
+  const plans = typeof ChargilyPayment !== 'undefined' ? ChargilyPayment.PLANS : {
+    1: { id:1, emoji:'👷', nameAr:'المبتدئ', nameFr:'Starter', descAr:'للمقاول الفردي', descFr:'Pour le contractant', price:2900, color:'#34C38F' },
+    2: { id:2, emoji:'⭐', nameAr:'الاحترافي', nameFr:'Pro', descAr:'للشركات', descFr:'Pour les entreprises', price:7900, color:'#E8B84B', featured:true },
+    3: { id:3, emoji:'🏛️', nameAr:'المؤسسي', nameFr:'Entreprise', descAr:'للمؤسسات الكبرى', descFr:'Grandes entreprises', price:19900, color:'#9B6DFF' }
+  };
+
+  const old = document.getElementById('subPlansModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'subPlansModal';
+  modal.style.cssText = `position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);
+    display:flex;align-items:center;justify-content:center;padding:1rem;direction:${isAr?'rtl':'ltr'};animation:spmFade .3s ease`;
+
+  const da = isAr ? 'دج' : 'DA';
+  const plansHTML = Object.values(plans).map(plan => `
+    <div onclick="window._spmSelectedPlan=${plan.id};document.querySelectorAll('.spm-plan').forEach(el=>el.classList.remove('spm-selected'));this.classList.add('spm-selected')"
+      class="spm-plan${plan.featured?' spm-featured':''}" style="background:rgba(255,255,255,.04);border:2px solid ${plan.featured?'rgba(232,184,75,.5)':'rgba(255,255,255,.1)'};border-radius:14px;padding:1.2rem;text-align:center;cursor:pointer;transition:all .2s;position:relative">
+      ${plan.featured?`<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#E8B84B,#C9971B);color:#0a0e1a;font-size:.65rem;font-weight:800;padding:2px 10px;border-radius:20px">${t('الأكثر طلباً','Plus populaire')}</div>`:''}
+      <div style="font-size:2.2rem;margin-bottom:.4rem">${plan.emoji}</div>
+      <div style="font-size:1rem;font-weight:800;color:${plan.color}">${isAr?plan.nameAr:plan.nameFr}</div>
+      <div style="font-size:.75rem;color:var(--dim,#8a9)margin:.2rem 0">${isAr?(plan.descAr||''):(plan.descFr||'')}</div>
+      <div style="font-size:1.6rem;font-weight:900;color:#fff;margin:.7rem 0">${Number(plan.price||0).toLocaleString(isAr?'ar-DZ':'fr-DZ')} <span style="font-size:.75rem;color:#8a9">${da}/${t('شهر','mois')}</span></div>
+    </div>`).join('');
+
+  modal.innerHTML = `
+    <style>
+      @keyframes spmFade{from{opacity:0}to{opacity:1}}
+      @keyframes spmUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+      .spm-card{background:linear-gradient(135deg,#1a1f2e,#0f1420);border:1px solid rgba(232,184,75,.25);border-radius:20px;max-width:640px;width:100%;max-height:93vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.6);animation:spmUp .35s ease}
+      .spm-plan.spm-selected{border-color:rgba(52,195,143,.7)!important;background:rgba(52,195,143,.07)!important;transform:translateY(-3px)}
+      .spm-plan:hover{border-color:rgba(232,184,75,.4)!important;transform:translateY(-2px)}
+    </style>
+    <div class="spm-card">
+      <div style="padding:1.7rem 2rem 1.2rem;text-align:center;border-bottom:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:2.5rem">💳</div>
+        <div style="font-size:1.4rem;font-weight:900;color:#E8B84B;margin:.5rem 0">${t('اختر خطتك واستمر 14 يوماً إضافياً!','Choisissez votre plan — 14 jours supplémentaires!')}</div>
+        <div style="font-size:.85rem;color:var(--dim,#8a9ab0);line-height:1.6">${t('بمجرد اشتراكك، تُضاف 14 يوماً إضافية تلقائياً إلى حسابك 🎁','Dès votre abonnement, 14 jours supplémentaires sont ajoutés automatiquement 🎁')}</div>
+      </div>
+      <div style="padding:1.5rem 2rem">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:.85rem;margin-bottom:1.5rem">
+          ${plansHTML}
+        </div>
+        <div style="display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center">
+          <button onclick="window._spmProceed()" style="padding:.85rem 2rem;background:linear-gradient(135deg,#E8B84B,#C9971B);color:#0a0e1a;border:none;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer;min-width:170px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+            💳 ${t('اشترك الآن','S\'abonner maintenant')}
+          </button>
+          <button onclick="document.getElementById('subPlansModal')?.remove();document.body.style.overflow=''" style="padding:.85rem 1.5rem;background:rgba(255,255,255,.05);color:#c8d4e8;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer">
+            ${t('لاحقاً','Plus tard')}
+          </button>
+        </div>
+        <div style="margin-top:1rem;text-align:center;font-size:.78rem;color:var(--dim,#8a9ab0)">
+          🔒 ${t('دفع آمن عبر Chargily Pay — EDAHABIA & CIB','Paiement sécurisé Chargily Pay — EDAHABIA & CIB')}
+        </div>
+      </div>
+    </div>`;
+
+  // دالة المتابعة للدفع
+  window._spmProceed = function() {
+    const planId = window._spmSelectedPlan || 2;
+    document.getElementById('subPlansModal')?.remove();
+    document.body.style.overflow = '';
+    if (typeof ChargilyPayment !== 'undefined') {
+      ChargilyPayment.initiatePayment(planId);
+    } else {
+      // Fallback: طلب ترقية + إضافة 14 يوم تجريبية إضافية
+      _grantExtraTrialDays(14, planId);
+    }
+  };
+
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  // إغلاق عند الضغط خارج الكارد
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) { modal.remove(); document.body.style.overflow = ''; }
+  });
+}
+
+// ── منح أيام تجريبية إضافية (14 يوم) عند الاشتراك ── خاص بأدمن المؤسسة
+async function _grantExtraTrialDays(days, planId) {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant();
+  if (!user || !tenant || user.is_admin) return;
+
+  const cfg = typeof getSupabaseConfig !== 'undefined' ? getSupabaseConfig() : null;
+  const newEnd = new Date();
+  // احسب من اليوم أو من نهاية الاشتراك الحالي أيهما أبعد
+  const currentEnd = tenant.trial_end ? new Date(tenant.trial_end) : new Date();
+  const baseDate = currentEnd > newEnd ? currentEnd : newEnd;
+  baseDate.setDate(baseDate.getDate() + days);
+  const newEndStr = baseDate.toISOString().split('T')[0];
+
+  // تحديث محلي فوري
+  const tenants = DB.get('tenants') || [];
+  const idx = tenants.findIndex(t => t.id === tenant.id);
+  if (idx !== -1) {
+    tenants[idx].trial_end = newEndStr;
+    tenants[idx].subscription_status = 'trial';
+    tenants[idx].is_active = true;
+    DB.set('tenants', tenants);
+    Auth.reloadTenant?.();
+  }
+
+  // تحديث Supabase إن كان متاحاً
+  if (cfg?.url && cfg?.key) {
+    try {
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tenant.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+        body: JSON.stringify({ trial_end: newEndStr, subscription_status: 'trial', is_active: true })
+      });
+    } catch(e) { console.warn('Extra trial days update failed:', e); }
+  }
+
+  if (typeof Toast !== 'undefined') {
+    const isAr = I18N.currentLang === 'ar';
+    Toast.success(isAr ? `✅ تمت إضافة ${days} يوماً إضافياً — تجربتك ممتدة حتى ${newEndStr}` : `✅ ${days} jours supplémentaires ajoutés — jusqu'au ${newEndStr}`);
+  }
+  setTimeout(() => App.navigate('dashboard'), 1200);
+}
+
 function addNotification(tid, title, message, type='info') {
   const notifs = DB.get('notifications');
   notifs.unshift({id:DB.nextId('notifications'),tenant_id:tid,title,message,read:false,date:todayStr(),type});
