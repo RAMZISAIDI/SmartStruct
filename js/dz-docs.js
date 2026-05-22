@@ -513,45 +513,328 @@ function _wrap(title, bodyHtml, watermarkText) {
   const switchBtn = isAr ? _T('switch_to_fr')  : _T('switch_to_ar');
   const switchTitle = isAr ? 'Passer en Français' : 'التبديل للعربية';
 
+  // قراءة الإعدادات المحفوظة
+  let _ps = {};
+  try { _ps = JSON.parse(typeof localStorage!=='undefined'?localStorage.getItem('sbtp_print_settings')||'{}':'{}'); } catch{}
+  const _font    = _ps.fontFamily  || 'Cairo';
+  const _size    = _ps.fontSize    || 13;
+  const _color   = _ps.accentColor || '#B8902F';
+  const _margin  = _ps.margin      || '12mm';
+  const _wm      = _ps.watermark   || '';
+  const _showWM  = _ps.showWatermark || false;
+
   return `<!DOCTYPE html>
 <html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
 <head>
 <meta charset="UTF-8">
 <title>${_esc(title)}</title>
-<style>${typeof applyPrintSettingsToDoc==='function' ? applyPrintSettingsToDoc(_SHARED_CSS) : _SHARED_CSS}
-.btn-lang{padding:9px 16px;background:#fff;color:#B8902F;border:1.5px solid #B8902F;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
-.btn-lang:hover{background:#B8902F;color:#fff}
-.lang-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;background:rgba(184,144,47,.08);border:1px solid rgba(184,144,47,.25);border-radius:6px;padding:5px 10px;color:#B8902F;font-weight:700}
+<style>
+${typeof applyPrintSettingsToDoc==='function' ? applyPrintSettingsToDoc(_SHARED_CSS) : _SHARED_CSS}
+
+/* ── Layout ── */
+*{box-sizing:border-box}
+body{margin:0;padding:0;background:#e8eaed;font-family:'Cairo',sans-serif}
+
+/* ── Toolbar (no-print) ── */
+.toolbar{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  background:#1a1a2e;color:#fff;
+  display:flex;align-items:center;gap:8px;padding:8px 16px;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+  flex-wrap:nowrap;overflow-x:auto;
+}
+.tb-btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:.15s}
+.tb-btn-primary{background:#B8902F;color:#fff}
+.tb-btn-primary:hover{background:#a07828}
+.tb-btn-green{background:#27ae60;color:#fff}
+.tb-btn-green:hover{background:#229954}
+.tb-btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.tb-btn-ghost:hover{background:rgba(255,255,255,.2)}
+.tb-sep{width:1px;height:28px;background:rgba(255,255,255,.2);margin:0 4px}
+
+/* ── Panel تعديل جانبي ── */
+.edit-panel{
+  position:fixed;top:52px;${isAr?'left':'right'}:0;bottom:0;width:260px;
+  background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);
+  overflow-y:auto;z-index:999;padding:0;
+  transition:transform .3s;
+}
+.edit-panel.hidden{transform:translateX(${isAr?'-100%':'100%'})}
+.panel-header{
+  background:#1a1a2e;color:#fff;padding:10px 14px;
+  font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;
+  position:sticky;top:0;z-index:1
+}
+.panel-body{padding:12px 14px;display:flex;flex-direction:column;gap:14px}
+.panel-group label{display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.panel-group input[type=range]{width:100%;accent-color:#B8902F}
+.panel-group select,.panel-group input[type=text]{
+  width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;
+  font-size:12px;font-family:'Cairo',sans-serif;color:#333
+}
+.color-swatches{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.color-swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.15s}
+.color-swatch.active{border-color:#333!important;transform:scale(1.15)}
+.preview-badge{
+  display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;
+  margin-top:4px;
+}
+.apply-btn{
+  width:100%;padding:9px;background:#B8902F;color:#fff;border:none;
+  border-radius:7px;cursor:pointer;font-size:13px;font-weight:700;font-family:'Cairo',sans-serif;
+  margin-top:4px;
+}
+.apply-btn:hover{background:#a07828}
+
+/* ── Content area ── */
+.content-wrap{
+  margin-top:52px;padding:20px;
+  transition:margin-right .3s,margin-left .3s;
+}
+.content-wrap.panel-open{${isAr?'margin-left':'margin-right'}:264px}
+
+/* ── Page ── */
+.page{
+  background:#fff;max-width:820px;margin:0 auto;
+  box-shadow:0 4px 20px rgba(0,0,0,.12);
+  border:1px solid #e5e5e5;
+}
+
+@media print{
+  .toolbar,.edit-panel{display:none!important}
+  .content-wrap{margin:0!important;padding:0!important}
+  .page{box-shadow:none!important;max-width:100%!important;border:none!important}
+  body{background:#fff!important}
+  @page{margin:${_margin};size:${_ps.pageSize||'A4'} ${_ps.orientation||'portrait'}}
+}
 </style>
 </head>
 <body>
-<div class="no-print" style="align-items:center">
-  <button class="btn-print" onclick="window.print()">🖨️ ${btnPrint}</button>
-  <button class="btn-print" style="background:#34C38F" onclick="(function(){
-    const html=document.documentElement.outerHTML;
-    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download='${title.replace(/'/g,"\\'")}'+'.html';
+
+<!-- ── Toolbar ── -->
+<div class="toolbar no-print">
+  <button class="tb-btn tb-btn-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb-btn tb-btn-green" id="saveBtn" onclick="(function(){
+    const h=document.documentElement.outerHTML;
+    const b=new Blob([h],{type:'text/html;charset=utf-8'});
+    const u=URL.createObjectURL(b);const a=document.createElement('a');
+    a.href=u;a.download='${title.replace(/'/g,"\\'")}'+'.html';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-  })()">💾 ${btnSave}</button>
-  <span class="lang-badge">${langBadge}</span>
-  <button class="btn-lang" title="${_esc(switchTitle)}" onclick="(function(){
-    const newLang = '${isAr?'fr':'ar'}';
-    if(window.opener&&!window.opener.closed){
-      window.opener.postMessage({type:'rebuildDoc',lang:newLang},'*');
-      window.close();
-    } else {
-      alert(isAr ? 'أعِد فتح الوثيقة من التطبيق لتغيير اللغة' : 'Rouvrez le document depuis l\'application');
-    }
-  })()">${switchBtn}</button>
-  <button class="btn-close" onclick="window.close()">✕ ${btnClose}</button>
+    setTimeout(()=>URL.revokeObjectURL(u),1000);
+  })()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-btn-ghost" id="togglePanel" onclick="toggleEditPanel()">
+    ⚙️ ${isAr?'تخصيص الورقة':'Personnaliser'}
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-btn-ghost" onclick="(function(){
+    const newLang='${isAr?'fr':'ar'}';
+    if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'rebuildDoc',lang:newLang},'*');window.close();}
+    else{alert('${isAr?'أعد فتح الوثيقة من التطبيق':'Rouvrez depuis l\'application'}');}
+  })()">${isAr?'FR':'التبديل للعربية 🇩🇿'}</button>
+  <button class="tb-btn tb-btn-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
-<div class="page">
-  ${watermarkText ? `<div class="watermark">${_esc(watermarkText)}</div>` : ''}
+
+<!-- ── Panel التخصيص ── -->
+<div class="edit-panel hidden no-print" id="editPanel">
+  <div class="panel-header">
+    <span>⚙️ ${isAr?'تخصيص الورقة':'Personnalisation'}</span>
+    <button onclick="toggleEditPanel()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div class="panel-body">
+
+    <!-- الخط -->
+    <div class="panel-group">
+      <label>🔤 ${isAr?'نوع الخط':'Police'}</label>
+      <select id="pFont" onchange="applyLive()">
+        <option value="Cairo" ${_font==='Cairo'?'selected':''}>Cairo</option>
+        <option value="Tajawal" ${_font==='Tajawal'?'selected':''}>Tajawal</option>
+        <option value="Arial" ${_font==='Arial'?'selected':''}>Arial</option>
+        <option value="'Times New Roman'" ${_font==="'Times New Roman'"?'selected':''}>Times New Roman</option>
+        <option value="Tahoma" ${_font==='Tahoma'?'selected':''}>Tahoma</option>
+      </select>
+    </div>
+
+    <!-- حجم الخط -->
+    <div class="panel-group">
+      <label>📏 ${isAr?'حجم الخط':'Taille police'} — <strong id="szLabel">${_size}px</strong></label>
+      <input type="range" id="pSize" min="10" max="18" step="1" value="${_size}" oninput="document.getElementById('szLabel').textContent=this.value+'px';applyLive()">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#999"><span>10</span><span>14</span><span>18</span></div>
+    </div>
+
+    <!-- اللون الرئيسي -->
+    <div class="panel-group">
+      <label>🎨 ${isAr?'اللون الرئيسي':'Couleur principale'}</label>
+      <div class="color-swatches">
+        ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="color-swatch ${_color===c?'active':''}" style="background:${c}" title="${n}" onclick="setColor('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="pColorCustom" value="${_color}" title="${isAr?'لون مخصص':'Couleur personnalisée'}"
+          style="width:24px;height:24px;padding:0;border:none;cursor:pointer;border-radius:50%"
+          oninput="setColor(this.value,null)">
+      </div>
+    </div>
+
+    <!-- هوامش -->
+    <div class="panel-group">
+      <label>📐 ${isAr?'الهوامش':'Marges'}</label>
+      <select id="pMargin" onchange="applyLive()">
+        <option value="8mm" ${_margin==='8mm'?'selected':''}>8mm — ${isAr?'ضيق':'Étroit'}</option>
+        <option value="12mm" ${_margin==='12mm'?'selected':''}>12mm — ${isAr?'عادي':'Normal'}</option>
+        <option value="18mm" ${_margin==='18mm'?'selected':''}>18mm — ${isAr?'واسع':'Large'}</option>
+      </select>
+    </div>
+
+    <!-- حجم الورق -->
+    <div class="panel-group">
+      <label>📄 ${isAr?'حجم الورق':'Format papier'}</label>
+      <div style="display:flex;gap:6px">
+        ${['A4','A5','Letter'].map(sz=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="pSize2" value="${sz}" ${(_ps.pageSize||'A4')===sz?'checked':''}
+            style="accent-color:#B8902F" onchange="applyLive()">${sz}
+        </label>`).join('')}
+      </div>
+    </div>
+
+    <!-- اتجاه -->
+    <div class="panel-group">
+      <label>↔️ ${isAr?'اتجاه':'Orientation'}</label>
+      <div style="display:flex;gap:6px">
+        <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="pOrient" value="portrait" ${(_ps.orientation||'portrait')==='portrait'?'checked':''}
+            style="accent-color:#B8902F" onchange="applyLive()">
+          📄 ${isAr?'عمودي':'Portrait'}
+        </label>
+        <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="pOrient" value="landscape" ${_ps.orientation==='landscape'?'checked':''}
+            style="accent-color:#B8902F" onchange="applyLive()">
+          📃 ${isAr?'أفقي':'Paysage'}
+        </label>
+      </div>
+    </div>
+
+    <!-- واترمارك -->
+    <div class="panel-group">
+      <label>💧 ${isAr?'نص خلفي (Watermark)':'Filigrane'}</label>
+      <div style="display:flex;gap:5px;align-items:center">
+        <input type="text" id="pWatermark" value="${_esc(_wm)}"
+          placeholder="${isAr?'مثال: سري، مسودة...':'Ex: CONFIDENTIEL...'}"
+          oninput="applyLive()">
+        <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap">
+          <input type="checkbox" id="pShowWM" ${_showWM?'checked':''} style="accent-color:#B8902F" onchange="applyLive()">
+          ${isAr?'تفعيل':'Activer'}
+        </label>
+      </div>
+    </div>
+
+    <!-- زر حفظ الإعدادات -->
+    <button class="apply-btn" onclick="saveSettings()">
+      💾 ${isAr?'حفظ الإعدادات للمرة القادمة':'Sauvegarder pour la prochaine fois'}
+    </button>
+
+  </div>
+</div>
+
+<!-- ── المحتوى ── -->
+<div class="content-wrap" id="contentWrap">
+<div class="page" id="docPage">
+  ${watermarkText || (_showWM && _wm) ? `<div class="watermark" id="wmEl">${_esc(watermarkText||_wm)}</div>` : `<div class="watermark" id="wmEl" style="display:none">${_esc(_wm)}</div>`}
   ${bodyHtml}
 </div>
+</div>
+
+<script>
+// ── متغيرات حية ──
+var _liveColor = '${_color}';
+
+function toggleEditPanel() {
+  var p = document.getElementById('editPanel');
+  var w = document.getElementById('contentWrap');
+  if (p.classList.contains('hidden')) {
+    p.classList.remove('hidden');
+    w.classList.add('panel-open');
+    document.getElementById('togglePanel').style.background = 'rgba(184,144,47,.3)';
+  } else {
+    p.classList.add('hidden');
+    w.classList.remove('panel-open');
+    document.getElementById('togglePanel').style.background = '';
+  }
+}
+
+function setColor(c, el) {
+  _liveColor = c;
+  // تحديث السواتش المحدد
+  document.querySelectorAll('.color-swatch').forEach(function(s){ s.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  document.getElementById('pColorCustom').value = c;
+  applyLive();
+}
+
+function applyLive() {
+  var font   = document.getElementById('pFont').value;
+  var size   = document.getElementById('pSize').value + 'px';
+  var margin = document.getElementById('pMargin').value;
+  var wm     = document.getElementById('pWatermark').value;
+  var showWM = document.getElementById('pShowWM').checked;
+  var orient = document.querySelector('input[name="pOrient"]:checked')?.value || 'portrait';
+  var paper  = document.querySelector('input[name="pSize2"]:checked')?.value || 'A4';
+  var color  = _liveColor;
+
+  // تطبيق الخط والحجم على الصفحة
+  var page = document.getElementById('docPage');
+  if (page) {
+    page.style.fontFamily = font + ', Arial, sans-serif';
+    page.style.fontSize   = size;
+  }
+
+  // تطبيق اللون — تحديث متغيرات CSS أو inline
+  document.querySelectorAll('.dz-header, .dz-header *, thead th, .total-final, .inv-footer, .rpt-footer, .gold-bar').forEach(function(el){
+    if (el.tagName==='TH') el.style.background = color;
+    if (el.classList.contains('gold-bar')) el.style.background = color;
+  });
+  document.querySelectorAll('[style*="#B8902F"],[style*="#C49030"],[style*="#E8B84B"]').forEach(function(el){
+    el.style.color = el.style.color.includes('#B8902F')||el.style.color.includes('#C49030')||el.style.color.includes('#E8B84B') ? color : el.style.color;
+    el.style.borderColor = el.style.borderColor.includes('#B8902F')||el.style.borderColor.includes('#C49030') ? color : el.style.borderColor;
+  });
+
+  // واترمارك
+  var wmEl = document.getElementById('wmEl');
+  if (wmEl) {
+    wmEl.textContent = wm;
+    wmEl.style.display = (showWM && wm) ? 'flex' : 'none';
+  }
+
+  // @page CSS حي
+  var styleId = 'live-page-style';
+  var existingStyle = document.getElementById(styleId);
+  if (!existingStyle) {
+    existingStyle = document.createElement('style');
+    existingStyle.id = styleId;
+    document.head.appendChild(existingStyle);
+  }
+  existingStyle.textContent = '@media print { @page { margin:' + margin + '; size:' + paper + ' ' + orient + '; } }';
+}
+
+function saveSettings() {
+  var s = {
+    fontFamily:    document.getElementById('pFont').value,
+    fontSize:      Number(document.getElementById('pSize').value),
+    accentColor:   _liveColor,
+    margin:        document.getElementById('pMargin').value,
+    pageSize:      document.querySelector('input[name="pSize2"]:checked')?.value || 'A4',
+    orientation:   document.querySelector('input[name="pOrient"]:checked')?.value || 'portrait',
+    watermark:     document.getElementById('pWatermark').value,
+    showWatermark: document.getElementById('pShowWM').checked,
+  };
+  try { localStorage.setItem('sbtp_print_settings', JSON.stringify(s)); } catch{}
+  // تحديث التطبيق الرئيسي إن كان مفتوحاً
+  if (window.opener && !window.opener.closed) {
+    try { window.opener.localStorage.setItem('sbtp_print_settings', JSON.stringify(s)); } catch{}
+  }
+  var btn = document.querySelector('.apply-btn');
+  if (btn) { btn.textContent = '✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}'; setTimeout(function(){btn.textContent='💾 ${isAr?'حفظ الإعدادات للمرة القادمة':'Sauvegarder pour la prochaine fois'}';},2000); }
+}
+</script>
 </body>
 </html>`;
 }
