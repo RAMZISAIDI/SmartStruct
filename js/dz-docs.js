@@ -727,6 +727,89 @@ body{margin:0;padding:0;background:#e8eaed;font-family:'Cairo',sans-serif}
       </div>
     </div>
 
+    <!-- ═══ فاصل ═══ -->
+    <div style="border-top:1px solid #eee;margin:2px 0"></div>
+    <div style="font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px">
+      ${isAr?'تحكمات متقدمة':'Avancé'}
+    </div>
+
+    <!-- تباعد الأسطر -->
+    <div class="panel-group">
+      <label>↕️ ${isAr?'تباعد الأسطر':'Interligne'} — <strong id="lhLabel">${_ps.lineHeight||1.6}</strong></label>
+      <input type="range" id="pLineHeight" min="1.2" max="2.2" step="0.1"
+        value="${_ps.lineHeight||1.6}"
+        oninput="document.getElementById('lhLabel').textContent=parseFloat(this.value).toFixed(1);applyLive()">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#999"><span>${isAr?'ضيق':'Serré'}</span><span>${isAr?'عادي':'Normal'}</span><span>${isAr?'واسع':'Large'}</span></div>
+    </div>
+
+    <!-- حجم العناوين -->
+    <div class="panel-group">
+      <label>🔠 ${isAr?'حجم العناوين':'Taille titres'} — <strong id="htLabel">${_ps.headingSize||15}px</strong></label>
+      <input type="range" id="pHeadingSize" min="12" max="22" step="1"
+        value="${_ps.headingSize||15}"
+        oninput="document.getElementById('htLabel').textContent=this.value+'px';applyLive()">
+    </div>
+
+    <!-- لون الجدول -->
+    <div class="panel-group">
+      <label>📊 ${isAr?'لون رأس الجدول':'Couleur en-tête tableau'}</label>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#555','رمادي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div style="width:20px;height:20px;border-radius:4px;background:${c};cursor:pointer;border:2px solid ${(_ps.tableHeaderColor||_color)===c?'#333':'transparent'}"
+            title="${n}" onclick="document.getElementById('pTableColor').value='${c}';applyLive()"></div>`
+        ).join('')}
+        <input type="color" id="pTableColor" value="${_ps.tableHeaderColor||_color}"
+          style="width:20px;height:20px;padding:0;border:none;cursor:pointer;border-radius:4px"
+          oninput="applyLive()">
+      </div>
+    </div>
+
+    <!-- ظهور الشعار -->
+    <div class="panel-group">
+      <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+        <span>🖼️ ${isAr?'إظهار الشعار':'Afficher logo'}</span>
+        <input type="checkbox" id="pShowLogo" ${_ps.showLogo!==false?'checked':''}
+          style="accent-color:#B8902F;width:16px;height:16px" onchange="applyLive()">
+      </label>
+    </div>
+
+    <!-- ظهور الفوتر -->
+    <div class="panel-group">
+      <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+        <span>📋 ${isAr?'إظهار الفوتر':'Afficher pied de page'}</span>
+        <input type="checkbox" id="pShowFooter" ${_ps.showFooter!==false?'checked':''}
+          style="accent-color:#B8902F;width:16px;height:16px" onchange="applyLive()">
+      </label>
+    </div>
+
+    <!-- لون الخلفية الفاتحة -->
+    <div class="panel-group">
+      <label>🎨 ${isAr?'لون الصفوف الزوجية':'Couleur lignes paires'}</label>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+        ${[['#fafaf7','كريمي'],['#f0f7ff','أزرق فاتح'],['#f0faf4','أخضر فاتح'],['#fff9f0','برتقالي فاتح'],['#ffffff','أبيض']].map(([c,n])=>
+          `<div style="width:20px;height:20px;border-radius:4px;background:${c};cursor:pointer;border:1.5px solid ${(_ps.rowBgColor||'#fafaf7')===c?'#333':'#ccc'}"
+            title="${n}" onclick="document.getElementById('pRowBg').value='${c}';applyLive()"></div>`
+        ).join('')}
+        <input type="color" id="pRowBg" value="${_ps.rowBgColor||'#fafaf7'}"
+          style="width:20px;height:20px;padding:0;border:none;cursor:pointer;border-radius:4px"
+          oninput="applyLive()">
+      </div>
+    </div>
+
+    <!-- نص مخصص في الفوتر -->
+    <div class="panel-group">
+      <label>✍️ ${isAr?'نص مخصص في الفوتر':'Texte personnalisé pied'}</label>
+      <input type="text" id="pFooterText" value="${_esc(_ps.footerText||'')}"
+        placeholder="${isAr?'مثال: سري — للاستخدام الداخلي فقط':'Ex: Confidentiel — Usage interne'}"
+        oninput="applyLive()">
+    </div>
+
+    <!-- زر إعادة تعيين -->
+    <button onclick="resetSettings()"
+      style="width:100%;padding:7px;background:#fff;color:#c0392b;border:1px solid #f5b8b8;border-radius:7px;cursor:pointer;font-size:12px;font-family:'Cairo',sans-serif">
+      🔄 ${isAr?'إعادة الإعدادات الافتراضية':'Réinitialiser'}
+    </button>
+
     <!-- زر حفظ الإعدادات -->
     <button class="apply-btn" onclick="saveSettings()">
       💾 ${isAr?'حفظ الإعدادات للمرة القادمة':'Sauvegarder pour la prochaine fois'}
@@ -771,30 +854,66 @@ function setColor(c, el) {
 }
 
 function applyLive() {
-  var font   = document.getElementById('pFont').value;
-  var size   = document.getElementById('pSize').value + 'px';
-  var margin = document.getElementById('pMargin').value;
-  var wm     = document.getElementById('pWatermark').value;
-  var showWM = document.getElementById('pShowWM').checked;
-  var orient = document.querySelector('input[name="pOrient"]:checked')?.value || 'portrait';
-  var paper  = document.querySelector('input[name="pSize2"]:checked')?.value || 'A4';
-  var color  = _liveColor;
+  var font        = document.getElementById('pFont').value;
+  var size        = document.getElementById('pSize').value + 'px';
+  var lineHeight  = parseFloat(document.getElementById('pLineHeight')?.value||1.6);
+  var headingSize = document.getElementById('pHeadingSize')?.value + 'px';
+  var margin      = document.getElementById('pMargin').value;
+  var wm          = document.getElementById('pWatermark').value;
+  var showWM      = document.getElementById('pShowWM').checked;
+  var orient      = document.querySelector('input[name="pOrient"]:checked')?.value || 'portrait';
+  var paper       = document.querySelector('input[name="pSize2"]:checked')?.value || 'A4';
+  var color       = _liveColor;
+  var tableColor  = document.getElementById('pTableColor')?.value || color;
+  var rowBg       = document.getElementById('pRowBg')?.value || '#fafaf7';
+  var showLogo    = document.getElementById('pShowLogo')?.checked !== false;
+  var showFooter  = document.getElementById('pShowFooter')?.checked !== false;
+  var footerText  = document.getElementById('pFooterText')?.value || '';
 
-  // تطبيق الخط والحجم على الصفحة
+  // الصفحة الرئيسية
   var page = document.getElementById('docPage');
   if (page) {
     page.style.fontFamily = font + ', Arial, sans-serif';
     page.style.fontSize   = size;
+    page.style.lineHeight = lineHeight;
   }
 
-  // تطبيق اللون — تحديث متغيرات CSS أو inline
-  document.querySelectorAll('.dz-header, .dz-header *, thead th, .total-final, .inv-footer, .rpt-footer, .gold-bar').forEach(function(el){
-    if (el.tagName==='TH') el.style.background = color;
-    if (el.classList.contains('gold-bar')) el.style.background = color;
+  // العناوين والأقسام
+  document.querySelectorAll('.dz-section-title, .section-title, h1, h2, h3').forEach(function(el){
+    el.style.fontSize = headingSize;
   });
-  document.querySelectorAll('[style*="#B8902F"],[style*="#C49030"],[style*="#E8B84B"]').forEach(function(el){
-    el.style.color = el.style.color.includes('#B8902F')||el.style.color.includes('#C49030')||el.style.color.includes('#E8B84B') ? color : el.style.color;
-    el.style.borderColor = el.style.borderColor.includes('#B8902F')||el.style.borderColor.includes('#C49030') ? color : el.style.borderColor;
+
+  // لون رأس الجدول
+  document.querySelectorAll('thead th').forEach(function(el){
+    el.style.background = tableColor;
+    el.style.color = '#fff';
+  });
+
+  // لون الصفوف الزوجية
+  document.querySelectorAll('tbody tr:nth-child(odd) td').forEach(function(el){
+    el.style.background = rowBg;
+  });
+
+  // الألوان الرئيسية (حدود، نصوص ذهبية)
+  document.querySelectorAll('.dz-header').forEach(function(el){
+    el.style.borderColor = color;
+  });
+  document.querySelectorAll('.gold-bar, [class*="gold-bar"]').forEach(function(el){
+    el.style.background = color;
+  });
+
+  // الشعار
+  document.querySelectorAll('.dz-logo-img, .logo-img, img[class*="logo"]').forEach(function(el){
+    el.style.display = showLogo ? '' : 'none';
+  });
+
+  // الفوتر
+  document.querySelectorAll('.dz-footer, .rpt-footer, .inv-footer').forEach(function(el){
+    el.style.display = showFooter ? '' : 'none';
+    if (footerText && showFooter) {
+      var textEl = el.querySelector('.footer-custom') || el.lastElementChild;
+      if (textEl) textEl.textContent = footerText;
+    }
   });
 
   // واترمارك
@@ -812,27 +931,48 @@ function applyLive() {
     existingStyle.id = styleId;
     document.head.appendChild(existingStyle);
   }
-  existingStyle.textContent = '@media print { @page { margin:' + margin + '; size:' + paper + ' ' + orient + '; } }';
+  existingStyle.textContent =
+    'body { font-family: ' + font + ', Arial, sans-serif !important; font-size: ' + size + ' !important; line-height: ' + lineHeight + ' !important; }' +
+    'thead th { background: ' + tableColor + ' !important; color: #fff !important; }' +
+    'tbody tr:nth-child(odd) td { background: ' + rowBg + ' !important; }' +
+    '@media print { @page { margin:' + margin + '; size:' + paper + ' ' + orient + '; } }';
+}
+
+function resetSettings() {
+  if (!confirm('${isAr?'إعادة تعيين كل الإعدادات؟':'Réinitialiser tous les paramètres?'}')) return;
+  localStorage.removeItem('sbtp_print_settings');
+  location.reload();
 }
 
 function saveSettings() {
   var s = {
-    fontFamily:    document.getElementById('pFont').value,
-    fontSize:      Number(document.getElementById('pSize').value),
-    accentColor:   _liveColor,
-    margin:        document.getElementById('pMargin').value,
-    pageSize:      document.querySelector('input[name="pSize2"]:checked')?.value || 'A4',
-    orientation:   document.querySelector('input[name="pOrient"]:checked')?.value || 'portrait',
-    watermark:     document.getElementById('pWatermark').value,
-    showWatermark: document.getElementById('pShowWM').checked,
+    fontFamily:       document.getElementById('pFont').value,
+    fontSize:         Number(document.getElementById('pSize').value),
+    lineHeight:       parseFloat(document.getElementById('pLineHeight')?.value||1.6),
+    headingSize:      Number(document.getElementById('pHeadingSize')?.value||15),
+    accentColor:      _liveColor,
+    tableHeaderColor: document.getElementById('pTableColor')?.value || _liveColor,
+    rowBgColor:       document.getElementById('pRowBg')?.value || '#fafaf7',
+    margin:           document.getElementById('pMargin').value,
+    pageSize:         document.querySelector('input[name="pSize2"]:checked')?.value || 'A4',
+    orientation:      document.querySelector('input[name="pOrient"]:checked')?.value || 'portrait',
+    watermark:        document.getElementById('pWatermark').value,
+    showWatermark:    document.getElementById('pShowWM').checked,
+    showLogo:         document.getElementById('pShowLogo')?.checked !== false,
+    showFooter:       document.getElementById('pShowFooter')?.checked !== false,
+    footerText:       document.getElementById('pFooterText')?.value || '',
   };
   try { localStorage.setItem('sbtp_print_settings', JSON.stringify(s)); } catch{}
-  // تحديث التطبيق الرئيسي إن كان مفتوحاً
   if (window.opener && !window.opener.closed) {
     try { window.opener.localStorage.setItem('sbtp_print_settings', JSON.stringify(s)); } catch{}
   }
   var btn = document.querySelector('.apply-btn');
-  if (btn) { btn.textContent = '✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}'; setTimeout(function(){btn.textContent='💾 ${isAr?'حفظ الإعدادات للمرة القادمة':'Sauvegarder pour la prochaine fois'}';},2000); }
+  if (btn) {
+    var orig = btn.textContent;
+    btn.textContent = '✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';
+    btn.style.background = '#27ae60';
+    setTimeout(function(){btn.textContent=orig;btn.style.background='';},2000);
+  }
 }
 </script>
 </body>
