@@ -1588,22 +1588,24 @@ function topbarHTML(breadcrumb) {
       </button>
       ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
       <!-- زر تبديل المود — بجانب الجرس -->
-      <button title="${L('تبديل المظهر','Changer apparence')}"
+      <button id="themeToggleBtn" title="${L('تبديل المظهر','Changer apparence')}"
         onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
         style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
                background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;
                display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
         onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
         onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
-        ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')?'🌙':'☀️'}
+        ☀️
       </button>
+      <script>
+        (function(){
+          var btn = document.getElementById('themeToggleBtn');
+          if (btn) btn.textContent = document.documentElement.classList.contains('light') ? '🌙' : '☀️';
+        })();
+      </script>
       <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
       <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
         ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
-      </button>
-      <button class="lang-toggle-btn" style="padding:.25rem .55rem;font-size:.85rem" title="${L('تبديل المظهر','Changer l\'apparence')}"
-        onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')">
-        ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')?'🌙':'☀️'}
       </button>
       <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
@@ -5206,12 +5208,13 @@ Pages.dashboard = function() {
           </div>
         </div>
       <!-- تاريخ الانتهاء -->
-      <div style="font-size:.76rem;color:var(--dim)">
+      <div style="font-size:.76rem;color:var(--dim);white-space:nowrap">
         ${isExpired
           ? `<span style="color:#F04E6A;font-weight:700">⚠️ ${L('انتهت الصلاحية','Expiré')}</span>`
           : endDate !== '—'
-            ? `${L('📅 ينتهي في','📅 Expire le')} <strong style="color:var(--text);font-size:.82rem">${endDate}</strong>`
-            : `<span style="color:var(--dim)">${L('لا يوجد تاريخ محدد','Date non définie')}</span>`}
+            ? `<span style="color:var(--dim)">${L('📅 ينتهي في','📅 Expire le')}</span><br>
+               <strong style="color:var(--text);font-size:.82rem">${endDate}</strong>`
+            : `<span style="color:var(--dim);font-size:.7rem">${L('لا يوجد تاريخ','N/A')}</span>`}
       </div>
         <!-- زر -->
         ${isExpired
