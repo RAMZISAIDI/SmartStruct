@@ -1,111 +1,2427 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" id="htmlRoot">
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SmartStruct v7.2 Pro — منصة إدارة مشاريع المقاولة الجزائرية</title>
+<meta name="application-name" content="SmartStruct">
+<meta name="apple-mobile-web-app-title" content="SmartStruct">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>SmartStruct — منصة إدارة مشاريع المقاولة</title>
+<meta name="theme-color" content="#0A0F18">
+<link rel="shortcut icon" href="assets/icons/favicon.ico" type="image/x-icon">
+<link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<meta property="og:title" content="SmartStruct — منصة إدارة مشاريع المقاولة">
+<meta property="og:description" content="منصة ذكية لإدارة مشاريع البناء والمقاولات في الجزائر">
+<meta property="og:image" content="assets/icons/icon-512.png">
+<meta property="og:type" content="website">
 <meta name="description" content="SmartStruct — منصة ذكية لإدارة مشاريع البناء والمقاولات في الجزائر">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 
-<!-- ════════════════════════════════════════════════════════════
-     SmartStruct Design System (تم الدمج — May 2026)
-     ▸ fonts.css         : تعريفات الخطوط (Tajawal + JetBrains Mono)
-     ▸ design-system.css : التوكنز الموحدة (ألوان، خطوط، spacing، shadows، motion)
-     ▸ main.css          : ستايل التطبيق (يستخدم التوكنز أعلاه)
-     ▸ atmosphere.css    : خلفية SmartStruct المميزة (اختياري)
-     الترتيب مهم: التوكنز قبل main.css دائماً.
-═══════════════════════════════════════════════════════════════ -->
-<link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/design-system.css">
-<link rel="stylesheet" href="assets/textures/atmosphere.css">
-<link rel="stylesheet" href="css/main.css">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   SmartStruct — Refined Landing
+   A more editorial, restrained take on the brand:
+   - Warmer near-black surfaces (#0A0F18 → #131A26)
+   - Gold reserved for emphasis (not decoration)
+   - Generous type scale, tight tracking on display
+   - JetBrains Mono for numerics & micro-labels
+═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Surfaces */
+  --bg-0: #07080C;
+  --bg-1: #0B0F17;
+  --bg-2: #111722;
+  --bg-3: #1A2231;
+  --bg-card: #0E141E;
+
+  /* Foreground */
+  --fg:        #F2F1EC;
+  --fg-soft:   #C7C9CF;
+  --fg-muted:  #7E8595;
+  --fg-dim:    #4A5266;
+
+  /* Gold — used sparingly */
+  --gold:       #E8B84B;
+  --gold-hi:    #F5D07A;
+  --gold-lo:    #B98726;
+  --gold-deep:  #6B4D14;
+  --gold-tint:  rgba(232,184,75,0.10);
+  --gold-glow:  rgba(232,184,75,0.18);
+
+  /* Accents */
+  --green: #6CC59A;
+  --red:   #E47B8B;
+
+  /* Lines */
+  --line:    rgba(245,245,235,0.06);
+  --line-2:  rgba(245,245,235,0.12);
+
+  /* Type */
+  --font: 'Tajawal', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 32px rgba(0,0,0,0.4);
+  --shadow-2: 0 1px 0 rgba(255,255,255,0.05) inset, 0 30px 80px rgba(0,0,0,0.55);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { overflow-x: hidden; }
+body { overflow-x: clip; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg-0);
+  color: var(--fg);
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: var(--gold); color: #0A0F18; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-0); }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2A334A; }
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; border: 0; background: 0; color: inherit; cursor: pointer; }
+
+/* ═══════════════════ Layout primitives ═══════════════════ */
+
+.wrap {
+  width: 100%;
+  padding: 0 6%;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.eyebrow::before {
+  content: "";
+  width: 24px;
+  height: 1px;
+  background: var(--gold);
+  opacity: 0.6;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+/* ═══════════════════ Nav ═══════════════════ */
+
+.nav {
+  position: fixed;
+  top: 0; right: 0; left: 0;
+  z-index: 100;
+  padding: 18px 0;
+  background: rgba(7,8,12,0.6);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s ease, background 0.3s ease, padding 0.3s ease;
+}
+.nav.scrolled {
+  padding: 12px 0;
+  border-bottom-color: var(--line);
+  background: rgba(7,8,12,0.85);
+}
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.brand-mark {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  display: block;
+  object-fit: contain;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 6px 16px rgba(232,184,75,0.25);
+}
+.brand-name { color: var(--fg); }
+.brand-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  border-right: 1px solid var(--line-2);
+  padding-right: 12px;
+  margin-right: 4px;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+.nav-links a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-soft);
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--fg); }
+.nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+.btn-ghost {
+  color: var(--fg-soft);
+}
+.btn-ghost:hover { color: var(--fg); }
+.btn-outline {
+  border: 1px solid var(--line-2);
+  color: var(--fg);
+  background: transparent;
+}
+.btn-outline:hover {
+  border-color: rgba(232,184,75,0.4);
+  background: var(--gold-tint);
+}
+.btn-gold {
+  background: linear-gradient(140deg, #F5D07A 0%, #E8B84B 45%, #B98726 100%);
+  color: #0A0F18;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 6px 18px rgba(232,184,75,0.25);
+}
+.btn-gold:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 10px 28px rgba(232,184,75,0.4);
+}
+.btn-lg { height: 52px; padding: 0 26px; font-size: 15px; border-radius: 10px; }
+.btn .arrow {
+  width: 14px; height: 14px;
+  transition: transform 0.25s;
+}
+.btn:hover .arrow { transform: translateX(-3px); }
+
+/* ═══════════════════ Hero ═══════════════════ */
+
+.hero {
+  position: relative;
+  padding: 160px 0 140px;
+  overflow: visible;
+  border-bottom: 1px solid var(--line);
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(232,184,75,0.10), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 30%, rgba(232,184,75,0.05), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(245,245,235,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,245,235,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 60% 70% at 50% 30%, #000, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 30%, #000, transparent 75%);
+  pointer-events: none;
+}
+.hero-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.hero h1 {
+  font-size: clamp(2.6rem, 5.5vw, 4.6rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin: 24px 0 28px;
+}
+.hero h1 .accent {
+  color: var(--gold);
+  font-style: italic;
+  font-weight: 800;
+}
+.hero p.lead {
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--fg-muted);
+  max-width: 520px;
+  margin-bottom: 36px;
+}
+.hero-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.hero-meta .dot {
+  width: 6px; height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 8px;
+  box-shadow: 0 0 0 4px rgba(108,197,154,0.15);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(108,197,154,0.15); }
+  50%      { box-shadow: 0 0 0 8px rgba(108,197,154,0); }
+}
+
+/* ── Hero visual: a real-looking dashboard mockup ── */
+
+.dash {
+  position: relative;
+  border-radius: 16px;
+  background: linear-gradient(160deg, var(--bg-2) 0%, var(--bg-1) 100%);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-2);
+  padding: 18px;
+  overflow: visible;
+}
+.dash > *:not(.float-card) {
+  position: relative;
+  z-index: 1;
+}
+.dash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(232,184,75,0.06), transparent 30%);
+  pointer-events: none;
+}
+.dash-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.dash-chrome-l {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  letter-spacing: 0.05em;
+}
+.dash-chrome-l .dots {
+  display: flex; gap: 5px;
+}
+.dash-chrome-l .dots span {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--bg-3);
+}
+.dash-chrome-r {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+
+.dash-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.kpi-label {
+  font-size: 10px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--fg-dim);
+  margin-bottom: 6px;
+}
+.kpi-val {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.kpi-val .unit { font-size: 11px; color: var(--fg-muted); margin-right: 3px; font-weight: 500; }
+.kpi-delta {
+  font-size: 10px;
+  font-family: var(--mono);
+  margin-top: 4px;
+}
+.kpi-delta.up { color: var(--green); }
+.kpi-delta.down { color: var(--red); }
+
+.dash-chart {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.chart-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.chart-title {
+  font-size: 12px; font-weight: 700; color: var(--fg);
+}
+.chart-legend {
+  display: flex; gap: 12px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--fg-muted);
+}
+.chart-legend .l {
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.chart-legend .sw {
+  width: 8px; height: 8px; border-radius: 2px;
+}
+.chart-svg { width: 100%; height: 110px; display: block; }
+
+.dash-list {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.list-head {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg-soft);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.list-head span.count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-dim);
+  background: var(--bg-3);
+  padding: 2px 8px;
+  border-radius: 30px;
+}
+.list-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.list-row:last-child { border-bottom: 0; }
+.list-row .name { color: var(--fg-soft); font-weight: 500; }
+.list-row .amt { font-family: var(--mono); color: var(--fg); font-weight: 600; }
+.tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 30px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.tag.active { background: rgba(108,197,154,0.12); color: var(--green); }
+.tag.late   { background: rgba(228,123,139,0.12); color: var(--red); }
+.tag.pend   { background: var(--gold-tint); color: var(--gold); }
+
+/* Floating side cards over the dash */
+.float-card {
+  position: absolute;
+  background: rgba(14,20,30,0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-1);
+  display: flex; align-items: center; gap: 12px;
+  z-index: 2;
+}
+.float-card .ic {
+  width: 36px; height: 36px; border-radius: 9px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.float-card .ic.gold {
+  background: linear-gradient(140deg, #F5D07A, #B98726);
+  color: #0A0F18;
+}
+.float-card .ic.green {
+  background: rgba(108,197,154,0.15);
+  color: var(--green);
+}
+.float-card .t1 { font-size: 11px; font-family: var(--mono); color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+.float-card .t2 { font-size: 13px; font-weight: 700; color: var(--fg); margin-top: 2px; }
+
+.float-1 { top: -18px; left: -20px; animation: float 6s ease-in-out infinite; }
+.float-2 { bottom: 40px; right: -18px; animation: float 7s ease-in-out -2s infinite; }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+/* ═══════════════════ Trust band ═══════════════════ */
+.trust {
+  padding: 56px 0;
+  border-bottom: 1px solid var(--line);
+}
+.trust-inner {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 60px;
+  align-items: center;
+}
+.trust-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+}
+.trust-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+}
+.trust-stat {
+  border-right: 1px solid var(--line);
+  padding-right: 24px;
+}
+.trust-stat:last-child { border-right: 0; }
+.trust-num {
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.trust-num .small { color: var(--gold); font-size: 22px; margin-right: 2px; }
+.trust-lbl {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 8px;
+}
+
+/* ═══════════════════ Section frame ═══════════════════ */
+section.sec {
+  padding: 100px 0;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.sec-head {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 80px;
+  margin-bottom: 72px;
+  align-items: end;
+}
+.sec-head h2 {
+  font-size: clamp(2rem, 3.6vw, 3.2rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-top: 16px;
+}
+.sec-head h2 .accent { color: var(--gold); font-style: italic; font-weight: 800; }
+.sec-head p {
+  font-size: 16px;
+  color: var(--fg-muted);
+  line-height: 1.7;
+}
+
+/* ═══════════════════ Capabilities (bento) ═══════════════════ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+.tile {
+  position: relative;
+  background: linear-gradient(160deg, var(--bg-card), var(--bg-1));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 26px 24px;
+  overflow: hidden;
+  transition: border-color 0.3s, transform 0.3s, background 0.3s;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+.tile:hover {
+  border-color: var(--line-2);
+  transform: translateY(-2px);
+}
+.tile-num {
+  position: absolute;
+  top: 20px; left: 22px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-dim);
+  letter-spacing: 0.15em;
+  font-weight: 600;
+}
+.tile h3 {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  margin-bottom: 8px;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.tile p {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.65;
+  margin-bottom: auto;
+}
+.tile .icn {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  display: grid; place-items: center;
+  margin-bottom: 16px;
+  color: var(--gold);
+}
+.tile .tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+.tile .tag-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-soft);
+  padding: 3px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: 30px;
+  background: var(--bg-0);
+  letter-spacing: 0.04em;
+}
+.tile.t-wide { grid-column: span 4; }
+.tile.t-std  { grid-column: span 2; }
+.tile.t-half { grid-column: span 3; }
+
+.tile-feature {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+  flex: 1;
+}
+.tile-feature > div:first-child { display: flex; flex-direction: column; }
+.feature-viz {
+  position: relative;
+  border-radius: 12px;
+  background: var(--bg-0);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  min-height: 200px;
+}
+
+/* AI panel visualization */
+.ai-viz { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.ai-msg {
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  max-width: 75%;
+  line-height: 1.5;
+}
+.ai-msg.usr {
+  align-self: flex-end;
+  background: var(--gold);
+  color: #0A0F18;
+  font-weight: 600;
+  border-bottom-left-radius: 3px;
+}
+.ai-msg.bot {
+  align-self: flex-start;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--fg-soft);
+  border-bottom-right-radius: 3px;
+}
+.ai-msg.bot .strong { color: var(--gold); font-weight: 700; }
+
+/* Documents stack visualization */
+.docs-stack {
+  position: relative;
+  height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+.doc-pg {
+  position: absolute;
+  width: 110px; height: 140px;
+  background: #F2F1EC;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5), 0 1px 0 rgba(0,0,0,0.1) inset;
+  padding: 10px 8px;
+  font-family: var(--mono);
+  font-size: 5px;
+  color: #0A0F18;
+  line-height: 1.4;
+}
+.doc-pg .head {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--gold-lo);
+  margin-bottom: 4px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 3px;
+}
+.doc-pg .ln {
+  height: 3px; background: #ccc;
+  margin-bottom: 3px; border-radius: 1px;
+}
+.doc-pg .ln.s { width: 60%; }
+.doc-pg .ln.l { width: 90%; }
+.doc-pg.p1 { transform: translate(-30px, -8px) rotate(-6deg); }
+.doc-pg.p2 { transform: translate(0, 0) rotate(0deg); z-index: 2; }
+.doc-pg.p3 { transform: translate(30px, -4px) rotate(5deg); }
+
+/* Field-mode mini phone */
+.field-viz {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%;
+}
+.phone {
+  width: 130px;
+  height: 240px;
+  background: var(--bg-3);
+  border-radius: 22px;
+  padding: 14px 10px;
+  border: 1px solid var(--line-2);
+  position: relative;
+}
+.phone::before {
+  content: "";
+  position: absolute;
+  top: 8px; left: 50%;
+  transform: translateX(-50%);
+  width: 36px; height: 4px;
+  background: var(--bg-0);
+  border-radius: 2px;
+}
+.phone-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  margin-top: 20px;
+}
+.pbtn {
+  height: 50px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  font-size: 8px;
+  color: var(--fg-soft);
+}
+.pbtn .pi {
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  color: var(--gold);
+}
+.pbtn.active { background: var(--gold-tint); border-color: rgba(232,184,75,0.3); }
+.phone-status {
+  position: absolute;
+  bottom: 14px; left: 14px; right: 14px;
+  font-family: var(--mono);
+  font-size: 7px;
+  color: var(--green);
+  display: flex; align-items: center; gap: 4px;
+}
+.phone-status::before {
+  content: ""; width: 5px; height: 5px; background: var(--green); border-radius: 50%;
+}
+
+/* ═══════════════════ Workflow / numbered steps ═══════════════════ */
+.workflow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  position: relative;
+}
+.workflow::before {
+  content: "";
+  position: absolute;
+  top: 28px; right: 0; left: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-2), var(--line-2), transparent);
+}
+.step {
+  position: relative;
+  padding-top: 70px;
+}
+.step::before {
+  content: "";
+  position: absolute;
+  top: 24px; right: 50%;
+  width: 9px; height: 9px;
+  background: var(--gold);
+  border-radius: 50%;
+  transform: translateX(50%);
+  box-shadow: 0 0 0 4px var(--bg-0), 0 0 0 5px var(--gold);
+}
+.step .n {
+  position: absolute;
+  top: 0; right: 50%;
+  transform: translateX(50%);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+}
+.step h4 {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+.step p {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+}
+
+/* ═══════════════════ Documents catalogue ═══════════════════ */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.cat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--fg-soft);
+  transition: border-color 0.25s, background 0.25s;
+  position: relative;
+}
+.cat-card:hover {
+  border-color: rgba(232,184,75,0.3);
+  background: linear-gradient(160deg, var(--bg-card), var(--bg-2));
+}
+.cat-card .code {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.cat-card .lbl {
+  font-weight: 700;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.cat-card .sub {
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-family: var(--mono);
+}
+.cat-section {
+  margin-bottom: 20px;
+  background: linear-gradient(160deg, rgba(14,20,30,0.55), rgba(11,15,23,0.55));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.3s, background 0.3s;
+}
+.cat-section.open {
+  border-color: rgba(232,184,75,0.22);
+  background:
+    radial-gradient(ellipse 60% 100% at 100% 0%, rgba(232,184,75,0.06), transparent 70%),
+    linear-gradient(160deg, rgba(14,20,30,0.7), rgba(11,15,23,0.7));
+}
+.cat-section-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px 26px;
+  margin: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.3s, background 0.25s;
+  font: inherit;
+  width: 100%;
+  text-align: right;
+  color: inherit;
+  background: transparent;
+}
+.cat-section-head:hover {
+  background: rgba(232,184,75,0.04);
+}
+.cat-section.open .cat-section-head {
+  border-bottom-color: var(--line);
+}
+.cat-section-head .num {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--gold);
+  font-weight: 700;
+  width: 28px;
+  text-align: center;
+  transition: transform 0.4s var(--ss-ease-standard, cubic-bezier(0.4,0,0.2,1));
+}
+.cat-section.open .cat-section-head .num {
+  transform: scale(1.15);
+}
+.cat-section-head h4 {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+  flex: 1;
+}
+.cat-section-head .count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cat-section-head .chev {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  display: grid; place-items: center;
+  color: var(--gold);
+  transition: transform 0.4s cubic-bezier(0.4,0,0.2,1), background 0.3s, border-color 0.3s;
+  flex-shrink: 0;
+}
+.cat-section.open .cat-section-head .chev {
+  transform: rotate(180deg);
+  background: var(--gold-tint);
+  border-color: rgba(232,184,75,0.4);
+}
+.cat-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+.cat-section.open .cat-body {
+  grid-template-rows: 1fr;
+}
+.cat-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.cat-body .cat-grid {
+  padding: 22px 26px 26px;
+}
+/* Staggered card reveal when section opens */
+.cat-section .cat-card {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+.cat-section.open .cat-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+.cat-section.open .cat-card:nth-child(1) { transition-delay: 0.05s; }
+.cat-section.open .cat-card:nth-child(2) { transition-delay: 0.10s; }
+.cat-section.open .cat-card:nth-child(3) { transition-delay: 0.15s; }
+.cat-section.open .cat-card:nth-child(4) { transition-delay: 0.20s; }
+.cat-section.open .cat-card:nth-child(5) { transition-delay: 0.25s; }
+
+/* ═══════════════════ Pricing ═══════════════════ */
+.pricing {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.plan {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 36px 32px;
+  display: flex; flex-direction: column;
+  transition: border-color 0.3s;
+}
+.plan:hover { border-color: var(--line-2); }
+.plan.featured {
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(232,184,75,0.08), transparent 70%),
+    linear-gradient(160deg, var(--bg-card), var(--bg-1));
+  border-color: rgba(232,184,75,0.25);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,184,75,0.05);
+}
+.plan-tag {
+  position: absolute;
+  top: -11px; right: 32px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 30px;
+  background: linear-gradient(140deg, #F5D07A, #B98726);
+  color: #0A0F18;
+}
+.plan-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg-soft);
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+.plan-desc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 24px;
+  min-height: 36px;
+}
+.plan-price {
+  display: flex; align-items: baseline; gap: 6px;
+  margin-bottom: 4px;
+}
+.plan-price .num {
+  font-family: var(--mono);
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+.plan-price .cur {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.plan-period {
+  font-size: 12px;
+  color: var(--fg-dim);
+  margin-bottom: 28px;
+}
+.plan-feat {
+  list-style: none;
+  margin: 0 0 32px;
+  padding: 24px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.plan-feat li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13px;
+  color: var(--fg-soft);
+  line-height: 1.5;
+}
+.plan-feat li svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--gold);
+}
+.plan .btn { width: 100%; justify-content: center; margin-top: auto; }
+
+/* ═══════════════════ FAQ ═══════════════════ */
+.faq {
+  max-width: 880px;
+  margin: 0 auto;
+}
+.faq-item {
+  border-bottom: 1px solid var(--line);
+  padding: 24px 0;
+}
+.faq-q {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  text-align: right;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg);
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+.faq-q .plus {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--gold);
+  transition: transform 0.3s, border-color 0.3s;
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 400;
+}
+.faq-item.open .faq-q .plus {
+  transform: rotate(45deg);
+  border-color: var(--gold);
+  background: var(--gold-tint);
+}
+.faq-a {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+.faq-item.open .faq-a {
+  max-height: 300px;
+}
+.faq-a p {
+  padding-top: 16px;
+  font-size: 15px;
+  color: var(--fg-muted);
+  line-height: 1.7;
+}
+
+/* ═══════════════════ CTA ═══════════════════ */
+.cta-section {
+  padding: 100px 0 120px;
+  border-bottom: 1px solid var(--line);
+}
+.cta-card {
+  position: relative;
+  background:
+    radial-gradient(ellipse 50% 100% at 100% 50%, rgba(232,184,75,0.18), transparent 70%),
+    radial-gradient(ellipse 60% 100% at 0% 50%, rgba(232,184,75,0.08), transparent 70%),
+    linear-gradient(160deg, var(--bg-2) 0%, var(--bg-1) 100%);
+  border: 1px solid var(--line-2);
+  border-radius: 24px;
+  padding: 72px 80px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+.cta-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(245,245,235,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,245,235,0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 60% 100% at 100% 50%, #000, transparent);
+  pointer-events: none;
+}
+.cta-card h2 {
+  position: relative;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+}
+.cta-card h2 .accent { color: var(--gold); font-style: italic; }
+.cta-card p {
+  font-size: 16px;
+  color: var(--fg-muted);
+  line-height: 1.7;
+}
+.cta-actions {
+  position: relative;
+  display: flex; flex-direction: column;
+  gap: 12px;
+}
+.cta-actions .btn { width: 100%; justify-content: center; }
+.cta-actions .note {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-align: center;
+  margin-top: 8px;
+  letter-spacing: 0.05em;
+}
+
+/* ═══════════════════ Footer ═══════════════════ */
+footer {
+  padding: 60px 0 36px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.foot {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 48px;
+  margin-bottom: 48px;
+}
+.foot h5 {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin-bottom: 16px;
+}
+.foot ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.foot a { color: var(--fg-soft); transition: color 0.2s; }
+.foot a:hover { color: var(--gold); }
+.foot p { color: var(--fg-muted); line-height: 1.7; max-width: 320px; margin-top: 12px; }
+.foot-bot {
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+/* ═══════════════════ Responsive ═══════════════════ */
+@media (max-width: 980px) {
+  .wrap { padding: 0 4%; }
+  .nav-links { display: none; }
+  .hero { padding: 120px 0 80px; }
+  .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+  .float-card { display: none; }
+  .sec-head { grid-template-columns: 1fr; gap: 20px; }
+  .bento { grid-template-columns: 1fr; grid-auto-rows: auto; }
+  .tile.t-wide, .tile.t-std, .tile.t-half { grid-column: span 1; }
+  .tile-feature { grid-template-columns: 1fr; }
+  .workflow { grid-template-columns: 1fr 1fr; gap: 40px 24px; }
+  .workflow::before { display: none; }
+  .cat-grid { grid-template-columns: 1fr 1fr; }
+  .pricing { grid-template-columns: 1fr; }
+  .trust-inner { grid-template-columns: 1fr; gap: 24px; }
+  .trust-stats { grid-template-columns: 1fr 1fr; gap: 24px; }
+  .cta-card { grid-template-columns: 1fr; padding: 48px 32px; }
+  .foot { grid-template-columns: 1fr 1fr; gap: 32px; }
+  section.sec { padding: 80px 0; }
+}
+
+/* Reveal on scroll */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* ═══════════════════ Dynamic motion layer ═══════════════════ */
+
+/* Mouse-tracked spotlight on hero */
+.hero {
+  --mx: 50%;
+  --my: 30%;
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    600px circle at var(--mx) var(--my),
+    rgba(232,184,75,0.10),
+    transparent 60%
+  );
+  pointer-events: none;
+  transition: background 0.3s ease;
+  z-index: 0;
+}
+.hero-inner { z-index: 1; }
+
+/* Floating particles */
+.particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.particles span {
+  position: absolute;
+  bottom: -10px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0;
+  animation: rise linear infinite;
+  box-shadow: 0 0 6px rgba(232,184,75,0.6);
+}
+@keyframes rise {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.4; }
+  100% { transform: translateY(-100vh) translateX(20px); opacity: 0; }
+}
+
+/* Rotating word in hero h1 — uniform font across all states */
+.rotator {
+  display: inline-block;
+  position: relative;
+  height: 1.3em;
+  line-height: 1.3em;
+  overflow: hidden;
+  vertical-align: -0.18em;
+  /* Width is set by the invisible ghost word inside — guarantees longest word fits */
+}
+.rotator .ghost {
+  display: inline-block;
+  visibility: hidden;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+  padding: 0 0.4em;     /* safety margin so italic descenders/glyphs aren't clipped */
+  line-height: 1;
+}
+.rotator span:not(.ghost) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--gold);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(100%);
+  animation: rotateWord 12s infinite;
+}
+/* nth-child indexes shift because of the ghost element — use nth-of-type instead */
+/* Ghost is nth-child(1); real words are nth-child(2..5) */
+.rotator span:nth-child(2) { animation-delay: 0s; }
+.rotator span:nth-child(3) { animation-delay: 3s; }
+.rotator span:nth-child(4) { animation-delay: 6s; }
+.rotator span:nth-child(5) { animation-delay: 9s; }
+@keyframes rotateWord {
+  0%, 2%   { opacity: 0; transform: translateY(100%); }
+  6%, 22%  { opacity: 1; transform: translateY(0); }
+  26%, 100%{ opacity: 0; transform: translateY(-100%); }
+}
+
+/* Animated chart line drawing */
+.dash-chart svg path[stroke] {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation: drawLine 2.6s cubic-bezier(0.4,0,0.2,1) 0.4s forwards;
+}
+.dash-chart svg path[fill]:not([fill="none"]) {
+  opacity: 0;
+  animation: fadeFill 1s ease 2.4s forwards;
+}
+.dash-chart svg circle {
+  opacity: 0;
+  transform-origin: center;
+  transform: scale(0);
+  animation: popDot 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.dash-chart svg circle:nth-of-type(1) { animation-delay: 2.0s; }
+.dash-chart svg circle:nth-of-type(2) { animation-delay: 2.2s; }
+.dash-chart svg circle:nth-of-type(3) { animation-delay: 2.4s; }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@keyframes fadeFill { to { opacity: 1; } }
+@keyframes popDot { to { opacity: 1; transform: scale(1); } }
+
+/* KPI shimmer when counting */
+.kpi-val .count {
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+}
+.dash-row .kpi {
+  position: relative;
+  overflow: hidden;
+}
+.dash-row .kpi::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(232,184,75,0.12) 50%,
+    transparent 70%
+  );
+  transform: translateX(100%);
+  animation: shimmer 5s ease-in-out infinite;
+  pointer-events: none;
+}
+.dash-row .kpi:nth-child(2)::after { animation-delay: 1.5s; }
+.dash-row .kpi:nth-child(3)::after { animation-delay: 3s; }
+@keyframes shimmer {
+  0%, 30% { transform: translateX(100%); }
+  60%     { transform: translateX(-100%); }
+  100%    { transform: translateX(-100%); }
+}
+
+/* Live row insertion in dashboard list */
+.list-row {
+  animation: rowIn 0.6s ease both;
+}
+.list-row:nth-child(2) { animation-delay: 0.15s; }
+.list-row:nth-child(3) { animation-delay: 0.3s; }
+.list-row:nth-child(4) { animation-delay: 0.45s; }
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Tag pulse on "late" */
+.tag.late {
+  animation: tagPulse 2.4s ease-in-out infinite;
+}
+@keyframes tagPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(228,123,139,0); }
+  50%      { box-shadow: 0 0 0 6px rgba(228,123,139,0.15); }
+}
+
+/* AI typing cursor */
+.ai-msg.typing::after {
+  content: "▍";
+  display: inline-block;
+  color: var(--gold);
+  animation: blink 1s steps(2) infinite;
+  margin-right: 2px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Tile hover — 3D mouse tilt + gold edge */
+.tile {
+  --tx: 50%;
+  --ty: 50%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: radial-gradient(
+    400px circle at var(--tx) var(--ty),
+    rgba(232,184,75,0.12),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.tile:hover::before { opacity: 1; }
+
+/* Icon entrance on hover */
+.tile .icn { transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), background 0.3s, border-color 0.3s, color 0.3s; }
+.tile:hover .icn {
+  background: var(--gold);
+  color: #0A0F18;
+  border-color: var(--gold);
+  transform: translateY(-2px) rotate(-4deg);
+}
+
+/* Step marker pulse */
+.step::after {
+  content: "";
+  position: absolute;
+  top: 24px; right: 50%;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  transform: translateX(50%);
+  background: var(--gold);
+  opacity: 0.6;
+  animation: stepPing 2.4s ease-out infinite;
+  z-index: -1;
+}
+.step:nth-child(2)::after { animation-delay: 0.6s; }
+.step:nth-child(3)::after { animation-delay: 1.2s; }
+.step:nth-child(4)::after { animation-delay: 1.8s; }
+@keyframes stepPing {
+  0%   { transform: translateX(50%) scale(1); opacity: 0.5; }
+  80%  { transform: translateX(50%) scale(3); opacity: 0; }
+  100% { transform: translateX(50%) scale(3); opacity: 0; }
+}
+
+/* Cat-card hover sweep */
+.cat-card {
+  overflow: hidden;
+}
+.cat-card::after {
+  content: "";
+  position: absolute;
+  top: 0; right: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(
+    -90deg,
+    transparent,
+    rgba(232,184,75,0.08),
+    transparent
+  );
+  transition: right 0.7s ease;
+}
+.cat-card:hover::after { right: 130%; }
+
+/* Featured plan glow pulse */
+.plan.featured {
+  animation: glowPulse 4s ease-in-out infinite;
+}
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,184,75,0.05), 0 0 0 rgba(232,184,75,0); }
+  50%      { box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,184,75,0.2), 0 0 80px rgba(232,184,75,0.15); }
+}
+
+/* Marquee logo strip */
+.ticker {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  background: var(--bg-0);
+  padding: 26px 0;
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+.ticker-track {
+  display: flex;
+  gap: 64px;
+  width: max-content;
+  animation: tickerScroll 40s linear infinite;
+}
+.ticker-item {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+.ticker-item .badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 30px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.ticker-item .badge::before {
+  content: ""; width: 5px; height: 5px;
+  background: var(--gold); border-radius: 50%;
+}
+@keyframes tickerScroll {
+  to { transform: translateX(50%); }
+}
+
+/* CTA glow orb */
+.cta-card .orb {
+  position: absolute;
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232,184,75,0.25), transparent 70%);
+  filter: blur(40px);
+  animation: orbDrift 12s ease-in-out infinite;
+  pointer-events: none;
+}
+.cta-card .orb.o1 { top: -100px; right: -100px; }
+.cta-card .orb.o2 { bottom: -120px; left: -80px; animation-delay: -6s; background: radial-gradient(circle, rgba(108,197,154,0.15), transparent 70%);}
+@keyframes orbDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-20px, 30px) scale(1.15); }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .particles span,
+  .rotator span,
+  .dash-chart svg path,
+  .dash-chart svg circle,
+  .dash-row .kpi::after,
+  .list-row,
+  .tag.late,
+  .ai-msg.typing::after,
+  .step::after,
+  .plan.featured,
+  .ticker-track,
+  .cta-card .orb {
+    animation: none !important;
+  }
+  .rotator span:nth-child(2) { opacity: 1; transform: none; }
+}
+
+
+/* ═══ Float cards — give breathing room ═══ */
+.hero-visual-wrap {
+  position: relative;
+  padding: 28px 20px 20px 30px;
+  margin-left: -20px;
+}
+</style>
 </head>
 <body>
 
-<div id="app">
-  <div id="appLoader" style="position:fixed;inset:0;background:#060A10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Tajawal',sans-serif;">
-    <div style="width:52px;height:52px;border:3px solid rgba(232,184,75,0.2);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1.2rem;"></div>
-    <div style="color:#E8B84B;font-size:1.1rem;font-weight:700">SmartStruct</div>
-    <div style="color:#4A5B7A;font-size:0.8rem;margin-top:0.3rem" id="loaderStatus">جاري التحميل...</div>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-  </div>
-</div>
-
-<div class="toast-container" id="toastContainer"></div>
-
-<button class="ai-fab" id="aiFab" onclick="SmartAI.toggleChat()" title="SmartAI" style="display:none">
-  🤖<span class="ai-fab-badge" id="aiFabBadge" style="display:none">!</span>
-</button>
-<div class="ai-chat-panel" id="aiChatPanel" style="display:none">
-  <div class="ai-chat-header">
-    <div class="ai-chat-avatar">🤖</div>
-    <div>
-      <div class="ai-chat-name">SmartAI — مساعدك الذكي</div>
-      <div class="ai-chat-status"><span class="ai-status-dot"></span>متصل — يعمل بـ Claude AI</div>
+<!-- ═══════════════ NAV ═══════════════ -->
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <div class="brand">
+      <img class="brand-mark" src="assets/logo-mark.svg" alt="SmartStruct">
+      <span class="brand-name">SmartStruct</span>
+      <span class="brand-tag">DZ · v7.4</span>
     </div>
-    <button class="ai-chat-close" onclick="SmartAI.toggleChat()">✕</button>
+    <div class="nav-links">
+      <a href="#features">المنصة</a>
+      <a href="#workflow">سير العمل</a>
+      <a href="#documents">الوثائق</a>
+      <a href="#pricing">الأسعار</a>
+      <a href="#faq">أسئلة</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="app.html#login">تسجيل الدخول</a>
+      <a class="btn btn-gold" href="app.html#register">ابدأ مجاناً
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+      </a>
+    </div>
   </div>
-  <div class="ai-chat-messages" id="aiMessages"></div>
-  <div class="ai-quick-btns" id="aiQuickBtns">
-    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('حلّل مشاريعي وأعطني توصيات')">📊 تحليل</button>
-    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('ما هي أبرز المخاطر المالية؟')">⚠️ مخاطر</button>
-    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('توقع ربحي هذا الشهر')">💰 توقعات</button>
-    <button class="ai-quick-btn" onclick="SmartAI.quickAsk('ماذا يجب أن أفعل الآن؟')">🎯 أولويات</button>
+</nav>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<header class="hero">
+  <div class="hero-grid"></div>
+  <div class="particles" id="particles"></div>
+  <div class="wrap hero-inner">
+    <div>
+      <span class="eyebrow">إصدار 7.4 · مصمَّم في الجزائر</span>
+      <h1>
+        منصة موحَّدة لإدارة<br>
+        <span class="rotator" style="height: 95px; width: 369px"><span class="ghost">الفواتير</span><span>المقاولة</span><span>المشاريع</span><span>الفواتير</span><span>الورشة</span></span><br>
+        من العقد إلى التسليم.
+      </h1>
+      <p class="lead">
+        كل ما تحتاجه شركة مقاولات جزائرية لإدارة المشاريع، الفواتير، الرواتب، المخزون،
+        والوثائق القانونية حسب التشريع المحلي — في مكان واحد، بلغتين، بدون فوضى.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-gold btn-lg" href="app.html#register">جرّب مجاناً 14 يوم
+          <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        </a>
+        <a class="btn btn-outline btn-lg" href="#workflow">شاهد كيف يعمل</a>
+      </div>
+      <div class="hero-meta">
+        <span><span class="dot"></span>الخوادم تعمل بشكل طبيعي</span>
+        <span>·</span>
+        <span>RC · NIF · NIS · TVA 19% — مدعومة</span>
+      </div>
+    </div>
+
+    <!-- Dashboard mockup -->
+    <div class="hero-visual-wrap" style="position:relative">
+      <div class="dash">
+        <div class="dash-chrome">
+          <div class="dash-chrome-l">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>smartstruct.dz / لوحة التحكم</span>
+          </div>
+          <div class="dash-chrome-r">نوفمبر 2025</div>
+        </div>
+
+        <div class="dash-row">
+          <div class="kpi">
+            <div class="kpi-label">إيرادات الشهر</div>
+            <div class="kpi-val"><span class="count" data-to="4820000" data-sep="1">0</span><span class="unit">دج</span></div>
+            <div class="kpi-delta up">▲ 12.4% عن الشهر السابق</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">مشاريع نشطة</div>
+            <div class="kpi-val"><span class="count" data-to="18">0</span></div>
+            <div class="kpi-delta up">▲ 3 مشاريع جديدة</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">معدل التحصيل</div>
+            <div class="kpi-val"><span class="count" data-to="86.5" data-dec="1">0</span><span class="unit">%</span></div>
+            <div class="kpi-delta down">▼ 2.1 نقطة</div>
+          </div>
+        </div>
+
+        <div class="dash-chart">
+          <div class="chart-head">
+            <div class="chart-title">السيولة المتوقعة — 90 يوم</div>
+            <div class="chart-legend">
+              <div class="l"><span class="sw" style="background:var(--gold)"></span>الداخل</div>
+              <div class="l"><span class="sw" style="background:var(--bg-3)"></span>الخارج</div>
+            </div>
+          </div>
+          <svg class="chart-svg" viewBox="0 0 400 110" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#E8B84B" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#E8B84B" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid -->
+            <line x1="0" y1="25" x2="400" y2="25" stroke="rgba(255,255,255,0.04)"/>
+            <line x1="0" y1="55" x2="400" y2="55" stroke="rgba(255,255,255,0.04)"/>
+            <line x1="0" y1="85" x2="400" y2="85" stroke="rgba(255,255,255,0.04)"/>
+            <!-- Out (bg) -->
+            <path d="M0,75 C40,72 70,68 100,70 C140,72 170,65 200,60 C240,55 270,62 300,58 C340,52 370,55 400,50 L400,110 L0,110 Z"
+                  fill="rgba(255,255,255,0.04)"/>
+            <path d="M0,75 C40,72 70,68 100,70 C140,72 170,65 200,60 C240,55 270,62 300,58 C340,52 370,55 400,50"
+                  fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <!-- In (gold) -->
+            <path d="M0,68 C40,55 70,50 100,45 C140,38 170,42 200,32 C240,22 270,28 300,20 C340,14 370,18 400,10 L400,110 L0,110 Z"
+                  fill="url(#g1)"/>
+            <path d="M0,68 C40,55 70,50 100,45 C140,38 170,42 200,32 C240,22 270,28 300,20 C340,14 370,18 400,10"
+                  fill="none" stroke="#E8B84B" stroke-width="2"/>
+            <!-- Points -->
+            <circle cx="100" cy="45" r="3" fill="#E8B84B"/>
+            <circle cx="200" cy="32" r="3" fill="#E8B84B"/>
+            <circle cx="300" cy="20" r="3" fill="#E8B84B"/>
+          </svg>
+        </div>
+
+        <div class="dash-list">
+          <div class="list-head">
+            <span>آخر الفواتير</span>
+            <span class="count">3 من 47</span>
+          </div>
+          <div class="list-row">
+            <span class="name">مقاولة الإنشاءات الكبرى — فيلا R+2</span>
+            <span class="amt">680,000 دج</span>
+            <span class="tag active">مدفوعة</span>
+          </div>
+          <div class="list-row">
+            <span class="name">شركة الجنوب — أعمال ترصيف</span>
+            <span class="amt">1,250,000 دج</span>
+            <span class="tag pend">قيد المراجعة</span>
+          </div>
+          <div class="list-row">
+            <span class="name">بلدية البليدة — مدرسة ابتدائية</span>
+            <span class="amt">3,400,000 دج</span>
+            <span class="tag late">متأخرة 12 يوم</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating cards -->
+      <div class="float-card float-1">
+        <div class="ic gold">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        </div>
+        <div>
+          <div class="t1">وثيقة جديدة</div>
+          <div class="t2">فاتورة 0247 — جاهزة</div>
+        </div>
+      </div>
+      <div class="float-card float-2" style="height: 63px; width: 156px; text-align: right; line-height: 1; flex-direction: row; padding: 15px 15px 14px 16px; border-width: 1px; align-items: flex-start">
+        <div class="ic green">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div class="t1">تحصيل</div>
+          <div class="t2">+ 680,000 دج</div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="ai-chat-input-wrap">
-    <textarea class="ai-chat-input" id="aiInput" placeholder="اسأل SmartAI عن مشاريعك..." rows="1"
-      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();SmartAI.send()}"
-      oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
-    <button class="ai-send-btn" id="aiSendBtn" onclick="SmartAI.send()">➤</button>
+</header>
+
+<!-- ═══════════════ TICKER ═══════════════ -->
+<div class="ticker">
+  <div class="ticker-track">
+    <div class="ticker-item"><span class="badge">RC</span>السجل التجاري · مدمج</div>
+    <div class="ticker-item"><span class="badge">NIF</span>الرقم الجبائي · تلقائي</div>
+    <div class="ticker-item"><span class="badge">NIS</span>رقم الإحصائي · مدمج</div>
+    <div class="ticker-item"><span class="badge">TVA 19%</span>القانون الجبائي الجزائري</div>
+    <div class="ticker-item"><span class="badge">CNAS 9%</span>الضمان الاجتماعي</div>
+    <div class="ticker-item"><span class="badge">IRG</span>الشرائح الجبائية</div>
+    <div class="ticker-item"><span class="badge">CCP</span>كشوف البنك · استيراد آلي</div>
+    <div class="ticker-item"><span class="badge">CHARGILY</span>Edahabia · CIB</div>
+    <div class="ticker-item"><span class="badge">RC</span>السجل التجاري · مدمج</div>
+    <div class="ticker-item"><span class="badge">NIF</span>الرقم الجبائي · تلقائي</div>
+    <div class="ticker-item"><span class="badge">NIS</span>رقم الإحصائي · مدمج</div>
+    <div class="ticker-item"><span class="badge">TVA 19%</span>القانون الجبائي الجزائري</div>
+    <div class="ticker-item"><span class="badge">CNAS 9%</span>الضمان الاجتماعي</div>
+    <div class="ticker-item"><span class="badge">IRG</span>الشرائح الجبائية</div>
+    <div class="ticker-item"><span class="badge">CCP</span>كشوف البنك · استيراد آلي</div>
+    <div class="ticker-item"><span class="badge">CHARGILY</span>Edahabia · CIB</div>
   </div>
 </div>
 
-<!-- EmailJS (خفيف ~30KB) — يُحمَّل بشكل طبيعي -->
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
-  onerror="window._emailjsError=true;console.warn('EmailJS CDN unavailable')"></script>
+<!-- ═══════════════ TRUST ═══════════════ -->
+<section class="trust">
+  <div class="wrap trust-inner">
+    <div class="trust-label">
+      <span class="section-label">مقاييس المنصة</span><br>
+      أرقام حقيقية من نظامنا التشغيلي
+    </div>
+    <div class="trust-stats">
+      <div class="trust-stat">
+        <div class="trust-num"><span class="tcount" data-to="27">0</span></div>
+        <div class="trust-lbl">وحدة مترابطة</div>
+      </div>
+      <div class="trust-stat">
+        <div class="trust-num"><span class="tcount" data-to="22">0</span></div>
+        <div class="trust-lbl">وثيقة قانونية جزائرية</div>
+      </div>
+      <div class="trust-stat">
+        <div class="trust-num"><span class="small">×</span><span class="tcount" data-to="2">0</span></div>
+        <div class="trust-lbl">عربي · فرنسي على نفس المستند</div>
+      </div>
+      <div class="trust-stat">
+        <div class="trust-num"><span class="tcount" data-to="99.9" data-dec="1">0</span><span class="small">%</span></div>
+        <div class="trust-lbl">جاهزية الخدمة</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FEATURES / BENTO ═══════════════ -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">القدرات</span>
+        <h2>كل ما تحتاجه<br>الورشة <span class="accent">والإدارة</span>.</h2>
+      </div>
+      <p>
+        صُممت SmartStruct لتعالج تحديات مقاولات البناء في الجزائر تحديداً: من تنظيم العمال
+        ومتابعة المعدات، إلى توليد الوثائق القانونية المعقدة، مروراً بالتقارير المالية
+        المطابقة للقانون الجبائي والاجتماعي.
+      </p>
+    </div>
+
+    <div class="bento">
+      <!-- 01 — AI assistant (hero wide) -->
+      <div class="tile t-wide">
+        <span class="tile-num">01</span>
+        <div class="tile-feature">
+          <div>
+            <div class="icn">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v.5A6.5 6.5 0 0 0 5.5 12a6.5 6.5 0 0 0 3.5 5.8V19a3 3 0 0 0 6 0v-1.2A6.5 6.5 0 0 0 18.5 12 6.5 6.5 0 0 0 15 5.5V5a3 3 0 0 0-3-3z"/></svg>
+            </div>
+            <h3>SmartAI — مساعد ذكي يعرف بياناتك</h3>
+            <p>اسأل بالعربية أو الفرنسية عن أي مشروع، فاتورة، أو عامل — تحصل على إجابة فورية مدعومة بأرقامك الفعلية، مع توصيات مالية وتنبيهات للمخاطر.</p>
+            <div class="tags">
+              <span class="tag-chip">تحليل مالي</span>
+              <span class="tag-chip">توصيات</span>
+              <span class="tag-chip">AR · FR</span>
+            </div>
+          </div>
+          <div class="feature-viz">
+            <div class="ai-viz" id="aiViz">
+              <div class="ai-msg usr">ما هي أبرز المخاطر المالية هذا الشهر؟</div>
+              <div class="ai-msg bot"><span class="strong">3 مخاطر:</span> فاتورة البليدة متأخرة 12 يوم. السيولة تكفي حتى 28/11. عقد العامل أ. سيف ينتهي بعد 9 أيام.</div>
+              <div class="ai-msg usr typing">اقتراحاتك</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 02 — 22 docs -->
+      <div class="tile t-std">
+        <span class="tile-num">02</span>
+        <div class="icn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        </div>
+        <h3>22 وثيقة قانونية</h3>
+        <p>من الفاتورة الشكلية إلى محضر الاستلام النهائي. ثنائية اللغة مع RC · NIF · NIS تلقائياً.</p>
+        <div class="tags">
+          <span class="tag-chip">PDF</span>
+          <span class="tag-chip">توقيع إلكتروني</span>
+        </div>
+      </div>
+
+      <!-- 03 — Cashflow (half) -->
+      <div class="tile t-half">
+        <span class="tile-num">03</span>
+        <div class="icn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 6-6"/></svg>
+        </div>
+        <h3>توقعات السيولة لـ 90 يوماً</h3>
+        <p>منحنى تنبؤي يجمع الفواتير المعلقة، الرواتب القادمة، والمصاريف الثابتة — لتعرف متى ستضيق سيولتك قبل أن تضيق.</p>
+        <div class="tags">
+          <span class="tag-chip">Cash Flow</span>
+          <span class="tag-chip">تنبيهات</span>
+        </div>
+      </div>
+
+      <!-- 04 — Workers + Payroll (half) -->
+      <div class="tile t-half">
+        <span class="tile-num">04</span>
+        <div class="icn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <h3>رواتب وعقود مطابقة للقانون</h3>
+        <p>حساب آلي لـ CNAS 9% و IRG حسب الشرائح الجزائرية. عقود CDD · CDI · CTA جاهزة للطباعة بصياغة قانونية صحيحة.</p>
+        <div class="tags">
+          <span class="tag-chip">CNAS</span>
+          <span class="tag-chip">IRG</span>
+          <span class="tag-chip">CDD · CDI · CTA</span>
+        </div>
+      </div>
+
+      <!-- 05 — Field mode + QR -->
+      <div class="tile t-std">
+        <span class="tile-num">05</span>
+        <div class="icn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+        </div>
+        <h3>وضع الورشة + QR</h3>
+        <p>موبايل مبسَّط لرئيس الورشة: حضور، صور، طلبات، وتتبع المعدات بـ GPS ورموز QR.</p>
+        <div class="tags">
+          <span class="tag-chip">GPS</span>
+          <span class="tag-chip">QR</span>
+        </div>
+      </div>
+
+      <!-- 06 — Audit -->
+      <div class="tile t-std">
+        <span class="tile-num">06</span>
+        <div class="icn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>سجل تدقيق كامل</h3>
+        <p>كل تعديل مسجَّل: من، متى، وما الذي تغيَّر — مع نسخة قبل وبعد.</p>
+        <div class="tags">
+          <span class="tag-chip">Audit Log</span>
+          <span class="tag-chip">Immutable</span>
+        </div>
+      </div>
+
+      <!-- 07 — E-signature -->
+      <div class="tile t-std">
+        <span class="tile-num">07</span>
+        <div class="icn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <h3>توقيع إلكتروني</h3>
+        <p>رابط فريد للعميل لتوقيع الفاتورة أو محضر الاستلام عبر هاتفه — دون طباعة.</p>
+        <div class="tags">
+          <span class="tag-chip">Link</span>
+          <span class="tag-chip">SMS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ WORKFLOW ═══════════════ -->
+<section class="sec" id="workflow">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">سير العمل</span>
+        <h2>من <span class="accent">العقد</span><br>إلى التسليم.</h2>
+      </div>
+      <p>
+        دورة حياة المشروع كاملة، خطوة بخطوة. كل وثيقة تستورد من سابقتها تلقائياً،
+        وكل رقم يُحسب من قواعد التشريع الجزائري.
+      </p>
+    </div>
+
+    <div class="workflow">
+      <div class="step">
+        <div class="n">01 · ما قبل التعاقد</div>
+        <h4>عرض الخدمة وكشف الكمي</h4>
+        <p>أنشئ Devis Estimatif بنظام LOTs، جدول الأسعار الوحدوية BPU، وعرض الخدمة مع السوابق والموارد البشرية.</p>
+      </div>
+      <div class="step">
+        <div class="n">02 · التنفيذ</div>
+        <h4>الميدان واليوميات</h4>
+        <p>محضر بدء الأشغال، كشف المرفقات، يوميات الورشة. تسجيل الحضور والصور من الموبايل مباشرة.</p>
+      </div>
+      <div class="step">
+        <div class="n">03 · الفوترة</div>
+        <h4>وضعيات وفواتير تسبيق</h4>
+        <p>كشف الأشغال مع خصم تلقائي للسابقة، التسبيقات، وضمان حسن التنفيذ 5%. حتى الفاتورة النهائية وتصفية الحساب.</p>
+      </div>
+      <div class="step">
+        <div class="n">04 · الاستلام</div>
+        <h4>محاضر الاستلام</h4>
+        <p>محضر مؤقت مع تحفظات، ثم محضر نهائي. مع توقيع إلكتروني للعميل وأرشفة آلية في سحابة Google Drive.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DOCUMENTS CATALOGUE ═══════════════ -->
+<section class="sec" id="documents">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">مكتبة الوثائق</span>
+        <h2>22 وثيقة جاهزة<br>وفق <span class="accent">القانون الجزائري</span>.</h2>
+      </div>
+      <p>
+        مرتَّبة على دورة حياة المشروع. كل وثيقة تحوي تلقائياً البيانات القانونية الإلزامية:
+        RC, NIF, NIS, رقم المادة الجبائية، RIB. ثنائية اللغة عربي · فرنسي.
+      </p>
+    </div>
+
+    <!-- Section 1 -->
+    <div class="cat-section" data-cat>
+      <button class="cat-section-head" type="button">
+        <span class="num">①</span>
+        <h4>الوثائق التجارية والتعاقدية</h4>
+        <span class="count">04 وثائق</span>
+        <span class="chev">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+      </button>
+      <div class="cat-body"><div class="cat-body-inner">
+      <div class="cat-grid">
+        <div class="cat-card"><div class="code">PRO-FAC</div><div class="lbl">فاتورة شكلية</div><div class="sub">Facture Proforma</div></div>
+        <div class="cat-card"><div class="code">DEV-EST</div><div class="lbl">كشف كمي وتقديري</div><div class="sub">Devis Estimatif</div></div>
+        <div class="cat-card"><div class="code">BPU</div><div class="lbl">جدول الأسعار الوحدوية</div><div class="sub">Bordereau Prix Unitaire</div></div>
+        <div class="cat-card"><div class="code">OFF-SRV</div><div class="lbl">عرض الخدمة</div><div class="sub">Offre de Service</div></div>
+        <div class="cat-card" style="background:linear-gradient(160deg,rgba(232,184,75,0.08),var(--bg-1));border-color:rgba(232,184,75,0.2)">
+          <div class="code">+18</div><div class="lbl">و 18 وثيقة أخرى</div><div class="sub">في الأقسام 02 → 05</div>
+        </div>
+      </div>
+      </div></div>
+    </div>
+
+    <!-- Section 2 -->
+    <div class="cat-section" data-cat>
+      <button class="cat-section-head" type="button">
+        <span class="num">②</span>
+        <h4>وثائق الميدان والتنفيذ</h4>
+        <span class="count">05 وثائق</span>
+        <span class="chev">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+      </button>
+      <div class="cat-body"><div class="cat-body-inner">
+      <div class="cat-grid">
+        <div class="cat-card"><div class="code">PV-OUV</div><div class="lbl">محضر بدء الأشغال</div><div class="sub">PV d'Ouverture</div></div>
+        <div class="cat-card"><div class="code">ATT</div><div class="lbl">كشف المرفقات</div><div class="sub">Attachement</div></div>
+        <div class="cat-card"><div class="code">JC</div><div class="lbl">يوميات الورشة</div><div class="sub">Journal de Chantier</div></div>
+        <div class="cat-card"><div class="code">PV-PRV</div><div class="lbl">استلام مؤقت</div><div class="sub">PV Réception Provisoire</div></div>
+        <div class="cat-card"><div class="code">PV-DEF</div><div class="lbl">استلام نهائي</div><div class="sub">PV Réception Définitive</div></div>
+      </div>
+      </div></div>
+    </div>
+
+    <!-- Section 3 -->
+    <div class="cat-section" data-cat>
+      <button class="cat-section-head" type="button">
+        <span class="num">③</span>
+        <h4>النظام المالي والفوترة</h4>
+        <span class="count">04 وثائق</span>
+        <span class="chev">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+      </button>
+      <div class="cat-body"><div class="cat-body-inner">
+      <div class="cat-grid">
+        <div class="cat-card"><div class="code">FAC-ACO</div><div class="lbl">فاتورة تسبيق</div><div class="sub">Facture d'Acompte</div></div>
+        <div class="cat-card"><div class="code">SIT-TRV</div><div class="lbl">وضعية أشغال</div><div class="sub">Situation de Travaux</div></div>
+        <div class="cat-card"><div class="code">FAC-DEF</div><div class="lbl">فاتورة نهائية</div><div class="sub">Facture Définitive</div></div>
+        <div class="cat-card"><div class="code">QUIT</div><div class="lbl">وصل تسديد</div><div class="sub">Quittance de Paiement</div></div>
+      </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ PRICING ═══════════════ -->
+<section class="sec" id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">الأسعار</span>
+        <h2>تسعير عادل،<br>بالدينار <span class="accent">الجزائري</span>.</h2>
+      </div>
+      <p>
+        14 يوماً مجاناً، بدون بطاقة بنكية. الدفع عبر Chargily Pay — Edahabia أو CIB.
+        غيِّر خطتك أو ألغها في أي وقت من لوحة التحكم.
+      </p>
+    </div>
+
+    <div class="pricing">
+      <!-- Starter -->
+      <div class="plan">
+        <div class="plan-name">المبتدئ</div>
+        <div class="plan-desc">للمقاولين الجدد والشركات الصغيرة (حتى 3 مستخدمين).</div>
+        <div class="plan-price">
+          <span class="num">4,900</span>
+          <span class="cur">دج / شهر</span>
+        </div>
+        <div class="plan-period">شامل TVA · فوترة شهرية</div>
+        <ul class="plan-feat">
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> حتى 10 مشاريع نشطة</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> الفوترة والمحاسبة الأساسية</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> الوثائق التجارية (4)</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> دعم بالبريد الإلكتروني</li>
+        </ul>
+        <a class="btn btn-outline" href="app.html#register">ابدأ الفترة التجريبية</a>
+      </div>
+
+      <!-- Pro -->
+      <div class="plan featured">
+        <div class="plan-tag">الأكثر طلباً</div>
+        <div class="plan-name">المحترف</div>
+        <div class="plan-desc">لشركات المقاولات المتوسطة مع ورشات متعددة (حتى 15 مستخدماً).</div>
+        <div class="plan-price">
+          <span class="num">12,900</span>
+          <span class="cur">دج / شهر</span>
+        </div>
+        <div class="plan-period">شامل TVA · فوترة شهرية</div>
+        <ul class="plan-feat">
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> مشاريع غير محدودة</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> كل الـ 22 وثيقة قانونية</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> SmartAI · توقعات السيولة</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> وضع الورشة + GPS للمعدات</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> دعم ذو أولوية (خلال 4 ساعات)</li>
+        </ul>
+        <a class="btn btn-gold" href="app.html#register">ابدأ الفترة التجريبية</a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="plan">
+        <div class="plan-name">الشركة</div>
+        <div class="plan-desc">لشركات البناء الكبرى ومجموعات الفروع (مستخدمون غير محدودين).</div>
+        <div class="plan-price">
+          <span class="num">حسب الطلب</span>
+        </div>
+        <div class="plan-period">عقد سنوي مخصص</div>
+        <ul class="plan-feat">
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> كل ميزات المحترف</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> تثبيت في خادم خاص</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> صلاحيات مخصصة (Roles)</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> SLA 99.9% + مدير حساب</li>
+          <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> تدريب الفريق على المنصة</li>
+        </ul>
+        <a class="btn btn-outline" href="mailto:contact@smartstruct.dz?subject=طلب%20عرض%20للشركات">تواصل معنا</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FAQ ═══════════════ -->
+<section class="sec" id="faq">
+  <div class="wrap">
+    <div class="sec-head" style="grid-template-columns:1fr; text-align:center; max-width:680px; margin:0 auto 60px">
+      <div>
+        <span class="eyebrow">أسئلة شائعة</span>
+        <h2 style="margin-top:20px">كل ما تحتاج <span class="accent">معرفته</span>.</h2>
+      </div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-item">
+        <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          هل البيانات تُخزَّن داخل الجزائر؟
+          <span class="plus">+</span>
+        </button>
+        <div class="faq-a"><p>نعم. خوادمنا في مراكز بيانات بأوروبا مع نسخ احتياطية يومية، ويمكنك تصدير كامل بياناتك بصيغة JSON أو Excel في أي وقت. للخطة "الشركة" يمكن التثبيت على خادم خاص داخل الجزائر.</p></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          هل الوثائق المُولَّدة معتمدة قانونياً؟
+          <span class="plus">+</span>
+        </button>
+        <div class="faq-a"><p>كل الوثائق صيغت وفق التشريعات الجزائرية السارية (قانون الضرائب، قانون العمل، قانون الصفقات العمومية)، وتحوي البيانات القانونية الإلزامية: RC, NIF, NIS, رقم المادة، RIB. النماذج راجعها خبير محاسب معتمد.</p></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          هل يمكنني الدفع عبر Edahabia أو CIB؟
+          <span class="plus">+</span>
+        </button>
+        <div class="faq-a"><p>نعم. الدفع يتم عبر Chargily Pay الذي يدعم Edahabia و بطاقات CIB. للشركات نقبل أيضاً التحويل البنكي مع فاتورة رسمية شهرية أو سنوية.</p></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          ما الذي يحدث بعد انتهاء الـ 14 يوم تجريبي؟
+          <span class="plus">+</span>
+        </button>
+        <div class="faq-a"><p>إذا لم تختر خطة، يتحوّل الحساب إلى وضع "للقراءة فقط" لمدة 30 يوماً — يمكنك تصدير بياناتك بحرية، لكن لا يمكنك إضافة جديد. بعدها يُحفظ الحساب في الأرشيف ويمكن إعادة تفعيله متى شئت.</p></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          هل تعمل المنصة بدون إنترنت في الورشة؟
+          <span class="plus">+</span>
+        </button>
+        <div class="faq-a"><p>نعم جزئياً. وضع الورشة (Mobile Mode) يحفظ التسجيلات محلياً (حضور، صور، طلبات صرف) ويزامنها تلقائياً عند توفر الإنترنت. التطبيق الكامل في المكتب يحتاج اتصالاً.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ CTA ═══════════════ -->
+<section class="cta-section">
+  <div class="wrap">
+    <div class="cta-card">
+      <div class="orb o1"></div>
+      <div class="orb o2"></div>
+      <div>
+        <h2>ابدأ في إدارة مشاريعك<br>كما <span class="accent">يستحقها بناؤك</span>.</h2>
+        <p>14 يوماً مجاناً، بدون بطاقة بنكية. الإعداد يستغرق أقل من 7 دقائق، والوثائق الأولى جاهزة في نفس اليوم.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="btn btn-gold btn-lg" href="app.html#register">إنشاء حساب مجاني
+          <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        </a>
+        <a class="btn btn-outline btn-lg" href="mailto:contact@smartstruct.dz?subject=حجز%20عرض%20تجريبي">احجز عرضاً تجريبياً</a>
+        <span class="note">لا حاجة لبطاقة بنكية · إلغاء في أي وقت</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <div class="brand">
+          <img class="brand-mark" src="assets/logo-mark.svg" alt="SmartStruct">
+          <span class="brand-name">SmartStruct</span>
+        </div>
+        <p>منصة موحَّدة لإدارة مشاريع البناء والمقاولات في الجزائر — من العقد إلى التسليم.</p>
+      </div>
+      <div>
+        <h5>المنصة</h5>
+        <ul>
+          <li><a href="#features">القدرات</a></li>
+          <li><a href="#workflow">سير العمل</a></li>
+          <li><a href="#documents">الوثائق</a></li>
+          <li><a href="#pricing">الأسعار</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>الشركة</h5>
+        <ul>
+          <li><a href="app.html#about">من نحن</a></li>
+          <li><a href="app.html#contact">تواصل</a></li>
+          <li><a href="mailto:jobs@smartstruct.dz">وظائف</a></li>
+          <li><a href="admin-login.html">لوحة الإدارة</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>قانوني</h5>
+        <ul>
+          <li><a href="app.html#terms">شروط الاستخدام</a></li>
+          <li><a href="app.html#privacy">سياسة الخصوصية</a></li>
+          <li><a href="app.html#data">معالجة البيانات</a></li>
+          <li><a href="app.html#status">حالة الخدمة</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 SmartStruct — صُمم في الجزائر</span>
+      <span>الإصدار 7.4 · آخر تحديث 23 ماي 2026</span>
+    </div>
+  </div>
+</footer>
+
 <script>
-if (typeof emailjs !== 'undefined') emailjs.init({ publicKey: 'hn_PRTs7PuJAgrrDp' });
+  // Nav scrolled state
+  const nav = document.getElementById('nav');
+  const onScroll = () => {
+    if (window.scrollY > 24) nav.classList.add('scrolled');
+    else nav.classList.remove('scrolled');
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
 
-// ════ Lazy Loader — Chart.js و jsPDF تُحمَّل عند الحاجة فقط ════
-window.loadChartJS = function() {
-  return new Promise(function(resolve) {
-    if (typeof Chart !== 'undefined') { resolve(); return; }
-    var s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-    s.onload = resolve;
-    s.onerror = function() { console.warn('Chart.js not available'); resolve(); };
-    document.head.appendChild(s);
+  // Reveal on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.tile, .step, .cat-card, .plan, .trust-stat').forEach(el => {
+    el.classList.add('reveal');
+    io.observe(el);
   });
-};
 
-window.loadJsPDF = function() {
-  return new Promise(function(resolve) {
-    if (typeof window.jspdf !== 'undefined') { resolve(); return; }
-    var s1 = document.createElement('script');
-    s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    s1.onerror = function() { console.warn('jsPDF not available'); resolve(); };
-    s1.onload = function() {
-      var s2 = document.createElement('script');
-      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
-      s2.onload = resolve;
-      s2.onerror = resolve;
-      document.head.appendChild(s2);
+  // Open first FAQ by default
+  document.querySelector('.faq-item').classList.add('open');
+
+  // ── Documents catalogue — accordion behaviour ──
+  document.querySelectorAll('.cat-section').forEach((sec, i) => {
+    const head = sec.querySelector('.cat-section-head');
+    if (!head) return;
+    // Open the first section by default so the area isn't empty.
+    if (i === 0) sec.classList.add('open');
+    head.addEventListener('click', () => {
+      const isOpen = sec.classList.contains('open');
+      // Close everything for a clean panoramic single-open feel
+      document.querySelectorAll('.cat-section').forEach(s => s.classList.remove('open'));
+      if (!isOpen) sec.classList.add('open');
+    });
+  });
+
+  // ── Hero spotlight follows mouse ──
+  const hero = document.querySelector('.hero');
+  hero.addEventListener('mousemove', (e) => {
+    const rect = hero.getBoundingClientRect();
+    hero.style.setProperty('--mx', ((e.clientX - rect.left) / rect.width * 100) + '%');
+    hero.style.setProperty('--my', ((e.clientY - rect.top) / rect.height * 100) + '%');
+  });
+
+  // ── Tile spotlight follows mouse ──
+  document.querySelectorAll('.tile').forEach(tile => {
+    tile.addEventListener('mousemove', (e) => {
+      const r = tile.getBoundingClientRect();
+      tile.style.setProperty('--tx', (e.clientX - r.left) + 'px');
+      tile.style.setProperty('--ty', (e.clientY - r.top) + 'px');
+    });
+  });
+
+  // ── Floating particles ──
+  const particles = document.getElementById('particles');
+  if (particles) {
+    for (let i = 0; i < 18; i++) {
+      const s = document.createElement('span');
+      s.style.left = Math.random() * 100 + '%';
+      const dur = 10 + Math.random() * 12;
+      s.style.animationDuration = dur + 's';
+      s.style.animationDelay = -Math.random() * dur + 's';
+      const size = 2 + Math.random() * 3;
+      s.style.width = s.style.height = size + 'px';
+      s.style.opacity = 0.3 + Math.random() * 0.4;
+      particles.appendChild(s);
+    }
+  }
+
+  // ── Number counters (KPI + trust) ──
+  const animateCount = (el) => {
+    const to = parseFloat(el.dataset.to);
+    const dec = parseInt(el.dataset.dec || 0);
+    const sep = el.dataset.sep === '1';
+    const dur = 1600;
+    const start = performance.now();
+    const easeOut = t => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const p = Math.min((now - start) / dur, 1);
+      const v = to * easeOut(p);
+      let txt = dec ? v.toFixed(dec) : Math.round(v).toString();
+      if (sep) {
+        const parts = txt.split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        txt = parts.join('.');
+      }
+      el.textContent = txt;
+      if (p < 1) requestAnimationFrame(tick);
     };
-    document.head.appendChild(s1);
+    requestAnimationFrame(tick);
+  };
+  const countIO = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        animateCount(e.target);
+        countIO.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  // Only target counters that have a data-to attribute (not the list-head badge)
+  document.querySelectorAll('[data-to]').forEach(el => countIO.observe(el));
+
+  // ── AI typing loop ──
+  const aiViz = document.getElementById('aiViz');
+  if (aiViz) {
+    const target = aiViz.querySelector('.ai-msg.typing');
+    const phrases = ['اقتراحاتك؟', 'أرسل تذكيراً للعميل', 'حلّل التدفق النقدي', 'أكمل العقد للعامل'];
+    let pi = 0, ci = 0, deleting = false;
+    const loop = () => {
+      const phrase = phrases[pi];
+      if (!deleting) {
+        ci++;
+        target.firstChild ? target.firstChild.textContent = phrase.slice(0, ci) : target.textContent = phrase.slice(0, ci);
+        if (ci === phrase.length) { deleting = true; setTimeout(loop, 1800); return; }
+      } else {
+        ci--;
+        target.firstChild ? target.firstChild.textContent = phrase.slice(0, ci) : target.textContent = phrase.slice(0, ci);
+        if (ci === 0) { deleting = false; pi = (pi + 1) % phrases.length; }
+      }
+      setTimeout(loop, deleting ? 30 : 60);
+    };
+    // give first frame time to render
+    setTimeout(() => { target.textContent = ''; loop(); }, 2200);
+  }
+
+  // ── Magnetic gold buttons ──
+  document.querySelectorAll('.btn-gold').forEach(btn => {
+    btn.addEventListener('mousemove', (e) => {
+      const r = btn.getBoundingClientRect();
+      const x = (e.clientX - r.left - r.width / 2) * 0.15;
+      const y = (e.clientY - r.top - r.height / 2) * 0.15;
+      btn.style.transform = `translate(${-x}px, ${-y}px)`;
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.transform = '';
+    });
   });
-};
+
+  // ── Live KPI delta blink ──
+  setInterval(() => {
+    const tags = document.querySelectorAll('.kpi-delta');
+    tags.forEach((t, i) => {
+      setTimeout(() => {
+        t.style.transition = 'opacity 0.3s';
+        t.style.opacity = '0.4';
+        setTimeout(() => { t.style.opacity = '1'; }, 200);
+      }, i * 120);
+    });
+  }, 5000);
 </script>
-
-<!-- ملفات التطبيق المحلية (تعمل بدون إنترنت) -->
-<script src="supabase-db.js"></script>
-<script src="js/emailjs-config.js"></script>
-<script src="js/app.js"></script>
-<script src="js/features.js"></script>
-
-
-<!-- Supabase Connection Badge -->
-<div id="sbConnBadge" style="position:fixed;bottom:12px;left:12px;z-index:9999;padding:8px 10px;border-radius:12px;font:600 12px/1.2 Tajawal,system-ui;background:#111;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.18);display:none"></div>
 
 </body>
 </html>

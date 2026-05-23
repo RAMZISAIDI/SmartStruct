@@ -93,6 +93,12 @@ CREATE TABLE tenants (
   nif                   VARCHAR(100),
   nis                   VARCHAR(100),
   rc_number             VARCHAR(100),
+  article_imp           VARCHAR(100),         -- ✅ v7.3 رقم المادة الجبائية
+  rib                   VARCHAR(100),         -- ✅ v7.3 رقم الحساب البنكي
+  logo_url              TEXT,                 -- ✅ v7.3 شعار المؤسسة
+  stamp_url             TEXT,                 -- ✅ v7.3 ختم المؤسسة
+  bank_account          VARCHAR(100),         -- ✅ رقم الحساب المصرفي
+  bank_name             VARCHAR(100),         -- ✅ اسم البنك
   tva_rate              INTEGER DEFAULT 19,
   subscription_status   VARCHAR(50) DEFAULT 'pending',
   trial_start           DATE,
@@ -348,7 +354,7 @@ CREATE TABLE notes (
 --  الإشعارات — متطابق مع SB_SCHEMA.notifications
 -- ══════════════════════════════════════════════════════
 CREATE TABLE notifications (
-  id         BIGINT PRIMARY KEY,
+  id         BIGSERIAL PRIMARY KEY,          -- ✅ SERIAL تلقائي (يمنع duplicate key)
   tenant_id  INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
   user_id    INTEGER,
   type       VARCHAR(50) NOT NULL DEFAULT 'info',
@@ -357,6 +363,7 @@ CREATE TABLE notifications (
   date       TIMESTAMPTZ DEFAULT NOW(),
   read       BOOLEAN DEFAULT false,
   status     VARCHAR(20) DEFAULT 'pending',
+  extra_data TEXT,                           -- ✅ بيانات إضافية (مثل كلمة المرور المشفّرة مؤقتاً)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -720,4 +727,45 @@ BEGIN
         RAISE NOTICE 'Could not add % to publication: %', tbl, SQLERRM;
     END;
   END LOOP;
+END $$;
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🆕 v7.3 — Migration: إضافة الحقول الجديدة للترويسة القانونية
+--  آمن للتشغيل على قواعد جديدة وقديمة على حد سواء
+-- ══════════════════════════════════════════════════════════════════════
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS article_imp  VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rib          VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url     TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stamp_url    TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_account VARCHAR(100);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bank_name    VARCHAR(100);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🆕 v7.3 — Migration: حقول جديدة لجدول documents (نظام الأرشفة)
+-- ══════════════════════════════════════════════════════════════════════
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS meta_data  JSONB;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_kind   VARCHAR(50);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_number VARCHAR(100);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS worker_id  INTEGER REFERENCES workers(id) ON DELETE SET NULL;
+
+-- فهرس لتسريع البحث في الأرشيف
+CREATE INDEX IF NOT EXISTS idx_documents_doc_kind ON documents(doc_kind);
+CREATE INDEX IF NOT EXISTS idx_documents_tenant_kind ON documents(tenant_id, doc_kind);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🆕 v7.3 — Migration: إصلاح جدول notifications
+-- ══════════════════════════════════════════════════════════════════════
+-- إضافة حقل extra_data إذا لم يكن موجوداً
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS extra_data TEXT;
+
+-- إصلاح notifications.id ليصبح BIGSERIAL (تلقائي) إذا لم يكن كذلك
+-- هذا يمنع خطأ duplicate key عند INSERT بدون id
+DO $$
+BEGIN
+  -- إنشاء sequence إذا لم تكن موجودة
+  IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'notifications_id_seq') THEN
+    CREATE SEQUENCE notifications_id_seq;
+    ALTER TABLE notifications ALTER COLUMN id SET DEFAULT nextval('notifications_id_seq');
+    SELECT setval('notifications_id_seq', COALESCE(MAX(id), 0) + 1) FROM notifications;
+  END IF;
 END $$;

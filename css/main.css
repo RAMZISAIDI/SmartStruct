@@ -78,7 +78,7 @@ body{font-family:'Tajawal',sans-serif;background:var(--bg);color:var(--text);lin
 .form-input,.form-select,.form-textarea{width:100%;padding:0.68rem 1rem;background:rgba(255,255,255,0.04);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.2s,box-shadow 0.2s}
 .form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(232,184,75,0.12)}
 .form-input::placeholder{color:var(--dim)}
-.form-select option{background:#1a2535}
+.form-select option{background:var(--card-bg, #1a2535);color:var(--text, #fff)}
 .form-textarea{resize:vertical;min-height:70px}
 .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem}
 .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem}
@@ -138,12 +138,16 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 .empty-text{font-size:0.85rem;color:var(--dim);line-height:1.7}
 
 /* ===== TOAST ===== */
-.toast-container{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem}
-.toast{display:flex;align-items:center;gap:0.6rem;padding:0.75rem 1.1rem;border-radius:var(--radius);font-size:0.87rem;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,0.4);animation:toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1);max-width:340px;backdrop-filter:blur(12px)}
+.toast-container{position:fixed;bottom:1.5rem;right:1.5rem;z-index:99999;display:flex;flex-direction:column;gap:0.5rem}
 @keyframes toastIn{from{opacity:0;transform:translateX(30px) scale(0.9)}to{opacity:1;transform:none}}
-.toast-success{background:rgba(52,195,143,0.15);border:1px solid rgba(52,195,143,0.4);color:#6eddb5}
-.toast-error{background:rgba(240,78,106,0.15);border:1px solid rgba(240,78,106,0.4);color:#f79fa9}
-.toast-info{background:rgba(74,144,226,0.15);border:1px solid rgba(74,144,226,0.4);color:#60A5FA}
+.toast-container{position:fixed;bottom:1.5rem;right:1.5rem;z-index:99999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:0.7rem;padding:0.9rem 1.2rem;border-radius:12px;font-size:0.85rem;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1);max-width:380px;min-width:260px;backdrop-filter:blur(16px);pointer-events:all;line-height:1.5;cursor:pointer;border-right:4px solid transparent}
+.toast span:first-child{font-size:1.1rem;flex-shrink:0;margin-top:1px}
+.toast a{color:inherit;opacity:.85;text-decoration:underline}
+.toast-success{background:rgba(52,195,143,0.18);border:1px solid rgba(52,195,143,0.5);border-right-color:#34C38F;color:#6eddb5}
+.toast-error{background:rgba(240,78,106,0.18);border:1px solid rgba(240,78,106,0.5);border-right-color:#F04E6A;color:#f79fa9}
+.toast-info{background:rgba(74,144,226,0.18);border:1px solid rgba(74,144,226,0.5);border-right-color:#4A90E2;color:#93C5FD}
+.toast-warn{background:rgba(232,184,75,0.18);border:1px solid rgba(232,184,75,0.5);border-right-color:#E8B84B;color:#E8B84B}
 
 /* ===== ALERTS ===== */
 .alert{padding:0.78rem 1rem;border-radius:var(--radius);font-size:0.87rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem}
@@ -152,6 +156,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideDown{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
 @keyframes slideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 @keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
@@ -913,14 +918,31 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 
 .auth-input-eye{
   position:absolute;
-  left:0.6rem;
+  left:0.5rem;
+  top:50%;
+  transform:translateY(-50%);
   background:none; border:none; cursor:pointer;
   color:var(--dim);
-  padding:6px; border-radius:6px;
+  padding:5px; border-radius:6px;
   transition:all 0.2s;
+  z-index:2;
+  display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px;
 }
 .auth-input-eye:hover{background:rgba(232,184,75,0.08); color:var(--gold)}
-[dir="ltr"] .auth-input-eye{left:auto; right:0.6rem}
+[dir="ltr"] .auth-input-eye{left:auto; right:0.5rem}
+
+/* حقل كلمة المرور — padding لتجنب التداخل مع زر العين */
+/* RTL (عربي): زر العين على اليسار → padding-left كبير */
+.auth-input[type="password"]{
+  padding-left: 2.8rem !important;
+  padding-right: 1rem !important;
+}
+/* LTR (فرنسي): زر العين على اليمين → padding-right كبير */
+[dir="ltr"] .auth-input[type="password"]{
+  padding-left: 2.8rem !important;  /* للأيقونة القفل */
+  padding-right: 2.8rem !important; /* لزر العين */
+}
 
 /* Password strength */
 .auth-pass-strength{
@@ -2762,3 +2784,218 @@ svg circle:hover { opacity: 1 !important; transform-box: fill-box; transform-ori
 @keyframes rtPulse{0%,100%{opacity:1}50%{opacity:.5}}
 .rt-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#34C38F;animation:rtPulse 1.5s ease-in-out infinite;margin-left:4px;}
 
+
+/* ═══ Hamburger Menu ═══ */
+.ll-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+}
+.ll-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text, #e0d4a8);
+  border-radius: 2px;
+  transition: all .25s;
+}
+@media (max-width: 768px) {
+  .ll-hamburger { display: flex; }
+  .ll-nav-links  { display: none !important; }
+  .ll-nav-cta .ll-btn { display: none; }
+  .ll-nav-cta .ll-lang-btn { display: flex; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LANDING 3D ENHANCEMENTS v7.4
+   لمسات ثلاثية الأبعاد مدهشة للصفحة الرئيسية
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── بطاقات ثلاثية الأبعاد قابلة للإمالة ── */
+.ll-card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.4s cubic-bezier(0.23,1,0.32,1), box-shadow 0.4s ease;
+  cursor: default;
+  will-change: transform;
+}
+.ll-card-3d:hover {
+  box-shadow: 0 30px 60px rgba(0,0,0,.5), 0 0 40px rgba(232,184,75,.15);
+}
+.ll-card-3d .ll-card-shine {
+  position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(circle at var(--mx,50%) var(--my,50%),
+    rgba(255,255,255,.12) 0%, transparent 60%);
+  pointer-events: none; transition: opacity .3s;
+  opacity: 0;
+}
+.ll-card-3d:hover .ll-card-shine { opacity: 1; }
+
+/* ── مكعبات BTP الطافية ── */
+.ll-cubes-scene {
+  position: absolute; inset: 0; pointer-events: none;
+  perspective: 1200px; overflow: hidden;
+}
+.ll-cube {
+  position: absolute;
+  width: 60px; height: 60px;
+  transform-style: preserve-3d;
+  animation: llCubeSpin linear infinite;
+}
+.ll-cube-face {
+  position: absolute; width: 100%; height: 100%;
+  border: 1px solid rgba(232,184,75,.25);
+  background: rgba(232,184,75,.04);
+  backdrop-filter: blur(2px);
+}
+.ll-cube-face.front  { transform: translateZ(30px); }
+.ll-cube-face.back   { transform: rotateY(180deg) translateZ(30px); }
+.ll-cube-face.left   { transform: rotateY(-90deg) translateZ(30px); }
+.ll-cube-face.right  { transform: rotateY(90deg) translateZ(30px); }
+.ll-cube-face.top    { transform: rotateX(90deg) translateZ(30px); }
+.ll-cube-face.bottom { transform: rotateX(-90deg) translateZ(30px); }
+
+@keyframes llCubeSpin {
+  0%   { transform: rotateX(0) rotateY(0); }
+  100% { transform: rotateX(360deg) rotateY(360deg); }
+}
+
+/* ── أرقام إحصائية متحركة ── */
+.ll-stat-num {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  transition: transform .3s;
+}
+
+/* ── بطاقة مشروع ثلاثية الأبعاد ── */
+.ll-project-card-3d {
+  transform-style: preserve-3d;
+  perspective: 800px;
+  animation: llCardFloat ease-in-out infinite;
+}
+@keyframes llCardFloat {
+  0%,100% { transform: rotateX(2deg) rotateY(-2deg) translateY(0); }
+  50%      { transform: rotateX(-1deg) rotateY(3deg) translateY(-8px); }
+}
+
+/* ── خط تقدم متحرك بضوء ── */
+.ll-progress-glow {
+  position: relative; overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255,255,255,.07);
+  height: 6px;
+}
+.ll-progress-glow-bar {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #E8B84B, #34C38F, #E8B84B);
+  background-size: 200% 100%;
+  animation: llProgressShimmer 2s linear infinite;
+  transition: width 1.5s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes llProgressShimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── النجوم المتساقطة ── */
+.ll-star {
+  position: absolute; border-radius: 50%;
+  background: #E8B84B;
+  animation: llStarTwinkle ease-in-out infinite;
+}
+@keyframes llStarTwinkle {
+  0%,100% { opacity: .15; transform: scale(1); }
+  50%     { opacity: .9; transform: scale(1.4); }
+}
+
+/* ── Aurora/Halo خلف الـ hero ── */
+.ll-aurora {
+  position: absolute; border-radius: 50%;
+  filter: blur(80px);
+  animation: llAuroraMove ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes llAuroraMove {
+  0%   { transform: translate(0,0) scale(1); }
+  100% { transform: translate(30px,-20px) scale(1.08); }
+}
+
+/* ── شريط التقنيات ── */
+.ll-tech-strip {
+  display: flex; align-items: center; gap: 2rem;
+  overflow: hidden; white-space: nowrap;
+}
+.ll-tech-strip-inner {
+  display: flex; gap: 2rem; align-items: center;
+  animation: llTechScroll 20s linear infinite;
+}
+@keyframes llTechScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.ll-tech-badge {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .4rem .9rem;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 99px; font-size: .78rem;
+  color: rgba(255,255,255,.6);
+  white-space: nowrap;
+}
+
+/* ── Morphing blob ── */
+.ll-blob {
+  border-radius: 60% 40% 70% 30% / 50% 60% 40% 60%;
+  animation: llBlobMorph 8s ease-in-out infinite alternate;
+  filter: blur(0);
+}
+@keyframes llBlobMorph {
+  0%  { border-radius: 60% 40% 70% 30% / 50% 60% 40% 60%; }
+  25% { border-radius: 40% 60% 30% 70% / 60% 40% 70% 30%; }
+  50% { border-radius: 70% 30% 50% 50% / 30% 70% 60% 40%; }
+  75% { border-radius: 30% 70% 60% 40% / 50% 30% 70% 60%; }
+  100%{ border-radius: 60% 40% 70% 30% / 50% 60% 40% 60%; }
+}
+
+/* ── بطاقة ميزة مُحسَّنة ── */
+.ll-feat-card-enhanced {
+  position: relative; overflow: hidden;
+  transition: transform .4s cubic-bezier(0.23,1,0.32,1),
+              box-shadow .4s ease, border-color .4s ease;
+}
+.ll-feat-card-enhanced::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at var(--mx,50%) var(--my,50%),
+    rgba(232,184,75,.08) 0%, transparent 70%);
+  opacity: 0; transition: opacity .3s;
+}
+.ll-feat-card-enhanced:hover::before { opacity: 1; }
+.ll-feat-card-enhanced:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 20px 50px rgba(0,0,0,.4), 0 0 0 1px rgba(232,184,75,.2);
+  border-color: rgba(232,184,75,.3) !important;
+}
+.ll-feat-card-enhanced .ll-feat-icon-3d {
+  transition: transform .4s cubic-bezier(0.23,1,0.32,1);
+}
+.ll-feat-card-enhanced:hover .ll-feat-icon-3d {
+  transform: scale(1.15) rotateZ(-5deg);
+}
+
+/* ── Counter عداد الأرقام ── */
+@keyframes llCountUp {
+  from { opacity:0; transform: translateY(10px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.ll-count-anim { animation: llCountUp .6s ease forwards; }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .ll-cube { display: none; }
+  .ll-aurora { opacity: .5; }
+  .ll-tech-strip-inner { gap: 1rem; animation-duration: 12s; }
+}

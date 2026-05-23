@@ -1,5 +1,12 @@
 'use strict';
 
+// ════════════════════════════════════════════════════════════════════
+//  Global helpers (تُعرَّف الدوال الفعلية لاحقاً في الملف، هذه stubs آمنة)
+// ════════════════════════════════════════════════════════════════════
+window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
+window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.classList.remove('show'); };
+
+
 /* ══════════════════════════════════════════════════════
    DATABASE — localStorage
 ══════════════════════════════════════════════════════ */
@@ -23,7 +30,6 @@ function ssLogo(size=22, dark=false) {
   </svg>`;
 }
 
-// ─── DB يستخدم DBHybrid (Supabase + localStorage fallback) ────
 // DBHybrid معرّف في supabase-db.js ويُحمّل قبل هذا الملف
 const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
   get(key) {
@@ -32,9 +38,38 @@ const DB = typeof DBHybrid !== 'undefined' ? DBHybrid : {
   set(key, val) { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); },
   nextId(key) {
     const items = this.get(key);
-    return items.length ? Math.max(...items.map(i => i.id)) + 1 : 1;
+    if (!items.length) return Date.now();
+    const maxId = Math.max(...items.map(i => Number(i.id)||0));
+    // إذا كان الـ ID الأقصى من Supabase BigSerial (أكبر من 2 مليار) نستخدم timestamp بدلاً منه
+    if (maxId > 2_000_000_000) return Date.now();
+    return maxId + 1;
   }
 };
+
+// ─── ضمان وجود حساب الأدمن دائماً (يُشغَّل بعد تعريف DB) ──────
+(function _ensureAdminAccount() {
+  try {
+    const users = DB.get('users') || [];
+    const adminExists = users.some(u => u.is_admin === true && u.email === 'admin@smartbtp.dz');
+    if (!adminExists) {
+      const adminUser = {
+        id: 1, tenant_id: null, full_name: 'مسؤول النظام',
+        email: 'admin@smartbtp.dz', password: 'Admin@SmartStruct2025',
+        role: 'admin', is_admin: true, is_active: true, account_status: 'active'
+      };
+      users.unshift(adminUser);
+      try { localStorage.setItem('sbtp5_users', JSON.stringify(users)); } catch(_) {}
+      console.log('✅ Admin account restored');
+    }
+    const tenants = DB.get('tenants') || [];
+    if (!tenants.some(t => t.id === 1)) {
+      const t = { id:1, name:'SmartStruct Admin', plan_id:3, wilaya:'الجزائر', subscription_status:'active', is_active:true };
+      tenants.unshift(t);
+      try { localStorage.setItem('sbtp5_tenants', JSON.stringify(tenants)); } catch(_) {}
+    }
+  } catch(e) { console.warn('_ensureAdminAccount:', e.message); }
+})();
+
 // patch init إذا لم يكن موجوداً في DB
 if (!DB.init) DB.init = function() {
     if (this.get('initialized').length) return;
@@ -59,12 +94,20 @@ if (!DB.init) DB.init = function() {
     _set('projects',        []);
     _set('workers',         []);
     _set('equipment',       []);
+    _set('equipment_logs',  []);
     _set('transactions',    []);
     _set('attendance',      []);
     _set('materials',       []);
     _set('stock_movements', []);
     _set('invoices',        []);
     _set('salary_records',  []);
+    _set('leave_requests',  []);
+    _set('suppliers',       []);
+    _set('supplier_purchases',  []);
+    _set('supplier_prices',     []);
+    _set('supplier_obligations',[]);
+    _set('worker_warnings', []);
+    _set('worker_overtime', []);
     _set('kanban_tasks',    []);
     _set('documents',       []);
     _set('obligations',     []);
@@ -107,40 +150,40 @@ const Auth = {
     sessionStorage.setItem('sbtp_user', JSON.stringify(user));
     return true;
   },
-  logout() {
-    // تنبيه فقط عند وجود تعديلات/عمليات معلّقة (لا نمنع تسجيل الخروج)
+  // ── خروج مباشر بدون فحص ──
+  _forceLogout() {
+    this.currentUser = null;
+    sessionStorage.removeItem('sbtp_user');
+    if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
+    window.location.replace('index.html');
+  },
+
+  async logout() {
+    // ── فحص البيانات المعلقة ──
+    let pendingCount = 0;
     try {
-      const dirty = (typeof DBHybrid !== 'undefined' && DBHybrid && typeof DBHybrid.hasUploadRequired === 'function')
-        ? DBHybrid.hasUploadRequired()
-        : (localStorage.getItem('sbtp5_sync_dirty') === '1');
+      pendingCount = (typeof SmartRealtime !== 'undefined' && SmartRealtime.getOfflineQueueCount)
+        ? SmartRealtime.getOfflineQueueCount()
+        : (() => { try { return (JSON.parse(localStorage.getItem('sbtp5_offline_queue')||'[]')||[]).length; } catch { return 0; } })();
+    } catch(e) {}
 
-      const pending = (typeof DBHybrid !== 'undefined' && DBHybrid && typeof DBHybrid.getOfflineQueueCount === 'function')
-        ? DBHybrid.getOfflineQueueCount()
-        : (() => { try { return (JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]') || []).length; } catch { return 0; } })();
-
-      if (dirty || pending) {
-        if (typeof Toast !== 'undefined') {
-          const msg = pending
-            ? `⚠️ تنبيه: لديك عمليات لم تُرفع بعد إلى Supabase (المعلقة: ${pending}). يمكنك رفعها لاحقاً من زر المزامنة.`
-            : `⚠️ تنبيه: لديك تعديلات لم تُرفع بعد إلى Supabase. يمكنك رفعها لاحقاً من زر المزامنة.`;
-          Toast.warn(msg);
-        }
-        // ملاحظة: لا نمنع تسجيل الخروج ولا نُحوّل المستخدم لأي صفحة
-      }
-    } catch (e) {}
+    if (pendingCount > 0) {
+      // ── عرض dialog احترافي ──
+      const confirmed = await _showUnsyncedDialog(pendingCount, false);
+      if (!confirmed) return; // المستخدم اختار البقاء
+    }
 
     this.currentUser = null;
     sessionStorage.removeItem('sbtp_user');
-    // ⚡ إيقاف Realtime عند تسجيل الخروج
     if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
-    App.navigate('landing');
+    window.location.replace('index.html');
   },
   load() {
     const u = sessionStorage.getItem('sbtp_user');
     if (u) {
       const parsed = JSON.parse(u);
       // إذا كان المستخدم مسؤولاً ولم يمر من صفحة admin-login، نمسح الجلسة
-      if (parsed.is_admin && !sessionStorage.getItem('sbtp_admin_auth')) {
+      if (parsed.is_admin && !localStorage.getItem('sbtp_admin_auth')) {
         sessionStorage.removeItem('sbtp_user');
         return;
       }
@@ -162,20 +205,35 @@ const Auth = {
    TOAST
 ══════════════════════════════════════════════════════ */
 const Toast = {
-  show(msg, type='info') {
+  _shown: new Set(), // منع الإشعارات المكررة في نفس الجلسة
+  show(msg, type='info', duration) {
     const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
     const c = document.getElementById('toastContainer');
-    if (!c) return;
+    if (!c) {
+      // إذا لم يُهيَّأ الـ DOM بعد، انتظر قليلاً
+      setTimeout(() => Toast.show(msg, type, duration), 300);
+      return;
+    }
     const t = document.createElement('div');
     t.className = `toast toast-${type==='warn'?'warn':type}`;
-    t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${String(msg).replace(/</g,'&lt;')}</span>`;
+    // دعم HTML في الرسائل (للروابط)
+    const safeMsg = String(msg);
+    const hasHtml = safeMsg.includes('<a ') || safeMsg.includes('<strong>');
+    if (hasHtml) {
+      t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${safeMsg}</span>`;
+    } else {
+      t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${safeMsg.replace(/</g,'&lt;')}</span>`;
+    }
+    t.style.cursor = 'pointer';
+    t.addEventListener('click', () => t.remove());
     c.appendChild(t);
-    setTimeout(() => t.remove(), type === 'warn' ? 6000 : 4000);
+    const ms = duration || (type === 'error' ? 6000 : type === 'warn' ? 5000 : 4000);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, ms);
   },
-  success: m => Toast.show(m,'success'),
-  error: m => Toast.show(m,'error'),
-  info: m => Toast.show(m,'info'),
-  warn: m => Toast.show(m,'warn')
+  success: (m, d) => Toast.show(m, 'success', d),
+  error:   (m, d) => Toast.show(m, 'error',   d),
+  info:    (m, d) => Toast.show(m, 'info',     d),
+  warn:    (m, d) => Toast.show(m, 'warn',     d),
 };
 
 /* ══════════════════════════════════════════════════════
@@ -267,6 +325,7 @@ const I18N = {
     'nav.transactions': {ar:'المعاملات',       fr:'Transactions'},
     'nav.invoices':     {ar:'الفواتير',        fr:'Factures'},
     'nav.inventory':    {ar:'المخزون',         fr:'Stock'},
+    'nav.suppliers':    {ar:'الموردون',        fr:'Fournisseurs'},
     'nav.materials':    {ar:'المواد',          fr:'Matériaux'},
     'nav.documents':    {ar:'الوثائق',         fr:'Documents'},
     'nav.reports':      {ar:'التقارير',        fr:'Rapports'},
@@ -410,12 +469,181 @@ const I18N = {
     'cmp.workers':      {ar:'العمال',          fr:'Ouvriers'},
     'cmp.duration':     {ar:'المدة (يوم)',      fr:'Durée (j)'},
     'cmp.efficiency':   {ar:'كفاءة الميزانية', fr:'Efficacité budget'},
+
+    // ── HR ──
+    'hr.leaves':        {ar:'الإجازات',              fr:'Congés'},
+    'hr.leave.annual':  {ar:'إجازة سنوية',           fr:'Congé annuel'},
+    'hr.leave.sick':    {ar:'إجازة مرضية',           fr:'Congé maladie'},
+    'hr.leave.maternity':{ar:'إجازة أمومة',          fr:'Congé maternité'},
+    'hr.leave.unpaid':  {ar:'إجازة بدون أجر',        fr:'Congé sans solde'},
+    'hr.leave.other':   {ar:'إجازة أخرى',            fr:'Autre congé'},
+    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant'},
+    'hr.leave.pending': {ar:'بانتظار الموافقة',       fr:'En attente d\'approbation'},
+    'hr.leave.approved':{ar:'مُعتمد',                fr:'Approuvé'},
+    'hr.leave.rejected':{ar:'مرفوض',                 fr:'Refusé'},
+    'hr.warning':       {ar:'إنذار',                 fr:'Avertissement'},
+    'hr.warning.verbal':{ar:'شفوي',                  fr:'Verbal'},
+    'hr.warning.written':{ar:'كتابي',                fr:'Écrit'},
+    'hr.warning.final': {ar:'إنذار نهائي',           fr:'Avertissement final'},
+    'hr.overtime':      {ar:'ساعات إضافية',          fr:'Heures supplémentaires'},
+    'hr.overtime.rate': {ar:'نسبة المكافأة',         fr:'Taux de majoration'},
+    'hr.profile':       {ar:'الملف التفصيلي',        fr:'Profil détaillé'},
+    'hr.contract.end':  {ar:'تاريخ انتهاء العقد',    fr:'Date de fin de contrat'},
+    'hr.contract.expiring':{ar:'تنتهي عقودهم قريباً',fr:'Contrats bientôt expirés'},
+    'hr.absence.cost':  {ar:'تكلفة الغياب',          fr:'Coût des absences'},
+    'hr.allowances':    {ar:'العلاوات',              fr:'Primes'},
+    'hr.deductions':    {ar:'الخصومات',              fr:'Déductions'},
+    'hr.transport':     {ar:'بدل نقل',               fr:'Indemnité transport'},
+    'hr.housing':       {ar:'بدل إقامة',             fr:'Indemnité logement'},
+    'hr.productivity':  {ar:'علاوة إنتاجية',         fr:'Prime de productivité'},
+
+    // ── Invoices ──
+    'inv.draft':        {ar:'مسودة',               fr:'Brouillon'},
+    'inv.pending':      {ar:'معلقة',               fr:'En attente'},
+    'inv.partial':      {ar:'جزئية',               fr:'Paiement partiel'},
+    'inv.paid':         {ar:'مدفوعة',              fr:'Payée'},
+    'inv.overdue':      {ar:'متأخرة',              fr:'En retard'},
+    'inv.confirm':      {ar:'تأكيد الفاتورة',      fr:'Confirmer la facture'},
+    'inv.partial.pay':  {ar:'تسجيل دفع جزئي',      fr:'Paiement partiel'},
+    'inv.aging':        {ar:'تقرير الذمم المدينة',  fr:'Rapport d\'aging'},
+    'inv.balance':      {ar:'الرصيد المتبقي',       fr:'Solde restant'},
+    'inv.paid_amount':  {ar:'المبلغ المدفوع',       fr:'Montant payé'},
+    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive'},
+
+    // ── Suppliers ──
+    'sup.prices':       {ar:'قائمة الأسعار',       fr:'Tarifs de référence'},
+    'sup.obligations':  {ar:'الالتزامات',          fr:'Obligations'},
+    'sup.obl.invoice':  {ar:'فاتورة آجلة',         fr:'Facture à terme'},
+    'sup.obl.check':    {ar:'شيك مستحق',           fr:'Chèque à encaisser'},
+    'sup.obl.deposit':  {ar:'ضمان/عربون',          fr:'Caution/Acompte'},
+    'sup.obl.loan':     {ar:'قرض/سلفة',            fr:'Prêt/Avance'},
+    'sup.obl.done':     {ar:'تأشير كمنجز',         fr:'Marquer accompli'},
+    'sup.due':          {ar:'تاريخ الاستحقاق',     fr:'Date d\'échéance'},
+    'sup.ref':          {ar:'المرجع',              fr:'Référence'},
+
+    // ── Filter ──
+    'filter.project':   {ar:'تصفية بالمشروع',     fr:'Filtrer par projet'},
+    'filter.all':       {ar:'كل المشاريع',        fr:'Tous les projets'},
+    'filter.clear':     {ar:'إلغاء الفلتر',       fr:'Effacer le filtre'},
+
+    // ── Print ──
+    'print.customize':  {ar:'تخصيص الورقة',      fr:'Personnaliser'},
+    'print.font':       {ar:'نوع الخط',          fr:'Police'},
+    'print.fontSize':   {ar:'حجم الخط',          fr:'Taille police'},
+    'print.color':      {ar:'اللون الرئيسي',     fr:'Couleur principale'},
+    'print.margin':     {ar:'الهوامش',           fr:'Marges'},
+    'print.pageSize':   {ar:'حجم الورق',         fr:'Format papier'},
+    'print.orient':     {ar:'الاتجاه',           fr:'Orientation'},
+    'print.portrait':   {ar:'عمودي',             fr:'Portrait'},
+    'print.landscape':  {ar:'أفقي',              fr:'Paysage'},
+    'print.watermark':  {ar:'نص خلفي',           fr:'Filigrane'},
+    'print.lineHeight': {ar:'تباعد الأسطر',      fr:'Interligne'},
+    'print.save':       {ar:'حفظ الإعدادات',     fr:'Sauvegarder paramètres'},
+    'print.reset':      {ar:'إعادة الإعدادات',   fr:'Réinitialiser'},
+    'print.savePC':     {ar:'حفظ على الحاسوب',   fr:'Enregistrer sur PC'},
+    'print.showLogo':   {ar:'إظهار الشعار',      fr:'Afficher logo'},
+    'print.showFooter': {ar:'إظهار الفوتر',      fr:'Afficher pied de page'},
+    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page'},
+    'print.tableHeader':{ar:'لون رأس الجدول',    fr:'Couleur en-tête tableau'},
+    'print.rowColor':   {ar:'لون الصفوف',        fr:'Couleur des lignes'},
+    'print.headingSize':{ar:'حجم العناوين',      fr:'Taille des titres'},
+
+    // ── Backup ──
+    'bak.export':       {ar:'تصدير نسخة احتياطية',  fr:'Exporter sauvegarde'},
+    'bak.import':       {ar:'استعادة من نسخة',       fr:'Restaurer depuis'},
+    'bak.exportExcel':  {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel'},
+    'bak.exportSalary': {ar:'تصدير الرواتب Excel',   fr:'Exporter salaires Excel'},
+
+    // ── Auth ──
+    'auth.phone':       {ar:'رقم الهاتف',           fr:'Téléphone'},
+    'auth.sendOtp':     {ar:'إرسال كود',             fr:'Envoyer code'},
+    'auth.otp':         {ar:'كود التحقق',            fr:'Code de vérification'},
+    'auth.otpSent':     {ar:'تم إرسال الكود إلى',    fr:'Code envoyé à'},
+    'auth.otpExpiry':   {ar:'ينتهي خلال',            fr:'Expire dans'},
+    'auth.resend':      {ar:'إعادة إرسال',           fr:'Renvoyer'},
+    'auth.register':    {ar:'إنشاء حساب مجاناً',     fr:'Créer un compte gratuit'},
+    'auth.login':       {ar:'تسجيل الدخول',          fr:'Connexion'},
+    'auth.company':     {ar:'اسم المؤسسة',           fr:'Nom de l\'entreprise'},
+    'auth.fullName':    {ar:'الاسم الكامل',          fr:'Nom complet'},
+    'auth.password':    {ar:'كلمة المرور',           fr:'Mot de passe'},
+    'auth.wilaya':      {ar:'الولاية',               fr:'Wilaya'},
+    'auth.terms':       {ar:'أوافق على الشروط',      fr:'J\'accepte les conditions'},
+    'auth.trial':       {ar:'14 يوم مجاناً',         fr:'14 jours gratuits'},
+    'auth.noCard':      {ar:'بدون بطاقة بنكية',      fr:'Sans carte bancaire'},
+
+    // ── Drive ──
+    'drive.connect':    {ar:'ربط Google Drive',      fr:'Connecter Google Drive'},
+    'drive.connected':  {ar:'متصل',                  fr:'Connecté'},
+    'drive.files':      {ar:'آخر الملفات المحفوظة',  fr:'Derniers fichiers sauvegardés'},
+    'drive.clientId':   {ar:'إعداد Client ID',       fr:'Configuration Client ID'},
+
+    // ── Protection ──
+    'prot.unsaved':     {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!'},
+    'prot.syncFirst':   {ar:'ارفع التعديلات ثم اخرج',fr:'Synchroniser puis quitter'},
+    'prot.exitAnyway':  {ar:'اخرج بدون رفع',        fr:'Quitter sans synchroniser'},
+    'prot.stay':        {ar:'رجوع — لا أريد الخروج',fr:'Annuler'},
   }
 };
 // Shortcut
 function __(key) { return I18N.t(key); }
+
+// ── تطبيق الترجمة على عناصر DOM الثابتة ──
+function applyDOMTranslation() {
+  if (I18N.currentLang === 'ar') return;
+  const lang = I18N.currentLang;
+
+  // ترجمة عناصر data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = I18N.t(key);
+    if (val !== key) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = val;
+      } else {
+        el.textContent = val;
+      }
+    }
+  });
+
+  // ترجمة عناصر title/placeholder
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const val = I18N.t(key);
+    if (val !== key) el.title = val;
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = I18N.t(key);
+    if (val !== key) el.placeholder = val;
+  });
+}
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
 function L(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; }
+
+// ── الحصول على اسم الكيان (مؤسسة/عامل/عميل) حسب اللغة الحالية ──
+// يدعم حقلين: name (عربي) و name_fr (فرنسي)
+function getLocalName(obj, fallback) {
+  if (!obj) return fallback || '—';
+  if (I18N.currentLang === 'fr') {
+    return obj.name_fr?.trim() || obj.full_name_fr?.trim() || obj.name?.trim() || obj.full_name?.trim() || fallback || '—';
+  }
+  return obj.name?.trim() || obj.full_name?.trim() || obj.name_fr?.trim() || obj.full_name_fr?.trim() || fallback || '—';
+}
+
+// ── حقل اسم ثنائي اللغة (يُستخدم في الفورمات) ──
+function bilingualNameField(id, labelAr, labelFr, valAr, valFr, placeholder_ar, placeholder_fr) {
+  valAr = valAr || ''; valFr = valFr || '';
+  return `
+    <div class="form-group">
+      <label class="form-label">🇩🇿 ${labelAr} <span style="font-size:.72rem;color:var(--dim)">(${L('عربي','Arabe')})</span></label>
+      <input class="form-input" id="${id}" type="text" value="${escHtml(valAr)}" placeholder="${placeholder_ar||labelAr}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">🇫🇷 ${labelFr} <span style="font-size:.72rem;color:var(--dim)">(Français)</span></label>
+      <input class="form-input" id="${id}_fr" type="text" value="${escHtml(valFr)}" placeholder="${placeholder_fr||labelFr}" dir="ltr">
+    </div>`;
+}
 
 /* ══════════════════════════════════════════════════════
    DOM TRANSLATION ENGINE
@@ -820,79 +1048,79 @@ const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو
 //  false / غياب = محظور تماماً
 const ROLE_PERMISSIONS = {
   admin: {
-    // المسؤول يملك كل شيء — يتحكم عبر لوحة الإدارة
     dashboard:true, analytics:true, projects:true, project_detail:true,
     compare:true, calendar:true, map:true, kanban:true, gantt:true,
-    workers:true, attendance:true, salary:true,
+    workers:true, attendance:true, salary:true, worker_profile:true,
     transactions:true, invoices:true,
     inventory:true, equipment:true, materials:true,
+    suppliers:true, supplier_detail:true,
     documents:true, reports:true, bank_report:true, simulator:true,
-    obligations:true, audit_log:true, team:true, settings:true,
-    // Write actions
+    obligations:true, audit_log:true, team:true, settings:true, subscription:true,
     write_projects:true, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:true, write_equipment:true, write_documents:true,
     write_notes:true, write_team:true, write_settings:true,
+    write_suppliers:true, write_invoices:true,
   },
   manager: {
-    // مدير المشروع: يدير المشاريع والعمال والمواد والوثائق — يرى المالية فقط
     dashboard:true, analytics:'view', projects:true, project_detail:true,
     compare:'view', calendar:true, map:'view', kanban:true, gantt:true,
-    workers:true, attendance:true, salary:'view',
+    workers:true, attendance:true, salary:'view', worker_profile:true,
     transactions:'view', invoices:'view',
     inventory:true, equipment:true, materials:true,
+    suppliers:true, supplier_detail:true,
     documents:true, reports:'view', bank_report:false, simulator:'view',
     obligations:'view', audit_log:'view', team:'view', settings:'view',
-    // Write actions
     write_projects:true, write_workers:true, write_attendance:true,
     write_salary:false, write_transactions:false, write_invoices:false,
     write_materials:true, write_equipment:true, write_documents:true,
     write_notes:true, write_team:false, write_settings:false,
+    write_suppliers:true,
   },
   accountant: {
-    // المحاسب: يدير المالية الكاملة — يرى المشاريع والعمال فقط
     dashboard:true, analytics:true, projects:'view', project_detail:'view',
     compare:'view', calendar:'view', map:false, kanban:false, gantt:false,
-    workers:'view', attendance:'view', salary:true,
+    workers:'view', attendance:'view', salary:true, worker_profile:'view',
     transactions:true, invoices:true,
     inventory:'view', equipment:'view', materials:'view',
+    suppliers:true, supplier_detail:true,
     documents:'view', reports:true, bank_report:true, simulator:true,
-    obligations:true, audit_log:'view', team:'view', settings:'view',
-    // Write actions
+    obligations:true, audit_log:'view', team:'view', settings:'view', subscription:true, subscription:true,
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:false, write_equipment:false, write_documents:false,
     write_notes:false, write_team:false, write_settings:false,
+    write_suppliers:true,
   },
   hr: {
-    // الموارد البشرية: يدير العمال والحضور والرواتب — لا يرى المالية
     dashboard:true, analytics:false, projects:'view', project_detail:'view',
     compare:false, calendar:'view', map:false, kanban:false, gantt:false,
-    workers:true, attendance:true, salary:true,
+    workers:true, attendance:true, salary:true, worker_profile:true,
     transactions:false, invoices:false,
     inventory:false, equipment:false, materials:false,
+    suppliers:false, supplier_detail:false,
     documents:false, reports:false, bank_report:false, simulator:false,
-    obligations:false, audit_log:false, team:'view', settings:'view',
-    // Write actions
+    obligations:false, audit_log:false, team:'view', settings:'view', subscription:true,
     write_projects:false, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
     write_notes:false, write_team:false, write_settings:false,
+    write_suppliers:false,
   },
   viewer: {
-    // قارئ فقط: يرى كل شيء ولا يعدل شيئاً
     dashboard:true, analytics:'view', projects:'view', project_detail:'view',
     compare:'view', calendar:'view', map:'view', kanban:'view', gantt:'view',
-    workers:'view', attendance:'view', salary:'view',
+    workers:'view', attendance:'view', salary:'view', worker_profile:'view',
     transactions:'view', invoices:'view',
     inventory:'view', equipment:'view', materials:'view',
+    suppliers:'view', supplier_detail:'view',
     documents:'view', reports:'view', bank_report:false, simulator:'view',
-    obligations:'view', audit_log:false, team:'view', settings:'view',
-    // Write actions — NONE
+    obligations:'view', audit_log:false, team:'view', settings:'view', subscription:true,
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:false, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
     write_notes:false, write_team:false, write_settings:false,
+    write_suppliers:false,
   }
 };
 
@@ -906,6 +1134,10 @@ const PAGE_PERM_MAP = {
   materials:'materials', documents:'documents', reports:'reports',
   bank_report:'bank_report', simulator:'simulator', obligations:'obligations',
   audit_log:'audit_log', team:'team', settings:'settings',
+  dz_documents:'documents', archive:'documents',
+  suppliers:'suppliers', supplier_detail:'suppliers',
+  worker_profile:'workers',
+  subscription:'subscription',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -974,22 +1206,152 @@ function accessDeniedHTML(pageName) {
   `);
 }
 
+// ══════════════════════════════════════════════════════════════
+//  🛡️ نظام حماية البيانات — منع فقدان التعديلات غير المرفوعة
+// ══════════════════════════════════════════════════════════════
+
+// ── فحص البيانات المعلقة ──
+function _getPendingCount() {
+  try {
+    if (typeof SmartRealtime !== 'undefined' && SmartRealtime.getOfflineQueueCount)
+      return SmartRealtime.getOfflineQueueCount();
+    const q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
+    return Array.isArray(q) ? q.length : 0;
+  } catch { return 0; }
+}
+
+// ── dialog تحذير قبل الخروج ──
+function _showUnsyncedDialog(count, isWindowClose = false) {
+  return new Promise(resolve => {
+    // حذف أي dialog سابق
+    document.getElementById('_unsyncedDialog')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = '_unsyncedDialog';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+
+    overlay.innerHTML = `
+      <div style="background:#0e1720;border:1px solid rgba(232,184,75,.3);border-radius:16px;padding:2rem;max-width:420px;width:90%;box-shadow:0 30px 80px rgba(0,0,0,.6)">
+        <div style="text-align:center;margin-bottom:1.5rem">
+          <div style="font-size:2.5rem;margin-bottom:.8rem">⚠️</div>
+          <div style="font-size:1.1rem;font-weight:800;color:#F0EDE4;margin-bottom:.5rem">
+            ${L('بيانات لم تُرفع بعد!','Données non synchronisées!')}
+          </div>
+          <div style="font-size:.85rem;color:rgba(240,237,228,.6);line-height:1.6">
+            ${L(`لديك <strong style="color:#E8B84B">${count} عملية</strong> معلقة لم تُرفع لـ Supabase بعد.<br>إذا خرجت الآن قد تفقد هذه التعديلات.`,
+               `Vous avez <strong style="color:#E8B84B">${count} opération(s)</strong> en attente.<br>Quitter maintenant peut entraîner une perte de données.`)}
+          </div>
+        </div>
+
+        <!-- Progress bar مخفي ابتداءً -->
+        <div id="_syncProgress" style="display:none;margin-bottom:1.2rem">
+          <div style="font-size:.78rem;color:rgba(240,237,228,.6);margin-bottom:.4rem;text-align:center" id="_syncProgressText">
+            ${L('جاري الرفع...','Synchronisation...')}
+          </div>
+          <div style="background:rgba(255,255,255,.1);border-radius:99px;height:6px;overflow:hidden">
+            <div id="_syncProgressBar" style="height:100%;background:linear-gradient(90deg,#E8B84B,#D4AF37);border-radius:99px;width:0%;transition:width .3s"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:.6rem" id="_syncBtns">
+          <button id="_btnSyncNow" style="padding:.8rem;background:linear-gradient(135deg,#E8B84B,#D4AF37);border:none;border-radius:10px;color:#0a0e1a;font-weight:800;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem"
+            onclick="_doSyncBeforeExit(${isWindowClose})">
+            ☁️ ${L('ارفع التعديلات ثم اخرج','Synchroniser puis quitter')}
+          </button>
+          <button style="padding:.7rem;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.3);border-radius:10px;color:#F09595;font-weight:600;font-size:.85rem;cursor:pointer"
+            onclick="document.getElementById('_unsyncedDialog').remove();${isWindowClose ? '' : "Auth._forceLogout()"}">
+            🚪 ${L('اخرج بدون رفع (قد تفقد البيانات)','Quitter sans synchroniser')}
+          </button>
+          ${!isWindowClose ? `
+          <button style="padding:.7rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:rgba(240,237,228,.7);font-size:.85rem;cursor:pointer"
+            onclick="document.getElementById('_unsyncedDialog').remove()">
+            ← ${L('رجوع — لا أريد الخروج','Annuler')}
+          </button>` : ''}
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    // resolve(false) = المستخدم اختار البقاء
+    // resolve(true)  = يمكن الخروج
+    overlay._resolve = resolve;
+  });
+}
+
+// ── رفع قبل الخروج ──
+async function _doSyncBeforeExit(isWindowClose) {
+  const progressDiv  = document.getElementById('_syncProgress');
+  const progressBar  = document.getElementById('_syncProgressBar');
+  const progressText = document.getElementById('_syncProgressText');
+  const btnsDiv      = document.getElementById('_syncBtns');
+
+  if (progressDiv) progressDiv.style.display = 'block';
+  if (btnsDiv) btnsDiv.style.display = 'none';
+
+  let progress = 0;
+  const timer = setInterval(() => {
+    progress = Math.min(progress + 8, 90);
+    if (progressBar) progressBar.style.width = progress + '%';
+  }, 150);
+
+  try {
+    // محاولة رفع القائمة
+    if (typeof SmartRealtime !== 'undefined' && SmartRealtime._flushOfflineQueue) {
+      await SmartRealtime._flushOfflineQueue();
+    } else if (typeof SmartRealtime !== 'undefined' && SmartRealtime.forceSync) {
+      await SmartRealtime.forceSync();
+    }
+
+    clearInterval(timer);
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressText) progressText.textContent = L('✅ تم الرفع بنجاح!','✅ Synchronisation réussie!');
+
+    await new Promise(r => setTimeout(r, 800));
+
+  } catch(e) {
+    clearInterval(timer);
+    if (progressText) {
+      progressText.style.color = '#F09595';
+      progressText.textContent = L('⚠️ تعذّر الرفع الكامل — سيتم المحاولة عند تسجيل الدخول التالي',
+                                   '⚠️ Synchronisation partielle — réessai à la prochaine connexion');
+    }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  document.getElementById('_unsyncedDialog')?.remove();
+
+  // إتمام الخروج
+  if (!isWindowClose) {
+    Auth._forceLogout();
+  } else {
+    // للإغلاق: نُبلّغ أن الرفع انتهى
+    const overlay = document.getElementById('_unsyncedDialog');
+    if (overlay?._resolve) overlay._resolve(true);
+  }
+}
+
 const App = {
-  currentPage: 'landing',
+  currentPage: 'login',
   params: {},
   navigate(page, params={}) {
-    this.currentPage = page; this.params = params; this.render();
+    this.currentPage = page; this.params = params;
+    if (typeof _applyThemeForPage === 'function') _applyThemeForPage(page);
+    this.render();
     window.scrollTo(0,0);
   },
   render() {
     const app = document.getElementById('app');
     const user = Auth.getUser();
-    if (!user && !['landing','login'].includes(this.currentPage)) this.currentPage = 'landing';
+    if (!user && !['login'].includes(this.currentPage)) {
+      // لا يوجد مستخدم — أعد التوجيه إلى الصفحة الرئيسية
+      window.location.replace('index.html');
+      return;
+    }
     if (user && this.currentPage === 'login') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
     if (user && this.currentPage === 'landing') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
 
     // ── ADMIN GUARD: يمنع دخول المسؤول إلا عبر صفحة admin-login المنفصلة ──
-    if (user && user.is_admin && !sessionStorage.getItem('sbtp_admin_auth')) {
+    if (user && user.is_admin && !localStorage.getItem('sbtp_admin_auth')) {
       Auth.logout();
       window.location.href = 'admin-login.html';
       return;
@@ -1039,15 +1401,18 @@ const App = {
 
     const pages = { landing:Pages.landing, login:(()=>Pages.login(App.params&&App.params.mode)), dashboard:Pages.dashboard,
       projects:Pages.projects, workers:Pages.workers, equipment:Pages.equipment,
+      worker_profile:Pages.worker_profile,
       transactions:Pages.transactions, attendance:Pages.attendance, reports:Pages.reports,
-      settings:Pages.settings, admin:Pages.admin,
+      settings:Pages.settings, admin:Pages.admin, subscription:Pages.subscription,
       project_detail:Pages.project_detail, materials:Pages.materials,
       analytics:Pages.analytics, kanban:Pages.kanban, gantt:Pages.gantt,
       salary:Pages.salary, invoices:Pages.invoices, inventory:Pages.inventory,
+      suppliers:Pages.suppliers, supplier_detail:Pages.supplier_detail,
       documents:Pages.documents, team:Pages.team,
       compare:Pages.compare, calendar:Pages.calendar, map:Pages.map,
       simulator:Pages.simulator, bank_report:Pages.bankReport,
-      audit_log:Pages.auditLog, obligations:Pages.obligations };
+      audit_log:Pages.auditLog, obligations:Pages.obligations,
+      dz_documents:Pages.dz_documents, archive:Pages.archive, about:Pages.about, contact:Pages.contact };
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -1055,7 +1420,7 @@ const App = {
       this.animateBars();
       if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
-      if (this.currentPage === 'landing' && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
+      if (['landing','about','contact'].includes(this.currentPage) && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
       if (this.currentPage === 'login' && typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
       applyDOMTranslation(); // ← RADICAL FIX: translate every text node after render
 
@@ -1072,7 +1437,7 @@ const App = {
   },
   bindEvents() {
     document.querySelectorAll('[data-nav]').forEach(el => {
-      el.addEventListener('click', e => { e.preventDefault(); App.navigate(el.dataset.nav); });
+      el.addEventListener('click', e => { e.preventDefault(); const target = el.dataset.nav; if (target === 'landing') { window.location.replace('index.html'); } else { App.navigate(target); } });
     });
     document.querySelectorAll('[data-modal-open]').forEach(el => {
       el.addEventListener('click', () => { const m = document.getElementById(el.dataset.modalOpen); if(m) m.classList.add('show'); });
@@ -1083,6 +1448,24 @@ const App = {
     document.querySelectorAll('.modal-overlay').forEach(el => {
       el.addEventListener('click', e => { if(e.target===el) el.classList.remove('show'); });
     });
+    // ✅ دوال عامة لفتح/إغلاق modals من أي مكان (تُستخدم في openEquipLog, viewEquipHistory...)
+    window.openModal = function(id) {
+      const m = document.getElementById(id);
+      if (m) {
+        m.classList.add('show');
+        // أعِد ربط أحداث الإغلاق على هذا الـ modal تحديداً
+        m.querySelectorAll('[data-modal-close]').forEach(el => {
+          if (!el._modalCloseBound) {
+            el._modalCloseBound = true;
+            el.addEventListener('click', () => m.classList.remove('show'));
+          }
+        });
+      }
+    };
+    window.closeModal = function(id) {
+      const m = document.getElementById(id);
+      if (m) m.classList.remove('show');
+    };
     // ===== SIDEBAR TOGGLE (Mobile) =====
     window.openSidebar = function() {
       const sb = document.getElementById('sidebar');
@@ -1146,37 +1529,122 @@ function topbarHTML(breadcrumb) {
   const user = Auth.getUser();
   const initial = (user?.full_name||'U')[0].toUpperCase();
   const tid = user?.tenant_id;
-  // Check budget alerts
   const projects = tid ? DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived) : [];
   const alertCount = projects.filter(p=>p.total_spent >= p.budget*0.9 && p.budget>0).length;
+
+  // ── بادج حالة الاشتراك ──
+  let subBadge = '';
+  if (user && !user.is_admin && typeof TrialManager !== 'undefined') {
+    const tenant = Auth.getTenant();
+    if (tenant) {
+      const isExpired   = TrialManager.isExpired(tenant);
+      const status      = tenant.subscription_status || 'trial';
+      const daysLeft    = TrialManager.getDaysLeft(tenant);
+      const paidDays    = TrialManager.getPaidDaysLeft(tenant);
+
+      if (isExpired || status === 'expired' || tenant.is_active === false) {
+        subBadge = `<button onclick="typeof TrialManager!=='undefined'&&TrialManager.showExpiredModal('${escHtml(tenant.name||'')}')"
+          style="padding:4px 10px;background:rgba(240,78,106,.15);border:1px solid rgba(240,78,106,.4);border-radius:20px;color:#F04E6A;font-size:.72rem;font-weight:800;cursor:pointer;animation:pulse 1.5s infinite;white-space:nowrap">
+          ⛔ ${L('الحساب منتهي — اشترك','Compte expiré — S\'abonner')}
+        </button>
+        <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}</style>`;
+      } else if (status === 'trial' && daysLeft !== null) {
+        const color = daysLeft <= 2 ? '#F04E6A' : daysLeft <= 5 ? '#E8B84B' : '#34C38F';
+        subBadge = `<button onclick="App.navigate('subscription')"
+          style="padding:4px 10px;background:${color}15;border:1px solid ${color}44;border-radius:20px;color:${color};font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">
+          ⏳ ${daysLeft} ${L('يوم مجاني','j. essai')}
+        </button>`;
+      } else if (status === 'active' && paidDays !== null && paidDays <= 10) {
+        subBadge = `<button onclick="App.navigate('subscription')"
+          style="padding:4px 10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.3);border-radius:20px;color:var(--gold);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">
+          🔔 ${paidDays} ${L('يوم للتجديد','j. renouvellement')}
+        </button>`;
+      } else if (status === 'active') {
+        subBadge = `<span style="padding:3px 9px;background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.2);border-radius:20px;color:#34C38F;font-size:.7rem;font-weight:700;white-space:nowrap">
+          ✅ ${L('مشترك','Abonné')}
+        </span>`;
+      }
+    }
+  }
+
   return `<header class="topbar">
-    <div style="display:flex;align-items:center;gap:.8rem">
+    <div style="display:flex;align-items:center;gap:.8rem;flex:1">
       <button class="hamburger">☰</button>
       <div class="topbar-breadcrumb">SmartStruct <span style="opacity:.3">›</span> ${breadcrumb}</div>
+      <!-- البحث العالمي -->
+      <div style="position:relative;margin:0 .5rem;flex:1;max-width:260px;display:flex;align-items:center">
+        <span style="position:absolute;right:8px;font-size:14px;color:rgba(255,255,255,.35);pointer-events:none">🔍</span>
+        <input id="globalSearchInp" type="text"
+          placeholder="${L('بحث عالمي...','Recherche...')}"
+          style="width:100%;padding:5px 28px 5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text);font-size:.78rem;font-family:inherit;outline:none"
+          oninput="globalSearch(this.value)"
+          onkeydown="if(event.key==='Escape'){this.value='';document.getElementById('globalSearchResults')?.remove();}"
+          onfocus="this.style.borderColor='rgba(232,184,75,.5)'" 
+          onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:.6rem">
-      ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
-      <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.78rem">🌐 ${I18N.currentLang==='ar'?'الموقع':'Site'}</button>
-      <button class="lang-toggle-btn" style="padding:.25rem .7rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${I18N.currentLang==='ar'?'Français':'العربية'}">
-        ${I18N.currentLang === 'ar' ? '🇫🇷 FR' : '🇩🇿 AR'}
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+      ${subBadge}
+      <!-- زر وضع الميدان -->
+      <button onclick="showMobileMode()" title="${L('وضع الميدان','Mode Terrain')}"
+        style="padding:5px 10px;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:8px;color:#34C38F;cursor:pointer;font-size:.75rem;font-weight:700;white-space:nowrap">
+        📱 ${L('الميدان','Terrain')}
       </button>
-      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}" style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s" onclick="App.navigate('settings')"><span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span> <span id="syncLabel">${L('متزامن','Synchronisé')}</span></div>
+      ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
+      <!-- زر تبديل المود — بجانب جرس الإشعارات مباشرةً -->
+      <button id="themeToggleBtn"
+        title="${L('تبديل المظهر','Changer apparence')}"
+        onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
+        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+               background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;line-height:1;
+               display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
+        onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
+        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
+        ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
+      </button>
+      <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
+      <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+        ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
+      </button>
+      <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
+        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
+        <span id="syncLabel">${L('متزامن','Sync')}</span>
+      </div>
       <div class="topbar-user">
         <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">${initial}</div>
-        <span style="font-size:.82rem;color:var(--muted)">${escHtml((user?.full_name||'').split(' ')[0])}</span>
       </div>
     </div>
   </header>`;
 }
 
 function layoutHTML(active, breadcrumb, content) {
+  // ── تحديث عنوان تبويب المتصفح ديناميكياً ──
+  try {
+    const pageNames = {
+      dashboard:'لوحة التحكم', projects:'المشاريع', workers:'العمال',
+      transactions:'المعاملات', attendance:'الحضور', salary:'الرواتب',
+      invoices:'الفواتير', inventory:'المخزون', materials:'المواد',
+      equipment:'المعدات', documents:'الوثائق', analytics:'التحليلات',
+      reports:'التقارير', settings:'الإعدادات', kanban:'كانبان',
+      gantt:'Gantt', calendar:'التقويم', map:'الخريطة',
+      dz_documents:'مركز الوثائق', archive:'الأرشيف',
+      admin:'لوحة الأدمن', team:'الفريق', audit_log:'سجل العمليات',
+      obligations:'الالتزامات', simulator:'المحاكي', bank_report:'البنك',
+      compare:'المقارنة', ai_analysis:'تحليل AI',
+    };
+    const tenant = (typeof Auth !== 'undefined') && Auth.getTenant && Auth.getTenant();
+    const tenantName = tenant?.name || 'SmartStruct';
+    const pageLbl = pageNames[active] || breadcrumb || '';
+    document.title = pageLbl ? `${pageLbl} — ${tenantName}` : tenantName;
+  } catch(_) {}
+
   return `<div class="app-shell"><div class="sidebar-overlay" id="sidebarOverlay" onclick="window.closeSidebar()"></div>${sidebarHTML(active)}
   <div class="main-wrap">
     ${topbarHTML(breadcrumb)}
     <main class="page-content animate-fade">${content}</main>
     <footer style="padding:.8rem 1.8rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
       <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct — منصة إدارة مشاريع المقاولة الجزائرية</span>
-      <span style="font-size:.7rem;color:var(--dim)">v7.0</span>
+      
     </footer>
   </div></div>`;
 }
@@ -1218,38 +1686,277 @@ function attTodayWidget(workers) {
 const Pages = {};
 
 /* ─── LANDING PAGE — v7.2 PRO 3D ─── */
-Pages.landing = function() {
-  const user = Auth.getUser();
+// ════════════════════════════════════════════════════════════════════
+//  📱 Pages.contact — تواصل معنا + بطاقة المصمم
+// ════════════════════════════════════════════════════════════════════
+Pages.contact = function() {
   const isAr = I18N.currentLang === 'ar';
+  const user  = Auth.getUser && Auth.getUser();
 
-  return `<div class="landing-page" id="landingRoot">
-    <!-- ═══ ATMOSPHERE LAYERS ═══ -->
+  /* ─── بيانات المصمم / المطور ─── */
+  const designer = {
+    name:       'رمزي سعيدي',
+    name_fr:    'Ramzi Saidi',
+    role:       L('مطوّر ومصمم SmartStruct','Développeur & Designer SmartStruct'),
+    bio:        L(
+      'مطوّر ويب جزائري متخصص في بناء تطبيقات إدارة المشاريع وحلول رقمية لقطاع البناء والمقاولات. صاحب فكرة SmartStruct ومهندسها الرئيسي — يؤمن بأن التكنولوجيا يجب أن تخدم المقاول الجزائري بلغته وبيئته.',
+      'Développeur web algérien spécialisé dans les applications de gestion de projets et solutions numériques pour le secteur du BTP. Créateur et architecte principal de SmartStruct — convaincu que la technologie doit servir l\'entrepreneur algérien dans sa langue et son environnement.'
+    ),
+    avatar:     '👨‍💻',
+    location:   L('الجزائر العاصمة، الجزائر','Alger, Algérie'),
+    experience: L('5+ سنوات تجربة','5+ ans d\'expérience'),
+    socials: [
+      {
+        id:    'facebook',
+        label: 'Facebook',
+        url:   'https://www.facebook.com/ramzi.saidi.dz',
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`,
+        color: '#1877F2',
+        bg:    'rgba(24,119,242,.1)',
+        border:'rgba(24,119,242,.3)',
+      },
+      {
+        id:    'whatsapp',
+        label: 'WhatsApp',
+        url:   'https://wa.me/213770000000',
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`,
+        color: '#25D366',
+        bg:    'rgba(37,211,102,.1)',
+        border:'rgba(37,211,102,.3)',
+      },
+      {
+        id:    'instagram',
+        label: 'Instagram',
+        url:   'https://www.instagram.com/ramzi.saidi.dev',
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`,
+        color: '#E1306C',
+        bg:    'rgba(225,48,108,.1)',
+        border:'rgba(225,48,108,.3)',
+      },
+      {
+        id:    'linkedin',
+        label: 'LinkedIn',
+        url:   'https://www.linkedin.com/in/ramzi-saidi-dz',
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`,
+        color: '#0A66C2',
+        bg:    'rgba(10,102,194,.1)',
+        border:'rgba(10,102,194,.3)',
+      },
+      {
+        id:    'github',
+        label: 'GitHub',
+        url:   'https://github.com/ramzi-saidi',
+        icon:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`,
+        color: '#c9d1d9',
+        bg:    'rgba(255,255,255,.07)',
+        border:'rgba(255,255,255,.18)',
+      },
+    ]
+  };
+
+  return `<div class="landing-page" id="contactRoot" style="min-height:100vh">
     <div class="ll-atmosphere"></div>
-    <div class="ll-particles" id="llParticles"></div>
 
     <!-- ═══ NAVBAR ═══ -->
-    <nav class="ll-nav" id="llNav">
-      <a class="ll-nav-logo" data-nav="landing" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'})">
+    <nav class="ll-nav ll-scrolled">
+      <a class="ll-nav-logo" onclick="window.location.replace('index.html')" style="cursor:pointer">
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
-          <div class="ll-nav-logo-sub">v7.2 PRO</div>
+          
         </div>
       </a>
-
       <div class="ll-nav-links">
-        <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
-        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
-        <a class="ll-nav-link" href="#ll-benefits">${L('الفوائد','Avantages')}</a>
-        <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
+        <a class="ll-nav-link" onclick="window.location.replace('index.html')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" style="color:var(--gold)">${L('تواصل معنا','Contact')}</a>
       </div>
-
       <div class="ll-nav-cta">
-        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
-          ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+          ${isAr ? 'FR' : 'AR'}
         </button>
         ${user
-          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
+          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
+             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب','Essai')}</button>`
+        }
+      </div>
+    </nav>
+
+    <!-- ═══ HERO ═══ -->
+    <section style="padding:120px 5% 60px;text-align:center;position:relative">
+      <div style="max-width:600px;margin:0 auto;position:relative;z-index:1">
+        <div class="ll-hero-badge" style="margin-bottom:1.2rem">
+          <span class="ll-hero-badge-dot"></span>
+          ${L('نرحّب بكل استفساراتك','Toutes vos questions sont les bienvenues')}
+        </div>
+        <h1 class="ll-hero-title" style="font-size:clamp(1.8rem,4vw,2.8rem);margin-bottom:1rem">
+          ${L('تحدّث معنا','Parlez-nous')}
+          <span class="ll-word-gold"> ${L('مباشرةً','directement')}</span>
+        </h1>
+        <p style="font-size:.95rem;color:var(--muted);line-height:1.8">
+          ${L('سواء كان لديك سؤال تقني، اقتراح، أو تريد معرفة المزيد — فريقنا جاهز للرد خلال 24 ساعة.','Que vous ayez une question technique, une suggestion, ou souhaitez en savoir plus — notre équipe répond sous 24h.')}
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══ DESIGNER CARD ═══ -->
+    <section style="padding:20px 5% 60px;max-width:900px;margin:0 auto">
+      <div class="ll-reveal" style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.25);border-radius:24px;padding:2.5rem;display:flex;gap:2.5rem;align-items:flex-start;flex-wrap:wrap;position:relative;overflow:hidden">
+        <!-- decoration circle -->
+        <div style="position:absolute;top:-60px;${isAr?'left':'right'}:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(232,184,75,.1),transparent);pointer-events:none"></div>
+
+        <!-- Avatar -->
+        <div style="flex-shrink:0;text-align:center">
+          <div style="width:110px;height:110px;border-radius:24px;background:linear-gradient(135deg,rgba(232,184,75,.15),rgba(232,184,75,.05));border:2px solid rgba(232,184,75,.3);display:flex;align-items:center;justify-content:center;font-size:3rem;margin:0 auto 1rem">
+            ${designer.avatar}
+          </div>
+          <!-- زر وقت الاستجابة -->
+          <div style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:20px;padding:4px 12px;font-size:.68rem;font-weight:700;color:#34C38F;white-space:nowrap">
+            ⚡ ${L('متاح — رد < 24 ساعة','Disponible — Réponse < 24h')}
+          </div>
+        </div>
+
+        <!-- Info -->
+        <div style="flex:1;min-width:260px">
+          <div style="font-size:1.5rem;font-weight:900;color:var(--text);margin-bottom:.2rem">${isAr ? designer.name : designer.name_fr}</div>
+          <div style="font-size:.82rem;color:var(--gold);font-weight:700;margin-bottom:.8rem">${designer.role}</div>
+          <p style="font-size:.83rem;color:var(--muted);line-height:1.8;margin-bottom:1rem">${designer.bio}</p>
+
+          <!-- Tags -->
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.2rem">
+            ${[
+              { text: L('BTP Software','BTP Software'), color: '#E8B84B' },
+              { text: L('Supabase','Supabase'),           color: '#3ECF8E' },
+              { text: L('JavaScript','JavaScript'),       color: '#F7DF1E' },
+              { text: L('AI Integration','AI Integration'), color: '#9B6DFF' },
+              { text: L('الجزائر 🇩🇿','Algérie 🇩🇿'),      color: '#E8593C' },
+            ].map(t => `<span style="font-size:.68rem;padding:3px 10px;border-radius:20px;background:${t.color}18;border:1px solid ${t.color}44;color:${t.color};font-weight:700">${t.text}</span>`).join('')}
+          </div>
+
+          <!-- Location + Experience -->
+          <div style="display:flex;gap:1.5rem;font-size:.78rem;color:var(--muted)">
+            <span>📍 ${designer.location}</span>
+            <span>💼 ${designer.experience}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SOCIAL CIRCLES ═══ -->
+    <section style="padding:0 5% 60px;max-width:900px;margin:0 auto">
+      <h2 class="ll-reveal" style="font-size:1.1rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:2rem">
+        ${L('تواصل معي على','Retrouvez-moi sur')}
+      </h2>
+      <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap" class="ll-reveal">
+        ${designer.socials.map(s => `
+          <button
+            onclick="window.open('${s.url}','_blank','noopener,noreferrer')"
+            title="${s.label}"
+            style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.6rem;padding:.5rem;transition:transform .2s"
+            onmouseover="this.style.transform='translateY(-7px)'"
+            onmouseout="this.style.transform=''">
+            <!-- الدائرة -->
+            <div style="
+              width:68px;height:68px;border-radius:50%;
+              background:${s.bg};
+              border:1.5px solid ${s.border};
+              display:flex;align-items:center;justify-content:center;
+              color:${s.color};
+              transition:box-shadow .25s, transform .25s;
+              box-shadow:0 4px 16px ${s.color}22"
+              onmouseover="this.style.boxShadow='0 6px 28px ${s.color}55';this.style.transform='scale(1.08)'"
+              onmouseout="this.style.boxShadow='0 4px 16px ${s.color}22';this.style.transform='scale(1)'">
+              ${s.icon}
+            </div>
+            <!-- الاسم -->
+            <span style="font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.3px">${s.label}</span>
+          </button>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ CONTACT CARDS ═══ -->
+    <section style="padding:0 5% 80px;max-width:900px;margin:0 auto">
+      <h2 class="ll-reveal" style="font-size:1.1rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:1.5rem">
+        ${L('أو راسلنا مباشرةً','Ou écrivez-nous directement')}
+      </h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem" class="ll-reveal">
+        ${[
+          { icon:'📧', title:L('البريد الإلكتروني','Email'), value:'contact@smartstruct.dz', href:'mailto:contact@smartstruct.dz', color:'#E8B84B', desc:L('للاستفسارات العامة','Renseignements généraux') },
+          { icon:'🛠️', title:L('الدعم التقني','Support technique'), value:'support@smartstruct.dz', href:'mailto:support@smartstruct.dz', color:'#4A90E2', desc:L('للمشاكل التقنية','Problèmes techniques') },
+        ].map(c => `
+          <button onclick="window.open('${c.href}')"
+            style="background:rgba(255,255,255,.03);border:1px solid ${c.color}33;border-radius:16px;padding:1.6rem;cursor:pointer;color:var(--text);text-align:${isAr?'right':'left'};font-family:inherit;transition:all .2s;display:flex;flex-direction:column;gap:.6rem;width:100%"
+            onmouseover="this.style.background='${c.color}0d';this.style.borderColor='${c.color}55';this.style.transform='translateY(-3px)'"
+            onmouseout="this.style.background='rgba(255,255,255,.03)';this.style.borderColor='${c.color}33';this.style.transform=''">
+            <div style="font-size:1.6rem">${c.icon}</div>
+            <div style="font-size:.85rem;font-weight:800;color:${c.color}">${c.title}</div>
+            <div style="font-size:.72rem;color:var(--muted)">${c.desc}</div>
+            <div style="font-size:.75rem;font-family:monospace;color:var(--text);word-break:break-all">${c.value}</div>
+          </button>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ CTA ═══ -->
+    <section style="padding:0 5% 100px;max-width:680px;margin:0 auto;text-align:center" class="ll-reveal">
+      <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.2);border-radius:20px;padding:2.5rem">
+        <div style="font-size:1.4rem;font-weight:900;color:var(--text);margin-bottom:.6rem">🚀 ${L('جاهز للبداية؟','Prêt à commencer?')}</div>
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.7">${L('جرّب SmartStruct مجاناً 14 يوماً — لا بطاقة بنكية مطلوبة.','Essayez SmartStruct gratuitement 14 jours — sans carte bancaire.')}</p>
+        <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+          <button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()" style="font-size:.88rem">${L('ابدأ التجربة المجانية','Commencer l\'essai')}</button>
+          <button class="ll-btn ll-btn-ghost" onclick="App.navigate('about')" style="font-size:.88rem">${L('تعرّف علينا أكثر','En savoir plus')}</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="ll-footer">
+      <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
+        <button class="ll-nav-link" onclick="window.location.replace('index.html')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <button class="ll-nav-link" onclick="App.navigate('about')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('من نحن','À propos')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <button class="ll-nav-link" style="background:none;border:none;cursor:pointer;font-family:inherit;color:var(--gold)">${L('تواصل معنا','Contact')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <div>© 2026 SmartStruct</div>
+      </div>
+    </footer>
+  </div>`;
+};
+
+// ════════════════════════════════════════════════════════════════════
+//  📄 Pages.about — من نحن
+// ════════════════════════════════════════════════════════════════════
+Pages.about = function() {
+  const isAr = I18N.currentLang === 'ar';
+  const user  = Auth.getUser && Auth.getUser();
+
+  return `<div class="landing-page" id="aboutRoot" style="min-height:100vh">
+    <!-- نفس جو الـ landing -->
+    <div class="ll-atmosphere"></div>
+
+    <!-- ═══ NAVBAR ═══ -->
+    <nav class="ll-nav ll-scrolled" id="aboutNav">
+      <a class="ll-nav-logo" onclick="window.location.replace('index.html')" style="cursor:pointer">
+        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+        <div class="ll-nav-logo-text">
+          <div class="ll-nav-logo-name">SmartStruct</div>
+          
+        </div>
+      </a>
+      <div class="ll-nav-links">
+        <a class="ll-nav-link" onclick="window.location.replace('index.html')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link ll-active" style="color:var(--gold)">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
+      </div>
+      <div class="ll-nav-cta">
+        <button class="ll-lang-btn" onclick="I18N.setLang(isAr?'fr':'ar')">
+          ${isAr ? 'FR' : 'AR'}
+        </button>
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
           : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
              <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
         }
@@ -1257,840 +1964,476 @@ Pages.landing = function() {
     </nav>
 
     <!-- ═══ HERO ═══ -->
-    <section class="ll-hero">
-      <!-- خلفية مقاولاتية هندسية -->
-      <svg class="ll-hero-bg" viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+    <section style="padding:140px 5% 80px;text-align:center;position:relative;overflow:hidden">
+      <!-- خلفية هندسية خفيفة -->
+      <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 1440 600" preserveAspectRatio="xMidYMid slice">
         <defs>
-          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.03"/>
-            <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0.01"/>
-          </linearGradient>
-          <!-- شبكة هندسية خفيفة -->
-          <pattern id="gridPat" width="60" height="60" patternUnits="userSpaceOnUse">
-            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.07)" stroke-width="0.8"/>
-          </pattern>
-          <!-- خطوط قُطرية -->
-          <pattern id="diagPat" width="120" height="120" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="120" x2="120" y2="0" stroke="rgba(232,184,75,0.04)" stroke-width="1"/>
+          <pattern id="abGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.06)" stroke-width="0.8"/>
           </pattern>
         </defs>
-
-        <!-- طبقة شبكة -->
-        <rect width="1440" height="900" fill="url(#gridPat)"/>
-        <rect width="1440" height="900" fill="url(#diagPat)"/>
-
-        <!-- رافعة بناء — يمين (إحداثيات مصحّحة داخل viewBox 1440x900) -->
-        <g opacity="0.13" stroke="#e8b84b" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <!-- عمود الرافعة الرأسي: x=1280, من y=30 إلى y=820 -->
-          <line x1="1280" y1="30" x2="1280" y2="820"/>
-          <!-- ذراع أفقي رئيسي: يمتد يساراً من العمود -->
-          <line x1="1280" y1="80" x2="1060" y2="80"/>
-          <!-- ذراع ثقل الموازنة: يمتد يميناً -->
-          <line x1="1280" y1="80" x2="1380" y2="80"/>
-          <!-- حبل التعليق من طرف الذراع -->
-          <line x1="1065" y1="80" x2="1065" y2="260"/>
-          <!-- خطوط دعم مائلة -->
-          <line x1="1280" y1="120" x2="1090" y2="80"/>
-          <line x1="1280" y1="160" x2="1090" y2="80"/>
-          <!-- شبكة العمود (مزيكا) -->
-          <line x1="1270" y1="100" x2="1290" y2="100"/>
-          <line x1="1270" y1="140" x2="1290" y2="140"/>
-          <line x1="1270" y1="180" x2="1290" y2="180"/>
-          <line x1="1270" y1="220" x2="1290" y2="220"/>
-          <line x1="1270" y1="260" x2="1290" y2="260"/>
-          <line x1="1270" y1="300" x2="1290" y2="300"/>
-          <line x1="1270" y1="340" x2="1290" y2="340"/>
-          <line x1="1270" y1="380" x2="1290" y2="380"/>
-          <line x1="1270" y1="420" x2="1290" y2="420"/>
-          <line x1="1270" y1="460" x2="1290" y2="460"/>
-          <line x1="1270" y1="500" x2="1290" y2="500"/>
-          <line x1="1270" y1="540" x2="1290" y2="540"/>
-          <line x1="1270" y1="580" x2="1290" y2="580"/>
-          <line x1="1270" y1="620" x2="1290" y2="620"/>
-          <line x1="1270" y1="660" x2="1290" y2="660"/>
-          <line x1="1270" y1="700" x2="1290" y2="700"/>
-          <line x1="1270" y1="740" x2="1290" y2="740"/>
-          <line x1="1270" y1="780" x2="1290" y2="780"/>
-          <!-- قاعدة الرافعة -->
-          <line x1="1240" y1="820" x2="1320" y2="820"/>
-          <line x1="1250" y1="800" x2="1310" y2="800"/>
-          <!-- علبة الرفع (hook box) -->
-          <rect x="1048" y="255" width="34" height="26" rx="3" fill="rgba(232,184,75,0.08)"/>
-          <!-- خطاف الرافعة -->
-          <path d="M1065 281 Q1075 295 1065 305 Q1055 315 1060 325" stroke-width="2"/>
-          <!-- ثقل الموازنة يمين -->
-          <rect x="1330" y="70" width="50" height="20" rx="3" fill="rgba(232,184,75,0.08)"/>
-        </g>
-
-        <!-- مخطط هندسي — يسار أسفل -->
-        <g opacity="0.07" stroke="#e8b84b" stroke-width="1.5" fill="none" stroke-linecap="round" transform="translate(40, 480)">
-          <!-- مستطيل مبنى -->
-          <rect x="20" y="20" width="200" height="160" rx="2"/>
-          <!-- طوابق -->
-          <line x1="20" y1="73" x2="220" y2="73"/>
-          <line x1="20" y1="126" x2="220" y2="126"/>
-          <!-- نوافذ طابق 1 -->
-          <rect x="45" y="35" width="30" height="25" rx="1"/>
-          <rect x="95" y="35" width="30" height="25" rx="1"/>
-          <rect x="145" y="35" width="30" height="25" rx="1"/>
-          <!-- نوافذ طابق 2 -->
-          <rect x="45" y="88" width="30" height="25" rx="1"/>
-          <rect x="95" y="88" width="30" height="25" rx="1"/>
-          <rect x="145" y="88" width="30" height="25" rx="1"/>
-          <!-- باب -->
-          <rect x="90" y="135" width="40" height="45" rx="2"/>
-          <!-- خطوط قياس -->
-          <line x1="-15" y1="20" x2="-15" y2="180"/>
-          <line x1="-20" y1="20" x2="-10" y2="20"/>
-          <line x1="-20" y1="180" x2="-10" y2="180"/>
-          <line x1="20" y1="195" x2="220" y2="195"/>
-          <line x1="20" y1="190" x2="20" y2="200"/>
-          <line x1="220" y1="190" x2="220" y2="200"/>
-        </g>
-
-        <!-- نقاط زاوية هندسية — يسار أعلى -->
-        <g opacity="0.1" stroke="#e8b84b" stroke-width="1.5" fill="rgba(232,184,75,0.15)" transform="translate(60, 60)">
-          <circle cx="0" cy="0" r="4"/>
-          <circle cx="80" cy="0" r="4"/>
-          <circle cx="0" cy="80" r="4"/>
-          <line x1="0" y1="0" x2="80" y2="0"/>
-          <line x1="0" y1="0" x2="0" y2="80"/>
-          <line x1="4" y1="4" x2="30" y2="30"/>
-        </g>
-
-        <!-- خطوط ضوء في المنتصف -->
-        <ellipse cx="720" cy="420" rx="520" ry="300" fill="radial" opacity="0"/>
-        <radialGradient id="glowCenter" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.04"/>
-          <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0"/>
-        </radialGradient>
-        <ellipse cx="720" cy="430" rx="600" ry="350" fill="url(#glowCenter)"/>
+        <rect width="1440" height="600" fill="url(#abGrid)"/>
+        <ellipse cx="720" cy="300" rx="500" ry="250" fill="rgba(232,184,75,0.03)"/>
       </svg>
-      <div class="ll-hero-badge">
-        <span class="ll-hero-badge-dot"></span>
-        ${L('تجربة مجانية 14 يوماً — بدون بطاقة بنكية','Essai gratuit 14 jours — sans carte bancaire')}
+
+      <div style="position:relative;z-index:1;max-width:720px;margin:0 auto">
+        <div class="ll-hero-badge" style="margin-bottom:1.5rem">
+          <span class="ll-hero-badge-dot"></span>
+          ${L('صُنع في الجزائر ❤️ للمقاولين الجزائريين','Fait en Algérie ❤️ pour les entrepreneurs algériens')}
+        </div>
+        <h1 class="ll-hero-title" style="font-size:clamp(2rem,5vw,3.2rem);margin-bottom:1.2rem">
+          ${L('نحن نبني','Nous construisons')} <span class="ll-word-gold">${L('أدوات تبني','des outils qui')}</span><br>
+          ${L('معك','construisent avec vous')}
+        </h1>
+        <p style="font-size:1.05rem;color:var(--muted);line-height:1.8;max-width:580px;margin:0 auto">
+          ${L(
+            'SmartStruct وُلد من ألم حقيقي: مقاولون جزائريون يتعاملون مع أعمال ورقية معقدة، فواتير متناثرة، وبيانات عمال مبعثرة. قررنا أن نصنع الحل الذي كنا نتمناه.',
+            'SmartStruct est né d\'une vraie douleur : des entrepreneurs algériens qui jonglaient avec de la paperasse complexe, des factures éparpillées, des données fragmentées. Nous avons décidé de créer la solution que nous aurions voulu avoir.'
+          )}
+        </p>
       </div>
+    </section>
 
-      <h1 class="ll-hero-title">
-        ${L('إدارة مشاريع المقاولة','Gestion de projets')}<br>
-        <span class="ll-word-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
-      </h1>
-
-      <p class="ll-hero-sub">
-        ${L(
-          'منصة متكاملة لشركات المقاولة الجزائرية — من إدارة المشاريع والعمال إلى الفوترة والتوقعات المالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري (NIF/NIS/RC + TVA 19٪).',
-          'Plateforme complète pour les entreprises de BTP en Algérie — projets, ouvriers, facturation, prévisions financières, le tout propulsé par l\'IA et conforme à la loi algérienne (NIF/NIS/RC + TVA 19%).'
-        )}
-      </p>
-
-      <div class="ll-hero-actions">
-        ${user
-          ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
-               ${L('الذهاب للوحة التحكم','Tableau de bord')}
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-             </button>`
-          : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
-               ${L('ابدأ التجربة الآن','Commencer l\'essai')}
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-             </button>`
-        }
-        <a class="ll-btn ll-btn-ghost ll-btn-lg" href="#ll-showcase">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          ${L('شاهد العرض','Voir la démo')}
-        </a>
-      </div>
-
-      <div class="ll-hero-trust">
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('27 جدول قاعدة بيانات','27 tables de BDD')}
-        </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('تشفير PBKDF2','Chiffrement PBKDF2')}
-        </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Row-Level Security
-        </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('دعم عربي كامل','Support arabe complet')}
-        </div>
-      </div>
-
-      <!-- ═══ 3D HERO SCENE ═══ -->
-      <div class="ll-scene">
-        <div class="ll-scene-glow"></div>
-        <div class="ll-scene-stage" id="llSceneStage">
-
-          <!-- Floating: Projects (top-right in LTR / top-left in RTL via auto reposition) -->
-          <div class="ll-float-card ll-fc-stat ll-fc-projects">
-            <div class="ll-fc-mini-icon ll-icon-projects">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('المشاريع النشطة','Projets actifs')}</div>
-            <div class="ll-fc-mini-val">12</div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              ${L('+3 هذا الشهر','+3 ce mois')}
-            </div>
+    <!-- ═══ STORY ═══ -->
+    <section style="padding:80px 5%;max-width:1100px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center" class="ll-reveal">
+        <!-- النص -->
+        <div>
+          <span class="ll-eyebrow">${L('القصة','Notre histoire')}</span>
+          <h2 style="font-size:1.9rem;font-weight:800;color:var(--text);margin:1rem 0 1.2rem;line-height:1.3">
+            ${L('من ورشة البناء','Du chantier')} <span class="ll-word-gold">${L('إلى السحابة','au cloud')}</span>
+          </h2>
+          <div style="color:var(--muted);line-height:1.9;font-size:.93rem">
+            <p style="margin-bottom:1rem">
+              ${L(
+                'في 2023، كان فريقنا يعمل مع شركات مقاولة جزائرية متعددة، ولاحظنا نمطاً متكرراً: كل مقاول لديه دفتر ورقي للعمال، Excel بدائي للفواتير، ورسائل WhatsApp لمتابعة المواد.',
+                'En 2023, notre équipe travaillait avec plusieurs entreprises de BTP algériennes, et nous avons observé un schéma récurrent : chaque entrepreneur avait un carnet papier pour les ouvriers, un Excel basique pour les factures, et des messages WhatsApp pour le suivi des matériaux.'
+              )}
+            </p>
+            <p style="margin-bottom:1rem">
+              ${L(
+                'الحلول الدولية الموجودة مثل Procore أو Sage Construction إما غير متوافقة مع القانون الجزائري (NIF/NIS/TVA 19%)، أو مُكلفة للغاية، أو بالإنجليزية فقط.',
+                'Les solutions internationales existantes comme Procore ou Sage Construction étaient soit non conformes à la loi algérienne (NIF/NIS/TVA 19%), soit trop coûteuses, soit disponibles en anglais seulement.'
+              )}
+            </p>
+            <p>
+              ${L(
+                'فقررنا بناء SmartStruct — منصة مصممة من الصفر للسوق الجزائري، بالعربية والفرنسية، ومتوافقة مع كل المتطلبات القانونية المحلية.',
+                'Nous avons donc décidé de créer SmartStruct — une plateforme conçue de zéro pour le marché algérien, en arabe et en français, conforme à toutes les exigences légales locales.'
+              )}
+            </p>
           </div>
-
-          <!-- Floating: Workers -->
-          <div class="ll-float-card ll-fc-stat ll-fc-workers">
-            <div class="ll-fc-mini-icon ll-icon-workers">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('العمال الحاضرون','Ouvriers présents')}</div>
-            <div class="ll-fc-mini-val">87 / 92</div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              ${L('نسبة 94٪','Taux 94%')}
-            </div>
-          </div>
-
-          <!-- Floating: Revenue -->
-          <div class="ll-float-card ll-fc-stat ll-fc-revenue">
-            <div class="ll-fc-mini-icon ll-icon-revenue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('إيرادات الشهر','Revenus du mois')}</div>
-            <div class="ll-fc-mini-val">4.2M <span style="font-size:.7rem;color:var(--muted)">${L('دج','DA')}</span></div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              +18.4٪
-            </div>
-          </div>
-
-          <!-- Floating: AI -->
-          <div class="ll-float-card ll-fc-stat ll-fc-ai">
-            <div class="ll-fc-mini-icon ll-icon-ai">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">SmartAI</div>
-            <div class="ll-ai-typing">
-              <span class="ll-typing-dot"></span><span class="ll-typing-dot"></span><span class="ll-typing-dot"></span>
-              <span class="ll-ai-text">${L('يحلل بياناتك...','analyse en cours...')}</span>
-            </div>
-          </div>
-
-          <!-- Main dashboard card -->
-          <div class="ll-float-card ll-fc-main">
-            <div class="ll-fc-header">
-              <div class="ll-fc-title">
-                <div class="ll-fc-title-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
-                </div>
-                ${L('لوحة التحكم','Tableau de bord')}
+        </div>
+        <!-- بطاقة بصرية -->
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(232,184,75,.15);border-radius:20px;padding:2rem;display:flex;flex-direction:column;gap:1.2rem">
+          ${[
+            { year: '2023', icon: '💡', event: L('الفكرة — إدراك المشكلة','Idée — identification du problème') },
+            { year: '2024', icon: '🔨', event: L('بناء أول نسخة مع 3 شركات تجريبية','Construction v1 avec 3 entreprises pilotes') },
+            { year: '2024', icon: '🚀', event: L('إطلاق الإصدار 7 مع Supabase Realtime','Lancement v7 avec Supabase Realtime') },
+            { year: '2025', icon: '🤖', event: L('دمج الذكاء الاصطناعي SmartAI','Intégration de SmartAI') },
+            { year: '2026', icon: '🏆', event: L('v7.3 Pro — المنصة الأكثر اكتمالاً','v7.3 Pro — la plateforme la plus complète') },
+          ].map((item, i) => `
+            <div style="display:flex;gap:1rem;align-items:flex-start">
+              <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.1rem">${item.icon}</div>
+                ${i < 4 ? `<div style="width:1px;height:18px;background:rgba(232,184,75,.2);margin:4px 0"></div>` : ''}
               </div>
-              <div class="ll-fc-dots">
-                <span class="ll-fc-dot ll-active"></span><span class="ll-fc-dot"></span><span class="ll-fc-dot"></span>
+              <div>
+                <div style="font-size:.68rem;color:var(--gold);font-weight:700;letter-spacing:.5px">${item.year}</div>
+                <div style="font-size:.82rem;color:var(--text);font-weight:600;margin-top:.15rem">${item.event}</div>
               </div>
             </div>
-            <div class="ll-fc-stats">
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('إجمالي المشاريع','Total projets')}</div>
-                <div class="ll-fc-stat-val ll-gold">24</div>
-              </div>
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('معدل الإنجاز','Avancement')}</div>
-                <div class="ll-fc-stat-val ll-green">76%</div>
-              </div>
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('صافي الربح','Bénéfice net')}</div>
-                <div class="ll-fc-stat-val">1.8M</div>
-              </div>
-            </div>
-            <div class="ll-fc-chart">
-              <svg viewBox="0 0 500 120" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="llGoldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#E8B84B" stop-opacity="0.4"/>
-                    <stop offset="100%" stop-color="#E8B84B" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <line class="ll-chart-grid" x1="0" y1="30" x2="500" y2="30"/>
-                <line class="ll-chart-grid" x1="0" y1="60" x2="500" y2="60"/>
-                <line class="ll-chart-grid" x1="0" y1="90" x2="500" y2="90"/>
-                <path class="ll-chart-area" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15 L500,120 L0,120 Z"/>
-                <path class="ll-chart-line" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15"/>
-              </svg>
-            </div>
-          </div>
-
-          <div class="ll-scene-platform"></div>
-        </div>
-      </div>
-
-      <!-- ═══ STATS BAR ═══ -->
-      <div class="ll-stats-bar ll-reveal">
-        <div class="ll-stat-item">
-          <div class="ll-stat-number" data-target="27">0</div>
-          <div class="ll-stat-label">${L('جدول قاعدة بيانات','Tables de BDD')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number" data-target="19">0</div>
-          <div class="ll-stat-label">${L('ميزة احترافية','Fonctionnalités pro')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number"><span data-target="14">0</span> ${L('يوم','jours')}</div>
-          <div class="ll-stat-label">${L('تجربة مجانية','Essai gratuit')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number">100<span style="font-size:1.5rem">٪</span></div>
-          <div class="ll-stat-label">${L('متوافق مع القانون الجزائري','Conforme loi algérienne')}</div>
+          `).join('')}
         </div>
       </div>
     </section>
 
-    <!-- ═══ FEATURES ═══ -->
-    <section class="ll-section" id="ll-features">
+    <!-- ═══ MISSION + VALUES ═══ -->
+    <section style="padding:80px 5%;background:rgba(232,184,75,.03);border-top:1px solid rgba(232,184,75,.08);border-bottom:1px solid rgba(232,184,75,.08)">
+      <div style="max-width:1100px;margin:0 auto">
+        <div class="ll-section-head ll-reveal">
+          <span class="ll-eyebrow">${L('قيمنا','Nos valeurs')}</span>
+          <h2 class="ll-section-title">${L('ما يحرّكنا','Ce qui nous motive')} <span class="ll-word-gold">${L('كل يوم','chaque jour')}</span></h2>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.2rem;margin-top:2.5rem">
+          ${[
+            { icon: '🇩🇿', color: '#E8B84B', title: L('جزائريون بالكامل','100% algérien'), desc: L('كل سطر كود كُتب مع مراعاة الواقع الجزائري — القانون، العملة، اللغة.','Chaque ligne de code tient compte de la réalité algérienne — loi, monnaie, langue.') },
+            { icon: '🤝', color: '#34C38F', title: L('شراكة حقيقية','Vrai partenariat'), desc: L('لسنا بائعي برنامج — نحن شركاء نجاح للمقاولين. نستمع ونبني ما تحتاج.','Nous ne sommes pas des vendeurs de logiciel — nous sommes des partenaires de succès.') },
+            { icon: '🔒', color: '#4A90E2', title: L('حماية كاملة لبياناتك','Protection complète de vos données'), desc: L('Row-Level Security مع Supabase. بياناتك محمية ولا يصل إليها أحد غيرك.','Row-Level Security avec Supabase. Vos données sont protégées et accessibles uniquement par vous.') },
+            { icon: '⚡', color: '#9B6DFF', title: L('بساطة في الاستخدام','Simplicité d\'usage'), desc: L('مقاول متوسط يتقن المنصة كاملاً في يوم واحد — بدون تدريب طويل.','Un entrepreneur moyen maîtrise la plateforme en une journée — sans longue formation.') },
+            { icon: '🌱', color: '#27AE60', title: L('نمو مستمر','Amélioration continue'), desc: L('كل أسبوعين نُصدر تحديثاً جديداً بناءً على ملاحظات المستخدمين الحقيقيين.','Toutes les deux semaines, une mise à jour basée sur les retours réels des utilisateurs.') },
+            { icon: '💡', color: '#E8593C', title: L('ابتكار محلي','Innovation locale'), desc: L('ذكاء اصطناعي يفهم سياق البناء الجزائري ويقدم توصيات بالعربية والفرنسية.','Une IA qui comprend le contexte algérien du BTP et donne des recommandations pertinentes.') },
+          ].map(v => `
+            <div class="ll-reveal" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1.5rem;transition:border-color .2s" onmouseover="this.style.borderColor='rgba(232,184,75,.25)'" onmouseout="this.style.borderColor='rgba(255,255,255,.07)'">
+              <div style="font-size:1.8rem;margin-bottom:.8rem">${v.icon}</div>
+              <h3 style="font-size:.95rem;font-weight:800;color:${v.color};margin-bottom:.5rem">${v.title}</h3>
+              <p style="font-size:.8rem;color:var(--muted);line-height:1.7">${v.desc}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ NUMBERS ═══ -->
+    <section style="padding:80px 5%;max-width:1100px;margin:0 auto">
       <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('19 ميزة احترافية','19 fonctionnalités pro')}</span>
-        <h2 class="ll-section-title">${L('كل ما تحتاجه شركتك','Tout ce dont votre entreprise a besoin')}<br><span class="ll-gold">${L('في منصة واحدة','dans une seule plateforme')}</span></h2>
-        <p class="ll-section-desc">${L(
-          'من تشفير البيانات إلى توقعات السيولة، من توليد PDF إلى تتبع GPS — أدوات حقيقية لمشاكل حقيقية في قطاع البناء.',
-          'Du chiffrement aux prévisions de trésorerie, du PDF au GPS — des outils réels pour des problèmes réels du BTP.'
-        )}</p>
+        <span class="ll-eyebrow">${L('بالأرقام','En chiffres')}</span>
+        <h2 class="ll-section-title">${L('نتائج','Des résultats')} <span class="ll-word-gold">${L('ملموسة','concrets')}</span></h2>
       </div>
-
-      <div class="ll-features-grid">
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('أمان','Sécurité')}</span>
-          <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-top:2.5rem">
+        ${[
+          { num: '27', unit: '', label: L('جدول في قاعدة البيانات','Tables en BDD'), icon: '🗄️' },
+          { num: '23', unit: '', label: L('نوع وثيقة قابلة للطباعة','Types de documents imprimables'), icon: '📄' },
+          { num: '14', unit: L('يوم','j'), label: L('تجربة مجانية كاملة','Essai complet gratuit'), icon: '🎁' },
+          { num: '19', unit: '%', label: L('TVA مدعومة تلقائياً','TVA supportée auto.'), icon: '🧾' },
+          { num: '99', unit: '%', label: L('وقت تشغيل مستهدف','Uptime cible'), icon: '⚡' },
+          { num: '2', unit: '', label: L('لغات مدعومة عربي/فرنسي','Langues arabe/français'), icon: '🌐' },
+        ].map(s => `
+          <div class="ll-reveal" style="background:rgba(232,184,75,.05);border:1px solid rgba(232,184,75,.15);border-radius:14px;padding:1.5rem;text-align:center">
+            <div style="font-size:1.8rem;margin-bottom:.5rem">${s.icon}</div>
+            <div style="font-size:2.4rem;font-weight:900;color:var(--gold);font-family:'JetBrains Mono',monospace;line-height:1">${s.num}<span style="font-size:1.2rem">${s.unit}</span></div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem;line-height:1.5">${s.label}</div>
           </div>
-          <h3 class="ll-feature-title">${L('تشفير عسكري','Chiffrement militaire')}</h3>
-          <p class="ll-feature-desc">${L('PBKDF2 + SHA-256 + 100,000 تكرار · Row-Level Security · سجل تدقيق كامل لكل تعديل.','PBKDF2 + SHA-256 + 100k itérations · RLS · audit log complet.')}</p>
+        `).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ TEAM ═══ -->
+    <section style="padding:80px 5%;background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05)">
+      <div style="max-width:1100px;margin:0 auto">
+        <div class="ll-section-head ll-reveal">
+          <span class="ll-eyebrow">${L('الفريق','L\'équipe')}</span>
+          <h2 class="ll-section-title">${L('البشر خلف','Les personnes derrière')} <span class="ll-word-gold">SmartStruct</span></h2>
+          <p class="ll-section-desc">${L('فريق جزائري متخصص في تقنيات البناء الرقمي وإدارة المشاريع.','Une équipe algérienne spécialisée dans les technologies numériques du BTP et la gestion de projets.')}</p>
         </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('جديد','Nouveau')}</span>
-          <div class="ll-feature-icon ll-purple">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('SmartAI — مساعد ذكي','SmartAI — assistant IA')}</h3>
-          <p class="ll-feature-desc">${L('يحلّل مشاريعك ويكتب تقارير شهرية بالعربية مع توصيات قابلة للتنفيذ. مدعوم بـ Groq.','Analyse vos projets et rédige des rapports mensuels avec recommandations. Propulsé par Groq.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">PDF</span>
-          <div class="ll-feature-icon ll-red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('فواتير وعقود رسمية','Factures & contrats officiels')}</h3>
-          <p class="ll-feature-desc">${L('PDF احترافي مع NIF/NIS/RC، TVA 19٪، عقود عمل حسب القانون الجزائري، وتوقيع إلكتروني.','PDF pro avec NIF/NIS/RC, TVA 19%, contrats conformes & signature électronique.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('مالي','Finance')}</span>
-          <div class="ll-feature-icon ll-green">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</h3>
-          <p class="ll-feature-desc">${L('منحنى رصيد متوقع للأشهر الثلاثة القادمة + تنبيهات استباقية + استيراد كشوف CCP/BNA/BEA.','Courbe de solde projetée + alertes proactives + import des relevés CCP/BNA/BEA.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('ميدان','Terrain')}</span>
-          <div class="ll-feature-icon ll-blue">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('تتبع GPS للمعدات','Suivi GPS du matériel')}</h3>
-          <p class="ll-feature-desc">${L('QR لكل معدة → مسح بالهاتف → تسجيل الموقع تلقائياً. وضع ميدان مبسط بـ 5 أزرار كبيرة.','QR par engin → scan → géolocalisation auto. Mode chantier à 5 gros boutons.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('إنتاجية','Productivité')}</span>
-          <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('بحث فوري شامل','Recherche globale instantanée')}</h3>
-          <p class="ll-feature-desc">${L('Ctrl+K → ابحث في كل البيانات: مشاريع، عمال، فواتير، ملاحظات. تصدير Excel بنقرة واحدة.','Ctrl+K → cherchez partout : projets, ouvriers, factures. Export Excel en un clic.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('عمال','RH')}</span>
-          <div class="ll-feature-icon ll-green">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('إدارة العمال والرواتب','Gestion RH & paie')}</h3>
-          <p class="ll-feature-desc">${L('تسجيل الحضور والغياب، كشوف الرواتب التلقائية، تتبع الإضافي والسلف — كل شيء في مكان واحد.','Pointage, fiches de paie automatiques, heures sup & avances — tout centralisé.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('مخزون','Stock')}</span>
-          <div class="ll-feature-icon ll-red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('مراقبة المواد والمخزون','Suivi matériaux & stock')}</h3>
-          <p class="ll-feature-desc">${L('تتبع دخول وخروج المواد لكل مشروع، تنبيهات نقص المخزون، وربط مباشر مع المصاريف.','Entrées/sorties par chantier, alertes rupture de stock, liaison directe aux dépenses.')}</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;margin-top:2.5rem">
+          ${[
+            { name: L('فريق التطوير','Équipe Développement'), role: L('هندسة البرمجيات والـ Backend','Ingénierie logicielle & Backend'), icon: '💻', color: '#4A90E2' },
+            { name: L('فريق UX/UI','Équipe UX/UI'), role: L('تصميم الواجهات وتجربة المستخدم','Design d\'interfaces & UX'), icon: '🎨', color: '#9B6DFF' },
+            { name: L('فريق BTP','Équipe BTP'), role: L('خبراء في قطاع البناء والمقاولات','Experts en BTP et gestion de chantier'), icon: '🏗️', color: '#E8B84B' },
+            { name: L('فريق الدعم','Équipe Support'), role: L('خدمة العملاء والتدريب','Support client & formation'), icon: '🤝', color: '#34C38F' },
+          ].map(m => `
+            <div class="ll-reveal" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:1.8rem;text-align:center;transition:transform .2s,border-color .2s" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(232,184,75,.25)'" onmouseout="this.style.transform='';this.style.borderColor='rgba(255,255,255,.08)'">
+              <div style="width:64px;height:64px;border-radius:18px;background:${m.color}22;border:1px solid ${m.color}44;display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 1rem">${m.icon}</div>
+              <div style="font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:.3rem">${m.name}</div>
+              <div style="font-size:.78rem;color:var(--muted);line-height:1.5">${m.role}</div>
+            </div>
+          `).join('')}
         </div>
       </div>
     </section>
 
-    <!-- ═══ SHOWCASE ═══ -->
-    <section class="ll-section" id="ll-showcase">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('واجهة عربية احترافية','Interface arabe professionnelle')}</span>
-        <h2 class="ll-section-title">${L('صُممت','Conçue')}<span class="ll-gold"> ${L('للسرعة والوضوح','pour vitesse & clarté')}</span></h2>
-        <p class="ll-section-desc">${L('واجهة RTL كاملة، 3 ثيمات (داكن، فاتح، ذهبي)، أيقونات واضحة، وتجربة سلسة على الهاتف والحاسوب.','RTL complet, 3 thèmes, icônes claires, expérience fluide sur mobile et desktop.')}</p>
-      </div>
-
-      <div class="ll-showcase ll-reveal">
-        <div class="ll-showcase-stage" id="llShowcaseStage">
-          <div class="ll-showcase-screen">
-            <div class="ll-showcase-toolbar">
-              <span class="ll-tb-dot ll-r"></span><span class="ll-tb-dot ll-y"></span><span class="ll-tb-dot ll-g"></span>
-              <span class="ll-tb-url">smartstruct.dz/dashboard</span>
-            </div>
-            <div class="ll-showcase-body">
-              <div class="ll-sc-sidebar">
-                <div class="ll-sc-nav ll-active">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-                  <span>${L('لوحة التحكم','Tableau')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  <span>${L('المشاريع','Projets')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                  <span>${L('العمال','Ouvriers')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <span>${L('الفواتير','Factures')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-                  <span>${L('التقارير','Rapports')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
-                  <span>SmartAI</span>
-                </div>
-              </div>
-              <div class="ll-sc-content">
-                <div class="ll-sc-stats">
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('المشاريع','Projets')}</div><div class="ll-sc-stat-val">24</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('العمال','Ouvriers')}</div><div class="ll-sc-stat-val">92</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الإيرادات','Revenus')}</div><div class="ll-sc-stat-val">4.2M</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الربح','Bénéfice')}</div><div class="ll-sc-stat-val">1.8M</div></div>
-                </div>
-                <div class="ll-sc-graph">
-                  <svg viewBox="0 0 400 140" preserveAspectRatio="none">
-                    <rect x="20" y="80" width="20" height="50" rx="3" fill="rgba(232,184,75,0.3)"/>
-                    <rect x="55" y="60" width="20" height="70" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="90" y="70" width="20" height="60" rx="3" fill="rgba(232,184,75,0.4)"/>
-                    <rect x="125" y="40" width="20" height="90" rx="3" fill="rgba(232,184,75,0.6)"/>
-                    <rect x="160" y="55" width="20" height="75" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="195" y="30" width="20" height="100" rx="3" fill="rgba(232,184,75,0.7)"/>
-                    <rect x="230" y="20" width="20" height="110" rx="3" fill="#E8B84B"/>
-                    <rect x="265" y="50" width="20" height="80" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="300" y="35" width="20" height="95" rx="3" fill="rgba(232,184,75,0.6)"/>
-                    <rect x="335" y="15" width="20" height="115" rx="3" fill="#F5D07A"/>
-                    <path d="M30,90 Q70,70 100,80 T180,55 T260,40 T340,25" stroke="#E8B84B" stroke-width="2" fill="none" stroke-linecap="round" filter="drop-shadow(0 0 4px #E8B84B)"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
+    <!-- ═══ CONTACT CTA ═══ -->
+    <section id="about-contact" style="padding:80px 5%">
+      <div style="max-width:680px;margin:0 auto;text-align:center">
+        <div class="ll-section-head ll-reveal">
+          <span class="ll-eyebrow">${L('تواصل معنا','Contactez-nous')}</span>
+          <h2 class="ll-section-title">${L('لديك سؤال أو','Vous avez une question')} <span class="ll-word-gold">${L('اقتراح؟','ou une idée?')}</span></h2>
+          <p class="ll-section-desc">${L('زر صفحة التواصل لتجد كل طرق الوصول إلينا — بريد إلكتروني وشبكات التواصل الاجتماعي.','Visitez la page contact pour toutes nos coordonnées.')}</p>
+        </div>
+        <div class="ll-reveal" style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.03));border:1px solid rgba(232,184,75,.2);border-radius:20px;padding:2.5rem;margin-top:1.5rem">
+          <div style="font-size:3rem;margin-bottom:1rem">📬</div>
+          <div style="font-size:1.1rem;font-weight:800;color:var(--text);margin-bottom:.5rem">${L('فريقنا يرد خلال 24 ساعة','Notre équipe répond sous 24h')}</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.7">${L('تجد في صفحة التواصل: البريد الإلكتروني، WhatsApp، Facebook، Instagram وLinkedIn.','Sur la page contact : email, WhatsApp, Facebook, Instagram et LinkedIn.')}</p>
+          <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+            <button class="ll-btn ll-btn-gold ll-btn-lg" onclick="App.navigate('contact')">${L('📱 صفحة التواصل','📱 Page contact')}</button>
+            <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showRegisterPanel()">${L('ابدأ مجاناً','Commencer')}</button>
           </div>
         </div>
       </div>
     </section>
-
-    <!-- ═══ BENEFITS ═══ -->
-    <section class="ll-section" id="ll-benefits">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('حلول مصممة لقطاعك','Solutions sur mesure')}</span>
-        <h2 class="ll-section-title">${L('من الميدان إلى','Du chantier à la')}<span class="ll-gold"> ${L('غرفة الاجتماعات','salle de réunion')}</span></h2>
-        <p class="ll-section-desc">${L('SmartStruct يغطي كل أبعاد عمل شركة المقاولة الجزائرية — قانونياً، مالياً، وميدانياً.','SmartStruct couvre toutes les dimensions du BTP algérien — légal, financier, terrain.')}</p>
-      </div>
-
-      <div class="ll-benefits">
-
-        <!-- Row 1: PDF -->
-        <div class="ll-benefit-row ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('فواتير و','Factures &')}<span class="ll-gold">${L('عقود قانونية','contrats légaux')}</span> ${L('بنقرة واحدة','en un clic')}</h3>
-            <p>${L('توقَّف عن إعادة تنسيق نفس الفاتورة كل مرة. SmartStruct يولّد فواتير PDF احترافية متوافقة مع القانون الجزائري في ثوانٍ.','Cessez de reformater à chaque fois. SmartStruct génère des factures PDF pro conformes en quelques secondes.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('NIF / NIS / RC تلقائياً في الترويسة','NIF / NIS / RC auto en en-tête')}</li>
-              <li><span class="ll-check">✓</span> ${L('TVA 19٪ محسوبة بدقة + مكان الختم','TVA 19% calculée + emplacement cachet')}</li>
-              <li><span class="ll-check">✓</span> ${L('عقود عمل حسب قانون العمل الجزائري','Contrats conformes au droit du travail')}</li>
-              <li><span class="ll-check">✓</span> ${L('توقيع إلكتروني عبر رابط فريد للعميل','Signature électronique via lien unique')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-pdf-mockup">
-                <div class="ll-pdf-header">
-                  <div>
-                    <div class="ll-pdf-logo">${ssLogo(26, true)}</div>
-                  </div>
-                  <div style="text-align:${isAr?'right':'left'}">
-                    <div class="ll-pdf-co">${L('شركة الإنشاءات الجزائرية','Sté Constructions DZ')}</div>
-                    <div class="ll-pdf-co-sub">NIF: 0987 6543 21 · RC: 16/00-A123</div>
-                  </div>
-                  <div class="ll-pdf-num">
-                    ${L('فاتورة رقم','Facture N°')}
-                    <strong>INV-2026-0142</strong>
-                  </div>
-                </div>
-                <div class="ll-pdf-title">${L('تفاصيل الخدمات','Détails des prestations')}</div>
-                <div class="ll-pdf-line"><span>${L('أعمال خرسانة مسلحة','Béton armé')}</span><span>1,250,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>${L('تركيب هيكل معدني','Structure métallique')}</span><span>875,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>${L('أعمال البناء — المرحلة 2','Maçonnerie — Phase 2')}</span><span>620,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>TVA 19٪</span><span>521,550 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-total"><span>${L('الإجمالي المستحق','Total dû')}</span><span>3,266,550 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-stamp">SmartStruct<br>VERIFIED</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 2: AI -->
-        <div class="ll-benefit-row ll-reverse ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('مساعدك الذكي يعمل','Votre IA travaille')} <span class="ll-gold">${L('معك 24/7','avec vous 24/7')}</span></h3>
-            <p>${L('SmartAI ليس chatbot عام — هو يعرف بياناتك، يحلل مشاريعك، ويعطيك توصيات قابلة للتنفيذ بالعربية.','SmartAI n\'est pas un chatbot générique — il connaît vos données et donne des recommandations concrètes.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('تحليل ربحية كل مشروع على حدة','Analyse de rentabilité par projet')}</li>
-              <li><span class="ll-check">✓</span> ${L('تقارير شهرية احترافية تلقائية','Rapports mensuels pro automatiques')}</li>
-              <li><span class="ll-check">✓</span> ${L('تنبيهات للمخاطر المالية مبكراً','Alertes financières précoces')}</li>
-              <li><span class="ll-check">✓</span> ${L('14,400 سؤال يومياً مجاناً','14 400 questions/jour gratuites')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-ai-mockup">
-                <div class="ll-ai-mock-header">
-                  <div class="ll-ai-avatar-mock">🤖</div>
-                  <div>
-                    <div class="ll-ai-mock-name">SmartAI</div>
-                    <div class="ll-ai-mock-status">${L('متصل — يحلّل بياناتك','En ligne — analyse en cours')}</div>
-                  </div>
-                </div>
-                <div class="ll-ai-mock-body">
-                  <div class="ll-ai-msg ll-user">${L('ما هو أفضل مشروع من حيث الربحية هذا الشهر؟','Quel projet est le plus rentable ce mois ?')}</div>
-                  <div class="ll-ai-msg ll-bot">${L('مشروع "فيلا حيدرة" حقق هامش ربح 28٪ — الأعلى بين مشاريعك. لكن انتبه: مشروع "مبنى وهران" متأخر 12 يوماً.','Le projet "Villa Hydra" a une marge de 28% — la plus élevée. Attention : "Immeuble Oran" a 12 jours de retard.')}</div>
-                  <div class="ll-ai-msg ll-user">${L('كم سأكسب نهاية الشهر؟','Combien à la fin du mois ?')}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 3: Mobile / GPS -->
-        <div class="ll-benefit-row ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('ميدان رقمي','Chantier numérique')}<span class="ll-gold"> ${L('في جيب كل عامل','dans la poche')}</span></h3>
-            <p>${L('وضع الميدان (Mobile Mode) صُمم للعمال على ورشة البناء — ليس للمحاسبين خلف المكاتب.','Le mode Chantier est conçu pour les ouvriers sur le terrain — pas pour les comptables.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('5 أزرار كبيرة فقط — حضور، مواد، صور، صرف، GPS','5 gros boutons : présence, matériaux, photos, dépense, GPS')}</li>
-              <li><span class="ll-check">✓</span> ${L('تتبع GPS لكل معدة عبر QR code','Suivi GPS de chaque engin via QR')}</li>
-              <li><span class="ll-check">✓</span> ${L('تسجيل الحضور بالموقع الجغرافي','Pointage avec géolocalisation')}</li>
-              <li><span class="ll-check">✓</span> ${L('يعمل بدون إنترنت ويتزامن لاحقاً','Fonctionne offline + sync différée')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-gps-pulse"></div>
-              <div class="ll-mobile-mockup">
-                <div class="ll-mobile-screen">
-                  <div class="ll-mobile-notch"></div>
-                  <div class="ll-mobile-time">9:42 ${isAr?'ص':'AM'}</div>
-                  <div class="ll-mobile-greeting">${L('صباح الخير','Bonjour')}</div>
-                  <div class="ll-mobile-name">${L('أحمد بن علي','Ahmed Benali')}</div>
-                  <div class="ll-mobile-grid">
-                    <div class="ll-mobile-btn ll-gold">
-                      <div class="ll-mobile-btn-icon">✓</div>
-                      <div class="ll-mobile-btn-label">${L('حضور','Pointage')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">📦</div>
-                      <div class="ll-mobile-btn-label">${L('مواد','Matériaux')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">📷</div>
-                      <div class="ll-mobile-btn-label">${L('صور','Photos')}</div>
-                    </div>
-                    <div class="ll-mobile-btn">
-                      <div class="ll-mobile-btn-icon">💰</div>
-                      <div class="ll-mobile-btn-label">${L('طلب صرف','Dépense')}</div>
-                    </div>
-                    <div class="ll-mobile-btn" style="grid-column:1/-1">
-                      <div class="ll-mobile-btn-icon">📍</div>
-                      <div class="ll-mobile-btn-label">${L('GPS — موقع المعدة','GPS — Position engin')}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ═══ PRICING ═══ -->
-    <section class="ll-section" id="ll-pricing">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('أسعار شفافة','Tarifs transparents')}</span>
-        <h2 class="ll-section-title">${L('اختر الخطة','Choisissez le plan')} <span class="ll-gold">${L('المناسبة لك','qui vous convient')}</span></h2>
-        <p class="ll-section-desc">${L('جميع الخطط تشمل التجربة المجانية 14 يوماً — بدون بطاقة بنكية. ألغِ متى شئت.','Tous les plans incluent l\'essai 14 jours — sans CB. Annulez à tout moment.')}</p>
-      </div>
-
-      <div class="ll-pricing-grid">
-        <div class="ll-price-card ll-reveal">
-          <div class="ll-price-name">${L('المبتدئ','Starter')}</div>
-          <div class="ll-price-tagline">${L('للشركات الناشئة','Pour les start-ups')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num">9,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('حتى 5 مشاريع نشطة','Jusqu\'à 5 projets actifs')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 20 عامل','Jusqu\'à 20 ouvriers')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('فواتير PDF احترافية','Factures PDF pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('3 مستخدمين','3 utilisateurs')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم بالبريد الإلكتروني','Support par email')}</li>
-          </ul>
-          ${user
-            ? `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
-            : `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ مجاناً','Commencer')}</button>`
-          }
-        </div>
-
-        <div class="ll-price-card ll-featured ll-reveal">
-          <div class="ll-price-badge">⭐ ${L('الأكثر شيوعاً','Plus populaire')}</div>
-          <div class="ll-price-name">${L('الاحترافي','Professionnel')}</div>
-          <div class="ll-price-tagline">${L('للشركات النامية','Pour entreprises en croissance')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num ll-gold">24,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 100 عامل','Jusqu\'à 100 ouvriers')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('SmartAI كامل + تقارير شهرية','SmartAI complet + rapports')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('10 مستخدمين + أدوار مخصصة','10 utilisateurs + rôles')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي أولوية','Support prioritaire')}</li>
-          </ul>
-          ${user
-            ? `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
-            : `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" onclick="showRegisterPanel()">${L('ابدأ التجربة','Commencer l\'essai')}</button>`
-          }
-        </div>
-
-        <div class="ll-price-card ll-reveal">
-          <div class="ll-price-name">${L('المؤسسات','Enterprise')}</div>
-          <div class="ll-price-tagline">${L('للشركات الكبرى','Pour les grandes entreprises')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num">${L('حسب الطلب','Sur devis')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('كل ميزات الاحترافي','Tout le plan Pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('عمال ومستخدمون غير محدودين','Ouvriers & utilisateurs illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('خادم Supabase خاص','Serveur Supabase dédié')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('تكامل مع أنظمتك الحالية','Intégration vos systèmes')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('SLA + تدريب فريقك','SLA + formation équipe')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('مدير حساب مخصص','Account manager dédié')}</li>
-          </ul>
-          <a class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Nous contacter')}</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ CTA ═══ -->
-    <div class="ll-cta ll-reveal">
-      <div class="ll-cta-content">
-        <h2 class="ll-cta-title">${L('جاهز لتحويل طريقة','Prêt à transformer la gestion')} <span class="ll-gold">${L('إدارة شركتك؟','de votre entreprise ?')}</span></h2>
-        <p class="ll-cta-desc">${L('14 يوم تجربة مجانية كاملة. لا بطاقة بنكية. لا التزام. فقط جرّب وقرّر.','14 jours d\'essai complet. Sans CB. Sans engagement. Testez et décidez.')}</p>
-        <div class="ll-hero-actions" style="justify-content:center">
-          ${user
-            ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
-                 ${L('الذهاب للوحة التحكم','Tableau de bord')}
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-               </button>`
-            : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
-                 ${L('ابدأ التجربة الآن','Commencer l\'essai')}
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-               </button>
-               <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showLoginPanel()">${L('لدي حساب — دخول','J\'ai un compte')}</button>`
-          }
-        </div>
-      </div>
-    </div>
 
     <!-- ═══ FOOTER ═══ -->
-    <footer class="ll-footer">
-      <div class="ll-footer-grid">
-        <div>
-          <div class="ll-footer-brand">
-            <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
-            <div class="ll-nav-logo-text">
-              <div class="ll-nav-logo-name">SmartStruct</div>
-              <div class="ll-nav-logo-sub">v7.2 PRO</div>
-            </div>
-          </div>
-          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('المنتج','Produit')}</h4>
-          <ul>
-            <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
-            <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
-            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
-          </ul>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('الشركة','Entreprise')}</h4>
-          <ul>
-            <li><a href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Contact')}</a></li>
-            <li><a href="#">${L('من نحن','À propos')}</a></li>
-            <li><a href="#">${L('الوظائف','Carrières')}</a></li>
-          </ul>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('الدعم','Support')}</h4>
-          <ul>
-            <li><a href="#">${L('مركز المساعدة','Aide')}</a></li>
-            <li><a href="#">${L('التوثيق','Documentation')}</a></li>
-            <li><a href="#">${L('حالة الخدمة','Statut')}</a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="ll-footer-bottom">
-        <div>© 2026 SmartStruct — ${L('صُمم للشركات الجزائرية في قطاع البناء','Conçu pour les entreprises BTP algériennes')}</div>
-        <div>${L('صُنع بـ ♥ في الجزائر','Fait avec ♥ en Algérie')}</div>
+    <footer class="ll-footer" style="border-top:1px solid rgba(255,255,255,.07)">
+      <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
+        <button class="ll-nav-link" onclick="window.location.replace('index.html')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <button class="ll-nav-link ll-active" style="background:none;border:none;cursor:pointer;font-family:inherit;color:var(--gold)">${L('من نحن','À propos')}</button>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <a href="mailto:contact@smartstruct.dz" class="ll-nav-link">contact@smartstruct.dz</a>
+        <span style="color:rgba(255,255,255,.1)">|</span>
+        <div>© 2026 SmartStruct</div>
       </div>
     </footer>
   </div>`;
 };
 
+// ═══ Pages.landing ═══
+Pages.landing = function() {
+  // الصفحة الرئيسية الجديدة في index.html — إعادة توجيه
+  if (window.location.pathname.indexOf('app.html') !== -1 || 
+      window.location.pathname.indexOf('index.html') === -1) {
+    window.location.replace('index.html');
+  }
+  return '<div style="display:none"></div>';
+};
+
 /* ─── Init dynamic effects after landing renders ─── */
 function initLandingEffects() {
-  const root = document.getElementById('landingRoot');
-  if (!root) return;
+  // ── ① مكعبات BTP الطافية ──
+  (function spawnCubes() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const scene = document.createElement('div');
+    scene.className = 'll-cubes-scene';
+    const faces = ['front','back','left','right','top','bottom'];
+    const positions = [
+      {l:'8%', t:'15%', s:50, dur:18, delay:0},
+      {l:'88%',t:'20%', s:40, dur:22, delay:3},
+      {l:'5%', t:'65%', s:35, dur:25, delay:6},
+      {l:'92%',t:'70%', s:45, dur:20, delay:2},
+      {l:'50%',t:'8%',  s:30, dur:28, delay:8},
+      {l:'75%',t:'85%', s:55, dur:16, delay:4},
+      {l:'20%',t:'80%', s:38, dur:24, delay:10},
+      {l:'65%',t:'55%', s:28, dur:30, delay:5},
+    ];
+    positions.forEach(p => {
+      const cube = document.createElement('div');
+      cube.className = 'll-cube';
+      cube.style.cssText = `left:${p.l};top:${p.t};width:${p.s}px;height:${p.s}px;animation-duration:${p.dur}s;animation-delay:-${p.delay}s;opacity:.7`;
+      faces.forEach(f => {
+        const face = document.createElement('div');
+        face.className = `ll-cube-face ${f}`;
+        const half = p.s/2;
+        if(f==='front')  face.style.transform=`translateZ(${half}px)`;
+        if(f==='back')   face.style.transform=`rotateY(180deg) translateZ(${half}px)`;
+        if(f==='left')   face.style.transform=`rotateY(-90deg) translateZ(${half}px)`;
+        if(f==='right')  face.style.transform=`rotateY(90deg) translateZ(${half}px)`;
+        if(f==='top')    face.style.transform=`rotateX(90deg) translateZ(${half}px)`;
+        if(f==='bottom') face.style.transform=`rotateX(-90deg) translateZ(${half}px)`;
+        cube.appendChild(face);
+      });
+      scene.appendChild(cube);
+    });
+    hero.appendChild(scene);
+  })();
 
-  // Particles
-  const pc = document.getElementById('llParticles');
-  if (pc && !pc.children.length) {
-    const count = window.innerWidth < 768 ? 16 : 36;
-    for (let i = 0; i < count; i++) {
+  // ── ② Aurora blobs خلف الـ hero ──
+  (function addAuroras() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const blobs = [
+      {c:'#E8B84B',w:500,h:500,l:'10%',t:'20%',op:0.07,dur:12},
+      {c:'#9B6DFF',w:400,h:400,l:'60%',t:'10%',op:0.05,dur:15},
+      {c:'#34C38F',w:350,h:350,l:'40%',t:'60%',op:0.04,dur:10},
+      {c:'#4A90E2',w:300,h:300,l:'80%',t:'50%',op:0.05,dur:18},
+    ];
+    blobs.forEach((b,i) => {
+      const el = document.createElement('div');
+      el.className = 'll-aurora ll-blob';
+      el.style.cssText = `width:${b.w}px;height:${b.h}px;left:${b.l};top:${b.t};background:${b.c};opacity:${b.op};animation-duration:${b.dur}s;animation-delay:${-i*2}s;position:absolute;pointer-events:none;filter:blur(90px)`;
+      hero.style.overflow = 'hidden';
+      hero.appendChild(el);
+    });
+  })();
+
+  // ── ③ تأثير إمالة البطاقات (3D tilt) ──
+  (function initTilt() {
+    function applyTilt(cards) {
+      cards.forEach(card => {
+        if (card._tiltInit) return;
+        card._tiltInit = true;
+        card.classList.add('ll-card-3d');
+        // أضف shine div
+        if (!card.querySelector('.ll-card-shine')) {
+          const shine = document.createElement('div');
+          shine.className = 'll-card-shine';
+          card.style.position = 'relative';
+          card.appendChild(shine);
+        }
+        card.addEventListener('mousemove', e => {
+          const r = card.getBoundingClientRect();
+          const cx = r.left + r.width/2, cy = r.top + r.height/2;
+          const dx = (e.clientX - cx) / (r.width/2);
+          const dy = (e.clientY - cy) / (r.height/2);
+          const ry = dx * 12, rx = -dy * 10;
+          card.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(8px)`;
+          // تحديث موضع الضوء
+          const px = ((e.clientX - r.left)/r.width*100).toFixed(1);
+          const py = ((e.clientY - r.top)/r.height*100).toFixed(1);
+          card.style.setProperty('--mx', px+'%');
+          card.style.setProperty('--my', py+'%');
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = '';
+          card.style.removeProperty('--mx');
+          card.style.removeProperty('--my');
+        });
+      });
+    }
+    // تطبيق على بطاقات الميزات وبطاقات الأسعار
+    const selectors = ['.ll-feat-card','.ll-price-card','.ll-stat-card','.ll-showcase-card'];
+    selectors.forEach(sel => applyTilt(document.querySelectorAll(sel)));
+    // أضف class المحسَّن لبطاقات الميزات
+    document.querySelectorAll('.ll-feat-card').forEach(c => c.classList.add('ll-feat-card-enhanced'));
+  })();
+
+  // ── ④ عداد الأرقام الإحصائية ──
+  (function animateCounters() {
+    const counters = document.querySelectorAll('[data-count]');
+    if (!counters.length) return;
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        const target = parseFloat(el.dataset.count);
+        const isDecimal = String(target).includes('.');
+        const suffix = el.dataset.suffix || '';
+        const duration = 1800;
+        const start = performance.now();
+        function tick(now) {
+          const p = Math.min((now-start)/duration, 1);
+          const ease = 1 - Math.pow(1-p, 4);
+          const val = target * ease;
+          el.textContent = (isDecimal ? val.toFixed(1) : Math.round(val)) + suffix;
+          if (p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+        observer.unobserve(el);
+      });
+    }, {threshold:0.4});
+    counters.forEach(c => observer.observe(c));
+  })();
+
+  // ── ⑤ شريط التقنيات المتحرك ──
+  (function buildTechStrip() {
+    const container = document.getElementById('llTechStrip');
+    if (!container) return;
+    const isAr = document.documentElement.dir === 'rtl';
+    const techs = [
+      {i:'🏗️',l:'BTP Algérie'},
+      {i:'📊',l:'IRG 2026'},
+      {i:'🔒',l:'Supabase'},
+      {i:'📄',l:'23 وثيقة'},
+      {i:'🤖',l:'SmartAI'},
+      {i:'📱',l:'PWA Ready'},
+      {i:'☁️',l:'Google Drive'},
+      {i:'⚡',l:'Realtime'},
+      {i:'💼',l:'Multi-tenant'},
+      {i:'🌍',l:'ثنائي اللغة'},
+    ];
+    // نكرر مرتين للـ scroll لا نهائي
+    const items = [...techs,...techs].map(t =>
+      `<div class="ll-tech-badge"><span>${t.i}</span><span>${t.l}</span></div>`
+    ).join('');
+    container.innerHTML = `<div class="ll-tech-strip-inner">${items}</div>`;
+    if (isAr) {
+      const inner = container.querySelector('.ll-tech-strip-inner');
+      if (inner) inner.style.animationDirection = 'reverse';
+    }
+  })();
+
+  // ── ⑥ scroll reveal للعناصر ──
+  (function initReveal() {
+    const els = document.querySelectorAll('.ll-reveal');
+    if (!els.length) return;
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('ll-in'); obs.unobserve(e.target); }
+      });
+    }, {threshold:0.1, rootMargin:'0px 0px -40px 0px'});
+    els.forEach(el => obs.observe(el));
+  })();
+
+  // ── ⑦ نجوم متلألئة في الخلفية ──
+  (function spawnStars() {
+    const atmo = document.querySelector('.ll-atmosphere');
+    if (!atmo) return;
+    for (let i = 0; i < 60; i++) {
+      const star = document.createElement('div');
+      star.className = 'll-star';
+      const size = Math.random() * 3 + 1;
+      star.style.cssText = `
+        width:${size}px;height:${size}px;
+        left:${Math.random()*100}%;top:${Math.random()*100}%;
+        animation-duration:${2+Math.random()*5}s;
+        animation-delay:${-Math.random()*5}s;
+      `;
+      atmo.appendChild(star);
+    }
+  })();
+
+  // ── ⑧ Parallax خفيف عند تحريك الماوس ──
+  (function initParallax() {
+    const hero = document.querySelector('.ll-hero');
+    if (!hero) return;
+    const layers = hero.querySelectorAll('.ll-hero-bg, .ll-cubes-scene, .ll-aurora');
+    let ticking = false;
+    document.addEventListener('mousemove', e => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const cx = window.innerWidth/2, cy = window.innerHeight/2;
+        const dx = (e.clientX - cx)/cx, dy = (e.clientY - cy)/cy;
+        layers.forEach((layer, i) => {
+          const factor = (i+1) * 5;
+          layer.style.transform = `translate(${dx*factor*-1}px,${dy*factor*-1}px)`;
+        });
+        ticking = false;
+      });
+    });
+  })();
+
+  // ── ⑨ بطاقة مشروع نموذجية ثلاثية الأبعاد ──
+  (function enhanceShowcase() {
+    const showcase = document.getElementById('llShowcase3D');
+    if (!showcase) return;
+    showcase.classList.add('ll-project-card-3d');
+
+    // أضف progress bars متحركة
+    showcase.querySelectorAll('.ll-progress-bar').forEach(bar => {
+      const pct = bar.dataset.pct || '70';
+      bar.parentElement.className = 'll-progress-glow';
+      bar.className = 'll-progress-glow-bar';
+      bar.style.width = '0';
+      setTimeout(() => { bar.style.width = pct + '%'; }, 500);
+    });
+  })();
+
+  // ── ⑩ Particles جزيئات ذهبية ──
+  (function spawnParticles() {
+    const container = document.getElementById('llParticles');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 0; i < 25; i++) {
       const p = document.createElement('div');
       p.className = 'll-particle';
-      const size = 1 + Math.random() * 3;
-      p.style.width = size + 'px';
-      p.style.height = size + 'px';
-      p.style.left = Math.random() * 100 + '%';
-      p.style.bottom = (-20 - Math.random() * 30) + '%';
-      p.style.animationDuration = (12 + Math.random() * 16) + 's';
-      p.style.animationDelay = (Math.random() * 15) + 's';
-      p.style.opacity = 0.3 + Math.random() * 0.5;
-      pc.appendChild(p);
+      const size = Math.random() * 4 + 2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random()*100}%;
+        bottom:-20px;
+        animation-duration:${8+Math.random()*12}s;
+        animation-delay:${-Math.random()*20}s;
+        opacity:${0.3+Math.random()*0.5};
+      `;
+      container.appendChild(p);
     }
-  }
+  })();
 
-  // Navbar scroll state
-  const nav = document.getElementById('llNav');
-  if (nav) {
-    const onScroll = () => nav.classList.toggle('ll-scrolled', window.scrollY > 30);
-    window._llScrollHandler && window.removeEventListener('scroll', window._llScrollHandler);
-    window._llScrollHandler = onScroll;
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  }
-
-  // Reveal on scroll
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('ll-in');
-          io.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    root.querySelectorAll('.ll-reveal').forEach(el => io.observe(el));
-
-    // Animated counters
-    const counterIO = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const target = parseInt(e.target.dataset.target);
-          if (isNaN(target)) { counterIO.unobserve(e.target); return; }
-          const duration = 1600;
-          const start = performance.now();
-          const animate = (t) => {
-            const p = Math.min((t - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - p, 3);
-            e.target.textContent = Math.floor(target * eased);
-            if (p < 1) requestAnimationFrame(animate);
-            else e.target.textContent = target;
-          };
-          requestAnimationFrame(animate);
-          counterIO.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.5 });
-    root.querySelectorAll('[data-target]').forEach(el => counterIO.observe(el));
-  }
-
-  // 3D tilt on feature cards
-  root.querySelectorAll('[data-tilt]').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const r = card.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      const y = e.clientY - r.top;
-      const rotX = ((y / r.height) - 0.5) * -8;
-      const rotY = ((x / r.width) - 0.5) * 8;
-      card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`;
-      card.style.setProperty('--mx', (x / r.width * 100) + '%');
-      card.style.setProperty('--my', (y / r.height * 100) + '%');
-    });
-    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-  });
-
-  // Showcase 3D follow
-  const stage = document.getElementById('llShowcaseStage');
-  if (stage) {
-    const wrap = stage.parentElement;
-    wrap.addEventListener('mousemove', (e) => {
-      const r = wrap.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5;
-      const y = (e.clientY - r.top) / r.height - 0.5;
-      stage.style.transform = `rotateX(${15 - y * 10}deg) rotateY(${-8 - x * 10}deg)`;
-    });
-    wrap.addEventListener('mouseleave', () => { stage.style.transform = ''; });
-  }
-
-  // Hero scene parallax
-  const sceneStage = document.getElementById('llSceneStage');
-  if (sceneStage && window.innerWidth > 768) {
-    const sceneWrap = sceneStage.closest('.ll-scene');
-    if (sceneWrap) {
-      sceneWrap.addEventListener('mousemove', (e) => {
-        const r = sceneStage.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width - 0.5;
-        const y = (e.clientY - r.top) / r.height - 0.5;
-        sceneStage.style.animation = 'none';
-        sceneStage.style.transform = `rotateX(${8 - y * 8}deg) rotateY(${-x * 10}deg)`;
-      });
-      sceneWrap.addEventListener('mouseleave', () => {
-        sceneStage.style.animation = '';
-        sceneStage.style.transform = '';
-      });
-    }
-  }
+  // ── ⑪ Navbar scroll effect ──
+  (function initNavScroll() {
+    const nav = document.getElementById('llNav');
+    if (!nav) return;
+    let lastY = 0;
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY;
+      if (y > 80) {
+        nav.style.background = 'rgba(9,18,10,0.92)';
+        nav.style.backdropFilter = 'blur(20px)';
+        nav.style.boxShadow = '0 1px 0 rgba(232,184,75,.1)';
+        nav.style.transform = y > lastY && y > 200 ? 'translateY(-100%)' : 'translateY(0)';
+      } else {
+        nav.style.background = '';
+        nav.style.backdropFilter = '';
+        nav.style.boxShadow = '';
+        nav.style.transform = '';
+      }
+      lastY = y;
+    }, {passive:true});
+  })();
 }
-window.initLandingEffects = initLandingEffects;
+
 
 /* ─── Init effects for auth (login/register) page ─── */
 function initAuthEffects() {
@@ -2137,7 +2480,7 @@ Pages.login = function(mode) {
     </button>
 
     <button class="auth-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-      ${isAr ? '🇫🇷 FR' : '🇩🇿 AR'}
+      ${isAr ? 'FR' : 'AR'}
     </button>
 
     <!-- Main grid: Left brand panel + Right form -->
@@ -2353,16 +2696,45 @@ function renderRegisterForm(L) {
         <label class="auth-label">${L('اسم المؤسسة','Entreprise')} <span class="auth-required">*</span></label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
-          <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة المقاولة','Entreprise BTP')}" autocomplete="organization">
+          <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة البناء الحديث','Entreprise BTP')}" autocomplete="organization">
+        </div>
+        <div style="margin-top:.4rem;font-size:.72rem;color:var(--muted)">🇫🇷 ${L('الاسم بالفرنسية (اختياري للفواتير)','Nom en français (optionnel pour factures)')}</div>
+        <div class="auth-input-wrap" style="margin-top:.3rem">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
+          <input class="auth-input" id="regCompanyFr" type="text" placeholder="Entreprise BTP Moderne" dir="ltr" autocomplete="off">
         </div>
       </div>
     </div>
 
     <div class="auth-field">
       <label class="auth-label">${L('البريد الإلكتروني','Email')} <span class="auth-required">*</span></label>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <div class="auth-input-wrap" style="flex:1">
+          <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email">
+        </div>
+        <button type="button" id="sendOtpBtn" onclick="sendVerificationCode()"
+          style="flex-shrink:0;padding:.72rem .9rem;font-size:.76rem;font-weight:700;background:linear-gradient(135deg,#D4AF37,#B8941F);border:none;color:#0a0e1a;border-radius:11px;cursor:pointer;white-space:nowrap;height:auto">
+          📧 ${L('إرسال كود','Envoyer')}
+        </button>
+      </div>
+      <div id="otpStatus" style="display:none;margin-top:.4rem;font-size:.75rem"></div>
+    </div>
+
+    <!-- حقل كود التحقق - يظهر بعد إرسال الكود -->
+    <div class="auth-field" id="otpField" style="display:none">
+      <label class="auth-label">🔐 ${L('كود التحقق','Code de vérification')} <span class="auth-required">*</span></label>
       <div class="auth-input-wrap">
-        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        <input class="auth-input" id="regEmail" type="email" placeholder="exemple@entreprise.dz" dir="ltr" autocomplete="email">
+        <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input class="auth-input" id="regOtp" type="text" maxlength="6" placeholder="XXXXXX" dir="ltr"
+          style="letter-spacing:.3rem;font-size:1.1rem;font-weight:700;text-align:center"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">
+        <span id="otpTimer" style="font-size:.72rem;color:var(--dim)"></span>
+        <button type="button" onclick="sendVerificationCode(true)" style="font-size:.72rem;color:#D4AF37;background:none;border:none;cursor:pointer;padding:0">
+          🔄 ${L('إعادة إرسال','Renvoyer')}
+        </button>
       </div>
     </div>
 
@@ -2393,6 +2765,21 @@ function renderRegisterForm(L) {
             ${WILAYAS.map(w=>`<option value="${w}">${w}</option>`).join('')}
           </select>
         </div>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">${L('رقم الهاتف','Téléphone')} <span class="auth-required">*</span></label>
+        <div style="display:flex;gap:.4rem;align-items:stretch">
+          <div style="background:rgba(232,184,75,.08);border:1.5px solid rgba(232,184,75,.25);border-radius:11px;padding:0 .8rem;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:.82rem;font-weight:700;color:#E8B84B;flex-shrink:0;min-width:64px">
+            +213
+          </div>
+          <div class="auth-input-wrap" style="flex:1">
+            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.96-.93a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.5 16.5z"/></svg>
+            <input class="auth-input" id="regPhone" type="tel" placeholder="0XX XX XX XX" dir="ltr"
+              oninput="this.value=this.value.replace(/[^0-9\s]/g,'').substring(0,14)"
+              maxlength="14">
+          </div>
+        </div>
+        <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('مثال: 0555 12 34 56 — 9 أرقام على الأقل','Ex: 0555 12 34 56 — 9 chiffres minimum')}</div>
       </div>
     </div>
 
@@ -2437,6 +2824,108 @@ function switchAuthMode(mode) {
   }
 }
 
+// ══════════════════════════════════════════════════════
+//  نظام التحقق من البريد الإلكتروني — OTP 6 أرقام
+// ══════════════════════════════════════════════════════
+const _OTP = {
+  code: '',
+  email: '',
+  expiry: 0,
+  timerInterval: null,
+
+  generate() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  },
+
+  isValid(inputCode) {
+    if (!this.code || !inputCode) return false;
+    if (Date.now() > this.expiry) return false; // انتهت صلاحية الكود (10 دقائق)
+    return this.code === String(inputCode).trim();
+  },
+
+  isVerified(email) {
+    // تحقق إذا كان البريد مُؤكَّداً في هذه الجلسة
+    return sessionStorage.getItem('otp_verified') === email;
+  },
+
+  markVerified(email) {
+    sessionStorage.setItem('otp_verified', email);
+  },
+
+  startTimer() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    const timerEl = document.getElementById('otpTimer');
+    if (!timerEl) return;
+    const end = this.expiry;
+    this.timerInterval = setInterval(() => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      if (timerEl) timerEl.textContent = left > 0
+        ? L(`⏳ ينتهي خلال ${left} ثانية`, `⏳ Expire dans ${left}s`)
+        : L('❌ انتهى الكود — أعد الإرسال', '❌ Code expiré — Renvoyer');
+      if (left <= 0) clearInterval(this.timerInterval);
+    }, 1000);
+  }
+};
+
+async function sendVerificationCode(isResend = false) {
+  const email = (document.getElementById('regEmail')?.value || '').trim().toLowerCase();
+  const statusEl = document.getElementById('otpStatus');
+  const otpField = document.getElementById('otpField');
+  const sendBtn  = document.getElementById('sendOtpBtn');
+
+  // ── تحقق من صيغة البريد ──
+  const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email)) {
+    if (statusEl) { statusEl.style.display='block'; statusEl.style.color='var(--red)'; statusEl.textContent = L('❌ أدخل بريداً إلكترونياً صحيحاً','❌ Email invalide'); }
+    return;
+  }
+
+  // ── حظر domains وهمية معروفة ──
+  const fakedomains = ['mailinator.com','guerrillamail.com','tempmail.com','10minutemail.com',
+    'throwam.com','yopmail.com','sharklasers.com','guerrillamailblock.com','grr.la',
+    'spam4.me','trashmail.com','dispostable.com','maildrop.cc','fakeinbox.com'];
+  const domain = email.split('@')[1];
+  if (fakedomains.includes(domain)) {
+    if (statusEl) { statusEl.style.display='block'; statusEl.style.color='var(--red)'; statusEl.textContent = L('❌ هذا البريد الإلكتروني غير مقبول','❌ Ce domaine email n\'est pas accepté'); }
+    return;
+  }
+
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = L('⏳ جاري الإرسال...','⏳ Envoi...'); }
+  if (statusEl) { statusEl.style.display='block'; statusEl.style.color='var(--dim)'; statusEl.textContent = L('⏳ جاري إرسال كود التحقق...','⏳ Envoi du code...'); }
+
+  // ── توليد الكود ──
+  const code = _OTP.generate();
+  _OTP.code   = code;
+  _OTP.email  = email;
+  _OTP.expiry = Date.now() + 10 * 60 * 1000; // 10 دقائق
+
+  try {
+    // إرسال الكود عبر EmailJS
+    await emailjs.send(
+      EMAILJS.SERVICE_ID,
+      EMAILJS.TEMPLATE_OTP,
+      {
+        to_email:    email,
+        to_name:     email.split('@')[0],
+        passcode:    code,
+        time:        '10 minutes'
+      }
+    );
+
+    // ── إظهار حقل الكود ──
+    if (otpField) otpField.style.display = 'block';
+    if (statusEl) { statusEl.style.color='var(--green)'; statusEl.textContent = L(`✅ تم إرسال كود إلى ${email}`,`✅ Code envoyé à ${email}`); }
+    if (sendBtn)  { sendBtn.textContent = L('✅ أُرسل','✅ Envoyé'); sendBtn.style.background='rgba(52,195,143,.2)'; sendBtn.style.color='var(--green)'; }
+    document.getElementById('regOtp')?.focus();
+    _OTP.startTimer();
+
+  } catch(e) {
+    if (statusEl) { statusEl.style.color='var(--red)'; statusEl.textContent = L('❌ فشل إرسال الكود — تحقق من البريد','❌ Échec envoi — vérifiez l\'email'); }
+    if (sendBtn)  { sendBtn.disabled = false; sendBtn.textContent = L('📧 إرسال كود','Envoyer code'); }
+    console.warn('OTP send error:', e);
+  }
+}
+
 function showRegisterPanel() {
   sessionStorage.setItem('auth_mode', 'register');
   App.navigate('login', {mode:'register'});
@@ -2468,11 +2957,13 @@ function togglePassReg() {
 
 async function doRegister() {
 
-  const name    = (document.getElementById('regName')  ||{}).value||'';
-  const company = (document.getElementById('regCompany')||{}).value||'';
+  const name      = (document.getElementById('regName')     ||{}).value||'';
+  const company   = (document.getElementById('regCompany')  ||{}).value||'';
+  const companyFr = (document.getElementById('regCompanyFr')||{}).value||'';
   const email   = ((document.getElementById('regEmail') ||{}).value||'').trim().toLowerCase();
   const pass    = (document.getElementById('regPass')   ||{}).value||'';
   const wilaya  = (document.getElementById('regWilaya') ||{}).value||'';
+  const phone   = (document.getElementById('regPhone')  ||{}).value||'';
   const terms   = (document.getElementById('regTerms')  ||{}).checked||false;
   const errEl   = document.getElementById('registerError');
   const btnReg  = document.querySelector('.btn-trial');
@@ -2486,8 +2977,38 @@ async function doRegister() {
   if (!name.trim())    return showErr(L('❌ الاسم الكامل مطلوب','❌ Le nom complet est requis'));
   if (!company.trim()) return showErr(L('❌ اسم المؤسسة مطلوب',"❌ Le nom de l'entreprise est requis"));
   if (!email || !email.includes('@')) return showErr(L('❌ البريد الإلكتروني غير صالح','❌ Email invalide'));
+  if (!phone.trim() || phone.replace(/\s/g,'').length < 9) return showErr(L('❌ رقم الهاتف غير صالح — يجب 9 أرقام على الأقل','❌ Numéro de téléphone invalide — 9 chiffres minimum'));
   if (pass.length < 6) return showErr(L('❌ كلمة المرور 6 أحرف على الأقل','❌ 6 caractères minimum'));
   if (!terms) return showErr(L('❌ يجب الموافقة على الشروط','❌ Vous devez accepter les conditions'));
+
+  // ── تحقق من كود البريد الإلكتروني ──
+  const otpInput = (document.getElementById('regOtp')?.value || '').trim();
+
+  // إذا لم يُرسَل الكود بعد
+  if (!_OTP.code && !_OTP.isVerified(email)) {
+    return showErr(L('❌ يجب إرسال كود التحقق للبريد الإلكتروني أولاً — اضغط "إرسال كود"',
+                     '❌ Vous devez d\'abord envoyer un code de vérification à votre email'));
+  }
+
+  // إذا أُرسل الكود لكن لم يُدخَل بعد
+  if (_OTP.code && !otpInput && !_OTP.isVerified(email)) {
+    return showErr(L('❌ أدخل كود التحقق المرسل إلى بريدك الإلكتروني',
+                     '❌ Entrez le code de vérification envoyé à votre email'));
+  }
+
+  // التحقق من صحة الكود
+  if (_OTP.code && !_OTP.isVerified(email)) {
+    if (!_OTP.isValid(otpInput)) {
+      if (Date.now() > _OTP.expiry) {
+        return showErr(L('❌ انتهت صلاحية الكود — اضغط "إعادة إرسال"',
+                         '❌ Code expiré — Cliquez sur "Renvoyer"'));
+      }
+      return showErr(L('❌ كود التحقق غير صحيح — تحقق من بريدك',
+                       '❌ Code incorrect — Vérifiez votre email'));
+    }
+    // ✅ الكود صحيح — سجّل التحقق
+    _OTP.markVerified(email);
+  }
 
   // ── عرض حالة التحميل ──
   if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = '⏳ جاري التسجيل...'; }
@@ -2513,31 +3034,69 @@ async function doRegister() {
     };
 
     // 1. تحقق من تكرار البريد مباشرة في Supabase
-    const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id`, { headers: sbH });
-    if (chkR.ok && (await chkR.json()).length) {
-      return showErr(L('❌ هذا البريد مستخدم بالفعل','❌ Email déjà utilisé'));
+    const chkR = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=id,tenant_id,account_status`, { headers: sbH });
+    if (chkR.ok) {
+      const existing = await chkR.json();
+      if (existing.length) {
+        // ✅ المستخدم موجود بالفعل — إذا كانت حالته pending أعرض شاشة الانتظار
+        if (existing[0].account_status === 'pending') {
+          if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+          showPendingActivationScreen(name.trim(), email, company.trim());
+          return;
+        }
+        return showErr(L('❌ هذا البريد مستخدم بالفعل — جرّب تسجيل الدخول','❌ Email déjà utilisé — Essayez de vous connecter'));
+      }
     }
 
     const now = new Date();
     const registrationDate = now.toISOString().split('T')[0];
     const trialEndDate = (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })();
 
-    // 2. INSERT tenant في Supabase
+    // 2. INSERT tenant في Supabase — مع ON CONFLICT DO NOTHING (upsert safe)
+    const sbHUpsert = {
+      ...sbH,
+      'Prefer': 'return=representation,resolution=merge-duplicates'
+    };
     const tRes = await fetch(`${sbUrl}/rest/v1/tenants`, {
-      method: 'POST', headers: sbH,
+      method: 'POST', headers: sbHUpsert,
       body: JSON.stringify({
-        name: company.trim(), plan_id: 2, wilaya: wilaya,
+        name: company.trim(),
+        plan_id: 2, wilaya: wilaya,
         subscription_status: 'trial',
         trial_start: registrationDate,
         trial_end: trialEndDate,
         is_active: false
       })
     });
-    if (!tRes.ok) throw new Error('فشل حفظ بيانات المؤسسة: ' + await tRes.text());
+    if (!tRes.ok) {
+      const errText = await tRes.text();
+      // إذا كان الخطأ duplicate key (23505) للـ tenants، جرّب استرجاع التينانت الموجود
+      let errJson = {};
+      try { errJson = JSON.parse(errText); } catch(_) {}
+      if (errJson.code === '23505') {
+        // Fallback: ابحث عن tenant بنفس الاسم
+        const tChk = await fetch(`${sbUrl}/rest/v1/tenants?name=eq.${encodeURIComponent(company.trim())}&select=*&limit=1`, { headers: sbH });
+        if (tChk.ok) {
+          const existing = await tChk.json();
+          if (existing.length) {
+            // استخدم التينانت الموجود وتابع
+            console.warn('[Register] Tenant already exists, reusing:', existing[0].id);
+            const sbTenant = existing[0];
+            // تابع إنشاء المستخدم فقط
+            await _createUserForTenant(sbUrl, sbH, sbHUpsert, sbTenant, name, email, hashedPass, company, wilaya, now, sbNotif => {
+              DB.setSilent ? DB.setSilent('tenants', [...(DB.get('tenants')||[]).filter(t=>t.id!==sbTenant.id), sbTenant]) : DB.set('tenants', [...(DB.get('tenants')||[]).filter(t=>t.id!==sbTenant.id), sbTenant]);
+            });
+            return;
+          }
+        }
+      }
+      throw new Error('فشل حفظ بيانات المؤسسة: ' + errText);
+    }
     const [sbTenant] = await tRes.json();
 
-    // 3. INSERT user في Supabase (مع تشفير كلمة المرور)
+    // 3. INSERT user في Supabase (مع تشفير كلمة المرور) — upsert safe
     let hashedPass = pass;
+    const originalPass = pass; // ✅ احتفظ بالأصلية لإرسالها في إيميل التفعيل
     try {
       if (typeof SmartCrypto !== 'undefined') {
         hashedPass = await SmartCrypto.hash(pass);
@@ -2545,11 +3104,12 @@ async function doRegister() {
     } catch(e) { console.warn('Password hashing failed:', e); }
 
     const uRes = await fetch(`${sbUrl}/rest/v1/users`, {
-      method: 'POST', headers: sbH,
+      method: 'POST', headers: sbHUpsert,
       body: JSON.stringify({
         tenant_id: sbTenant.id,
         full_name: name.trim(),
         email: email,
+        phone: phone.trim() ? '+213' + phone.trim().replace(/^0/, '').replace(/\s/g,'') : '',
         password: hashedPass,
         role: 'admin',
         is_admin: false,
@@ -2557,26 +3117,47 @@ async function doRegister() {
         account_status: 'pending'
       })
     });
-    if (!uRes.ok) throw new Error('فشل حفظ بيانات المستخدم: ' + await uRes.text());
+    if (!uRes.ok) {
+      const errText = await uRes.text();
+      let errJson = {};
+      try { errJson = JSON.parse(errText); } catch(_) {}
+      if (errJson.code === '23505') {
+        // المستخدم موجود — أعرض شاشة الانتظار
+        if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+        showPendingActivationScreen(name.trim(), email, company.trim());
+        return;
+      }
+      throw new Error('فشل حفظ بيانات المستخدم: ' + errText);
+    }
     const [sbUser] = await uRes.json();
 
     // 4. إشعار Supabase بطلب التسجيل (يظهر للأدمن) — احفظ ID المُرجَع
     let sbNotif = null;
     try {
+      // ✅ نحفظ كلمة المرور الأصلية مُشفّرة بـ base64 في حقل extra_data
+      // لكي يتمكن الأدمن من إرسالها في إيميل التفعيل لاحقاً
+      const encodedPass = typeof btoa !== 'undefined' ? btoa(unescape(encodeURIComponent(originalPass))) : '';
       const nRes = await fetch(`${sbUrl}/rest/v1/notifications`, {
-        method: 'POST', headers: sbH,
+        method: 'POST', headers: sbHUpsert,
         body: JSON.stringify({
-          id: Date.now(),  // notifications.id هو BIGINT (نولّده بأنفسنا)
+          // ✅ لا نمرر id — Supabase يولّده تلقائياً (SERIAL/BIGSERIAL)
           type: 'new_account',
           title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
-          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
+          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})${phone.trim()?' — 📞 '+('+213'+phone.trim().replace(/^0/,'').replace(/\s/g,'')):''} — 📍 ${wilaya}`,
           user_id: sbUser.id, tenant_id: sbTenant.id,
-          date: now.toISOString(), read: false, status: 'pending'
+          date: now.toISOString(), read: false, status: 'pending',
+          extra_data: encodedPass // ✅ كلمة مرور base64 مؤقتة للإيميل
         })
       });
       if (nRes.ok) {
         const arr = await nRes.json();
         sbNotif = Array.isArray(arr) ? arr[0] : arr;
+        if (!sbNotif) {
+          console.warn('[Register] notification POST returned empty — will fetch separately');
+        }
+      } else {
+        const errTxt = await nRes.text().catch(() => '');
+        console.warn('[Register] notification POST failed:', nRes.status, errTxt);
       }
     } catch(e) { console.warn('Notification creation failed:', e); }
 
@@ -2624,6 +3205,9 @@ async function doRegister() {
 
     // 6. إرسال إيميل إشعار للأدمن
     EMAILJS.notifyNewAccount({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
+
+    // 6b. إرسال إيميل ترحيبي للمستخدم الجديد
+    EMAILJS.sendWelcomeEmail({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
 
     // 7. عرض شاشة الترحيب وانتظار الموافقة (بدون تسجيل دخول)
     if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
@@ -2766,11 +3350,14 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
   document.body.appendChild(overlay);
 }
 
-// ─── ربوت الترحيب للحسابات الجديدة ───
+// ─── ربوت الترحيب للحسابات الجديدة (مرة واحدة فقط لكل مستخدم) ───
 function showWelcomeRobot(userName, daysLeft) {
-  // لا تظهر لو مش أول مرة
-  if (sessionStorage.getItem('sbtp_welcomed')) return;
-  sessionStorage.setItem('sbtp_welcomed', '1');
+  // ✅ استخدام localStorage مع معرّف المستخدم — مرة واحدة على الإطلاق
+  const userId = Auth.getUser()?.id;
+  const tid    = Auth.getUser()?.tenant_id;
+  const key    = `sbtp_welcomed_${tid}_${userId}`;
+  if (localStorage.getItem(key)) return;   // ✅ سبق أن شاهدها
+  localStorage.setItem(key, '1');           // ✅ تسجيل أنها ظهرت
 
   const firstName = userName.split(' ')[0];
   const overlay = document.createElement('div');
@@ -2870,23 +3457,11 @@ const TrialManager = {
   _clientBaseMs: null,    // Date.now() لحظة جلب وقت السيرفر
   _syncInFlight: false,
 
-  // محاولة جلب وقت السيرفر من Supabase (يتطلب View: public.server_time)
+  // وقت السيرفر — معطّل (جدول server_time غير موجود)، يُستخدم وقت الجهاز
   async syncServerNow() {
-    if (this._syncInFlight) return;
-    this._syncInFlight = true;
-    try {
-      if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
-      const rows = await SupabaseClient.select('server_time', {}, { limit: 1 });
-      if (rows && rows[0] && rows[0].now) {
-        this._serverBase = new Date(rows[0].now);
-        this._clientBaseMs = Date.now();
-      }
-    } catch (e) {
-      // fallback silently (يستخدم وقت الجهاز)
-      // console.warn('Server time sync failed:', e);
-    } finally {
-      this._syncInFlight = false;
-    }
+    // لا نستعلم عن server_time لتجنب أخطاء 400
+    // وقت الجهاز كافٍ تماماً للاستخدام العادي
+    return;
   },
 
   // وقت "حقيقي" تقديري: serverBase + (الفرق من وقت الجهاز)
@@ -3109,19 +3684,22 @@ const TrialManager = {
 
           <div class="tem-plans-title">💎 ${t('اختر خطتك','Choisissez votre plan')}</div>
           <div class="tem-plans">
-            <div class="tem-plan" onclick="TrialManager._requestUpgrade(1)">
+            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(1):TrialManager._requestUpgrade(1)">
+              <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">👷 ${t('للمقاول الفردي','Contractant indiv.')}</div>
               <div class="tem-plan-name">${t('المبتدئ','Starter')}</div>
               <div class="tem-plan-price">2,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('3 مشاريع · 15 عامل','3 projets · 15 ouvriers')}</div>
             </div>
-            <div class="tem-plan featured" onclick="TrialManager._requestUpgrade(2)">
+            <div class="tem-plan featured" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
+              <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏢 ${t('للشركات','Entreprises')}</div>
               <div class="tem-plan-name">⭐ ${t('الاحترافي','Pro')}</div>
               <div class="tem-plan-price">7,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
               <div class="tem-plan-feat">${t('20 مشروع · 100 عامل','20 projets · 100 ouvriers')}</div>
             </div>
-            <div class="tem-plan" onclick="TrialManager._requestUpgrade(3)">
+            <div class="tem-plan" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(3):TrialManager._requestUpgrade(3)">
+              <div style="font-size:.6rem;color:#D4AF37;font-weight:800;letter-spacing:.5px;margin-bottom:.3rem">🏛️ ${t('للمؤسسات الكبرى','Grandes ent.')}</div>
               <div class="tem-plan-name">${t('المؤسسي','Entreprise')}</div>
               <div class="tem-plan-price">19,900</div>
               <div class="tem-plan-period">${t('دج / شهر','DA / mois')}</div>
@@ -3130,8 +3708,8 @@ const TrialManager = {
           </div>
 
           <div class="tem-actions">
-            <button class="tem-btn tem-btn-gold" onclick="TrialManager._requestUpgrade(2)">
-              💎 ${t('اشترك الآن', "S'abonner maintenant")}
+            <button class="tem-btn tem-btn-gold" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):TrialManager._requestUpgrade(2)">
+              💳 ${t('ادفع إلكترونياً الآن', "Payer en ligne maintenant")}
             </button>
             <button class="tem-btn tem-btn-ghost" onclick="TrialManager._closeAndLogout()">
               👋 ${t('تسجيل الخروج','Se déconnecter')}
@@ -3140,7 +3718,12 @@ const TrialManager = {
         </div>
 
         <div class="tem-foot">
-          📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartbtp.dz</strong>
+          <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.5rem">
+            <span style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.2rem .5rem;font-size:.75rem">📮 EDAHABIA</span>
+            <span style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.2rem .5rem;font-size:.75rem">💳 CIB</span>
+            <span style="background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.2);border-radius:6px;padding:.2rem .5rem;font-size:.75rem;color:#34C38F">🔒 Chargily Pay™</span>
+          </div>
+          📧 ${t('للاستفسارات:','Contact :')} <strong>contact@smartstruct.dz</strong>
         </div>
       </div>
     `;
@@ -3150,51 +3733,36 @@ const TrialManager = {
 
   // طلب ترقية من داخل modal الانتهاء
   _requestUpgrade(planId) {
+    // ══════════════════════════════════════════════
+    //  الدفع الإلكتروني عبر Chargily Pay
+    //  يدعم: EDAHABIA (بريد الجزائر) + CIB (SATIM)
+    // ══════════════════════════════════════════════
     try {
-      const tenant = (typeof Auth !== 'undefined' && Auth.getTenant) ? Auth.getTenant() : null;
-      const user   = (typeof Auth !== 'undefined' && Auth.getUser)   ? Auth.getUser()   : null;
-      const company = tenant?.name || '—';
-      const planNames = {1:'المبتدئ', 2:'الاحترافي', 3:'المؤسسي'};
+      // إخفاء modal انتهاء التجربة مؤقتاً (لا نُغلقه كلياً)
+      const expModal = document.getElementById('trial-expired-modal');
+      if (expModal) expModal.style.display = 'none';
+      document.body.style.overflow = '';
 
-      // سجّل طلب الترقية في الإشعارات
-      const notifs = DB.get('notifications') || [];
-      notifs.unshift({
-        id: Date.now(),
-        type: 'upgrade_request',
-        title: 'طلب اشتراك بعد انتهاء التجربة',
-        body: `المؤسسة "${company}" تطلب الاشتراك في خطة "${planNames[planId]||'?'}"`,
-        user_id: user?.id || null,
-        tenant_id: tenant?.id || null,
-        tenant_name: company,
-        requested_plan: planId,
-        date: new Date().toISOString(),
-        status: 'pending',
-        read: false
-      });
-      DB.set('notifications', notifs);
-      try { sbSync('notifications', notifs[0], 'POST'); } catch(_) {}
-
-      // بريد إلى المسؤول
-      if (typeof EMAILJS !== 'undefined' && EMAILJS.notifyNewAccount) {
-        EMAILJS.notifyNewAccount({
-          name: user?.full_name || '—',
-          email: user?.email || '—',
-          company,
-          wilaya: tenant?.wilaya || '—',
-          subject: `💎 طلب اشتراك (${planNames[planId]}) — ${company}`
-        }).catch(()=>{});
-      }
-
-      if (typeof Toast !== 'undefined') {
-        Toast.success(L('✅ تم إرسال طلبك — سيتواصل معك المسؤول قريباً عبر البريد','✅ Demande envoyée — l\'administrateur vous contactera bientôt'));
+      // فتح نافذة اختيار طريقة الدفع
+      if (typeof ChargilyPayment !== 'undefined') {
+        ChargilyPayment.initiatePayment(planId);
       } else {
-        alert(L('✅ تم إرسال طلبك بنجاح. سيتواصل معك المسؤول قريباً.','✅ Demande envoyée. L\'administrateur vous contactera bientôt.'));
+        // Fallback: تحميل الوحدة ثم المحاولة
+        console.error('ChargilyPayment module not loaded');
+        if (typeof Toast !== 'undefined') {
+          Toast.error(L('خطأ في تحميل بوابة الدفع. أعد تحميل الصفحة.','Erreur de chargement de la passerelle. Rechargez la page.'));
+        }
+        // إعادة عرض modal الانتهاء
+        if (expModal) expModal.style.display = '';
+        document.body.style.overflow = 'hidden';
       }
     } catch(e) {
       console.warn('_requestUpgrade error:', e);
+      // في حالة خطأ، أعد عرض الـ modal
+      const expModal = document.getElementById('trial-expired-modal');
+      if (expModal) expModal.style.display = '';
+      document.body.style.overflow = 'hidden';
     }
-    // نسجّل الخروج بعد الطلب
-    setTimeout(() => this._closeAndLogout(), 1500);
   },
 
   _closeAndLogout() {
@@ -3203,7 +3771,7 @@ const TrialManager = {
     document.body.style.overflow = '';
     try {
       sessionStorage.removeItem('sbtp_user');
-      sessionStorage.removeItem('sbtp_admin_auth');
+      localStorage.removeItem('sbtp_admin_auth');
       if (typeof Auth !== 'undefined') Auth.currentUser = null;
     } catch(_) {}
     // العودة لصفحة الدخول
@@ -3348,6 +3916,135 @@ function requestPlanUpgrade(companyNameOpt) {
 /* ─── DASHBOARD ─── */
 
 /* ─── SMART HEALTH SCORE ENGINE ─── */
+// ════════════════════════════════════════════════════════════════════
+// 🏗️ مؤشرات BTP الاحترافية للمقاولين — Construction KPIs (EVM)
+// ════════════════════════════════════════════════════════════════════
+function calcBTPMetrics(projects, txs, workers, attendance, invoices, materials, equip, salaryRecs) {
+  const m = {};
+
+  // ── مؤشرات مالية ──
+  const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0);
+  const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+  const totalBudget = projects.reduce((s,p)=>s+Number(p.budget||0),0);
+  const totalSpent  = projects.reduce((s,p)=>s+Number(p.total_spent||0),0);
+  const cashOnHand  = revenue - expense;
+
+  // ① CPI - Cost Performance Index (EVM: EV / AC)
+  // EV (Earned Value) = budget × progress
+  // AC (Actual Cost) = total_spent
+  const ev = projects.reduce((s,p)=>s+(Number(p.budget||0)*Number(p.progress||0)/100), 0);
+  const ac = totalSpent;
+  m.cpi = ac > 0 ? +(ev / ac).toFixed(2) : null;
+  // > 1 = ربح، < 1 = خسارة، = 1 = متعادل
+
+  // ② SPI - Schedule Performance Index (EV / PV)
+  // PV (Planned Value) = budget × planned_progress (based on time)
+  const now = Date.now();
+  let pv = 0;
+  projects.forEach(p => {
+    if (!p.start_date || !p.end_date || !p.budget) return;
+    const start = new Date(p.start_date).getTime();
+    const end = new Date(p.end_date).getTime();
+    if (end <= start) return;
+    const elapsed = Math.max(0, Math.min(1, (now - start) / (end - start)));
+    pv += Number(p.budget) * elapsed;
+  });
+  m.spi = pv > 0 ? +(ev / pv).toFixed(2) : null;
+  // > 1 = متقدم، < 1 = متأخر
+
+  // ③ Burn Rate - معدل الحرق اليومي (آخر 30 يوم)
+  const last30 = new Date(); last30.setDate(last30.getDate() - 30);
+  const recent30Exp = txs.filter(t => t.type==='expense' && new Date(t.date) >= last30)
+                          .reduce((s,t)=>s+Number(t.amount||0),0);
+  m.burnRate = Math.round(recent30Exp / 30);
+
+  // ④ Cash Runway - عدد الأيام قبل نفاد السيولة
+  m.cashRunway = m.burnRate > 0 ? Math.round(cashOnHand / m.burnRate) : null;
+
+  // ⑤ DSO - Days Sales Outstanding (متوسط فترة تحصيل الفواتير)
+  const paidInvoices = invoices.filter(i => i.status === 'paid' && i.date && i.payment_date);
+  if (paidInvoices.length > 0) {
+    const totalDays = paidInvoices.reduce((s,i) => {
+      const issued = new Date(i.date).getTime();
+      const paid = new Date(i.payment_date).getTime();
+      return s + Math.max(0, (paid - issued) / (1000*60*60*24));
+    }, 0);
+    m.dso = Math.round(totalDays / paidInvoices.length);
+  } else {
+    m.dso = null;
+  }
+
+  // ⑥ هامش الربح الإجمالي
+  m.grossMargin = revenue > 0 ? +(((revenue - expense) / revenue) * 100).toFixed(1) : null;
+
+  // ⑦ Productivity per Worker - الإنتاجية اليومية لكل عامل
+  const today = new Date().toISOString().split('T')[0];
+  const presentToday = attendance.filter(a => a.date === today && a.status === 'present').length;
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const totalProgress = activeProjects.reduce((s,p)=>s+Number(p.progress||0),0);
+  m.productivity = presentToday > 0 ? +(totalProgress / presentToday).toFixed(1) : 0;
+
+  // ⑧ Cost per m² - التكلفة لكل متر مربع
+  const projectsWithArea = projects.filter(p => Number(p.surface||p.area||0) > 0);
+  if (projectsWithArea.length > 0) {
+    const totalArea = projectsWithArea.reduce((s,p)=>s+Number(p.surface||p.area||0),0);
+    const totalSpentArea = projectsWithArea.reduce((s,p)=>s+Number(p.total_spent||0),0);
+    m.costPerM2 = totalArea > 0 ? Math.round(totalSpentArea / totalArea) : null;
+  } else {
+    m.costPerM2 = null;
+  }
+
+  // ⑨ Equipment Utilization - معدل استخدام المعدات
+  const activeEquip = equip.filter(e => e.status === 'active' || e.status === 'in_use').length;
+  m.equipUtilization = equip.length > 0 ? Math.round((activeEquip / equip.length) * 100) : 0;
+
+  // ⑩ Stock Coverage - تغطية المخزون بالأيام (للمواد بحد أدنى)
+  const lowStock = materials.filter(mt => Number(mt.quantity||0) < Number(mt.min_quantity||0));
+  m.lowStockCount = lowStock.length;
+  m.lowStockList = lowStock.slice(0, 3).map(mt => mt.name);
+
+  // ⑪ Payroll Ratio - نسبة الأجور
+  const lastMonthSalaries = (salaryRecs || []).filter(s => {
+    const d = new Date(s.payment_date || s.month + '-01');
+    return d >= last30;
+  }).reduce((sum,s) => sum + Number(s.net_amount || s.amount || 0), 0);
+  m.payrollRatio = revenue > 0 ? +((lastMonthSalaries / (revenue||1)) * 100).toFixed(1) : null;
+  m.payrollAmount = lastMonthSalaries;
+
+  // ⑫ Project Completion Forecast - متوسط أيام لإكمال المشاريع النشطة
+  let totalDaysToComplete = 0; let validProjects = 0;
+  activeProjects.forEach(p => {
+    if (!p.progress || p.progress >= 100 || !p.start_date) return;
+    const start = new Date(p.start_date).getTime();
+    const elapsedDays = (now - start) / (1000*60*60*24);
+    if (elapsedDays <= 0 || p.progress <= 0) return;
+    const totalDaysEstimated = elapsedDays / (p.progress / 100);
+    const remaining = totalDaysEstimated - elapsedDays;
+    if (remaining > 0 && remaining < 730) {  // أقل من سنتين منطقي
+      totalDaysToComplete += remaining;
+      validProjects++;
+    }
+  });
+  m.avgDaysToComplete = validProjects > 0 ? Math.round(totalDaysToComplete / validProjects) : null;
+
+  // ⑬ Receivables (الفواتير المعلقة)
+  m.unpaidInvoices = invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled');
+  m.unpaidAmount = m.unpaidInvoices.reduce((s,i)=>s+Number(i.amount||i.total||0),0);
+
+  // ⑭ تقييم صحي ذكي لكل مؤشر
+  m.alerts = [];
+  if (m.cpi !== null && m.cpi < 0.9)        m.alerts.push({ icon:'💸', text:'تجاوز التكلفة المقدرة (CPI<0.9)' });
+  if (m.spi !== null && m.spi < 0.85)       m.alerts.push({ icon:'⏰', text:'تأخر زمني في المشاريع (SPI<0.85)' });
+  if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text:`السيولة ستنفد خلال ${m.cashRunway} يوم` });
+  if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text:`متوسط التحصيل ${m.dso} يوم - بطيء` });
+  if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text:`هامش ربح منخفض (${m.grossMargin}%)` });
+  if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} مادة مخزون منخفض` });
+  if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text:`الأجور ${m.payrollRatio}% من الإيرادات` });
+  if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text:`فواتير غير محصلة: ${fmt(Math.round(m.unpaidAmount))} دج` });
+
+  return m;
+}
+
 function calcHealthScore(projects, txs, workers, attendance) {
   if (!projects.length) return { score: 0, color: '#F04E6A', label: I18N.t('dash.danger'), breakdown: {} };
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
@@ -3433,6 +4130,8 @@ Pages.dashboard = function() {
   const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
   const workers  = DB.get('workers').filter(w => w.tenant_id===tid);
   const equip    = DB.get('equipment').filter(e => e.tenant_id===tid);
+  const invoices = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materials= DB.get('materials').filter(m => m.tenant_id===tid);
   const txs      = DB.get('transactions').filter(t => t.tenant_id===tid);
   const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
   const revenue  = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
@@ -3442,28 +4141,89 @@ Pages.dashboard = function() {
   const recent = [...projects].sort((a,b)=>b.id-a.id).slice(0,4);
   const plan = Auth.getPlan();
   const tenant = Auth.getTenant();
-  // Trial banner
+
+  // ── نظام حالة الاشتراك الاحترافي ──
   let trialBannerHTML = '';
-  if (tenant && tenant.subscription_status === 'trial' && tenant.trial_end) {
-    const daysLeft = Math.max(0, TrialManager.getDaysLeft(tenant) ?? 0);
-    const pct = Math.round((daysLeft / 14) * 100);
-  
-    const urgency = daysLeft <= 3 ? 'var(--red)' : daysLeft <= 7 ? 'var(--gold)' : 'var(--green)';
-    trialBannerHTML = `<div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.2);border-radius:14px;padding:.9rem 1.2rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
-      <div style="display:flex;align-items:center;gap:.8rem">
-        <div style="font-size:1.6rem;font-weight:900;color:${urgency};font-family:'JetBrains Mono',monospace">${daysLeft}</div>
-        <div>
-          <div style="font-size:.82rem;font-weight:800;color:var(--text)">${L('يوم متبقي من التجربة المجانية','Jours restants d\'essai gratuit')}</div>
-          <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;width:180px;margin-top:4px">
-            <div style="height:4px;background:${urgency};border-radius:4px;width:${pct}%;transition:width 1s ease"></div>
+  if (tenant && !user.is_admin) {
+    const daysLeftTrial = TrialManager.getDaysLeft(tenant);
+    const daysLeftPaid  = TrialManager.getPaidDaysLeft(tenant);
+    const isExpired     = TrialManager.isExpired(tenant);
+    const status        = tenant.subscription_status || 'trial';
+    const now           = new Date();
+
+    if (isExpired || status === 'expired' || tenant.is_active === false) {
+      // ── ① حساب منتهي ← تنبيه حمراء + عرض الخطط ──
+      trialBannerHTML = `
+      <div id="expiredBanner" style="background:linear-gradient(135deg,rgba(240,78,106,.1),rgba(240,78,106,.05));border:1.5px solid rgba(240,78,106,.4);border-radius:16px;padding:1.1rem 1.3rem;margin-bottom:1rem;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#F04E6A,#E8B84B,#F04E6A);background-size:200%;animation:shimmerBar 2s linear infinite"></div>
+        <style>@keyframes shimmerBar{0%{background-position:0 0}100%{background-position:200% 0}}</style>
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:.9rem">
+            <div style="font-size:2rem">⏰</div>
+            <div>
+              <div style="font-size:.95rem;font-weight:900;color:#F04E6A">${L('انتهت فترة التجربة المجانية','Période d\'essai expirée')}</div>
+              <div style="font-size:.78rem;color:rgba(240,78,106,.8);margin-top:2px">${L('حسابك محظور حالياً — اشترك لمواصلة الاستخدام','Votre compte est suspendu — Abonnez-vous pour continuer')}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-gold" onclick="showSubscriptionPlansModal()">
+              🚀 ${L('اشترك الآن','S\'abonner maintenant')}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')">
+              💳 ${L('عرض الخطط','Voir les plans')}
+            </button>
           </div>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:.6rem">
-        <span style="font-size:.75rem;color:var(--dim)">${L('انتهاء التجربة:','Fin de l\'essai:')} ${tenant.trial_end}</span>
-        <button class="btn btn-gold btn-sm" onclick="requestPlanUpgrade()">${L('ترقية الحساب ↑','Mettre à niveau ↑')}</button>
-      </div>
-    </div>`;
+      </div>`;
+
+    } else if (status === 'trial' && daysLeftTrial !== null) {
+      // ── ② حساب تجريبي نشط ← banner حسب عدد الأيام ──
+      const urgencyColor = daysLeftTrial <= 2 ? '#F04E6A' : daysLeftTrial <= 5 ? '#E8B84B' : '#34C38F';
+      const pct = Math.min(100, Math.round((daysLeftTrial / 14) * 100));
+      const endDate = tenant.trial_end ? new Date(tenant.trial_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long'}) : '—';
+
+      trialBannerHTML = `
+      <div style="background:rgba(52,195,143,.04);border:1px solid ${urgencyColor}44;border-radius:14px;padding:.9rem 1.2rem;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
+          <div style="display:flex;align-items:center;gap:.9rem">
+            <div style="width:52px;height:52px;border-radius:12px;background:${urgencyColor}15;border:2px solid ${urgencyColor}44;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="font-size:1.3rem;font-weight:900;color:${urgencyColor};line-height:1">${daysLeftTrial}</div>
+              <div style="font-size:8px;color:${urgencyColor};opacity:.8">${L('يوم','j.')}</div>
+            </div>
+            <div>
+              <div style="font-size:.85rem;font-weight:800;color:var(--text)">${L('تجربة مجانية — يبقى','Essai gratuit — reste')} <strong style="color:${urgencyColor}">${daysLeftTrial} ${L('يوم','jours')}</strong></div>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-top:5px">
+                <div style="height:5px;background:rgba(255,255,255,.08);border-radius:4px;width:140px;overflow:hidden">
+                  <div style="height:5px;background:${urgencyColor};border-radius:4px;width:${pct}%;transition:width 1s"></div>
+                </div>
+                <span style="font-size:.7rem;color:var(--dim)">${L('تنتهي','Expire')} ${endDate}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            ${daysLeftTrial <= 5 ? `<span style="font-size:.72rem;background:${urgencyColor}15;border:1px solid ${urgencyColor}44;color:${urgencyColor};padding:3px 8px;border-radius:20px;font-weight:700">⚡ ${L('عرض خاص — اشترك قبل الانتهاء!','Offre spéciale — Abonnez-vous avant expiration!')}</span>` : ''}
+            <button class="btn btn-gold btn-sm" onclick="showSubscriptionPlansModal()">💳 ${L('الترقية','Mettre à niveau')}</button>
+          </div>
+        </div>
+      </div>`;
+
+    } else if (status === 'active' && daysLeftPaid !== null && daysLeftPaid <= 10) {
+      // ── ③ اشتراك مدفوع يقترب من الانتهاء ← تنبيه ذهبي ──
+      const endDate = tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}) : '—';
+      trialBannerHTML = `
+      <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.3);border-radius:14px;padding:.9rem 1.2rem;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem">
+          <div style="display:flex;align-items:center;gap:.8rem">
+            <div style="font-size:1.6rem">🔔</div>
+            <div>
+              <div style="font-size:.85rem;font-weight:800;color:var(--gold)">${L('اشتراكك ينتهي قريباً','Votre abonnement expire bientôt')}</div>
+              <div style="font-size:.75rem;color:var(--dim)">${L('يبقى','Reste')} <strong style="color:var(--gold)">${daysLeftPaid} ${L('يوم','jours')}</strong> — ${endDate}</div>
+            </div>
+          </div>
+          <button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">🔄 ${L('تجديد الاشتراك','Renouveler')}</button>
+        </div>
+      </div>`;
+    }
   }
   const health = calcHealthScore(projects, txs, workers, attendance);
 
@@ -3516,8 +4276,143 @@ Pages.dashboard = function() {
     monthExp.push(txs.filter(t=>t.type==='expense' && new Date(t.date).getMonth()===m && new Date(t.date).getFullYear()===y).reduce((s,t)=>s+Number(t.amount),0));
   }
 
+  // ✅ مؤشرات BTP الاحترافية
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id === tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id === tid);
+  const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id === tid);
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equip, salaryRecsData);
+
   return layoutHTML('dashboard','لوحة التحكم',`
     ${trialBannerHTML}
+
+    <!-- ✅ بطاقة المؤسسة الترحيبية — شعار + اسم الشركة + معلومات قانونية -->
+    <div style="background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.25);border-radius:18px;padding:1.2rem 1.5rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap">
+      <!-- شعار الشركة -->
+      <div style="flex-shrink:0">
+        ${tenant?.logo_url ? `
+          <div style="width:80px;height:80px;border-radius:14px;background:#fff;padding:6px;border:1px solid rgba(232,184,75,.3);box-shadow:0 4px 12px rgba(0,0,0,.15)">
+            <img src="${escHtml(tenant.logo_url)}" alt="Logo" style="width:100%;height:100%;object-fit:contain;border-radius:8px">
+          </div>` : `
+          <div style="width:80px;height:80px;border-radius:14px;background:linear-gradient(135deg,#E8B84B,#C49030);display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:900;color:#1a1000;box-shadow:0 4px 12px rgba(232,184,75,.3)">
+            ${escHtml((tenant?.name||'?').charAt(0))}
+          </div>`}
+      </div>
+      <!-- اسم الشركة والمعلومات -->
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:1.5rem;font-weight:900;color:var(--gold);letter-spacing:.3px;margin-bottom:.2rem">
+          ${escHtml(tenant?.name || L('مؤسستك','Votre entreprise'))}
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);font-weight:600;margin-bottom:.4rem">
+          ${L('مرحباً','Bienvenue')} <strong style="color:var(--text)">${escHtml(user.full_name)}</strong> ${L('في لوحة تحكم مؤسستك','dans le tableau de bord')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.6rem;font-size:.7rem">
+          ${tenant?.rc_number ? `<span style="background:rgba(255,255,255,.04);padding:3px 9px;border-radius:8px;color:var(--muted);border:1px solid var(--border)"><strong style="color:var(--gold)">RC:</strong> ${escHtml(tenant.rc_number)}</span>` : ''}
+          ${tenant?.nif ? `<span style="background:rgba(255,255,255,.04);padding:3px 9px;border-radius:8px;color:var(--muted);border:1px solid var(--border)"><strong style="color:var(--gold)">NIF:</strong> ${escHtml(tenant.nif)}</span>` : ''}
+          ${tenant?.wilaya ? `<span style="background:rgba(255,255,255,.04);padding:3px 9px;border-radius:8px;color:var(--muted);border:1px solid var(--border)">📍 ${escHtml(tenant.wilaya)}</span>` : ''}
+        </div>
+      </div>
+      <!-- شارة الخطة + التاريخ -->
+      <div style="text-align:left">
+        <div style="font-size:.7rem;color:var(--dim);margin-bottom:.3rem">${new Date().toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{weekday:'long',day:'numeric',month:'long'})}</div>
+        <span style="display:inline-block;font-size:.75rem;background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.35);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✓ ${escHtml(plan?.name||'—')}</span>
+      </div>
+    </div>
+
+    <!-- ══ شريط الاشتراك تحت بطاقة المؤسسة ══ -->
+    ${(()=>{
+      // جلب بيانات المؤسسة المحدّثة من DB مباشرة (أدق من cache)
+      const dbTenants = DB.get('tenants') || [];
+      const t = dbTenants.find(x => x.id === tenant?.id) || tenant;
+      if (!t) return '';
+
+      const status    = t.subscription_status || 'trial';
+      const planNames = {1:L('المبتدئ 🌱','Starter 🌱'), 2:L('الاحترافي ⚡','Pro ⚡'), 3:L('المؤسسي 🏆','Enterprise 🏆')};
+      const planName  = planNames[t.plan_id] || L('تجربة مجانية','Essai gratuit');
+      const planEmoji = t.plan_id===3?'🏆':t.plan_id===2?'⚡':'🌱';
+      const isExpired = status==='expired' || t.is_active===false;
+      const isActive  = status==='active';
+      const isTrial   = status==='trial';
+
+      // ── حساب التاريخ والأيام ──
+      const fmt = d => { try { return new Date(d).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}); } catch(e){return '—';} };
+      const daysDiff = d => Math.max(0, Math.round((new Date(d)-new Date())/86400000));
+
+      let barColor = isExpired?'#F04E6A' : isActive?'#34C38F' : '#E8B84B';
+      let endDate  = '—', daysLeft = null, pct = 100;
+
+      // محاولة أكثر من حقل للتاريخ
+      const rawEnd = t.subscription_end || t.subscription_ends_at || t.trial_end || null;
+
+      if (isTrial) {
+        const te = t.trial_end || t.trial_ends_at;
+        if (te) {
+          daysLeft = daysDiff(te);
+          endDate  = fmt(te);
+          pct      = Math.min(100,Math.round(daysLeft/14*100));
+          barColor = daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
+        }
+      } else if (isActive) {
+        const se = t.subscription_end || t.subscription_ends_at;
+        if (se) {
+          daysLeft = daysDiff(se);
+          const ss = t.subscription_start;
+          const totalDays = ss ? Math.round((new Date(se)-new Date(ss))/86400000)||30 : 30;
+          pct      = Math.min(100,Math.round(daysLeft/totalDays*100));
+          endDate  = fmt(se);
+          barColor = daysLeft<=7?'#E8B84B':'#34C38F';
+        }
+      } else if (isExpired) {
+        pct=0;
+        if (rawEnd) endDate = fmt(rawEnd);
+      }
+
+      const statusBadge = isExpired
+        ? `<span style="background:#F04E6A18;border:1px solid #F04E6A44;color:#F04E6A;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⛔ ${L('منتهي','Expiré')}</span>`
+        : isActive
+          ? `<span style="background:#34C38F18;border:1px solid #34C38F44;color:#34C38F;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">✅ ${L('نشط','Actif')}</span>`
+          : `<span style="background:#E8B84B18;border:1px solid #E8B84B44;color:#E8B84B;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⏳ ${L('تجريبي','Essai')}</span>`;
+
+      return `
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);
+                  border-radius:14px;padding:.8rem 1.2rem;margin-bottom:.3rem;
+                  display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap">
+
+        <!-- الأيقونة والخطة -->
+        <div style="display:flex;align-items:center;gap:.7rem;flex:1;min-width:180px">
+          <span style="font-size:1.5rem">${planEmoji}</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;flex-wrap:wrap">
+              <span style="font-weight:800;font-size:.9rem">${planName}</span>
+              ${statusBadge}
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;width:180px;max-width:100%">
+              <div style="height:4px;background:${barColor};border-radius:4px;width:${pct}%;transition:width 1.2s"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- تاريخ الانتهاء -->
+        <div style="display:flex;flex-direction:column;gap:.15rem;min-width:140px">
+          <span style="font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.3px">
+            ${isExpired ? L('⚠️ انتهت في','⚠️ Expiré le') : isTrial ? L('📅 انتهاء التجربة','📅 Fin essai') : L('📅 تاريخ الانتهاء','📅 Date expiration')}
+          </span>
+          <span style="font-size:.9rem;font-weight:800;color:${isExpired?'#F04E6A':barColor}">
+            ${endDate !== '—' ? endDate : `<span style="color:var(--dim);font-size:.75rem">${L('غير محدد — تحقق من لوحة الأدمن','Non défini')}</span>`}
+          </span>
+          ${daysLeft !== null && !isExpired ? `<span style="font-size:.7rem;color:var(--dim)">${daysLeft} ${L('يوم متبقي','jours restants')}</span>` : ''}
+        </div>
+
+        <!-- فاصل -->
+        <div style="width:1px;height:44px;background:rgba(255,255,255,.07);flex-shrink:0"></div>
+
+        <!-- زر -->
+        ${isExpired
+          ? `<button class="btn btn-gold" onclick="App.navigate('subscription')" style="font-size:.8rem">🚀 ${L('اشترك الآن','S\'abonner')}</button>`
+          : daysLeft !== null && daysLeft <= 7
+            ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.78rem">🔄 ${L('تجديد','Renouveler')}</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.72rem">💳 ${L('إدارة الاشتراك','Gérer')}</button>`}
+      </div>`;
+    })()}
 
     <!-- AI CEO DAILY SUMMARY -->
     <div class="ai-ceo-banner">
@@ -3545,13 +4440,12 @@ Pages.dashboard = function() {
 
     <div class="page-header">
       <div>
-        <div class="page-title">👋 أهلاً، ${escHtml(user.full_name.split(' ')[0])}</div>
-        <div class="page-sub">${new Date().toLocaleDateString('ar-DZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+        <div class="page-title">📊 ${L('لوحة التحكم','Tableau de bord')}</div>
+        <div class="page-sub">${L('نظرة شاملة على مؤسستك','Vue d\'ensemble de votre entreprise')}</div>
       </div>
       <div class="page-actions">
-        <span style="font-size:.78rem;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.2);border-radius:8px;padding:5px 12px;color:#34C38F;font-weight:700">✅ ${plan?.name||''}</span>
-        <button id="syncAllBtn" class="btn btn-sm" style="background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.4);color:#4A90E2;font-weight:700" onclick="syncAllDataToSupabase()" title="رفع كل البيانات لـ Supabase">☁️ رفع البيانات</button>
-        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 حالة Supabase</button>
+        <button id="syncAllBtn" class="btn btn-sm realtime-badge" style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="(function(){if(typeof AutoSync!=='undefined'){AutoSync.syncNow().then(()=>Toast.success('⚡ تمت المزامنة'));}else{syncAllDataToSupabase();}})()" title="${L('المزامنة تلقائية — اضغط للمزامنة الفورية','Sync auto — clic pour forcer')}">⚡ <span id="lastSyncTime">${L('متصل','En ligne')}</span></button>
+        <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 Supabase</button>
         <button class="btn btn-gold btn-sm" data-nav="projects">${__('dash.newProject')}</button>
       </div>
     </div>
@@ -3654,7 +4548,233 @@ Pages.dashboard = function() {
       </div>
     </div>
 
+    <!-- ════════════════════════════════════════════════════════════════
+         🏗️ مؤشرات BTP الاحترافية — Construction KPIs (EVM)
+         CPI · SPI · Burn Rate · Cash Runway · DSO · Margin · ...
+    ════════════════════════════════════════════════════════════════ -->
+    <div style="background:linear-gradient(135deg,rgba(232,184,75,.06),rgba(232,184,75,.01));border:1px solid rgba(232,184,75,.2);border-radius:16px;padding:1.1rem 1.3rem;margin-bottom:1.1rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.8rem">
+        <div style="display:flex;align-items:center;gap:.7rem">
+          <div style="font-size:1.6rem">🏗️</div>
+          <div>
+            <div style="font-size:1.05rem;font-weight:900;color:var(--gold);letter-spacing:.2px">${L('مؤشرات الأداء الاحترافية','Indicateurs de Performance BTP')}</div>
+            <div style="font-size:.74rem;color:var(--dim);margin-top:.15rem">${L('مؤشرات حقيقية حسب معايير إدارة المشاريع الدولية (EVM)','Selon les standards internationaux de gestion de projet')}</div>
+          </div>
+        </div>
+        ${btp.alerts.length > 0 ? `<div style="display:flex;align-items:center;gap:.4rem;background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.25);border-radius:8px;padding:.4rem .7rem">
+          <span style="font-size:.85rem">⚠️</span>
+          <span style="font-size:.75rem;color:#F79FA9;font-weight:700">${btp.alerts.length} ${L('تنبيه','alerte(s)')}</span>
+        </div>` : `<div style="display:flex;align-items:center;gap:.4rem;background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.25);border-radius:8px;padding:.4rem .7rem">
+          <span style="font-size:.85rem">✅</span>
+          <span style="font-size:.75rem;color:#34C38F;font-weight:700">${L('كل المؤشرات سليمة','Indicateurs sains')}</span>
+        </div>`}
+      </div>
+
+      <!-- شبكة المؤشرات -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.7rem">
+
+        <!-- ① CPI: Cost Performance Index -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.cpi===null?'#777':btp.cpi>=1?'#34C38F':btp.cpi>=0.9?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">CPI</span>
+            <span style="font-size:.95rem">${btp.cpi===null?'⏳':btp.cpi>=1?'✅':btp.cpi>=0.9?'⚠️':'🚨'}</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.cpi===null?'#777':btp.cpi>=1?'#34C38F':btp.cpi>=0.9?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.cpi===null?'—':btp.cpi}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('أداء التكلفة','Performance coût')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.cpi===null?L('بيانات غير كافية','Données insuff.'):btp.cpi>=1?L('ضمن الميزانية','Dans le budget'):L('تجاوز التكلفة','Dépassement')}</div>
+        </div>
+
+        <!-- ② SPI: Schedule Performance Index -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.spi===null?'#777':btp.spi>=1?'#34C38F':btp.spi>=0.85?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">SPI</span>
+            <span style="font-size:.95rem">${btp.spi===null?'⏳':btp.spi>=1?'⚡':btp.spi>=0.85?'⏰':'🐌'}</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.spi===null?'#777':btp.spi>=1?'#34C38F':btp.spi>=0.85?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.spi===null?'—':btp.spi}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('أداء الجدول الزمني','Performance délai')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.spi===null?L('بيانات غير كافية','Données insuff.'):btp.spi>=1?L('متقدم على الجدول','En avance'):L('تأخر زمني','En retard')}</div>
+        </div>
+
+        <!-- ③ Burn Rate -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #E8593C;border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('معدل الحرق','Burn Rate')}</span>
+            <span style="font-size:.95rem">🔥</span>
+          </div>
+          <div style="font-size:1.15rem;font-weight:900;color:#E8593C;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(btp.burnRate)}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('دج / يوم','DA/jour')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('متوسط آخر 30 يوم','Moy. 30 derniers j')}</div>
+        </div>
+
+        <!-- ④ Cash Runway -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.cashRunway===null?'#777':btp.cashRunway>180?'#34C38F':btp.cashRunway>60?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('مدة السيولة','Cash Runway')}</span>
+            <span style="font-size:.95rem">💵</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.cashRunway===null?'#777':btp.cashRunway>180?'#34C38F':btp.cashRunway>60?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.cashRunway===null||btp.cashRunway<0?'∞':btp.cashRunway}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('يوم متبقي','jours restants')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('قبل نفاد السيولة','Avant épuisement')}</div>
+        </div>
+
+        <!-- ⑤ هامش الربح -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.grossMargin===null?'#777':btp.grossMargin>=20?'#34C38F':btp.grossMargin>=10?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('هامش الربح','Marge')}</span>
+            <span style="font-size:.95rem">📊</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.grossMargin===null?'#777':btp.grossMargin>=20?'#34C38F':btp.grossMargin>=10?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.grossMargin===null?'—':btp.grossMargin+'%'}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('من الإيرادات','des revenus')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.grossMargin===null?L('لا توجد إيرادات','Pas de revenus'):btp.grossMargin>=20?L('ممتاز','Excellent'):btp.grossMargin>=10?L('جيد','Bon'):L('منخفض','Faible')}</div>
+        </div>
+
+        <!-- ⑥ DSO - Days Sales Outstanding -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.dso===null?'#777':btp.dso<=30?'#34C38F':btp.dso<=60?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">DSO</span>
+            <span style="font-size:.95rem">⏳</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.dso===null?'#777':btp.dso<=30?'#34C38F':btp.dso<=60?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.dso===null?'—':btp.dso}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('يوم تحصيل','jrs encaiss.')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('متوسط الفواتير المحصلة','Moy. factures payées')}</div>
+        </div>
+
+        <!-- ⑦ التكلفة لكل م² -->
+        ${btp.costPerM2 !== null ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #4A90E2;border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('تكلفة م²','Coût/m²')}</span>
+            <span style="font-size:.95rem">📐</span>
+          </div>
+          <div style="font-size:1.15rem;font-weight:900;color:#4A90E2;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(btp.costPerM2)}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('دج / م²','DA/m²')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('متوسط المشاريع','Moy. projets')}</div>
+        </div>` : ''}
+
+        <!-- ⑧ معدل استخدام المعدات -->
+        ${equip.length > 0 ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.equipUtilization>=70?'#34C38F':btp.equipUtilization>=40?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('استخدام المعدات','Utilisation')}</span>
+            <span style="font-size:.95rem">🚜</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.equipUtilization>=70?'#34C38F':btp.equipUtilization>=40?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.equipUtilization}%</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('من العتاد نشط','équipement actif')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${equip.filter(e=>e.status==='active'||e.status==='in_use').length} / ${equip.length}</div>
+        </div>` : ''}
+
+        <!-- ⑨ المخزون المنخفض -->
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.lowStockCount===0?'#34C38F':btp.lowStockCount<3?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem;cursor:pointer" onclick="App.navigate('materials')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('مخزون منخفض','Stock bas')}</span>
+            <span style="font-size:.95rem">📦</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.lowStockCount===0?'#34C38F':btp.lowStockCount<3?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.lowStockCount}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('مادة تحت الحد الأدنى','sous le min')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${btp.lowStockList.join(' · ') || L('كل المواد متوفرة','Tout est OK')}</div>
+        </div>
+
+        <!-- ⑩ نسبة الأجور -->
+        ${btp.payrollRatio !== null ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${btp.payrollRatio<=30?'#34C38F':btp.payrollRatio<=40?'#E8B84B':'#F04E6A'};border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('نسبة الأجور','Ratio paie')}</span>
+            <span style="font-size:.95rem">👷</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:${btp.payrollRatio<=30?'#34C38F':btp.payrollRatio<=40?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.payrollRatio}%</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('من الإيرادات','des revenus')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${fmt(Math.round(btp.payrollAmount))} ${L('دج','DA')}</div>
+        </div>` : ''}
+
+        <!-- ⑪ التنبؤ بإكمال المشاريع -->
+        ${btp.avgDaysToComplete !== null ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #9B59B6;border-radius:10px;padding:.7rem .8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('تنبؤ الإكمال','Achèvement')}</span>
+            <span style="font-size:.95rem">🎯</span>
+          </div>
+          <div style="font-size:1.5rem;font-weight:900;color:#9B59B6;font-family:'JetBrains Mono',monospace;line-height:1">${btp.avgDaysToComplete}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('يوم متوسط','jours moyen')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${L('بالوتيرة الحالية','Au rythme actuel')}</div>
+        </div>` : ''}
+
+        <!-- ⑫ الفواتير غير المحصلة -->
+        ${btp.unpaidAmount > 0 ? `
+        <div class="btp-kpi" style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid #FF7043;border-radius:10px;padding:.7rem .8rem;cursor:pointer" onclick="App.navigate('invoices')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px">${L('غير محصلة','Impayés')}</span>
+            <span style="font-size:.95rem">💰</span>
+          </div>
+          <div style="font-size:1.15rem;font-weight:900;color:#FF7043;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(Math.round(btp.unpaidAmount))}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${L('دج معلقة','DA en attente')}</div>
+          <div style="font-size:.65rem;color:var(--dim);margin-top:.1rem">${btp.unpaidInvoices.length} ${L('فاتورة','facture(s)')}</div>
+        </div>` : ''}
+      </div>
+
+      ${btp.alerts.length > 0 ? `
+      <!-- تنبيهات ذكية -->
+      <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border)">
+        <div style="font-size:.74rem;font-weight:800;color:var(--gold);margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem">
+          <span>🤖</span>
+          <span>${L('تنبيهات ذكية من المحلل الآلي','Alertes IA intelligentes')}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+          ${btp.alerts.map(a => `
+            <div style="display:flex;align-items:center;gap:.35rem;padding:.35rem .7rem;background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.2);border-radius:7px;font-size:.72rem;color:#F79FA9">
+              <span>${a.icon}</span>
+              <span>${a.text}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+    </div>
+
     <!-- AI RISK PANEL + PROFIT FORECAST + WORKER EFFICIENCY -->
+    <!-- ══ تنبيهات عاجلة ═══════════════════════════════════════ -->
+    ${(()=>{
+      const today = new Date(); today.setHours(0,0,0,0);
+      const week  = new Date(today.getTime() + 7*86400000);
+      const month = new Date(today.getTime() + 30*86400000);
+
+      // فواتير متأخرة أو مستحقة هذا الأسبوع
+      const overdueInv = invoices.filter(i=>i.status!=='paid' && i.due_date && new Date(i.due_date)<today);
+      const soonInv    = invoices.filter(i=>i.status!=='paid' && i.due_date && new Date(i.due_date)>=today && new Date(i.due_date)<=week);
+      // مخزون منخفض
+      const lowStk = materials.filter(m=>Number(m.quantity||0)<=Number(m.min_quantity||0));
+      // معدات تحتاج صيانة
+      const maintEquip = equip.filter(e=>e.next_maintenance && new Date(e.next_maintenance)<=month);
+      // تأمين منتهٍ
+      const insurEquip = equip.filter(e=>e.insurance_expiry && new Date(e.insurance_expiry)<=month);
+      // مشاريع تنتهي خلال 30 يوم
+      const nearEnd = projects.filter(p=>p.status==='active' && p.end_date && new Date(p.end_date)<=month && new Date(p.end_date)>=today);
+
+      const alerts = [
+        ...overdueInv.map(i=>`<div class="dash-alert danger">🔴 <strong>${L('فاتورة متأخرة','Facture en retard')}:</strong> ${escHtml(i.number)} — ${escHtml(i.client)} — ${fmt(i.amount)} ${L('دج','DA')} <button class="btn btn-ghost btn-sm" onclick="App.navigate('invoices')" style="padding:2px 8px;font-size:.7rem;margin-right:.4rem">${L('تحصيل','Encaisser')}</button></div>`),
+        ...soonInv.map(i=>`<div class="dash-alert warning">🟡 <strong>${L('فاتورة تستحق هذا الأسبوع','Facture échéance semaine')}:</strong> ${escHtml(i.number)} — ${fmt(i.amount)} ${L('دج','DA')}</div>`),
+        ...lowStk.map(m=>`<div class="dash-alert warning">📦 <strong>${L('مخزون منخفض','Stock bas')}:</strong> ${escHtml(m.name)} — ${m.quantity} ${m.unit||''}/${m.min_quantity}</div>`),
+        ...maintEquip.map(e=>`<div class="dash-alert info">🔧 <strong>${L('صيانة قادمة','Maintenance prochaine')}:</strong> ${escHtml(e.name)} — ${e.next_maintenance}</div>`),
+        ...insurEquip.map(e=>`<div class="dash-alert danger">⚠️ <strong>${L('تأمين منتهٍ قريباً','Assurance expirante')}:</strong> ${escHtml(e.name)} — ${e.insurance_expiry}</div>`),
+        ...nearEnd.map(p=>`<div class="dash-alert info">⏰ <strong>${L('مشروع ينتهي قريباً','Projet bientôt terminé')}:</strong> ${escHtml(p.name)} — ${p.end_date}</div>`),
+      ];
+
+      if (!alerts.length) return '';
+      return `
+        <style>
+          .dash-alert{display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem;border-radius:8px;font-size:.78rem;margin-bottom:.3rem;line-height:1.5}
+          .dash-alert.danger{background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);color:#F79FA9}
+          .dash-alert.warning{background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.2);color:#E8B84B}
+          .dash-alert.info{background:rgba(74,144,226,.07);border:1px solid rgba(74,144,226,.2);color:#8ab8f0}
+        </style>
+        <div style="background:var(--card-bg);border:1px solid rgba(240,78,106,.2);border-radius:14px;padding:1rem;margin-bottom:1rem">
+          <div style="font-weight:800;font-size:.9rem;margin-bottom:.7rem;display:flex;align-items:center;gap:.4rem">
+            <span style="color:#F04E6A">🔔</span>
+            <span>${L('تنبيهات عاجلة','Alertes urgentes')}</span>
+            <span style="background:rgba(240,78,106,.15);color:#F04E6A;border-radius:20px;padding:1px 8px;font-size:.72rem">${alerts.length}</span>
+          </div>
+          ${alerts.slice(0,6).join('')}
+          ${alerts.length>6 ? `<div style="font-size:.72rem;color:var(--dim);margin-top:.3rem">+ ${alerts.length-6} ${L('تنبيه آخر','alerte(s) de plus')}</div>` : ''}
+        </div>`;
+    })()}
     <div class="dash-grid-top">
       <!-- AI Risk Detection -->
       <div class="risk-panel">
@@ -3950,9 +5070,21 @@ Pages.projects = function() {
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom client')}</label><input class="form-input" id="pClient" placeholder="${L('عبد القادر...','Client...')}"></div>
-          <div class="form-group"><label class="form-label">${L('هاتف العميل','Tél. client')}</label><input class="form-input" id="pPhone" placeholder="0550..."></div>
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label>
+            <input class="form-input" id="pClient" placeholder="${L('بلدية تيزي وزو...','Commune / Société...')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 Client / Maître d'ouvrage <span style="font-size:.7rem;color:var(--dim)">(Français)</span></label>
+            <input class="form-input" id="pClientFr" placeholder="Commune de Tizi Ouzou..." dir="ltr">
+          </div>
+          <div class="form-group"><label class="form-label">${L('هاتف العميل','Tél. client')}</label><input class="form-input" id="pPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="pBudget" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('رقم الصفقة / المرجع','N° Marché / Réf.')}</label><input class="form-input" id="pMarket" placeholder="N°/2025/..."></div>
+          <div class="form-group"><label class="form-label">${L('الموقع / عنوان الورشة','Lieu / Adresse chantier')}</label><input class="form-input" id="pLocation" placeholder="${L('حي الورود، بئر مراد رايس...','Cité des roses...')}"></div>
+          <div class="form-group"><label class="form-label">${L('المساحة (م²)','Superficie (m²)')}</label><input class="form-input" id="pSurface" type="number" min="0" placeholder="${L('مثال: 500','Ex: 500')}"></div>
+          <div class="form-group"><label class="form-label">${L('مكتب الدراسات / BET','Bureau d\'études / BET')}</label><input class="form-input" id="pBet" placeholder="${L('اسم المكتب...','Nom BET...')}"></div>
+          <div class="form-group"><label class="form-label">${L('هيئة المراقبة','Organisme de contrôle')}</label><input class="form-input" id="pCtrl" placeholder="CTC..."></div>
           <div class="form-group"><label class="form-label">${L('المرحلة الحالية','Phase actuelle')}</label><select class="form-select" id="pPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('تاريخ البداية','Date début')}</label><input class="form-input" id="pStart" type="date"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الانتهاء','Date fin')}</label><input class="form-input" id="pEnd" type="date"></div>
@@ -3975,10 +5107,10 @@ Pages.projects = function() {
             <option value="delayed">${L('متأخر','En retard')}</option>
             <option value="paused">${L('متوقف','Pausé')}</option>
           </select></div>
-          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100"></div>
-          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('المرحلة','Phase')}</label><select class="form-select" id="epPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom client')}</label><input class="form-input" id="epClient"></div>
+          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom client')}</label><input class="form-input" id="epClient" type="text" placeholder="${L('اسم العميل','Nom client')}"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الانتهاء','Date fin')}</label><input class="form-input" id="epEnd" type="date"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="saveProject()">💾 ${L('حفظ التعديلات','Enregistrer')}</button></div>
@@ -4069,7 +5201,9 @@ function updateSyncPill(state, detail = '') {
   };
   const cfg = states[state] || states.synced;
 
-  pill.classList.add(cfg.cls);
+  // ✅ إصلاح: لا نُضيف class فارغ → يرمي DOMException
+  pill.className = 'sync-pill';
+  if (cfg.cls) pill.classList.add(cfg.cls);
   dot.style.background  = cfg.color;
   dot.style.animation   = cfg.anim;
   label.textContent     = cfg.txt;
@@ -4079,18 +5213,60 @@ function updateSyncPill(state, detail = '') {
 document.addEventListener('smartsync', function(e) {
   const { state, detail } = e.detail || {};
   updateSyncPill(state, detail);
-  // إخفاء حالة syncing بعد ثانيتين والرجوع لـ synced
+
   if (state === 'syncing') {
     clearTimeout(window._syncResetTimer);
     window._syncResetTimer = setTimeout(() => {
       const count = (typeof DBHybrid !== 'undefined') ? DBHybrid.getOfflineQueueCount?.() || 0 : 0;
-      updateSyncPill(count > 0 ? 'pending' : 'synced', count > 0 ? (I18N.currentLang==='ar'?`${count} عملية معلقة`:`${count} en attente`) : '');
+      updateSyncPill(count > 0 ? 'pending' : 'synced',
+        count > 0 ? (I18N.currentLang==='ar'?`${count} معلقة`:`${count} en attente`) : '');
     }, 2000);
+  }
+
+  // ✅ عند خطأ رفع → حوّله إلى "pending" وأعد المحاولة تلقائياً بعد 5 ثوانٍ
+  if (state === 'error') {
+    clearTimeout(window._syncRetryTimer);
+    const count = (typeof DBHybrid !== 'undefined') ? DBHybrid.getOfflineQueueCount?.() || 0 : 0;
+    if (count > 0) {
+      // أظهر "pending" بدلاً من "error" لأن لديه queue
+      setTimeout(() => {
+        updateSyncPill('pending', I18N.currentLang==='ar'?`${count} معلقة`:`${count} en attente`);
+      }, 3000);
+      // إعادة المحاولة تلقائياً بعد 8 ثوانٍ
+      window._syncRetryTimer = setTimeout(async () => {
+        if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase || !navigator.onLine) return;
+        const cnt = DBHybrid.getOfflineQueueCount?.() || 0;
+        if (cnt === 0) return;
+        console.log(`🔄 Auto-retry: ${cnt} عملية معلقة...`);
+        updateSyncPill('syncing');
+        try {
+          await DBHybrid._flushOfflineQueue();
+          const remaining = DBHybrid.getOfflineQueueCount?.() || 0;
+          updateSyncPill(remaining > 0 ? 'pending' : 'synced',
+            remaining > 0 ? (I18N.currentLang==='ar'?`${remaining} معلقة`:`${remaining} en attente`) : '');
+          if (remaining === 0) document.dispatchEvent(new CustomEvent('smartsync',{detail:{state:'synced'}}));
+        } catch(_) {}
+      }, 8000);
+    } else {
+      // لا توجد عمليات معلقة → ارجع لـ synced بعد 4 ثوانٍ
+      setTimeout(() => updateSyncPill('synced'), 4000);
+    }
   }
 });
 
 // ── مراقبة حالة الشبكة ──
-window.addEventListener('online',  () => updateSyncPill('syncing'));
+window.addEventListener('online', () => {
+  updateSyncPill('syncing');
+  // عند استعادة الإنترنت → flush تلقائي
+  setTimeout(async () => {
+    if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
+    const cnt = DBHybrid.getOfflineQueueCount?.() || 0;
+    if (cnt > 0) {
+      console.log(`🌐 عاد الاتصال: رفع ${cnt} عملية معلقة...`);
+      await DBHybrid._flushOfflineQueue().catch(() => {});
+    }
+  }, 2000);
+});
 window.addEventListener('offline', () => updateSyncPill('offline'));
 
 // ── تحديث دوري كل 5 ثوانٍ ──
@@ -4119,29 +5295,39 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
   const today   = new Date().toLocaleDateString(isAr ? 'ar-DZ' : 'fr-DZ', { dateStyle: 'full' });
   const now     = new Date().toLocaleTimeString(isAr ? 'ar-DZ' : 'fr-DZ', { hour: '2-digit', minute: '2-digit' });
 
+  // قراءة إعدادات الطباعة
+  let _ps = {};
+  try { _ps = JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}'); } catch{}
+  const _font   = _ps.fontFamily    || 'Cairo';
+  const _size   = _ps.fontSize      || 13;
+  const _color  = _ps.accentColor   || '#C49030';
+  const _tc     = _ps.tableHeaderColor || _color;
+  const _rowBg  = _ps.rowBgColor    || '#fafafa';
+  const _margin = _ps.margin        || '12mm';
+  const _lh     = _ps.lineHeight    || 1.6;
+  const _hs     = _ps.headingSize   || 15;
+
   const logoHTML = logo
-    ? `<img src="${logo}" style="height:52px;max-width:140px;object-fit:contain;border-radius:4px;background:#fff;padding:3px">`
-    : `<div style="font-size:1.1rem;font-weight:900;color:#E8B84B;letter-spacing:.5px">▦ SmartStruct</div>`;
+    ? `<img src="${logo}" style="height:52px;max-width:140px;object-fit:contain;border-radius:4px">`
+    : `<div style="font-size:1.1rem;font-weight:900;color:${_color}">▦ SmartStruct</div>`;
 
   const thCells = columns.map(c =>
-    `<th style="padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#E8B84B;text-align:${c.align||'right'}">${c.label}</th>`
+    `<th style="padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:${c.align||'right'}">${c.label}</th>`
   ).join('');
 
   const tbRows = rows.map((row, i) => {
     const cells = columns.map(c =>
       `<td style="padding:9px 12px;font-size:12px;text-align:${c.align||'right'};${c.style||''}">${row[c.key] ?? '—'}</td>`
     ).join('');
-    return `<tr style="background:${i%2===0?'#fafafa':'#fff'};border-bottom:1px solid #f0f0f0">${cells}</tr>`;
+    return `<tr class="${i%2===0?'row-odd':'row-even'}">${cells}</tr>`;
   }).join('');
 
   const summaryHTML = summaryRows.length ? `
     <div style="display:flex;justify-content:flex-end;margin-top:20px">
       <div style="min-width:260px">
         ${summaryRows.map((s,i) => i === summaryRows.length-1
-          ? `<div style="display:flex;justify-content:space-between;background:#141414;color:#E8B84B;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px">
-               <span>${s.label}</span><span>${s.value}</span></div>`
-          : `<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4">
-               <span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
+          ? `<div class="sum-total"><span>${s.label}</span><span>${s.value}</span></div>`
+          : `<div class="sum-row"><span>${s.label}</span><span style="font-weight:600">${s.value}</span></div>`
         ).join('')}
       </div>
     </div>` : '';
@@ -4150,53 +5336,191 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
 <html dir="${dir}" lang="${isAr?'ar':'fr'}">
 <head>
 <meta charset="UTF-8">
-<title>${title}</title>
+<title>${escHtml(title)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Cairo',Arial,sans-serif;background:#f4f4f6;color:#1a1a1a;padding:24px}
-  .no-print{display:flex;gap:10px;margin-bottom:20px}
-  .btn-p{padding:9px 22px;background:#E8B84B;color:#1a1000;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
-  .btn-c{padding:9px 18px;background:#2a2a2a;color:#ccc;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
-  .sheet{background:#fff;max-width:900px;margin:0 auto;border-radius:4px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
-  .hdr{background:#141414;padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
-  .hdr-left{display:flex;align-items:center;gap:14px}
-  .co-name{font-size:13px;font-weight:700;color:#fff;margin-top:4px}
-  .co-sub{font-size:9.5px;color:#888;margin-top:2px}
+  body{font-family:'${_font}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;line-height:${_lh}}
+
+  /* Toolbar */
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;color:#fff;
+    display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:nowrap}
+  .tb-btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;
+    font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:'${_font}',Arial,sans-serif}
+  .tb-primary{background:${_color};color:#fff}
+  .tb-green{background:#27ae60;color:#fff}
+  .tb-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+  .tb-sep{width:1px;height:28px;background:rgba(255,255,255,.2);margin:0 2px}
+
+  /* Edit Panel */
+  .edit-panel{position:fixed;top:52px;${isAr?'left':'right'}:0;bottom:0;width:256px;
+    background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);overflow-y:auto;z-index:999;transition:transform .3s}
+  .edit-panel.hidden{transform:translateX(${isAr?'-100%':'100%'})}
+  .ph{background:#1a1a2e;color:#fff;padding:10px 14px;font-size:13px;font-weight:700;
+    display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1}
+  .pb{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+  .pg label{display:block;font-size:10px;font-weight:700;color:#777;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+  .pg select,.pg input[type=text]{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+  .pg input[type=range]{width:100%;accent-color:${_color}}
+  .swatches{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .sw{width:22px;height:22px;border-radius:4px;cursor:pointer;border:2px solid transparent}
+  .sw.on{border-color:#333!important;transform:scale(1.15)}
+  .save-btn{width:100%;padding:9px;background:${_color};color:#fff;border:none;border-radius:7px;
+    cursor:pointer;font-size:13px;font-weight:700;font-family:'${_font}',Arial,sans-serif}
+  .reset-btn{width:100%;padding:7px;background:#fff;color:#c0392b;border:1px solid #f5b8b8;
+    border-radius:7px;cursor:pointer;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+
+  /* Content */
+  .cw{margin-top:52px;padding:20px;transition:${isAr?'margin-left':'margin-right'} .3s}
+  .cw.open{${isAr?'margin-left':'margin-right'}:260px}
+  .sheet{background:#fff;max-width:900px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+  .hdr{background:#fff;border-bottom:3px solid ${_color};padding:22px 32px;display:flex;justify-content:space-between;align-items:center}
+  .co-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-top:4px}
+  .co-sub{font-size:9.5px;color:#666;margin-top:2px}
   .doc-label{text-align:${isAr?'left':'right'}}
-  .doc-title{font-size:20px;font-weight:900;color:#fff}
-  .doc-sub{font-size:11px;color:#E8B84B;margin-top:4px;font-weight:600}
-  .gold-bar{height:3px;background:linear-gradient(90deg,#C49030,#E8B84B,#C49030)}
-  .meta{display:flex;justify-content:space-between;align-items:center;padding:14px 32px;border-bottom:1px solid #eee;background:#fafafa}
-  .meta-item{font-size:11px;color:#888}
-  .meta-item strong{color:#222;font-size:12px}
-  .body{padding:24px 32px}
-  .section-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+  .doc-title{font-size:${_hs}px;font-weight:900;color:#1a1a1a}
+  .doc-sub{font-size:11px;color:${_color};margin-top:4px;font-weight:600}
+  .gold-bar{height:3px;background:${_color}}
+  .meta{display:flex;justify-content:space-between;align-items:center;padding:12px 32px;border-bottom:1px solid #eee;background:#fafafa;font-size:11px;color:#888}
+  .meta strong{color:#222;font-size:12px}
+  .body{padding:24px 32px;font-size:${_size}px}
   table{width:100%;border-collapse:collapse}
-  thead tr{background:#141414}
+  thead tr{background:${_tc}}
+  thead th{color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .row-odd td{background:${_rowBg}}
+  .row-even td{background:#fff}
   tbody tr:last-child td{border-bottom:none}
-  .footer{background:#141414;padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
-  .footer span{font-size:10px;color:#666}
-  .footer .gld{color:#E8B84B;font-weight:700}
-  .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid #E8B84B;border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
+  .sum-row{display:flex;justify-content:space-between;padding:7px 0;font-size:12px;color:#555;border-bottom:1px solid #f4f4f4}
+  .sum-total{display:flex;justify-content:space-between;background:#f5f0e8;border:2px solid ${_color};color:#1a1a1a;padding:10px 14px;border-radius:6px;font-weight:900;font-size:14px;margin-top:6px}
+  .sum-total span:last-child{color:${_color}}
+  .notes{margin-top:16px;padding:10px 14px;background:#fafafa;border-${isAr?'right':'left'}:3px solid ${_color};border-radius:0 4px 4px 0;font-size:11px;color:#555;line-height:1.7}
+  .footer{background:#f8f5ee;border-top:2px solid ${_color};padding:10px 32px;display:flex;justify-content:space-between;align-items:center}
+  .footer span{font-size:10px;color:#555}
+  .footer .gld{color:${_color};font-weight:700}
+
   @media print{
-    body{background:#fff;padding:0}
-    .no-print{display:none!important}
-    .sheet{box-shadow:none;border-radius:0;max-width:100%}
-    thead tr{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .hdr,.footer{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .gold-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{background:#fff!important;padding:0!important;font-size:${_size}px!important}
+    .toolbar,.edit-panel{display:none!important}
+    .cw{margin:0!important;padding:0!important}
+    .sheet{box-shadow:none!important;max-width:100%!important}
+    thead tr{background:${_tc}!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .row-odd td{background:${_rowBg}!important;-webkit-print-color-adjust:exact}
+    @page{margin:${_margin};size:${_ps.pageSize||'A4'} ${_ps.orientation||'portrait'}}
   }
 </style>
 </head>
 <body>
-<div class="no-print">
-  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة':'Imprimer'}</button>
-  <button class="btn-c" onclick="window.close()">${isAr?'إغلاق':'Fermer'}</button>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb-btn tb-green" onclick="_spSave()">💾 ${isAr?'حفظ على PC':'Enregistrer'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" id="tpBtn" onclick="_spToggle()">⚙️ ${isAr?'تخصيص':'Personnaliser'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
-<div class="sheet">
+
+<!-- Panel -->
+<div class="edit-panel hidden" id="spPanel">
+  <div class="ph">
+    <span>⚙️ ${isAr?'تخصيص الطباعة':'Personnaliser impression'}</span>
+    <button onclick="_spToggle()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:15px">✕</button>
+  </div>
+  <div class="pb">
+
+    <div class="pg"><label>🔤 ${isAr?'الخط':'Police'}</label>
+      <select id="spFont" onchange="_spApply()">
+        <option value="Cairo" ${_font==='Cairo'?'selected':''}>Cairo</option>
+        <option value="Tajawal" ${_font==='Tajawal'?'selected':''}>Tajawal</option>
+        <option value="Arial" ${_font==='Arial'?'selected':''}>Arial</option>
+        <option value="'Times New Roman'" ${_font==="'Times New Roman'"?'selected':''}>Times New Roman</option>
+      </select>
+    </div>
+
+    <div class="pg"><label>📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_size}px</strong></label>
+      <input type="range" id="spSz" min="10" max="18" step="1" value="${_size}"
+        oninput="document.getElementById('spSzL').textContent=this.value+'px';_spApply()">
+    </div>
+
+    <div class="pg"><label>🔠 ${isAr?'حجم العناوين':'Titres'} — <strong id="spHsL">${_hs}px</strong></label>
+      <input type="range" id="spHs" min="12" max="24" step="1" value="${_hs}"
+        oninput="document.getElementById('spHsL').textContent=this.value+'px';_spApply()">
+    </div>
+
+    <div class="pg"><label>↕️ ${isAr?'تباعد الأسطر':'Interligne'} — <strong id="spLhL">${_lh}</strong></label>
+      <input type="range" id="spLh" min="1.2" max="2.2" step="0.1" value="${_lh}"
+        oninput="document.getElementById('spLhL').textContent=parseFloat(this.value).toFixed(1);_spApply()">
+    </div>
+
+    <div class="pg"><label>🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
+      <div class="swatches">
+        ${[['#C49030','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="sw ${_color===c?'on':''}" style="background:${c}" title="${n}" onclick="_spColor('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spCC" value="${_color}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spColor(this.value,null)">
+      </div>
+    </div>
+
+    <div class="pg"><label>📊 ${isAr?'لون رأس الجدول':'En-tête tableau'}</label>
+      <div class="swatches">
+        ${[['#C49030','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#555','رمادي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div class="sw ${_tc===c?'on':''}" style="background:${c}" title="${n}" onclick="_spTC('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spTCC" value="${_tc}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spTC(this.value,null)">
+      </div>
+    </div>
+
+    <div class="pg"><label>🎨 ${isAr?'لون الصفوف':'Lignes'}</label>
+      <div class="swatches">
+        ${[['#fafafa','رمادي'],['#fafaf7','كريمي'],['#f0f7ff','أزرق'],['#f0faf4','أخضر'],['#fff9f0','برتقالي'],['#ffffff','أبيض']].map(([c,n])=>
+          `<div class="sw ${_rowBg===c?'on':''}" style="background:${c};border:1px solid #ddd" title="${n}" onclick="document.getElementById('spRB').value='${c}';_spApply()"></div>`
+        ).join('')}
+        <input type="color" id="spRB" value="${_rowBg}" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_spApply()">
+      </div>
+    </div>
+
+    <div class="pg"><label>📐 ${isAr?'الهوامش':'Marges'}</label>
+      <select id="spMg" onchange="_spApply()">
+        <option value="8mm" ${_margin==='8mm'?'selected':''}>8mm — ${isAr?'ضيق':'Étroit'}</option>
+        <option value="12mm" ${_margin==='12mm'?'selected':''}>12mm — ${isAr?'عادي':'Normal'}</option>
+        <option value="18mm" ${_margin==='18mm'?'selected':''}>18mm — ${isAr?'واسع':'Large'}</option>
+      </select>
+    </div>
+
+    <div class="pg"><label>📄 ${isAr?'حجم الورق':'Format'}</label>
+      <div style="display:flex;gap:6px">
+        ${['A4','A5','Letter'].map(sz=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spSz2" value="${sz}" ${(_ps.pageSize||'A4')===sz?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">${sz}
+        </label>`).join('')}
+      </div>
+    </div>
+
+    <div class="pg"><label>↔️ ${isAr?'اتجاه':'Orientation'}</label>
+      <div style="display:flex;gap:6px">
+        <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px">
+          <input type="radio" name="spOr" value="portrait" ${(_ps.orientation||'portrait')==='portrait'?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">📄 ${isAr?'عمودي':'Portrait'}
+        </label>
+        <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px">
+          <input type="radio" name="spOr" value="landscape" ${_ps.orientation==='landscape'?'checked':''}
+            style="accent-color:${_color}" onchange="_spApply()">📃 ${isAr?'أفقي':'Paysage'}
+        </label>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="_spReset()">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+    <button class="save-btn" onclick="_spSaveSettings()">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
+
+  </div>
+</div>
+
+<!-- Content -->
+<div class="cw" id="spCW">
+<div class="sheet" id="spSheet">
   <div class="hdr">
-    <div class="hdr-left">
+    <div class="hdr-left" style="display:flex;align-items:center;gap:14px">
       ${logoHTML}
       <div>
         <div class="co-name">${escHtml(tenant?.name||'SmartStruct')}</div>
@@ -4205,39 +5529,122 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
       </div>
     </div>
     <div class="doc-label">
-      <div class="doc-title">${icon} ${title}</div>
-      ${subtitle?`<div class="doc-sub">${subtitle}</div>`:''}
+      <div class="doc-title" id="spDocTitle">${icon} ${escHtml(title)}</div>
+      ${subtitle?`<div class="doc-sub" id="spDocSub">${escHtml(subtitle)}</div>`:''}
     </div>
   </div>
-  <div class="gold-bar"></div>
+  <div class="gold-bar" id="spGoldBar"></div>
   <div class="meta">
-    <div class="meta-item">${isAr?'تاريخ الطباعة':'Date d\'impression'}: <strong>${today} — ${now}</strong></div>
-    <div class="meta-item">${isAr?'عدد السجلات':'Nombre de lignes'}: <strong>${rows.length}</strong></div>
-    <div class="meta-item">SmartStruct v7.2 Pro</div>
+    <div class="meta-item">${isAr?'تاريخ الطباعة':'Impression'}: <strong>${today} — ${now}</strong></div>
+    <div class="meta-item">${isAr?'عدد السجلات':'Lignes'}: <strong>${rows.length}</strong></div>
+    <div class="meta-item">SmartStruct</div>
   </div>
-  <div class="body">
-    <div class="section-title">${isAr?'قائمة البيانات':'Liste des données'}</div>
-    <table>
+  <div class="body" id="spBody">
+    <table id="spTable">
       <thead><tr>${thCells}</tr></thead>
       <tbody>${tbRows}</tbody>
     </table>
     ${summaryHTML}
     ${notes?`<div class="notes"><strong>${isAr?'ملاحظات:':'Notes :'}</strong> ${notes}</div>`:''}
   </div>
-  <div class="footer">
+  <div class="footer" id="spFooter">
     <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme algérienne de gestion BTP'}</span>
-    <span class="gld">${title} — ${today}</span>
+    <span class="gld">${escHtml(title)} — ${today}</span>
   </div>
 </div>
+</div>
+
+<script>
+var _spColor = '${_color}';
+var _spTColor = '${_tc}';
+var _spDocTitle = ${JSON.stringify(title)};
+
+function _spToggle(){
+  var p=document.getElementById('spPanel'),c=document.getElementById('spCW'),b=document.getElementById('tpBtn');
+  var open=p.classList.contains('hidden');
+  p.classList.toggle('hidden',!open);
+  c.classList.toggle('open',open);
+  b.style.background=open?'rgba(184,144,47,.3)':'';
+}
+function _spColor(c,el){
+  _spColor=c;
+  document.querySelectorAll('[onclick^="_spColor"]~* .sw').forEach(function(s){s.classList.remove('on')});
+  document.querySelectorAll('.swatches:first-of-type .sw').forEach(function(s){s.classList.remove('on')});
+  if(el)el.classList.add('on');
+  document.getElementById('spCC').value=c;
+  _spApply();
+}
+function _spTC(c,el){
+  _spTColor=c;
+  if(el){el.parentElement.querySelectorAll('.sw').forEach(function(s){s.classList.remove('on')});el.classList.add('on');}
+  document.getElementById('spTCC').value=c;
+  _spApply();
+}
+function _spApply(){
+  var font=document.getElementById('spFont').value;
+  var sz=document.getElementById('spSz').value+'px';
+  var hs=document.getElementById('spHs').value+'px';
+  var lh=parseFloat(document.getElementById('spLh').value);
+  var mg=document.getElementById('spMg').value;
+  var rb=document.getElementById('spRB').value;
+  var paper=document.querySelector('input[name="spSz2"]:checked')?.value||'A4';
+  var orient=document.querySelector('input[name="spOr"]:checked')?.value||'portrait';
+  var sheet=document.getElementById('spSheet');
+  if(sheet){sheet.style.fontFamily=font+',Arial,sans-serif';sheet.style.fontSize=sz;sheet.style.lineHeight=lh;}
+  document.querySelectorAll('.doc-title').forEach(function(e){e.style.fontSize=hs;});
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_spTColor;});
+  document.querySelectorAll('.row-odd td').forEach(function(e){e.style.background=rb;});
+  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_spColor;});
+  document.querySelectorAll('.hdr').forEach(function(e){e.style.borderBottomColor=_spColor;});
+  document.querySelectorAll('.footer').forEach(function(e){e.style.borderTopColor=_spColor;});
+  document.querySelectorAll('.gld').forEach(function(e){e.style.color=_spColor;});
+  document.querySelectorAll('.doc-sub').forEach(function(e){e.style.color=_spColor;});
+  document.querySelectorAll('.sum-total').forEach(function(e){e.style.borderColor=_spColor;e.lastElementChild&&(e.lastElementChild.style.color=_spColor);});
+  var sid='sp-live-style';
+  var st=document.getElementById(sid)||document.createElement('style');
+  st.id=sid;
+  st.textContent='@media print{@page{margin:'+mg+';size:'+paper+' '+orient+'}body{font-size:'+sz+'!important;line-height:'+lh+'!important}thead th{background:'+_spTColor+'!important}.row-odd td{background:'+rb+'!important}}';
+  if(!document.getElementById(sid))document.head.appendChild(st);
+}
+function _spSave(){
+  var h=document.documentElement.outerHTML;
+  var b=new Blob([h],{type:'text/html;charset=utf-8'});
+  var u=URL.createObjectURL(b);var a=document.createElement('a');
+  a.href=u;a.download=_spDocTitle.replace(/[\\/:*?"<>|]/g,'_')+'.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(u);},1500);
+}
+function _spReset(){
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){
+    localStorage.removeItem('sbtp_print_settings');location.reload();
+  }
+}
+function _spSaveSettings(){
+  var s={
+    fontFamily:document.getElementById('spFont').value,
+    fontSize:Number(document.getElementById('spSz').value),
+    headingSize:Number(document.getElementById('spHs').value),
+    lineHeight:parseFloat(document.getElementById('spLh').value),
+    accentColor:_spColor,tableHeaderColor:_spTColor,
+    rowBgColor:document.getElementById('spRB').value,
+    margin:document.getElementById('spMg').value,
+    pageSize:document.querySelector('input[name="spSz2"]:checked')?.value||'A4',
+    orientation:document.querySelector('input[name="spOr"]:checked')?.value||'portrait',
+  };
+  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}
+  if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}}
+  var btn=document.querySelector('.save-btn');
+  if(btn){var t=btn.textContent;btn.textContent='✅ ${isAr?'تم!':'Sauvé!'}';btn.style.background='#27ae60';
+    setTimeout(function(){btn.textContent=t;btn.style.background='';},2000);}
+}
+</script>
 </body></html>`;
 
   const w = window.open('', '_blank');
+  if (!w) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
   w.document.write(html);
   w.document.close();
 }
-
-/* ── دوال الطباعة لكل صفحة ── */
-
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
@@ -4495,17 +5902,61 @@ Pages.workers = function() {
   const maxW = plan?.max_workers||-1;
   const pct = maxW>0?Math.min(Math.round(workers.length/maxW*100),100):0;
   const contractLabels = {daily:L('يومي','Journalier'),monthly:L('شهري','Mensuel'),seasonal:L('موسمي','Saisonnier'),contract:L('مقاول','Sous-traitant')};
+
+  // تنبيهات انتهاء العقود
+  const now = new Date(); now.setHours(0,0,0,0);
+  const expiringContracts = workers.filter(w=>{
+    if (!w.contract_end) return false;
+    const daysLeft = Math.floor((new Date(w.contract_end)-now)/(1000*60*60*24));
+    return daysLeft >= 0 && daysLeft <= 30;
+  });
+  const expiredContracts = workers.filter(w=>{
+    if (!w.contract_end) return false;
+    return new Date(w.contract_end) < now;
+  });
+
+  // تقرير الغياب الشهري
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const att = DB.get('attendance')||[];
+  const attThisMonth = att.filter(a=>(a.date||'').startsWith(thisMonth) && workers.find(w=>w.id===a.worker_id));
+  const totalAtt = attThisMonth.length;
+  const presentCount = attThisMonth.filter(a=>a.status==='present').length;
+  const absentCount  = attThisMonth.filter(a=>a.status==='absent').length;
+  const globalRate   = totalAtt>0 ? Math.round(presentCount/totalAtt*100) : 0;
+
+  // تكلفة الغياب
+  const absentCost = workers.reduce((s,w)=>{
+    const wAbsent = attThisMonth.filter(a=>a.worker_id===w.id && a.status==='absent').length;
+    return s + wAbsent * Number(w.daily_salary||0);
+  },0);
+
   const rows = workers.map(w=>{
     const proj=projects.find(p=>p.id===w.project_id);
     const typeLabel=contractLabels[w.contract_type]||w.contract_type;
+    const daysLeft = w.contract_end ? Math.floor((new Date(w.contract_end)-now)/(1000*60*60*24)) : null;
+    const contractBadge = daysLeft!==null && daysLeft<0 ? '🔴 ' : daysLeft!==null && daysLeft<=30 ? '⚠️ ' : '';
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:.7rem"><div style="width:36px;height:36px;border-radius:50%;background:${w.color||'#4A90E2'};display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:.8rem">${(w.full_name||'?')[0]}</div><div><div style="font-weight:700">${escHtml(w.full_name)}</div><div style="font-size:.72rem;color:var(--dim)">📞 ${escHtml(w.phone||'')}</div></div></div></td>
       <td>${escHtml(w.role)}</td>
       <td style="color:var(--dim);font-size:.82rem">${escHtml(proj?.name||'—')}</td>
       <td><span style="font-weight:700;font-family:monospace">${fmt(w.daily_salary)}</span> <span style="font-size:.72rem;color:var(--dim)">${L('دج','DA')}</span></td>
-      <td><span class="badge" style="background:rgba(74,144,226,.1);color:#60A5FA;border:1px solid rgba(74,144,226,.2)">${typeLabel}</span></td>
+      <td><span class="badge" style="background:rgba(74,144,226,.1);color:#60A5FA;border:1px solid rgba(74,144,226,.2)">${contractBadge}${typeLabel}</span></td>
       <td style="color:var(--dim);font-size:.82rem">${fmtDate(w.hire_date)}</td>
-      <td><div style="display:flex;gap:.3rem"><button class="btn btn-blue btn-sm" onclick="editWorker(${w.id})">✏️</button><button class="btn btn-red btn-sm" onclick="deleteWorker(${w.id},'${escHtml(w.full_name)}')">🗑️</button></div></td>
+      <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
+        <div style="position:relative;display:inline-block" class="dz-dd">
+          <button class="btn btn-blue btn-sm" onclick="toggleWorkerDocs(${w.id}, event)" title="${L('وثائق العامل','Documents')}">📄 ${L('وثائق','Docs')} ▾</button>
+          <div id="wDocs${w.id}" class="dz-dd-menu" style="display:none;position:absolute;top:100%;${I18N.currentLang==='ar'?'right':'left'}:0;margin-top:4px;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:200px;z-index:100;padding:.3rem">
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('cdd',${w.id})">📝 ${L('عقد CDD محدد المدة','Contrat CDD')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('cta',${w.id})">🤝 ${L('عقد CTA مدعم','Contrat CTA')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('cdi',${w.id})">🔒 ${L('عقد CDI دائم','Contrat CDI')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('attestation',${w.id})">📄 ${L('شهادة عمل','Attestation travail')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForWorker('paie',${w.id})">💼 ${L('كشف راتب','Bulletin paie')}</button>
+          </div>
+        </div>
+        <button class="btn btn-blue btn-sm" onclick="editWorker(${w.id})">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('worker_profile',{id:${w.id}})">👤 ${L('الملف','Profil')}</button>
+        <button class="btn btn-red btn-sm" onclick="deleteWorker(${w.id},'${escHtml(w.full_name)}')">🗑️</button>
+      </div></td>
     </tr>`;
   }).join('');
 
@@ -4518,6 +5969,35 @@ Pages.workers = function() {
         <button class="btn btn-gold" data-modal-open="addWorkerModal">+ ${L('إضافة عامل','Ajouter ouvrier')}</button>
       </div>
     </div>
+
+    <!-- تنبيهات العقود -->
+    ${expiredContracts.length>0?`<div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.3);border-radius:10px;padding:.8rem 1.1rem;margin-bottom:.8rem">
+      <div style="font-weight:700;color:var(--red);margin-bottom:.4rem">🔴 ${L('عقود منتهية الصلاحية','Contrats expirés')} (${expiredContracts.length})</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">${expiredContracts.map(w=>`<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(240,78,106,.3)" onclick="App.navigate('worker_profile',{id:${w.id},tab:'info'})">${escHtml(w.full_name)}</button>`).join('')}</div>
+    </div>`:''}
+    ${expiringContracts.length>0?`<div style="background:rgba(255,112,67,.07);border:1px solid rgba(255,112,67,.3);border-radius:10px;padding:.8rem 1.1rem;margin-bottom:.8rem">
+      <div style="font-weight:700;color:var(--orange);margin-bottom:.4rem">⚠️ ${L('تنتهي عقودهم خلال 30 يوم','Contrats expirant dans 30j')} (${expiringContracts.length})</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">${expiringContracts.map(w=>{
+        const d=Math.floor((new Date(w.contract_end)-now)/(1000*60*60*24));
+        return `<button class="btn btn-ghost btn-sm" style="color:var(--orange);border-color:rgba(255,112,67,.3)" onclick="App.navigate('worker_profile',{id:${w.id},tab:'info'})">${escHtml(w.full_name)} (${d} ${L('يوم','j')})</button>`;
+      }).join('')}</div>
+    </div>`:''}
+
+    <!-- تقرير الغياب الشهري -->
+    ${totalAtt>0?`<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem">
+      <div>
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.3rem">📊 ${L('تقرير الغياب','Rapport absences')} — ${thisMonth}</div>
+        <div style="display:flex;gap:1.2rem;font-size:.8rem">
+          <span style="color:var(--green)">✅ ${L('حضور','Présent')}: <strong>${presentCount}</strong></span>
+          <span style="color:var(--red)">❌ ${L('غياب','Absent')}: <strong>${absentCount}</strong></span>
+          <span style="color:var(--gold)">📈 ${L('نسبة','Taux')}: <strong>${globalRate}%</strong></span>
+        </div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:.75rem;color:var(--dim)">${L('تكلفة الغياب','Coût absences')}</div>
+        <div style="font-size:1rem;font-weight:800;color:var(--red);font-family:monospace">${fmt(absentCost)} ${L('دج','DA')}</div>
+      </div>
+    </div>`:''}
     ${maxW>0?`<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem">
       <span style="font-size:.78rem;color:var(--muted);font-weight:700;white-space:nowrap">${L('الطاقة الاستيعابية:','Capacité :')}</span>
       <div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden"><div style="height:100%;border-radius:3px;background:${pct>=90?'var(--red)':pct>=70?'var(--gold)':'var(--green)'};width:${pct}%"></div></div>
@@ -4526,23 +6006,51 @@ Pages.workers = function() {
       <thead><tr><th>${L('العامل','Ouvrier')}</th><th>${L('المهنة','Métier')}</th><th>${L('المشروع','Projet')}</th><th>${L('الأجر اليومي','Salaire/j')}</th><th>${L('العقد','Contrat')}</th><th>${L('التعيين','Embauche')}</th><th>${L('إجراءات','Actions')}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="empty-icon">👷</div><div class="empty-title">${L('لا يوجد عمال','Aucun ouvrier')}</div></div>`}
     <div class="modal-overlay" id="addWorkerModal">
-      <div class="modal">
+      <div class="modal modal-lg">
         <div class="modal-title">👷 ${L('إضافة عامل جديد','Ajouter un ouvrier')}</div>
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label><input class="form-input" id="wName" placeholder="${L('محمد الأمين...','Prénom Nom...')}"></div>
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('الاسم الكامل *','Nom complet *')}</label>
+            <input class="form-input" id="wName" placeholder="${L('محمد الأمين بن علي','Mohamed Amine Ben Ali')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 Nom complet (français) <span style="font-size:.7rem;color:var(--dim)">${L('للوثائق الفرنسية','Pour documents FR')}</span></label>
+            <input class="form-input" id="wNameFr" placeholder="Mohamed Amine Ben Ali" dir="ltr">
+          </div>
           <div class="form-group"><label class="form-label">${L('المهنة *','Métier *')}</label><input class="form-input" id="wRole" placeholder="${L('بنّاء، حداد...','Maçon, Ferrailleur...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="wPhone" placeholder="0550..."></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهوية','N° identité')}</label><input class="form-input" id="wNid"></div>
-          <div class="form-group"><label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label><input class="form-input" id="wSalary" type="number" placeholder="3000"></div>
+          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="wPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهوية الوطنية','N° CIN')}</label><input class="form-input" id="wNid" type="text" placeholder="00 123 45678 90 12" pattern="[0-9 ]{10,20}" inputmode="numeric" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label><input class="form-input" id="wSalary" type="number" placeholder="3000" min="0" step="1" inputmode="numeric" oninput="(function(){const v=Number(this.value)||0;const el=document.getElementById('wMonthly');if(el&&!el._manualEdit)el.value=Math.round(v*26);}).call(this)"></div>
+          <div class="form-group"><label class="form-label">${L('الراتب الشهري القاعدي (دج)','Salaire base mensuel (DA)')}</label><input class="form-input" id="wMonthly" type="number" placeholder="${L('يُحسب تلقائياً','Auto-calculé')}" onfocus="this._manualEdit=true"></div>
           <div class="form-group"><label class="form-label">${L('نوع العقد','Type contrat')}</label><select class="form-select" id="wContract">
             <option value="daily">${L('يومي','Journalier')}</option>
             <option value="monthly">${L('شهري','Mensuel')}</option>
             <option value="seasonal">${L('موسمي','Saisonnier')}</option>
             <option value="contract">${L('مقاول','Sous-traitant')}</option>
           </select></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الميلاد','Date de naissance')}</label><input class="form-input" id="wDob" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('رقم CNAS','N° CNAS')}</label><input class="form-input" id="wCnas" type="text" placeholder="000-000-000-00" pattern="[0-9]{3}-[0-9]{3}-[0-9]{3}-[0-9]{2}" inputmode="numeric" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">💍 ${L('الحالة العائلية','Situation familiale')}</label><select class="form-select" id="wMarital">
+            <option value="single">${L('أعزب / عزباء','Célibataire')}</option>
+            <option value="married">${L('متزوج / متزوجة','Marié(e)')}</option>
+            <option value="divorced">${L('مطلق / مطلقة','Divorcé(e)')}</option>
+            <option value="widowed">${L('أرمل / أرملة','Veuf / Veuve')}</option>
+          </select></div>
+          <div class="form-group"><label class="form-label">👶 ${L('عدد الأطفال المعالين','Enfants à charge')}</label><input class="form-input" id="wChildren" type="number" min="0" max="20" step="1" inputmode="numeric" value="0"></div>
+          <div class="form-group"><label class="form-label">👫 ${L('هل الزوج/ة يعمل؟','Conjoint(e) travaille ?')}</label><select class="form-select" id="wSpouseWorks">
+            <option value="0">${L('لا — يُمنح Salaire Unique','Non — Salaire Unique accordé')}</option>
+            <option value="1">${L('نعم','Oui')}</option>
+          </select></div>
+          <div class="form-group"><label class="form-label">♿ ${L('معاق / متقاعد','Handicapé / Retraité')}</label><select class="form-select" id="wHandicap">
+            <option value="0">${L('لا','Non')}</option>
+            <option value="1">${L('نعم — تخفيض IRG 10%','Oui — Réduction IRG 10%')}</option>
+          </select></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="wProject"><option value="">${L('بدون مشروع','Sans projet')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('تاريخ التعيين','Date embauche')}</label><input class="form-input" id="wHire" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ التعيين','Date embauche')}</label><input class="form-input" id="wHire" type="date" value="${todayStr()}"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ انتهاء العقد','Fin de contrat')} <span style="font-size:.7rem;color:var(--dim)">${L('(للعقود المحددة المدة)','(CDD seulement)')}</span></label><input class="form-input" id="wContractEnd" type="date"></div>
         </div>
+        <div class="form-group"><label class="form-label">${L('العنوان / الإقامة','Adresse / Résidence')}</label><input class="form-input" id="wAddress" placeholder="${L('حي...، بلدية...','Cité..., Commune...')}"></div>
+        <div class="form-group"><label class="form-label">${L('جهة الاتصال في الطوارئ','Contact urgence')}</label><input class="form-input" id="wEmergency" placeholder="${L('الاسم - الهاتف','Nom - Tél')}"></div>
         <div class="form-group"><label class="form-label">${L('اللون','Couleur')}</label><input type="hidden" id="wColor" value="#4A90E2"><div class="color-options">${COLORS.map((c,i)=>`<div class="color-option${i===0?' selected':''}" style="background:${c}" data-color="${c}" data-target="wColor"></div>`).join('')}</div></div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addWorker()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
@@ -4551,10 +6059,10 @@ Pages.workers = function() {
       <div class="modal">
         <div class="modal-title">✏️ ${L('تعديل بيانات العامل','Modifier l\'ouvrier')}</div><input type="hidden" id="ewId">
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">${L('الاسم','Nom')}</label><input class="form-input" id="ewName"></div>
-          <div class="form-group"><label class="form-label">${L('المهنة','Métier')}</label><input class="form-input" id="ewRole"></div>
-          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="ewPhone"></div>
-          <div class="form-group"><label class="form-label">${L('الأجر اليومي','Salaire/j')}</label><input class="form-input" id="ewSalary" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('الاسم','Nom')}</label><input class="form-input" id="ewName" type="text" autocomplete="name"></div>
+          <div class="form-group"><label class="form-label">${L('المهنة','Métier')}</label><input class="form-input" id="ewRole" type="text" placeholder="${L('بنّاء، حداد...','Maçon, Ferrailleur...')}"></div>
+          <div class="form-group"><label class="form-label">${L('الهاتف','Téléphone')}</label><input class="form-input" id="ewPhone" type="tel" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
+          <div class="form-group"><label class="form-label">${L('الأجر اليومي','Salaire/j')}</label><input class="form-input" id="ewSalary" type="number" min="0" step="1" inputmode="numeric"></div>
           <div class="form-group"><label class="form-label">${L('نوع العقد','Type contrat')}</label><select class="form-select" id="ewContract">
             <option value="daily">${L('يومي','Journalier')}</option>
             <option value="monthly">${L('شهري','Mensuel')}</option>
@@ -4570,67 +6078,253 @@ Pages.workers = function() {
 };
 
 /* ─── EQUIPMENT ─── */
+
+function _getProjectFilter(pageKey) {
+  return sessionStorage.getItem('proj_filter_' + pageKey) || 'all';
+}
+function _setProjectFilter(pageKey, projId) {
+  sessionStorage.setItem('proj_filter_' + pageKey, projId);
+}
+function _projectFilterBar(projects, pageKey, currentFilter) {
+  if (!projects || projects.length === 0) return '';
+  const hasFilter = currentFilter !== 'all';
+  const selProj = projects.find(p=>String(p.id)===String(currentFilter));
+  return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;padding:.5rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(232,184,75,.2);border-radius:10px;flex-wrap:wrap">
+    <span style="font-size:.76rem;color:var(--dim);white-space:nowrap">🔍 ${L('تصفية:','Filtrer:')}</span>
+    <select style="flex:1;min-width:160px;max-width:280px;padding:.3rem .6rem;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:.8rem;cursor:pointer"
+      onchange="(function(v){sessionStorage.setItem('proj_filter_${pageKey}',v);App.navigate('${pageKey}');})(this.value)">
+      <option value="all" ${!hasFilter?'selected':''}>${L('كل المشاريع','Tous les projets')} (${projects.length})</option>
+      ${projects.map(p=>`<option value="${p.id}" ${String(currentFilter)===String(p.id)?'selected':''}>${escHtml(p.name.substring(0,30))}</option>`).join('')}
+    </select>
+    ${hasFilter ? `
+    <span style="font-size:.76rem;color:var(--gold);font-weight:600">← ${escHtml(selProj?.name||'')}</span>
+    <button style="padding:.2rem .6rem;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);border-radius:6px;color:var(--red);font-size:.72rem;cursor:pointer"
+      onclick="sessionStorage.setItem('proj_filter_${pageKey}','all');App.navigate('${pageKey}')">
+      ✕ ${L('الكل','Tout')}
+    </button>` : ''}
+  </div>`;
+}
+
 Pages.equipment = function() {
-  const tid = Auth.getUser().tenant_id;
-  const equip = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const tid      = Auth.getUser().tenant_id;
+  const allEquip = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const logs     = DB.get('equipment_logs')||[];
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const statusMap = { active:{label:L('نشط','Actif'),col:'var(--green)'}, maintenance:{label:L('صيانة','Maintenance'),col:'var(--gold)'}, idle:{label:L('خامل','Inactif'),col:'var(--dim)'} };
-  const cards = equip.map(e=>{
-    const proj=projects.find(p=>p.id===e.project_id);
-    const st=statusMap[e.status]||statusMap.idle;
-    return `<div class="card" style="position:relative">
-      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-        <div style="width:52px;height:52px;border-radius:14px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.8rem">${e.icon||'🚜'}</div>
-        <div><div style="font-weight:800">${escHtml(e.name)}</div><div style="font-size:.75rem;color:var(--dim)">${escHtml(e.model||'')}</div></div>
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('equipment');
+  const equip = projFilter==='all' ? allEquip : allEquip.filter(e=>String(e.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
+  const statusMap = {
+    active:      { label:L('نشط','Actif'),       col:'var(--green)' },
+    maintenance: { label:L('صيانة','Maintenance'),col:'var(--gold)'  },
+    idle:        { label:L('خامل','Inactif'),     col:'var(--dim)'   },
+  };
+
+  // ── بناء بطاقة لكل معدة ──
+  const cards = equip.map(e => {
+    const proj   = projects.find(p=>p.id===e.project_id);
+    const st     = statusMap[e.status]||statusMap.idle;
+    const eLogs  = logs.filter(l=>l.equipment_id===e.id).sort((a,b)=>b.date.localeCompare(a.date));
+    const lastMaint = eLogs.filter(l=>l.type==='maintenance')[0];
+    const lastOp    = eLogs[0];
+
+    // تحذيرات
+    const maintSoon = e.next_maintenance && new Date(e.next_maintenance) <= new Date(Date.now()+30*864e5);
+    const maintDue  = e.next_maintenance && new Date(e.next_maintenance) <= new Date();
+    const insSoon   = e.insurance_expiry && new Date(e.insurance_expiry) <= new Date(Date.now()+30*864e5);
+
+    return `
+    <div class="card" style="position:relative;display:flex;flex-direction:column;gap:.7rem">
+
+      <!-- ─ رأس البطاقة ─ -->
+      <div style="display:flex;align-items:flex-start;gap:.8rem">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0">${e.icon||'🚜'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(e.name)}</div>
+          <div style="font-size:.74rem;color:var(--dim)">${escHtml(e.model||'')}${e.type?' · '+escHtml(e.type):''}</div>
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem">
+            <span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:${st.col}18;border:1px solid ${st.col}44;color:${st.col};font-weight:700">${st.label}</span>
+            ${maintDue  ? `<span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);color:#F04E6A;font-weight:700">🔧 ${L('صيانة متأخرة','Maint. en retard')}</span>` : ''}
+            ${maintSoon && !maintDue ? `<span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.3);color:#E8B84B;font-weight:700">🔧 ${L('صيانة قريبة','Maint. proche')}</span>` : ''}
+            ${insSoon   ? `<span style="font-size:.65rem;padding:2px 7px;border-radius:8px;background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.2);color:#F04E6A;font-weight:700">⚠️ ${L('تأمين قريب','Assur. proche')}</span>` : ''}
+          </div>
+        </div>
+        <select class="form-select" style="padding:.25rem .5rem;font-size:.72rem;width:auto;flex-shrink:0" onchange="updateEquipStatus(${e.id},this.value)">
+          ${Object.entries(statusMap).map(([k,v])=>`<option value="${k}"${e.status===k?' selected':''}>${v.label}</option>`).join('')}
+        </select>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.78rem;margin-bottom:.8rem">
-        <div><div style="color:var(--dim)">${L('المشروع','Projet')}</div><div style="font-weight:600">${escHtml(proj?.name||'—')}</div></div>
-        <div><div style="color:var(--dim)">${L('رقم اللوحة','N° plaque')}</div><div style="font-weight:600;font-family:monospace;direction:ltr;text-align:right">${escHtml(e.plate_number||'—')}</div></div>
-        <div><div style="color:var(--dim)">${L('قيمة الشراء','Valeur d\'achat')}</div><div style="font-weight:600;font-family:monospace">${fmt(e.purchase_price)} دج</div></div>
-        <div><div style="color:var(--dim)">${L('الحالة','État')}</div>
-          <select class="form-select" style="padding:.2rem .5rem;font-size:.75rem;margin-top:2px" onchange="updateEquipStatus(${e.id},this.value)">
-            ${Object.entries(statusMap).map(([k,v])=>`<option value="${k}"${e.status===k?' selected':''}>${v.label}</option>`).join('')}
-          </select>
+
+      <!-- ─ معلومات ─ -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem;font-size:.76rem;background:rgba(255,255,255,.025);border-radius:8px;padding:.6rem">
+        ${proj ? `<div><span style="color:var(--dim)">${L('المشروع','Projet')}: </span><strong>${escHtml(proj.name)}</strong></div>` : ''}
+        ${e.plate_number ? `<div><span style="color:var(--dim)">${L('اللوحة','Plaque')}: </span><strong dir="ltr">${escHtml(e.plate_number)}</strong></div>` : ''}
+        ${e.serial ? `<div><span style="color:var(--dim)">${L('الرقم التسلسلي','Série')}: </span><strong dir="ltr" style="font-family:monospace">${escHtml(e.serial)}</strong></div>` : ''}
+        ${e.purchase_price ? `<div><span style="color:var(--dim)">${L('قيمة الشراء','Prix achat')}: </span><strong>${fmt(e.purchase_price)} ${L('دج','DA')}</strong></div>` : ''}
+        ${e.next_maintenance ? `<div><span style="color:var(--dim)">${L('الصيانة القادمة','Proch. maint.')}: </span><strong style="color:${maintDue?'#F04E6A':maintSoon?'#E8B84B':'var(--text)'}">${e.next_maintenance}</strong></div>` : ''}
+        ${e.insurance_expiry ? `<div><span style="color:var(--dim)">${L('انتهاء التأمين','Exp. assur.')}: </span><strong style="color:${insSoon?'#F04E6A':'var(--text)'}">${e.insurance_expiry}</strong></div>` : ''}
+        ${e.purchase_date ? `<div><span style="color:var(--dim)">${L('تاريخ الشراء','Dt. achat')}: </span><strong>${e.purchase_date}</strong></div>` : ''}
+        ${lastMaint ? `<div><span style="color:var(--dim)">${L('آخر صيانة','Dern. maint.')}: </span><strong style="color:#34C38F">${lastMaint.date}</strong></div>` : ''}
+      </div>
+
+      <!-- ─ آخر سجلات ─ -->
+      ${eLogs.length ? `
+      <div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--dim);margin-bottom:.3rem">🕐 ${L('آخر العمليات','Dernières opérations')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          ${eLogs.slice(0,3).map(l=>{
+            const typeColors = { maintenance:'#34C38F', fuel:'#4A90E2', repair:'#F04E6A', incident:'#FF7043', inspection:'#9B6DFF', use:'#E8B84B' };
+            const typeLabels = {
+              maintenance: L('صيانة','Maintenance'),
+              fuel:        L('تزويد وقود','Carburant'),
+              repair:      L('إصلاح','Réparation'),
+              incident:    L('حادث','Incident'),
+              inspection:  L('فحص','Inspection'),
+              use:         L('استخدام','Utilisation'),
+            };
+            const c = typeColors[l.type]||'var(--dim)';
+            return `<div style="display:flex;align-items:center;gap:.5rem;font-size:.72rem;padding:3px 6px;background:${c}10;border-radius:5px;border-right:2px solid ${c}">
+              <span style="color:${c};font-weight:700;white-space:nowrap">${typeLabels[l.type]||l.type}</span>
+              <span style="color:var(--dim);white-space:nowrap">${l.date}</span>
+              <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(l.note||'')}</span>
+              ${l.cost ? `<span style="color:var(--gold);font-weight:700;white-space:nowrap;font-family:monospace">${fmt(l.cost)}</span>` : ''}
+            </div>`;
+          }).join('')}
+          ${eLogs.length > 3 ? `<div style="font-size:.68rem;color:var(--dim);text-align:center;margin-top:2px">${L('و','et')} ${eLogs.length-3} ${L('عملية أخرى...','autre(s)...')}</div>` : ''}
         </div>
       </div>
-      <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" style="width:100%;justify-content:center">🗑️ ${L('حذف','Supprimer')}</button>
-    </div>`;
-  }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">${L('لا توجد معدات','Aucun équipement')}</div></div>`;
+      ` : `<div style="font-size:.73rem;color:var(--dim);font-style:italic;text-align:center;padding:.3rem 0">${L('لا توجد سجلات بعد','Aucun enregistrement')}</div>`}
 
-  return layoutHTML('equipment',L('المعدات','Équipements'),`
+      <!-- ─ أزرار ─ -->
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+        <button class="btn btn-gold btn-sm" style="flex:1;justify-content:center" onclick="openEquipLog(${e.id})">
+          📋 ${L('إضافة سجل','Ajouter entrée')}
+        </button>
+        <button class="btn btn-blue btn-sm" style="flex:1;justify-content:center" onclick="viewEquipHistory(${e.id})">
+          📊 ${L('السجل الكامل','Historique complet')} ${eLogs.length?`(${eLogs.length})`:''}
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForEquipment('suivi',${e.id})" title="${L('بطاقة تتبع PDF','Fiche suivi PDF')}">📄</button>
+        <button class="btn btn-red btn-sm" onclick="deleteEquip(${e.id},'${escHtml(e.name)}')" title="${L('حذف','Suppr.')}">🗑️</button>
+      </div>
+    </div>`;
+  }).join('') || `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚜</div><div class="empty-title">${L('لا توجد معدات','Aucun équipement')}</div></div>`;
+
+  return layoutHTML('equipment', L('المعدات','Équipements'), `
     <div class="page-header">
-      <div><div class="page-title">🚜 ${L('المعدات','Équipements')}</div><div class="page-sub">${equip.length} ${L('معدة مسجلة','équipement(s)')}</div></div>
-      <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button><button class="btn btn-gold" data-modal-open="addEquipModal">+ ${L('إضافة معدة','Ajouter équipement')}</button></div>
+      <div><div class="page-title">🚜 ${L('المعدات','Équipements')}</div><div class="page-sub">${equip.length}${projFilter!=='all'?` ${L('من','/')} ${allEquip.length}`:''} ${L('معدة مسجلة','équipement(s)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div></div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="printEquipment()">🖨️ ${L('طباعة','Imprimer')}</button>
+        <button class="btn btn-gold" data-modal-open="addEquipModal">+ ${L('إضافة معدة','Ajouter')}</button>
+      </div>
     </div>
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card"><div class="stat-value" style="color:var(--green)">${equip.filter(e=>e.status==='active').length}</div><div class="stat-label">${L('نشط','Actif')}</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--gold)">${equip.filter(e=>e.status==='maintenance').length}</div><div class="stat-label">${L('صيانة','Maintenance')}</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--dim)">${equip.filter(e=>e.status==='idle').length}</div><div class="stat-label">${L('خامل','Inactif')}</div></div>
+
+    ${_projectFilterBar(projects, 'equipment', projFilter)}
+
+    <!-- إحصائيات -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card"><div class="stat-icon">🚜</div><div class="stat-value">${equip.length}</div><div class="stat-label">${L('إجمالي المعدات','Total équip.')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--green)">✅</div><div class="stat-value" style="color:var(--green)">${equip.filter(e=>e.status==='active').length}</div><div class="stat-label">${L('نشطة','Actifs')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--gold)">🔧</div><div class="stat-value" style="color:var(--gold)">${equip.filter(e=>e.status==='maintenance').length}</div><div class="stat-label">${L('صيانة','Maintenance')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:#F04E6A">⚠️</div><div class="stat-value" style="color:#F04E6A">${equip.filter(e=>e.next_maintenance&&new Date(e.next_maintenance)<=new Date(Date.now()+7*864e5)).length}</div><div class="stat-label">${L('صيانة هذا الأسبوع','Maint. cette semaine')}</div></div>
     </div>
+
     <div class="grid-cards">${cards}</div>
+
+    <!-- Modal إضافة معدة -->
     <div class="modal-overlay" id="addEquipModal">
-      <div class="modal">
+      <div class="modal modal-lg">
         <div class="modal-title">🚜 ${L('إضافة معدة','Ajouter un équipement')}</div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('الاسم *','Nom *')}</label><input class="form-input" id="eName" placeholder="${L('حفارة...','Pelle...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الطراز','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320"></div>
-          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° plaque')}</label><input class="form-input" id="ePlate" dir="ltr"></div>
-          <div class="form-group"><label class="form-label">${L('الأيقونة','Icône')}</label><select class="form-select" id="eIcon"><option>🚜</option><option>🚛</option><option>🏗️</option><option>🚧</option><option>⛏️</option></select></div>
-          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number"></div>
-          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="eProject"><option value="">${L('اختر...','Choisir...')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الطراز','Modèle')}</label><input class="form-input" id="eModel" placeholder="CAT 320D"></div>
+          <div class="form-group"><label class="form-label">${L('النوع','Type')}</label><input class="form-input" id="eType" placeholder="${L('حفارة، شاحنة...','Pelleteuse, Camion...')}"></div>
+          <div class="form-group"><label class="form-label">${L('الرقم التسلسلي','N° Série')}</label><input class="form-input" id="eSerial" dir="ltr" placeholder="CAT320-2024-001"></div>
+          <div class="form-group"><label class="form-label">${L('رقم اللوحة','N° Plaque')}</label><input class="form-input" id="ePlate" dir="ltr" type="text" placeholder="12345-AB-16"></div>
+          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="eProject"><option value="">${L('بدون مشروع','Sans projet')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('قيمة الشراء (دج)','Valeur achat (DA)')}</label><input class="form-input" id="ePrice" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الشراء','Date achat')}</label><input class="form-input" id="ePurchaseDate" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('تاريخ الصيانة القادمة','Proch. maintenance')}</label><input class="form-input" id="eNextMaint" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('انتهاء التأمين','Exp. assurance')}</label><input class="form-input" id="eInsurance" type="date"></div>
+          <div class="form-group"><label class="form-label">${L('أيقونة','Icône')}</label><select class="form-select" id="eIcon">
+            <option value="🚜">🚜 ${L('حفارة','Pelleteuse')}</option><option value="🚛">🚛 ${L('شاحنة','Camion')}</option>
+            <option value="🏗️">🏗️ ${L('رافعة','Grue')}</option><option value="🚧">🚧 ${L('آلة طرق','Compacteur')}</option>
+            <option value="⚙️">⚙️ ${L('مضخة','Pompe')}</option><option value="🔩">🔩 ${L('معدة أخرى','Autre')}</option>
+          </select></div>
+          <div class="form-group"><label class="form-label">${L('الحالة','État')}</label><select class="form-select" id="eStatus">
+            <option value="active">${L('نشط','Actif')}</option>
+            <option value="maintenance">${L('صيانة','Maintenance')}</option>
+            <option value="idle">${L('خامل','Inactif')}</option>
+          </select></div>
         </div>
-        <div class="form-group"><label class="form-label">${L('ملاحظات','Notes')}</label><textarea class="form-textarea" id="eNotes" style="min-height:60px"></textarea></div>
-        <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addEquip()">💾 ${L('حفظ','Enregistrer')}</button></div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('addEquipModal')">${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="addEquip()">${L('إضافة','Ajouter')}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal إضافة سجل صيانة/وقود/... -->
+    <div class="modal-overlay" id="equipLogModal">
+      <div class="modal">
+        <div class="modal-title" id="equipLogModalTitle">📋 ${L('إضافة سجل للمعدة','Ajouter une entrée')}</div>
+        <input type="hidden" id="equipLogEid">
+        <div class="form-grid-2">
+          <div class="form-group form-col-full">
+            <label class="form-label">${L('نوع العملية *','Type d\'opération *')}</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">
+              ${[
+                {v:'maintenance',i:'🔧',l:L('صيانة','Maintenance'),c:'#34C38F'},
+                {v:'fuel',       i:'⛽',l:L('وقود','Carburant'),   c:'#4A90E2'},
+                {v:'repair',     i:'🛠️',l:L('إصلاح','Réparation'), c:'#F04E6A'},
+                {v:'inspection', i:'🔍',l:L('فحص','Inspection'),   c:'#9B6DFF'},
+                {v:'incident',   i:'⚠️',l:L('حادث','Incident'),    c:'#FF7043'},
+                {v:'use',        i:'▶️',l:L('استخدام','Utilisation'),c:'#E8B84B'},
+              ].map(t=>`
+                <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:${t.c}10;border:2px solid ${t.c}30;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:700;color:${t.c};transition:all .2s"
+                  onmouseover="this.style.background='${t.c}22'" onmouseout="this.style.background='${t.c}10'">
+                  <input type="radio" name="logType" value="${t.v}" style="display:none" onchange="document.querySelectorAll('[name=logType]').forEach(r=>{r.parentElement.style.borderColor=(r.checked?'${t.c}':'${t.c}30')})">
+                  ${t.i} ${t.l}
+                </label>
+              `).join('')}
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">${L('التاريخ *','Date *')}</label><input class="form-input" id="logDate" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+          <div class="form-group"><label class="form-label">${L('التكلفة (دج)','Coût (DA)')}</label><input class="form-input" id="logCost" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group form-col-full"><label class="form-label">${L('ملاحظة','Note')}</label><textarea class="form-input" id="logNote" rows="2" placeholder="${L('تفاصيل العملية...','Détails de l\'opération...')}"></textarea></div>
+          <div class="form-group"><label class="form-label">${L('التالي: موعد الصيانة القادمة','Proch. maintenance')}</label><input class="form-input" id="logNextMaint" type="date" placeholder="${L('اختياري','Optionnel')}"></div>
+          <div class="form-group"><label class="form-label">${L('المورد / الميكانيكي','Fournisseur')}</label><input class="form-input" id="logVendor" placeholder="${L('اسم المورد...','Nom fournisseur...')}"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('equipLogModal')">${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveEquipLog()">💾 ${L('حفظ السجل','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal السجل الكامل -->
+    <div class="modal-overlay" id="equipHistoryModal">
+      <div class="modal modal-lg" style="max-width:700px">
+        <div class="modal-title" id="equipHistoryTitle">📊 ${L('سجل المعدة','Historique équipement')}</div>
+        <div id="equipHistoryBody" style="max-height:65vh;overflow-y:auto"></div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('equipHistoryModal')">${L('إغلاق','Fermer')}</button>
+          <button class="btn btn-gold" onclick="printEquipHistory()">${L('🖨️ طباعة PDF','🖨️ Imprimer')}</button>
+        </div>
       </div>
     </div>
   `);
 };
-
-/* ─── TRANSACTIONS ─── */
 Pages.transactions = function() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const allTxs = DB.get('transactions').filter(t=>t.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('transactions');
+  const txs = projFilter==='all' ? allTxs : allTxs.filter(t=>String(t.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
 
@@ -4670,9 +6364,10 @@ Pages.transactions = function() {
 
   return layoutHTML('transactions',L('المعاملات المالية','Transactions financières'),`
     <div class="page-header">
-      <div><div class="page-title">💰 ${L('المعاملات المالية','Transactions financières')}</div><div class="page-sub">${txs.length} ${L('معاملة','transaction(s)')}</div></div>
+      <div><div class="page-title">💰 ${L('المعاملات المالية','Transactions financières')}</div><div class="page-sub">${txs.length}${projFilter!=='all'?` ${L('من','/')} ${allTxs.length}`:''} ${L('معاملة','transaction(s)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div></div>
       <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="printTransactions()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button><button class="btn btn-gold" data-modal-open="addTxModal">+ ${L('إضافة معاملة','Ajouter transaction')}</button></div>
     </div>
+    ${_projectFilterBar(projects,'transactions',projFilter)}
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(revenue)}</div><div class="stat-label">${L('الإيرادات (دج)','Revenus (DA)')}</div></div>
       <div class="stat-card"><div class="stat-icon">📉</div><div class="stat-value" style="color:var(--red);font-size:1.1rem">${fmt(expense)}</div><div class="stat-label">${L('المصاريف (دج)','Dépenses (DA)')}</div></div>
@@ -4687,7 +6382,7 @@ Pages.transactions = function() {
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('النوع','Type')}</label><select class="form-select" id="txType" onchange="updateTxCats()"><option value="revenue">${L('إيراد','Revenu')}</option><option value="expense">${L('مصروف','Dépense')}</option></select></div>
           <div class="form-group"><label class="form-label">${L('الفئة','Catégorie')}</label><select class="form-select" id="txCat">${RCATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('المبلغ (دج) *','Montant (DA) *')}</label><input class="form-input" id="txAmount" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('المبلغ (دج) *','Montant (DA) *')}</label><input class="form-input" id="txAmount" type="number" placeholder="0" min="0" step="1" inputmode="numeric"></div>
           <div class="form-group"><label class="form-label">${L('التاريخ','Date')}</label><input class="form-input" id="txDate" type="date" value="${todayStr()}"></div>
           <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="txProject"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('طريقة الدفع','Mode paiement')}</label><select class="form-select" id="txPayment">
@@ -4867,6 +6562,7 @@ Pages.attendance = function() {
       <div style="flex:1"></div>
       <button class="btn btn-green btn-sm" onclick="markAllStatus('present','${selDate}')">✅ تحديد الكل حاضر</button>
       <button class="btn btn-red btn-sm" onclick="markAllStatus('absent','${selDate}')">❌ تحديد الكل غائب</button>
+      <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openAttendanceCard()" title="${L('بطاقة حضور PDF لعامل ومدة محددة','Fiche pointage PDF')}">📄 ${L('بطاقة حضور PDF','Fiche pointage')}</button>
       <button class="btn btn-ghost btn-sm" onclick="exportAttendanceMonthly()">📥 تصدير CSV</button>
     </div>
 
@@ -4876,11 +6572,104 @@ Pages.attendance = function() {
 
 
 /* ─── REPORTS ─── */
+
+Pages.subscription = function() {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant();
+  if (!user || !tenant) return window.location.replace('index.html');
+
+  const plans = typeof ChargilyPayment !== 'undefined' ? ChargilyPayment.PLANS : {};
+  const isAr = I18N.currentLang === 'ar';
+  const currentPlan = tenant.plan_id || 2;
+  const subStatus = tenant.subscription_status || 'trial';
+  const subEnd = tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString(isAr?'ar-DZ':'fr-FR',{year:'numeric',month:'long',day:'numeric'}) : '—';
+  const da = isAr ? 'دج' : 'DA';
+  const fmt = n => Number(n||0).toLocaleString(isAr?'ar-DZ':'fr-DZ');
+
+  return layoutHTML('subscription', L('الاشتراك','Abonnement'), `
+    <div class="page-header">
+      <div>
+        <div class="page-title">💳 ${L('إدارة الاشتراك','Gestion abonnement')}</div>
+        <div class="page-sub">${L('اختر الخطة المناسبة لمؤسستك','Choisissez le plan adapté à votre entreprise')}</div>
+      </div>
+    </div>
+
+    <!-- حالة الاشتراك الحالي -->
+    <div class="card" style="border:1px solid rgba(232,184,75,.2);margin-bottom:1.2rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+        <div>
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('الاشتراك الحالي','Abonnement actuel')}</div>
+          <div style="font-size:1.1rem;font-weight:800">
+            ${plans[currentPlan]?`${plans[currentPlan].emoji} ${isAr?plans[currentPlan].nameAr:plans[currentPlan].nameFr}`:'—'}
+          </div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('الحالة','Statut')}</div>
+          <span class="badge ${subStatus==='active'?'badge-active':''}" style="font-size:.82rem">
+            ${subStatus==='active'?'✅ '+L('نشط','Actif'):subStatus==='trial'?'⏳ '+L('تجريبي','Essai'):'⚠️ '+L('منتهي','Expiré')}
+          </span>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('صالح حتى','Valide jusqu_au')}</div>
+          <div style="font-size:.88rem;font-weight:700">${subEnd}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- خطط الاشتراك -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem">
+      ${Object.values(plans).map(plan => `
+        <div class="card" style="border:2px solid ${plan.featured?'rgba(232,184,75,.4)':currentPlan===plan.id?'rgba(52,195,143,.3)':'var(--border)'};position:relative;overflow:hidden">
+          ${plan.featured?`<div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8B84B,#C9971B)"></div>`:''}
+          ${currentPlan===plan.id?`<div style="position:absolute;top:.5rem;${isAr?'left':'right'}:.5rem"><span class="badge badge-active" style="font-size:.68rem">✅ ${L('خطتك الحالية','Votre plan')}</span></div>`:''}
+          <div style="text-align:center;padding:.5rem 0 1rem">
+            <div style="font-size:2.5rem;margin-bottom:.5rem">${plan.emoji}</div>
+            <div style="font-size:1.1rem;font-weight:800;color:${plan.color}">${isAr?plan.nameAr:plan.nameFr}</div>
+            <div style="font-size:.8rem;color:var(--dim);margin-top:.3rem">${isAr?plan.descAr:plan.descFr}</div>
+          </div>
+          <div style="text-align:center;margin:1rem 0">
+            <span style="font-size:2rem;font-weight:900;color:var(--text)">${fmt(plan.price)}</span>
+            <span style="font-size:.8rem;color:var(--dim)"> ${da}/${L('شهر','mois')}</span>
+          </div>
+          ${currentPlan===plan.id && subStatus==='active'
+            ? `<button class="btn btn-ghost" style="width:100%;justify-content:center" disabled>✅ ${L('مشترك حالياً','Abonné actuellement')}</button>`
+            : `<button class="btn btn-gold" style="width:100%;justify-content:center" onclick="${typeof ChargilyPayment!=='undefined'?`ChargilyPayment.initiatePayment(${plan.id})`:'Toast.info(L("Chargily غير مُفعَّل","Chargily non activé"))'}">
+                💳 ${L('اشترك الآن','S\'abonner maintenant')}
+              </button>`
+          }
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- ملاحظة -->
+    <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.15);border-radius:10px;padding:.8rem 1rem;font-size:.78rem;color:var(--dim);line-height:1.6">
+      🔒 ${L('الدفع آمن 100% عبر Chargily Pay — يدعم EDAHABIA (بريد الجزائر) و CIB (SATIM)','Paiement 100% sécurisé via Chargily Pay — Supporte EDAHABIA et CIB (SATIM)')}
+      <br>📧 ${L('للدعم:','Support:')} contact@smartstruct.dz
+    </div>
+  `);
+};
+
 Pages.reports = function() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
-  const projs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+
+  // ── قراءة الفلاتر من state ──
+  const state    = window._reportsState || {};
+  const dateFrom = state.dateFrom || '';
+  const dateTo   = state.dateTo   || '';
+  const projId   = state.projId   || '';
+  const txType   = state.txType   || '';
+
+  let txs   = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  let projs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+
+  // ── تطبيق الفلاتر ──
+  if (dateFrom) txs = txs.filter(t=>t.date && t.date>=dateFrom);
+  if (dateTo)   txs = txs.filter(t=>t.date && t.date<=dateTo);
+  if (projId)   txs = txs.filter(t=>String(t.project_id)===String(projId));
+  if (txType)   txs = txs.filter(t=>t.type===txType);
+  if (projId)   projs = projs.filter(p=>String(p.id)===String(projId));
+
   const revenue=txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const totalBudget=projs.reduce((s,p)=>s+Number(p.budget),0);
@@ -4889,14 +6678,85 @@ Pages.reports = function() {
   txs.filter(t=>t.type==='expense').forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+Number(t.amount);});
   const topCats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const maxCat=topCats[0]?.[1]||1;
+
+  const allProjs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+  const isFiltered = !!(dateFrom||dateTo||projId||txType);
+
   return layoutHTML('reports','التقارير',`
     <div class="page-header">
-      <div class="page-title">📈 التقارير والإحصاء</div>
+      <div><div class="page-title">📈 ${L('التقارير والإحصاء','Rapports & Statistiques')}</div></div>
       <div class="page-actions">
-        <button class="btn btn-ghost btn-sm" onclick="exportFinancialCSV()">📥 تصدير مالي CSV</button><button class="btn btn-gold btn-sm" onclick="exportReportPDF()">📄 تصدير PDF</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportAttendanceMonthly()">📥 تقرير حضور CSV</button>
-        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ طباعة التقرير</button>
+        <button class="btn" style="background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;font-weight:800" onclick="generateAISmartReport()" title="${L('تقرير شامل بالذكاء الاصطناعي','Rapport IA complet')}">🤖 ${L('تقرير AI','Rapport IA')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportFinancialCSV()">📥 CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportFinancialXLSX()" title="${L('تصدير Excel','Exporter Excel')}">📊 Excel</button>
+        <button class="btn btn-gold btn-sm" onclick="exportReportPDF()">📄 PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️</button>
       </div>
+    </div>
+
+    <!-- ✅ لوحة الفلاتر -->
+    <div class="card" style="margin-bottom:1rem;padding:1rem 1.2rem">
+      <div style="font-size:.82rem;font-weight:700;margin-bottom:.8rem;color:var(--gold)">🔍 ${L('فلترة التقارير','Filtrer les rapports')}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;align-items:end">
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('من تاريخ','Du')}</label>
+          <input class="form-input" type="date" id="repDateFrom" value="${dateFrom}"
+            onchange="window._reportsState=(window._reportsState||{});window._reportsState.dateFrom=this.value;App.navigate('reports')">
+        </div>
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('إلى تاريخ','Au')}</label>
+          <input class="form-input" type="date" id="repDateTo" value="${dateTo}"
+            onchange="window._reportsState=(window._reportsState||{});window._reportsState.dateTo=this.value;App.navigate('reports')">
+        </div>
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('المشروع','Projet')}</label>
+          <select class="form-select" id="repProj" onchange="window._reportsState=(window._reportsState||{});window._reportsState.projId=this.value;App.navigate('reports')">
+            <option value="">${L('كل المشاريع','Tous les projets')}</option>
+            ${allProjs.map(p=>`<option value="${p.id}" ${String(p.id)===String(projId)?'selected':''}>${escHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" style="font-size:.72rem">${L('نوع المعاملة','Type')}</label>
+          <select class="form-select" id="repType" onchange="window._reportsState=(window._reportsState||{});window._reportsState.txType=this.value;App.navigate('reports')">
+            <option value="">${L('الكل','Tous')}</option>
+            <option value="revenue" ${txType==='revenue'?'selected':''}>${L('إيرادات','Revenus')}</option>
+            <option value="expense" ${txType==='expense'?'selected':''}>${L('مصاريف','Dépenses')}</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:.4rem">
+          ${isFiltered?`<button class="btn btn-ghost btn-sm" onclick="window._reportsState={};App.navigate('reports')" style="width:100%">
+            ✕ ${L('مسح الفلاتر','Effacer')}</button>`:''}
+          ${isFiltered?`<span style="font-size:.7rem;color:var(--gold);padding:.3rem .5rem;background:rgba(232,184,75,.1);border-radius:6px;white-space:nowrap;align-self:center">
+            ${L('مُفلتَر','Filtré')} ✓</span>`:''}
+        </div>
+      </div>
+      ${isFiltered?`<div style="margin-top:.6rem;font-size:.75rem;color:var(--dim)">
+        ${L('يعرض','Affichage')} <strong style="color:var(--text)">${txs.length}</strong> ${L('معاملة','transaction(s)')} 
+        ${dateFrom?L(`من ${dateFrom}`,'depuis '+dateFrom):''} ${dateTo?L(`حتى ${dateTo}`,'jusqu\'au '+dateTo):''}
+        ${projId?L('— مشروع محدد','— projet sélectionné'):''}
+      </div>`:''}
+    </div>
+    <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-30px;${I18N.currentLang==='ar'?'left':'right'}:-30px;width:140px;height:140px;background:radial-gradient(circle,rgba(155,109,255,.15),transparent);border-radius:50%"></div>
+      <div style="font-size:3.2rem;flex-shrink:0;position:relative;z-index:1">🤖</div>
+      <div style="flex:1;min-width:280px;position:relative;z-index:1">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap">
+          <span style="font-size:1.15rem;font-weight:900;color:#9B6DFF;letter-spacing:.3px">${L('التقرير الذكي الشامل','Rapport IA Complet')}</span>
+          <span style="font-size:.62rem;background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;padding:3px 10px;border-radius:8px;font-weight:800">✨ AI POWERED</span>
+        </div>
+        <div style="font-size:.84rem;color:var(--text);line-height:1.75;margin-bottom:.7rem">
+          ${L('تقرير احترافي مولّد بالذكاء الاصطناعي يحلّل بياناتك الحالية ويقدّم: <strong style="color:#9B6DFF">الإيجابيات</strong>، <strong style="color:#9B6DFF">السلبيات</strong>، <strong style="color:#9B6DFF">النواقص</strong>، <strong style="color:#9B6DFF">التحسينات المقترحة</strong>، وتوصيات استراتيجية مخصصة لمؤسستك.','Rapport IA professionnel qui analyse vos données et propose: <strong>points forts</strong>, <strong>points faibles</strong>, <strong>recommandations</strong> et stratégies.')}
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">📊 ${L('تحليل مالي','Analyse financière')}</span>
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">🏗️ ${L('تقييم المشاريع','Projets')}</span>
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">👷 ${L('أداء العمالة','Personnel')}</span>
+          <span style="font-size:.7rem;background:rgba(155,109,255,.1);color:#9B6DFF;padding:3px 9px;border-radius:6px;border:1px solid rgba(155,109,255,.2)">💡 ${L('توصيات ذكية','Recommandations')}</span>
+        </div>
+      </div>
+      <button onclick="generateAISmartReport()" style="background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;padding:1rem 1.6rem;border-radius:12px;font-weight:800;cursor:pointer;font-family:inherit;font-size:.95rem;box-shadow:0 4px 16px rgba(155,109,255,.3);position:relative;z-index:1;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+        ✨ ${L('توليد التقرير الآن','Générer maintenant')}
+      </button>
     </div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:var(--green);font-size:1rem">${fmt(revenue)}</div><div class="stat-label">الإيرادات (دج)</div></div>
@@ -4925,6 +6785,482 @@ Pages.reports = function() {
 };
 
 /* ─── SETTINGS ─── */
+// ════════════════════════════════════════════════════════════════════
+// 🤖 generateAISmartReport — التقرير الذكي الشامل المولّد بالذكاء الاصطناعي
+// ════════════════════════════════════════════════════════════════════
+function generateAISmartReport() {
+  const tenant = Auth.getTenant();
+  if (!tenant) { Toast.error('يجب تسجيل الدخول'); return; }
+  const tid = tenant.id;
+
+  // ═══ جمع كل البيانات ═══
+  const projects   = DB.get('projects').filter(p => p.tenant_id === tid && !p.is_archived);
+  const workers    = DB.get('workers').filter(w => w.tenant_id === tid);
+  const txs        = DB.get('transactions').filter(t => t.tenant_id === tid);
+  const attendance = DB.get('attendance').filter(a => workers.find(w => w.id === a.worker_id));
+  const invoices   = DB.get('invoices').filter(i => i.tenant_id === tid);
+  const materials  = DB.get('materials').filter(m => m.tenant_id === tid);
+  const equipment  = DB.get('equipment').filter(e => e.tenant_id === tid);
+  const salaryRecs = DB.get('salary_records').filter(s => s.tenant_id === tid);
+  const documents  = DB.get('documents').filter(d => d.tenant_id === tid);
+
+  // مؤشرات BTP
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoices, materials, equipment, salaryRecs);
+  const insights = generateAIInsights(btp, projects, txs, workers, invoices, materials);
+  const health = calcHealthScore(projects, txs, workers, attendance);
+
+  // حسابات إضافية
+  const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0);
+  const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+  const totalBudget = projects.reduce((s,p)=>s+Number(p.budget||0),0);
+  const totalSpent  = projects.reduce((s,p)=>s+Number(p.total_spent||0),0);
+  const activeProjects = projects.filter(p => p.status === 'active').length;
+  const completedProjects = projects.filter(p => p.status === 'completed').length;
+  const delayedProjects = projects.filter(p => p.status === 'delayed' || p.status === 'late').length;
+  const today = new Date().toISOString().split('T')[0];
+  const presentToday = attendance.filter(a => a.date === today && a.status === 'present').length;
+  const attendanceRate = workers.length ? Math.round((presentToday / workers.length) * 100) : 0;
+
+  // ━━ تصنيف ذكي للإيجابيات / السلبيات / النواقص ━━
+  const positives = [];
+  const negatives = [];
+  const lacks     = [];
+  const improvements = [];
+  const strategies = [];
+
+  // ① الإيجابيات
+  if (btp.cpi !== null && btp.cpi >= 1) positives.push({ icon:'✅', text:`أداء التكلفة ممتاز (CPI=${btp.cpi}) — تنجز أعمالاً قيمتها أكثر من المنفق` });
+  if (btp.spi !== null && btp.spi >= 1) positives.push({ icon:'⚡', text:`الجدول الزمني متقدم (SPI=${btp.spi}) — مشاريعك تسير حسب أو أسرع من المخطط` });
+  if (btp.grossMargin !== null && btp.grossMargin >= 20) positives.push({ icon:'💰', text:`هامش ربح ممتاز ${btp.grossMargin}% — أعلى من متوسط القطاع` });
+  if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text:`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز` });
+  if (attendanceRate >= 85) positives.push({ icon:'👷', text:`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة` });
+  if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text:`السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات` });
+  if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text:`المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى` });
+  if (completedProjects >= 3) positives.push({ icon:'🏆', text:`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي` });
+  if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text:`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق` });
+  if (documents.length >= 10) positives.push({ icon:'📁', text:`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم` });
+
+  // ② السلبيات
+  if (btp.cpi !== null && btp.cpi < 0.85) negatives.push({ icon:'🚨', text:`تجاوز تكلفة كبير (CPI=${btp.cpi}) — تنفق ${Math.round((1-btp.cpi)*100)}% أكثر من المخطط` });
+  if (btp.spi !== null && btp.spi < 0.85) negatives.push({ icon:'⏰', text:`تأخر زمني كبير (SPI=${btp.spi}) — متأخر ${Math.round((1-btp.spi)*100)}% عن الجدول` });
+  if (btp.grossMargin !== null && btp.grossMargin < 5) negatives.push({ icon:'📉', text:`هامش ربح منخفض جداً (${btp.grossMargin}%) — قد يهدد استمرارية المؤسسة` });
+  if (btp.cashRunway !== null && btp.cashRunway > 0 && btp.cashRunway < 30) negatives.push({ icon:'🚨', text:`خطر السيولة الحاد — ستنفد خلال ${btp.cashRunway} يوم فقط` });
+  if (btp.dso !== null && btp.dso > 90) negatives.push({ icon:'🐌', text:`بطء حاد في التحصيل (${btp.dso} يوم) — تجمد رأس المال` });
+  if (btp.payrollRatio !== null && btp.payrollRatio > 50) negatives.push({ icon:'⚠️', text:`الأجور تستهلك ${btp.payrollRatio}% من الإيرادات — مرتفع جداً` });
+  if (delayedProjects >= 3) negatives.push({ icon:'❌', text:`${delayedProjects} مشاريع متأخرة — مؤشر على مشاكل تنظيمية` });
+  if (btp.unpaidAmount > 500000) negatives.push({ icon:'💸', text:`فواتير غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج — تأثير سلبي على السيولة` });
+  if (attendanceRate < 70 && workers.length > 3) negatives.push({ icon:'👥', text:`نسبة حضور منخفضة (${attendanceRate}%) — تأثير على الإنتاجية` });
+
+  // ③ النواقص
+  if (!tenant.rc_number || !tenant.nif || !tenant.nis) lacks.push({ icon:'📋', text:'البيانات القانونية ناقصة (RC, NIF, NIS) — مطلوبة في الوثائق الرسمية' });
+  if (!tenant.logo_url) lacks.push({ icon:'🎨', text:'لا يوجد شعار للمؤسسة — يضعف الهوية البصرية في الوثائق' });
+  if (!tenant.rib && !tenant.bank_account) lacks.push({ icon:'🏦', text:'لا يوجد رقم حساب بنكي — الفواتير تحتاج RIB للتحصيل' });
+  if (projects.length === 0) lacks.push({ icon:'🏗️', text:'لا توجد مشاريع مُسجَّلة بعد — ابدأ بإضافة مشاريعك' });
+  if (workers.length === 0) lacks.push({ icon:'👷', text:'لا يوجد عمال مُسجَّلون — لا يمكن متابعة الحضور والأجور' });
+  if (equipment.length === 0) lacks.push({ icon:'🚜', text:'لا يوجد معدات مُسجَّلة — لا يمكن تتبع استخداماتها' });
+  if (materials.length === 0) lacks.push({ icon:'📦', text:'لا يوجد مخزون مواد — تتبع المواد يساعد في حساب التكاليف الحقيقية' });
+  if (txs.length < 10) lacks.push({ icon:'💼', text:`عدد المعاملات قليل (${txs.length}) — لمزيد من الدقة، سجّل كل عملية مالية` });
+  if (documents.length === 0) lacks.push({ icon:'📄', text:'لم تُولّد أي وثيقة بعد — استفد من وحدة الوثائق الإدارية' });
+  if (invoices.length === 0) lacks.push({ icon:'🧾', text:'لا توجد فواتير — أداة الفواتير ضرورية لمتابعة المستحقات' });
+
+  // ④ التحسينات
+  if (btp.cpi !== null && btp.cpi < 1) improvements.push({ icon:'💡', priority:'عالية', text:'حسّن إدارة التكاليف: راجع التقدير المسبق، فاوض الموردين، وقلّل الهدر في المواد' });
+  if (btp.spi !== null && btp.spi < 1) improvements.push({ icon:'⏱️', priority:'عالية', text:'استخدم Gantt Chart بانتظام، عيّن قائد أشغال لكل مشروع، وعقد اجتماعات أسبوعية للمتابعة' });
+  if (btp.dso !== null && btp.dso > 60) improvements.push({ icon:'📞', priority:'متوسطة', text:'حسّن التحصيل: شروط دفع أقصر (30 يوم)، خصومات للدفع السريع، تذكيرات تلقائية' });
+  if (btp.grossMargin !== null && btp.grossMargin < 15) improvements.push({ icon:'📊', priority:'عالية', text:'راجع التسعير: احسب التكلفة الحقيقية + هامش ربح 20-25% على الأقل' });
+  if (btp.equipUtilization < 50 && equipment.length > 0) improvements.push({ icon:'🚜', priority:'متوسطة', text:'استثمر المعدات الخاملة: أجّرها لشركات أخرى، أو بعها لتحرير السيولة' });
+  if (btp.lowStockCount > 0) improvements.push({ icon:'📦', priority:'متوسطة', text:`اطلب ${btp.lowStockCount} مادة من المخزون المنخفض قبل توقف الأشغال` });
+  if (attendanceRate < 80) improvements.push({ icon:'👷', priority:'متوسطة', text:'حسّن إدارة الموارد البشرية: نظام مكافآت للحضور، تحفيز، تواصل أفضل' });
+  if (projects.filter(p => !p.start_date || !p.end_date).length > 0) improvements.push({ icon:'📅', priority:'منخفضة', text:'حدد تواريخ البدء والانتهاء لكل المشاريع لحساب SPI بدقة' });
+
+  // ⑤ الاستراتيجيات
+  if (revenue > 0 && btp.grossMargin > 15) strategies.push({ icon:'🚀', text:'التوسّع: مع هامش ربح صحي، يمكنك توسيع نشاطك لمشاريع أكبر أو فتح فرع جديد' });
+  if (workers.length >= 5 && btp.payrollRatio !== null && btp.payrollRatio < 35) strategies.push({ icon:'🏆', text:'الكفاءة العالية في إدارة العمالة فرصة لاستثمار الفائض في التدريب والمعدات' });
+  if (btp.cashRunway === null || btp.cashRunway > 180) strategies.push({ icon:'💼', text:'استثمر السيولة الفائضة: ودائع بنكية، شراء معدات، أو دخول مشاريع أكبر' });
+  if (delayedProjects === 0 && completedProjects >= 2) strategies.push({ icon:'📈', text:'سجلك التنفيذي ممتاز — استغله للتقدّم لصفقات حكومية أو شركاء أكبر' });
+  if (btp.unpaidAmount > 200000) strategies.push({ icon:'💰', text:'تخصيص فريق متابعة التحصيل أو الاستعانة بمحامي مختصّ في التحصيل التجاري' });
+  strategies.push({ icon:'📊', text:'تنفيذ نظام KPIs شهري للمتابعة: عقد اجتماع شهري لمراجعة CPI, SPI, السيولة, وهامش الربح' });
+  strategies.push({ icon:'🎓', text:'الاستثمار في التدريب: العمال المُدرَّبون أكثر إنتاجية بنسبة 20-30% (دراسات BTP الدولية)' });
+  strategies.push({ icon:'🤝', text:'بناء علاقات مع موردين موثوقين بأسعار تنافسية وشروط دفع مرنة' });
+
+  // التقييم العام
+  let overallScore = 50;
+  if (btp.cpi !== null) overallScore += (btp.cpi - 1) * 25;
+  if (btp.spi !== null) overallScore += (btp.spi - 1) * 20;
+  if (btp.grossMargin !== null) overallScore += Math.min(15, btp.grossMargin / 2);
+  if (btp.cashRunway !== null && btp.cashRunway > 0) overallScore += Math.min(10, btp.cashRunway / 20);
+  overallScore = Math.max(0, Math.min(100, Math.round(overallScore)));
+  const scoreLabel = overallScore >= 80 ? 'ممتاز' : overallScore >= 60 ? 'جيد' : overallScore >= 40 ? 'متوسط' : 'يحتاج تحسين';
+  const scoreColor = overallScore >= 80 ? '#2a8055' : overallScore >= 60 ? '#B8902F' : overallScore >= 40 ? '#FF7043' : '#a32d3d';
+
+  // ━━ بناء HTML التقرير ━━
+  const reportDate = new Date().toLocaleDateString('ar-DZ', { day:'2-digit', month:'long', year:'numeric' });
+  const reportTime = new Date().toLocaleTimeString('fr-DZ', { hour:'2-digit', minute:'2-digit' });
+  const reportId = 'AI-RPT-' + Date.now().toString().slice(-8);
+  const logoUrl = tenant.logo_url || '';
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>التقرير الذكي - ${tenant.name}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Cairo', 'Tajawal', Arial, sans-serif; color: #3a3a3a; background: #fafafa; padding: 24px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.no-print { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.btn-print { padding: 10px 22px; background: linear-gradient(135deg,#9B6DFF,#4A90E2); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 800; }
+.btn-secondary { padding: 10px 22px; background: #fff; color: #555; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; }
+.page { background: #fff; max-width: 820px; margin: 0 auto; border: 1px solid #e5e5e5; box-shadow: 0 2px 8px rgba(0,0,0,.04); padding: 0; overflow: hidden; }
+
+/* COVER PAGE */
+.cover { background: linear-gradient(135deg, #9B6DFF 0%, #4A90E2 100%); color: #fff; padding: 50px 40px; text-align: center; position: relative; overflow: hidden; }
+.cover::before { content:''; position:absolute; top:-80px; right:-80px; width:240px; height:240px; background:radial-gradient(circle,rgba(255,255,255,.1),transparent); border-radius:50%; }
+.cover::after { content:''; position:absolute; bottom:-100px; left:-100px; width:300px; height:300px; background:radial-gradient(circle,rgba(255,255,255,.08),transparent); border-radius:50%; }
+.cover-badge { display:inline-block; padding:6px 18px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); border-radius:20px; font-size:11px; font-weight:700; letter-spacing:1.5px; margin-bottom:20px; }
+.cover-title { font-size: 32px; font-weight: 900; letter-spacing: 1px; margin-bottom: 8px; }
+.cover-subtitle { font-size: 15px; opacity: .9; font-weight: 600; margin-bottom: 30px; }
+.cover-tenant { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 14px; padding: 18px; display: inline-flex; align-items: center; gap: 14px; margin-bottom: 24px; max-width: 90%; }
+.cover-tenant-logo { width: 56px; height: 56px; background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 4px; }
+.cover-tenant-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cover-tenant-name { font-size: 19px; font-weight: 900; text-align: right; }
+.cover-tenant-legal { font-size: 10.5px; opacity: .85; margin-top: 3px; text-align: right; }
+.cover-date { font-size: 13px; opacity: .9; }
+.cover-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; opacity: .7; margin-top: 6px; }
+
+/* SCORE GAUGE */
+.score-card { padding: 30px 40px; background: linear-gradient(180deg, #f8f9ff, #fff); border-bottom: 1px solid #eee; text-align: center; }
+.score-title { font-size: 11px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.score-value { font-size: 56px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+.score-max { font-size: 22px; color: #aaa; font-weight: 700; }
+.score-label { font-size: 16px; font-weight: 800; margin-top: 8px; padding: 4px 16px; border-radius: 20px; display: inline-block; }
+.score-bar { width: 80%; height: 8px; background: #eee; border-radius: 4px; margin: 18px auto 0; overflow: hidden; }
+.score-fill { height: 100%; border-radius: 4px; }
+
+/* SECTIONS */
+.section { padding: 24px 40px; border-bottom: 1px solid #f0f0f0; }
+.section-num { display: inline-block; width: 30px; height: 30px; background: #9B6DFF; color: #fff; border-radius: 50%; text-align: center; line-height: 30px; font-weight: 900; font-size: 13px; margin-left: 10px; vertical-align: middle; }
+.section-title { font-size: 18px; font-weight: 900; color: #3a3a3a; margin-bottom: 18px; padding-bottom: 8px; border-bottom: 2px solid #9B6DFF; display: flex; align-items: center; }
+.section-title .icon { font-size: 22px; margin-left: 10px; }
+
+/* EXECUTIVE SUMMARY */
+.summary-box { background: linear-gradient(135deg, #f8f5ff, #fff); border: 1px solid #e5d9ff; border-radius: 12px; padding: 18px; line-height: 1.9; font-size: 14px; color: #444; }
+.summary-box strong { color: #9B6DFF; font-weight: 800; }
+
+/* KPIs GRID */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 4px; }
+.kpi-card { padding: 14px; background: #fff; border: 1px solid #e5e5e5; border-right: 3px solid #B8902F; border-radius: 8px; }
+.kpi-card.good { border-right-color: #2a8055; }
+.kpi-card.warn { border-right-color: #B8902F; }
+.kpi-card.bad  { border-right-color: #a32d3d; }
+.kpi-label { font-size: 10px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.kpi-value { font-size: 22px; font-weight: 900; font-family: 'JetBrains Mono', monospace; margin: 4px 0; color: #3a3a3a; }
+.kpi-card.good .kpi-value { color: #2a8055; }
+.kpi-card.warn .kpi-value { color: #B8902F; }
+.kpi-card.bad  .kpi-value { color: #a32d3d; }
+.kpi-unit { font-size: 11px; color: #999; font-weight: 600; }
+
+/* LISTS (positives, negatives, etc.) */
+.point-list { display: flex; flex-direction: column; gap: 8px; }
+.point-item { display: flex; gap: 12px; padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
+.point-item.pos { background: #f4fbf6; border-right: 3px solid #2a8055; color: #1d5e3d; }
+.point-item.neg { background: #fdf5f6; border-right: 3px solid #a32d3d; color: #6e2530; }
+.point-item.lack { background: #fffaf0; border-right: 3px solid #B8902F; color: #6b541f; }
+.point-item.improvement { background: #f5f8ff; border-right: 3px solid #4A90E2; color: #2c5286; }
+.point-item.strategy { background: #faf5ff; border-right: 3px solid #9B6DFF; color: #4f3b78; }
+.point-icon { font-size: 18px; flex-shrink: 0; }
+.point-priority { display: inline-block; font-size: 9.5px; padding: 2px 8px; border-radius: 10px; font-weight: 800; margin-${I18N.currentLang==='ar'?'right':'left'}: 8px; letter-spacing: .3px; }
+.priority-high { background: #a32d3d; color: #fff; }
+.priority-medium { background: #B8902F; color: #fff; }
+.priority-low { background: #4A90E2; color: #fff; }
+
+/* TABLES */
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+thead th { background: #fafafa; color: #3a3a3a; padding: 8px 10px; text-align: right; font-size: 10.5px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #9B6DFF; }
+tbody td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; color: #444; }
+tbody tr:nth-child(even) td { background: #fcfcfc; }
+
+/* PROJECT BARS */
+.proj-bar { display: flex; align-items: center; gap: 10px; }
+.proj-bar-track { flex: 1; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
+.proj-bar-fill { height: 100%; }
+.proj-pct { font-size: 11px; font-weight: 800; min-width: 40px; }
+
+/* FOOTER */
+.footer { padding: 16px 40px; background: #fafafa; border-top: 1px solid #e5e5e5; text-align: center; font-size: 10px; color: #888; line-height: 1.6; }
+.footer .brand { color: #9B6DFF; font-weight: 800; }
+.disclaimer { font-size: 9.5px; color: #aaa; margin-top: 6px; }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .no-print { display: none !important; }
+  .page { box-shadow: none; border: none; max-width: 100%; }
+  @page { size: A4; margin: 1cm; }
+  .section { page-break-inside: avoid; }
+  .point-item { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="no-print">
+  <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ كـ PDF</button>
+  <button class="btn-print" style="background:#34C38F" onclick="(function(){const h=document.documentElement.outerHTML;const b=new Blob([h],{type:'text/html;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='Rapport_IA_${escHtml(tenant.name.replace(/\s+/g,'_'))}_${reportId}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(u),1000);})()">💾 حفظ على الحاسوب</button>
+  <button class="btn-secondary" onclick="window.close()">✕ إغلاق</button>
+</div>
+
+<div class="page">
+  <!-- صفحة الغلاف -->
+  <div class="cover">
+    <div class="cover-badge">✨ AI POWERED REPORT</div>
+    <div class="cover-title">التقرير الذكي الشامل</div>
+    <div class="cover-subtitle">Rapport d'Analyse IA — تحليل وتوصيات استراتيجية</div>
+    <div class="cover-tenant">
+      <div class="cover-tenant-logo">
+        ${logoUrl ? `<img src="${escHtml(logoUrl)}" alt="logo">` : `<span style="font-size:24px;font-weight:900;color:#9B6DFF">${escHtml(tenant.name.charAt(0))}</span>`}
+      </div>
+      <div>
+        <div class="cover-tenant-name">${escHtml(tenant.name)}</div>
+        <div class="cover-tenant-legal">
+          ${tenant.rc_number ? `RC: ${escHtml(tenant.rc_number)}` : ''}
+          ${tenant.nif ? ` · NIF: ${escHtml(tenant.nif)}` : ''}
+          ${tenant.wilaya ? ` · ${escHtml(tenant.wilaya)}` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="cover-date">📅 ${reportDate} — ${reportTime}</div>
+    <div class="cover-id">N° ${reportId}</div>
+  </div>
+
+  <!-- التقييم العام -->
+  <div class="score-card">
+    <div class="score-title">التقييم العام للمؤسسة</div>
+    <div>
+      <span class="score-value" style="color:${scoreColor}">${overallScore}</span><span class="score-max">/100</span>
+    </div>
+    <div class="score-label" style="background:${scoreColor}22;color:${scoreColor}">${scoreLabel}</div>
+    <div class="score-bar">
+      <div class="score-fill" style="width:${overallScore}%;background:${scoreColor}"></div>
+    </div>
+    <div style="margin-top:14px;font-size:11px;color:#888;line-height:1.7;max-width:600px;margin-${I18N.currentLang==='ar'?'right':'left'}:auto;margin-${I18N.currentLang==='ar'?'left':'right'}:auto">
+      تم حساب التقييم بناءً على مؤشرات الأداء الدولية (EVM) شاملة: CPI, SPI, السيولة، هامش الربح، والإنتاجية
+    </div>
+  </div>
+
+  <!-- ① الملخص التنفيذي -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">1</span><span class="icon">📋</span>الملخص التنفيذي</div>
+    <div class="summary-box">${insights.summary}</div>
+    <div style="margin-top:14px;font-size:12px;color:#666;line-height:1.8">
+      <strong style="color:#3a3a3a">نظرة عامة:</strong> تدير مؤسسة <strong>${escHtml(tenant.name)}</strong> حالياً <strong style="color:#9B6DFF">${projects.length}</strong> مشروع (منها ${activeProjects} نشط، ${completedProjects} مكتمل${delayedProjects>0?'، '+delayedProjects+' متأخر':''})، بفريق من <strong style="color:#9B6DFF">${workers.length}</strong> عامل،
+      و<strong style="color:#9B6DFF">${equipment.length}</strong> معدة، وقد سجّلت <strong style="color:#9B6DFF">${txs.length}</strong> معاملة مالية بإجمالي إيرادات <strong style="color:#2a8055">${fmt(revenue)} دج</strong>
+      ومصاريف <strong style="color:#a32d3d">${fmt(expense)} دج</strong>${revenue-expense >= 0 ? `، محقّقةً ربحاً صافياً قدره <strong style="color:#2a8055">${fmt(revenue-expense)} دج</strong>` : `، وحالياً في حالة عجز قدره <strong style="color:#a32d3d">${fmt(Math.abs(revenue-expense))} دج</strong>`}.
+    </div>
+  </div>
+
+  <!-- ② مؤشرات الأداء الرئيسية -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">2</span><span class="icon">📊</span>مؤشرات الأداء الاحترافية (KPIs)</div>
+    <div class="kpi-grid">
+      <div class="kpi-card ${btp.cpi===null?'':btp.cpi>=1?'good':btp.cpi>=0.9?'warn':'bad'}">
+        <div class="kpi-label">CPI — أداء التكلفة</div>
+        <div class="kpi-value">${btp.cpi===null?'—':btp.cpi}</div>
+        <div class="kpi-unit">${btp.cpi===null?'بيانات غير كافية':btp.cpi>=1?'✓ ضمن الميزانية':'⚠ تجاوز'}</div>
+      </div>
+      <div class="kpi-card ${btp.spi===null?'':btp.spi>=1?'good':btp.spi>=0.85?'warn':'bad'}">
+        <div class="kpi-label">SPI — أداء الجدول</div>
+        <div class="kpi-value">${btp.spi===null?'—':btp.spi}</div>
+        <div class="kpi-unit">${btp.spi===null?'بيانات غير كافية':btp.spi>=1?'✓ في الوقت':'⚠ تأخر'}</div>
+      </div>
+      <div class="kpi-card ${btp.grossMargin===null?'':btp.grossMargin>=20?'good':btp.grossMargin>=10?'warn':'bad'}">
+        <div class="kpi-label">هامش الربح</div>
+        <div class="kpi-value">${btp.grossMargin===null?'—':btp.grossMargin+'%'}</div>
+        <div class="kpi-unit">${btp.grossMargin===null?'لا توجد إيرادات':btp.grossMargin>=20?'✓ ممتاز':'⚠ يحتاج تحسين'}</div>
+      </div>
+      <div class="kpi-card ${btp.cashRunway===null?'':btp.cashRunway<0||btp.cashRunway>=180?'good':btp.cashRunway>=60?'warn':'bad'}">
+        <div class="kpi-label">مدة السيولة</div>
+        <div class="kpi-value">${btp.cashRunway===null||btp.cashRunway<0?'∞':btp.cashRunway}</div>
+        <div class="kpi-unit">يوم متبقي</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">معدل الحرق اليومي</div>
+        <div class="kpi-value">${fmt(btp.burnRate)}</div>
+        <div class="kpi-unit">دج / يوم</div>
+      </div>
+      <div class="kpi-card ${btp.dso===null?'':btp.dso<=30?'good':btp.dso<=60?'warn':'bad'}">
+        <div class="kpi-label">DSO — فترة التحصيل</div>
+        <div class="kpi-value">${btp.dso===null?'—':btp.dso}</div>
+        <div class="kpi-unit">يوم متوسط</div>
+      </div>
+      <div class="kpi-card ${attendanceRate>=85?'good':attendanceRate>=70?'warn':'bad'}">
+        <div class="kpi-label">نسبة الحضور</div>
+        <div class="kpi-value">${attendanceRate}%</div>
+        <div class="kpi-unit">${presentToday}/${workers.length} اليوم</div>
+      </div>
+      <div class="kpi-card ${btp.lowStockCount===0?'good':'warn'}">
+        <div class="kpi-label">المخزون المنخفض</div>
+        <div class="kpi-value">${btp.lowStockCount}</div>
+        <div class="kpi-unit">مادة تحت الحد</div>
+      </div>
+      <div class="kpi-card ${equipment.length===0?'warn':btp.equipUtilization>=70?'good':btp.equipUtilization>=40?'warn':'bad'}">
+        <div class="kpi-label">استخدام المعدات</div>
+        <div class="kpi-value">${equipment.length===0?'—':btp.equipUtilization+'%'}</div>
+        <div class="kpi-unit">${equipment.length===0?'لا توجد':'نشط'}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ الإيجابيات -->
+  ${positives.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">3</span><span class="icon">✅</span>الإيجابيات ونقاط القوة</div>
+    <div class="point-list">
+      ${positives.map(p => `<div class="point-item pos"><span class="point-icon">${p.icon}</span><span>${p.text}</span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ④ السلبيات -->
+  ${negatives.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">4</span><span class="icon">⚠️</span>السلبيات والمخاطر</div>
+    <div class="point-list">
+      ${negatives.map(n => `<div class="point-item neg"><span class="point-icon">${n.icon}</span><span>${n.text}</span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ⑤ النواقص -->
+  ${lacks.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">5</span><span class="icon">📋</span>النواقص والبيانات الناقصة</div>
+    <div class="point-list">
+      ${lacks.map(l => `<div class="point-item lack"><span class="point-icon">${l.icon}</span><span>${l.text}</span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ⑥ التحسينات المقترحة -->
+  ${improvements.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">6</span><span class="icon">💡</span>التحسينات المقترحة</div>
+    <div class="point-list">
+      ${improvements.map(imp => `<div class="point-item improvement"><span class="point-icon">${imp.icon}</span><span>${imp.text}<span class="point-priority priority-${imp.priority==='عالية'?'high':imp.priority==='متوسطة'?'medium':'low'}">${imp.priority}</span></span></div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- ⑦ الاستراتيجيات والتوصيات -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">7</span><span class="icon">🎯</span>الاستراتيجيات والتوصيات الذكية</div>
+    <div class="point-list">
+      ${strategies.map(s => `<div class="point-item strategy"><span class="point-icon">${s.icon}</span><span>${s.text}</span></div>`).join('')}
+    </div>
+  </div>
+
+  <!-- ⑧ تفاصيل المشاريع -->
+  ${projects.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="section-num">8</span><span class="icon">🏗️</span>تفاصيل المشاريع وربحيتها</div>
+    <table>
+      <thead>
+        <tr>
+          <th>المشروع</th>
+          <th style="text-align:center">الميزانية</th>
+          <th style="text-align:center">المنفق</th>
+          <th style="text-align:center">التقدم</th>
+          <th style="text-align:center">CPI</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${projects.map(p => {
+          const b = Number(p.budget||0), sp = Number(p.total_spent||0), pr = Number(p.progress||0);
+          const ev = b * pr / 100;
+          const cpi = sp > 0 ? +(ev / sp).toFixed(2) : null;
+          const cpiColor = cpi===null?'#888':cpi>=1?'#2a8055':cpi>=0.9?'#B8902F':'#a32d3d';
+          return `
+          <tr>
+            <td><strong>${escHtml(p.name)}</strong></td>
+            <td style="text-align:center;font-family:monospace">${fmt(b)}</td>
+            <td style="text-align:center;font-family:monospace;color:${sp>b?'#a32d3d':'#444'}">${fmt(sp)}</td>
+            <td style="text-align:center"><div class="proj-bar"><div class="proj-bar-track"><div class="proj-bar-fill" style="width:${Math.min(100,pr)}%;background:${pr>=80?'#2a8055':pr>=40?'#B8902F':'#a32d3d'}"></div></div><span class="proj-pct">${pr}%</span></div></td>
+            <td style="text-align:center;font-family:monospace;font-weight:800;color:${cpiColor}">${cpi===null?'—':cpi}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- الخاتمة -->
+  <div class="section" style="background:linear-gradient(135deg,#f8f5ff,#fff)">
+    <div class="section-title"><span class="icon">🌟</span>الخلاصة والنظرة المستقبلية</div>
+    <div style="font-size:13px;line-height:1.9;color:#444">
+      بناءً على تحليل شامل لبيانات مؤسسة <strong style="color:#9B6DFF">${escHtml(tenant.name)}</strong>، يقدّم هذا التقرير صورة دقيقة عن وضعها الحالي.
+      ${overallScore >= 80 ? `<br><br>📈 <strong>مؤسستك في حالة ممتازة!</strong> استمر في الأداء الحالي وفكّر في التوسّع والاستثمار في فرص جديدة. النقاط الإيجابية تفوق التحديات بكثير.` : ''}
+      ${overallScore >= 60 && overallScore < 80 ? `<br><br>👍 <strong>أداء جيد عموماً</strong>، لكن هناك مجال للتحسين. التركيز على التوصيات في القسم 6 سيرفع أداءك بشكل ملحوظ.` : ''}
+      ${overallScore >= 40 && overallScore < 60 ? `<br><br>⚠️ <strong>مؤسستك في مرحلة حساسة.</strong> هناك سلبيات ونواقص تحتاج معالجة فورية. ابدأ بالأولويات العالية وأعد تقييم استراتيجيتك.` : ''}
+      ${overallScore < 40 ? `<br><br>🚨 <strong>وضع حرج يحتاج تدخلاً عاجلاً.</strong> راجع السلبيات المذكورة فوراً، خصوصاً ما يتعلق بالسيولة والربحية. قد تحتاج لاستشارة خبير محاسبي.` : ''}
+      <br><br>
+      <strong style="color:#3a3a3a">الخطوات الموصى بها:</strong>
+      <ol style="margin-${I18N.currentLang==='ar'?'right':'left'}:20px;margin-top:8px;line-height:2">
+        <li>راجع السلبيات والنواقص أعلاه واتخذ إجراءات فورية للعالية الأولوية</li>
+        <li>طبّق التحسينات المقترحة على مراحل خلال الأشهر الثلاثة القادمة</li>
+        <li>أنشئ نظام KPI شهري لمتابعة CPI, SPI, السيولة، وهامش الربح</li>
+        <li>كرّر توليد هذا التقرير شهرياً لتتبّع التقدم وقياس التحسّن</li>
+      </ol>
+      <br>
+      <em style="color:#9B6DFF">"النجاح في إدارة المقاولات ليس صدفة، بل نتيجة قرارات مدروسة مبنية على بيانات دقيقة."</em>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>تم توليد هذا التقرير بواسطة <span class="brand">SmartStruct AI</span> في ${reportDate} الساعة ${reportTime}</div>
+    <div style="margin-top:4px">رقم التقرير: <strong>${reportId}</strong> · مؤسسة: <strong>${escHtml(tenant.name)}</strong></div>
+    <div class="disclaimer">⚠️ هذا التقرير مولّد آلياً ويعتمد على البيانات المُدخَلة في النظام. للحصول على تحليل أعمق، استشر خبيراً ماليّاً متخصصاً.</div>
+  </div>
+</div>
+</body>
+</html>`;
+
+  // فتح في نافذة جديدة
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+    w.document.title = `Rapport_IA_${tenant.name}_${reportId}`;
+    Toast.success('✨ تم توليد التقرير الذكي بنجاح!');
+
+    // حفظ في الأرشيف
+    try {
+      if (typeof DZArchive !== 'undefined' && DZArchive.save) {
+        const record = {
+          id: Date.now() * 1000 + Math.floor(Math.random() * 1000),
+          tenant_id: tid,
+          name: 'تقرير ذكي شامل - ' + reportId,
+          category: 'analysis',
+          type: 'ai_smart_report',
+          doc_kind: 'ai_smart_report',
+          doc_number: reportId,
+          url: null,
+          size: html.length,
+          date: new Date().toISOString().split('T')[0],
+          uploader_id: Auth.getUser().id,
+          meta_data: { overallScore, positives: positives.length, negatives: negatives.length, lacks: lacks.length, improvements: improvements.length },
+          created_at: new Date().toISOString(),
+        };
+        const docs = DB.get('documents') || [];
+        docs.unshift(record);
+        DB.set('documents', docs);
+      }
+    } catch(e) { console.warn('[AI Report Archive]', e.message); }
+
+    // سجل audit
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(`توليد تقرير ذكي - رقم ${reportId} (تقييم: ${overallScore}/100)`, { icon: '🤖' });
+    }
+  } else {
+    Toast.error('فشل فتح النافذة. تحقق من إعدادات المتصفح.');
+  }
+}
+
+window.generateAISmartReport = generateAISmartReport;
+
+
 /* ── مزامنة شعار الشركة من Supabase إلى localStorage عند كل فتح ── */
 async function syncTenantLogoFromSupabase() {
   const tid = Auth.getTenant()?.id;
@@ -4978,9 +7314,17 @@ Pages.settings = function() {
         <!-- Company Info -->
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🏢 ${L('معلومات الشركة','Infos de l\'entreprise')}</div>
-          <div class="form-group"><label class="form-label">${L('اسم الشركة','Nom de la société')}</label><input class="form-input" id="setName" value="${escHtml(tenant?.name||'')}"></div>
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('اسم الشركة (عربي)','Nom société (arabe)')}</label>
+            <input class="form-input" id="setName" value="${escHtml(tenant?.name||'')}" placeholder="${L('مؤسسة البناء الحديث','Entreprise BTP')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 Nom société (français)</label>
+            <input class="form-input" id="setNameFr" value="${escHtml(tenant?.name_fr||'')}" placeholder="Entreprise BTP Moderne" dir="ltr">
+            <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('يُستخدم في الفواتير والوثائق عند التبديل للفرنسية','Utilisé dans les documents en mode français')}</div>
+          </div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" value="${escHtml(tenant?.phone||'')}" placeholder="0550..."></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <button class="btn btn-gold" onclick="saveTenantSettings()">💾 ${L('حفظ التغييرات','Sauvegarder')}</button>
         </div>
 
@@ -5022,21 +7366,31 @@ Pages.settings = function() {
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">${L('رقم السجل التجاري (RC)','Registre de commerce (RC)')}</label>
-              <input class="form-input" id="setRc" value="${escHtml(tenant?.rc_number||'')}" placeholder="00/00-0000000">
+              <input class="form-input" id="setRc" type="text" value="${escHtml(tenant?.rc_number||'')}" placeholder="00/00-0000000" dir="ltr" inputmode="text">
             </div>
             <div class="form-group">
               <label class="form-label">${L('الرقم الجبائي (NIF)','N° identification fiscale (NIF)')}</label>
-              <input class="form-input" id="setNif" value="${escHtml(tenant?.nif||'')}" placeholder="000000000000000">
+              <input class="form-input" id="setNif" type="text" value="${escHtml(tenant?.nif||'')}" placeholder="000000000000000" dir="ltr" inputmode="numeric" maxlength="15">
             </div>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">${L('الرقم الإحصائي (NIS)','N° statistique (NIS)')}</label>
-              <input class="form-input" id="setNis" value="${escHtml(tenant?.nis||'')}" placeholder="000000000000000">
+              <input class="form-input" id="setNis" type="text" value="${escHtml(tenant?.nis||'')}" placeholder="000000000000000" dir="ltr" inputmode="numeric" maxlength="15">
+            </div>
+            <div class="form-group">
+              <label class="form-label">${L('رقم المادة الجبائية','Article d\'imposition')}</label>
+              <input class="form-input" id="setArticleImp" type="text" value="${escHtml(tenant?.article_imp||'')}" placeholder="0000000000" dir="ltr" inputmode="numeric" maxlength="10">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">${L('رقم الحساب البنكي (RIB)','Compte bancaire (RIB)')}</label>
+              <input class="form-input" id="setRib" type="text" value="${escHtml(tenant?.rib||'')}" placeholder="00000 00000 00000000 00" dir="ltr" inputmode="numeric" maxlength="23">
             </div>
             <div class="form-group">
               <label class="form-label">${L('نسبة TVA (%)','Taux TVA (%)')}</label>
-              <input class="form-input" id="setTva" type="number" value="${escHtml(String(tenant?.tva_rate||19))}" placeholder="19">
+              <input class="form-input" id="setTva" type="number" value="${escHtml(String(tenant?.tva_rate||19))}" placeholder="19" min="0" max="100" step="0.01" inputmode="decimal">
             </div>
           </div>
           <div class="form-group">
@@ -5044,6 +7398,9 @@ Pages.settings = function() {
             <input class="form-input" id="setAddress" value="${escHtml(tenant?.address||'')}" placeholder="${L('شارع، حي، ولاية...','Rue, quartier, wilaya...')}">
           </div>
           <button class="btn btn-blue" onclick="saveLegalSettings()">💾 ${L('حفظ البيانات القانونية','Sauvegarder données légales')}</button>
+          <div style="margin-top:.6rem;font-size:.72rem;color:var(--dim);background:rgba(232,184,75,0.06);padding:.6rem .8rem;border-radius:8px;border-right:3px solid var(--gold)">
+            💡 ${L('هذه البيانات تظهر تلقائياً على رأس كل الوثائق المولّدة من <strong>مركز الوثائق الإدارية والمالية</strong>','Ces données apparaissent automatiquement en haut de chaque document généré depuis le <strong>Centre des documents administratifs</strong>')}
+          </div>
         </div>
 
         <!-- UI Mode -->
@@ -5060,8 +7417,51 @@ Pages.settings = function() {
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">👤 ${L('الحساب الشخصي','Compte personnel')}</div>
           <div style="padding:.6rem 0;border-bottom:1px solid var(--border)"><div style="font-size:.72rem;color:var(--dim)">${L('الاسم','Nom')}</div><div style="font-weight:700">${escHtml(user.full_name)}</div></div>
-          <div style="padding:.6rem 0;border-bottom:1px solid var(--border)"><div style="font-size:.72rem;color:var(--dim)">${L('البريد','Email')}</div><div style="font-weight:700;direction:ltr;text-align:right">${escHtml(user.email)}</div></div>
-          <div style="padding:.6rem 0"><div style="font-size:.72rem;color:var(--dim)">${L('الخطة','Plan')}</div><div style="font-weight:700;color:var(--gold)">${escHtml(plan?.name||'—')}</div></div>
+          <div style="padding:.6rem 0"><div style="font-size:.72rem;color:var(--dim)">${L('البريد','Email')}</div><div style="font-weight:700;direction:ltr;text-align:right">${escHtml(user.email)}</div></div>
+        </div>
+
+        <!-- 💎 Subscription Card -->
+        <div class="card" style="margin-bottom:1rem;background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.2)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+            <div>
+              <div style="font-weight:800;margin-bottom:.3rem">💎 ${L('خطتك الحالية','Votre plan actuel')}</div>
+              <div style="font-size:.72rem;color:var(--dim)">${L('الاشتراك والميزات','Abonnement & fonctionnalités')}</div>
+            </div>
+            <span style="background:${tenant?.subscription_status==='active'?'rgba(52,195,143,.15)':tenant?.subscription_status==='trial'?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)'};color:${tenant?.subscription_status==='active'?'#34C38F':tenant?.subscription_status==='trial'?'#E8B84B':'#F04E6A'};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
+              ${tenant?.subscription_status==='active'?L('✅ نشط','✅ Actif'):tenant?.subscription_status==='trial'?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré')}
+            </span>
+          </div>
+
+          <div style="background:rgba(0,0,0,.2);padding:1rem;border-radius:10px;margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+              <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
+              <div style="font-size:1.1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.7rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;margin-top:.8rem">
+              <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
+              <div><span style="color:var(--dim)">👷 ${L('العمال','Ouvriers')}:</span> <strong>${plan?.max_workers===-1?L('غير محدود','Illimité'):(plan?.max_workers||0)}</strong></div>
+              <div><span style="color:var(--dim)">🚜 ${L('المعدات','Équipements')}:</span> <strong>${plan?.max_equipment===-1?L('غير محدود','Illimité'):(plan?.max_equipment||0)}</strong></div>
+              <div><span style="color:var(--dim)">📧 ${L('إيميلات/شهر','Emails/mois')}:</span> <strong>${plan?.max_emails===-1?L('غير محدود','Illimité'):(plan?.max_emails||0)}</strong></div>
+            </div>
+          </div>
+
+          ${(plan?.id < 3) ? `
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:.8rem;line-height:1.7">
+            ${L('💡 هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك واحصل على المزيد من الميزات.','💡 Besoin de plus ? Passez à un plan supérieur.')}
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-gold btn-sm" onclick="TrialManager._requestUpgrade(${(plan?.id||0)+1})">
+              ⬆️ ${L('ترقية الخطة','Mise à niveau')}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="window.location.replace('index.html')">
+              📋 ${L('مقارنة الخطط','Comparer plans')}
+            </button>
+          </div>
+          ` : `
+          <div style="text-align:center;color:var(--gold);font-weight:700;font-size:.85rem">
+            🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}
+          </div>
+          `}
         </div>
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🔑 ${L('تغيير كلمة المرور','Changer le mot de passe')}</div>
@@ -5087,20 +7487,341 @@ Pages.settings = function() {
             </table>
           </div>
         </div>
+        <!-- 🎨 مظهر الموقع -->
+        <div class="card" style="margin-bottom:1rem;border:1px solid rgba(232,184,75,.2)">
+          <div style="font-weight:800;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem">
+            🎨 ${L('مظهر الموقع','Apparence du site')}
+          </div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem">
+            ${L('اختر الوضع المريح لعينيك. يُحفظ تلقائياً.','Choisissez le mode confortable. Sauvegardé automatiquement.')}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+            <!-- الوضع الداكن -->
+            <div id="settingDark" onclick="setTheme('dark')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:.9rem;transition:all .2s">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+                <span style="font-weight:700;font-size:.85rem">🌙 ${L('الوضع الداكن','Mode sombre')}</span>
+                <span id="checkDark" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem"></span>
+              </div>
+              <div style="background:#0d1117;border-radius:6px;padding:.5rem;display:flex;gap:.3rem">
+                <div style="width:28%;background:#161b22;border-radius:3px;height:36px"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:.25rem">
+                  <div style="background:#21262d;border-radius:2px;height:9px"></div>
+                  <div style="background:#E8B84B;border-radius:2px;height:7px;width:55%"></div>
+                  <div style="background:#21262d;border-radius:2px;height:7px;width:75%"></div>
+                </div>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem">${L('مريح في الإضاءة المنخفضة','Confortable la nuit')}</div>
+            </div>
+            <!-- الوضع الفاتح -->
+            <div id="settingLight" onclick="setTheme('light')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:.9rem;transition:all .2s">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+                <span style="font-weight:700;font-size:.85rem">☀️ ${L('الوضع الفاتح','Mode clair')}</span>
+                <span id="checkLight" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem"></span>
+              </div>
+              <div style="background:#d4d2c8;border-radius:6px;padding:.5rem;display:flex;gap:.3rem;border:1px solid #b5b1a3">
+                <div style="width:28%;background:#cac7bb;border-radius:3px;height:36px;border:1px solid #b5b1a3"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:.25rem">
+                  <div style="background:#e3e1d7;border-radius:2px;height:9px;border:1px solid #c2bdae"></div>
+                  <div style="background:#a8801a;border-radius:2px;height:7px;width:55%"></div>
+                  <div style="background:#dcdad3;border-radius:2px;height:7px;width:75%"></div>
+                </div>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>
+            </div>
+          </div>
+          <script>
+            (function(){
+              var isLight = document.documentElement.classList.contains('light');
+              var dk = document.getElementById('settingDark');
+              var lt = document.getElementById('settingLight');
+              var ck = document.getElementById(isLight?'checkLight':'checkDark');
+              var active = isLight ? lt : dk;
+              if(active){ active.style.borderColor='var(--gold)'; active.style.background='rgba(232,184,75,.04)'; }
+              if(ck){ ck.style.background='var(--gold)'; ck.style.borderColor='var(--gold)'; ck.textContent='✓'; ck.style.color='#fff'; }
+            })();
+          </script>
+        </div>
         <div class="card">
-          <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي','Sauvegarde des données')}</div>
+          <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي والاسترداد','Sauvegarde & Restauration')}</div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:.8rem;line-height:1.6">
+            ${L('احتفظ بنسخة احتياطية من بياناتك لحمايتها من أي فقدان. يمكنك الاسترداد في أي وقت.','Gardez une sauvegarde de vos données pour les protéger. Vous pouvez restaurer à tout moment.')}
+          </div>
           <div style="display:flex;flex-direction:column;gap:.6rem">
-            <button class="btn btn-green" onclick="exportAllData()" style="justify-content:center">
-              📤 ${L('تصدير جميع البيانات (JSON)','Exporter toutes les données (JSON)')}
+            <button class="btn btn-green" onclick="userExportBackup()" style="justify-content:center">
+              📤 ${L('تصدير نسخة احتياطية (JSON)','Exporter sauvegarde (JSON)')}
             </button>
-            <button class="btn btn-ghost" onclick="importAllData()" style="justify-content:center">
-              📥 ${L('استيراد بيانات من ملف','Importer depuis un fichier')}
+            <label class="btn btn-blue" style="justify-content:center;cursor:pointer">
+              📥 ${L('استعادة من نسخة احتياطية','Restaurer depuis une sauvegarde')}
+              <input type="file" accept=".json" style="display:none" onchange="userImportBackup(this)">
+            </label>
+            <button class="btn btn-ghost" onclick="exportFinancialXLSX()" style="justify-content:center">
+              📊 ${L('تصدير المعاملات Excel','Exporter transactions Excel')}
             </button>
-            <div style="font-size:.72rem;color:var(--dim);margin-top:.3rem">
-              ${L('⚠️ الاستيراد سيستبدل البيانات الحالية','⚠️ L\'import remplace les données actuelles')}
+            <button class="btn btn-ghost" onclick="exportSalaryXLSX()" style="justify-content:center">
+              📊 ${L('تصدير الرواتب Excel','Exporter salaires Excel')}
+            </button>
+            <div style="font-size:.7rem;color:var(--dim);padding:.5rem;background:rgba(232,184,75,.05);border-radius:6px;border:1px solid rgba(232,184,75,.15)">
+              💡 ${L('نوصي بتصدير نسخة احتياطية أسبوعياً. ملف النسخ الاحتياطي يحتوي كل مشاريعك وعمالك ومعاملاتك.','Nous recommandons un export hebdomadaire. Le fichier contient projets, ouvriers et transactions.')}
             </div>
           </div>
         </div>
+
+        <!-- 🖨️ إعدادات الطباعة والوثائق -->
+        <div class="card" style="border:1px solid rgba(232,184,75,.2)">
+          <div style="font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem">
+            🖨️ ${L('إعدادات الطباعة والوثائق','Paramètres d\'impression & documents')}
+          </div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem;line-height:1.6">
+            ${L('تحكم في شكل وثائقك المطبوعة: الحجم، الألوان، الخط، واللغة الافتراضية.','Personnalisez vos documents imprimés: taille, couleurs, police et langue par défaut.')}
+          </div>
+
+          <!-- الخط -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">🔤 ${L('نوع الخط','Police de caractères')}</div>
+            <select id="printFontFamily" class="form-select" onchange="savePrintSettings()">
+              <option value="Cairo" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==='Cairo'||!localStorage.getItem('sbtp_print_settings')?'selected':''}>Cairo ${L('(افتراضي — عربي/فرنسي)','(défaut — arabe/français)')}</option>
+              <option value="Tajawal" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==='Tajawal'?'selected':''}>Tajawal</option>
+              <option value="Arial" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==='Arial'?'selected':''}>Arial</option>
+              <option value="'Times New Roman'" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontFamily==="'Times New Roman'"?'selected':''}>Times New Roman</option>
+            </select>
+          </div>
+
+          <!-- حجم الخط -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">📏 ${L('حجم الخط الأساسي','Taille de police')} — <span id="printFontSizeVal">${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontSize||13}px</span></div>
+            <input type="range" id="printFontSize" min="10" max="18" step="1"
+              value="${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).fontSize||13}"
+              style="width:100%;accent-color:var(--gold)"
+              oninput="document.getElementById('printFontSizeVal').textContent=this.value+'px';savePrintSettings()">
+            <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--dim);margin-top:2px"><span>10px</span><span>14px</span><span>18px</span></div>
+          </div>
+
+          <!-- حجم الورق -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">📄 ${L('حجم الورق','Format du papier')}</div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${['A4','A5','Letter'].map(size=>`
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem;background:${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).pageSize===size?'rgba(232,184,75,.15)':'rgba(255,255,255,.03)'}">
+                <input type="radio" name="printPageSize" value="${size}" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).pageSize===size||(!localStorage.getItem('sbtp_print_settings')&&size==='A4')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                ${size}
+              </label>`).join('')}
+            </div>
+          </div>
+
+          <!-- اتجاه الورق -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">↔️ ${L('اتجاه الورق','Orientation')}</div>
+            <div style="display:flex;gap:.5rem">
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printOrientation" value="portrait"
+                  ${!(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).orientation||((JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).orientation==='portrait')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                📄 ${L('عمودي','Portrait')}
+              </label>
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printOrientation" value="landscape"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).orientation==='landscape'?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                📃 ${L('أفقي','Paysage')}
+              </label>
+            </div>
+          </div>
+
+          <!-- اللون الرئيسي -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">🎨 ${L('اللون الرئيسي للوثائق','Couleur principale des documents')}</div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+              ${['#B8902F','#1a3a5c','#0a6e3f','#c0392b','#6c3483','#1a1a1a'].map(color=>`
+              <label style="cursor:pointer">
+                <input type="radio" name="printAccentColor" value="${color}"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).accentColor===color||(!localStorage.getItem('sbtp_print_settings')&&color==='#B8902F')?'checked':''}
+                  style="display:none" onchange="savePrintSettings()">
+                <div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).accentColor===color||(!localStorage.getItem('sbtp_print_settings')&&color==='#B8902F')?'var(--text)':'transparent'};cursor:pointer;transition:.2s"
+                  onclick="this.previousElementSibling.click();this.style.borderColor='var(--text)'"></div>
+              </label>`).join('')}
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--dim)">
+                <input type="color" id="printCustomColor"
+                  value="${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).accentColor||'#B8902F'}"
+                  style="width:28px;height:28px;padding:0;border:none;cursor:pointer;border-radius:4px"
+                  onchange="savePrintSettings(this.value)">
+                ${L('مخصص','Personnalisé')}
+              </label>
+            </div>
+          </div>
+
+          <!-- اللغة الافتراضية للوثائق -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">🌐 ${L('لغة الوثائق الافتراضية','Langue par défaut des documents')}</div>
+            <div style="display:flex;gap:.5rem">
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printLang" value="ar"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).docLang==='ar'||(!localStorage.getItem('sbtp_print_settings')&&I18N.currentLang==='ar')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                🇩🇿 ${L('عربي','Arabe')}
+              </label>
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printLang" value="fr"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).docLang==='fr'||(!localStorage.getItem('sbtp_print_settings')&&I18N.currentLang==='fr')?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                🇫🇷 ${L('فرنسي','Français')}
+              </label>
+              <label style="display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:.8rem">
+                <input type="radio" name="printLang" value="both"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).docLang==='both'?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                🌐 ${L('ثنائي','Bilingue')}
+              </label>
+            </div>
+          </div>
+
+          <!-- الهامش -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">📐 ${L('هوامش الصفحة','Marges de page')}</div>
+            <select id="printMargin" class="form-select" onchange="savePrintSettings()">
+              <option value="8mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='8mm'?'selected':''}>8mm — ${L('ضيق','Étroit')}</option>
+              <option value="12mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='12mm'||!localStorage.getItem('sbtp_print_settings')?'selected':''}>12mm — ${L('عادي (افتراضي)','Normal (défaut)')}</option>
+              <option value="18mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='18mm'?'selected':''}>18mm — ${L('واسع','Large')}</option>
+              <option value="25mm" ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).margin==='25mm'?'selected':''}>25mm — ${L('واسع جداً','Très large')}</option>
+            </select>
+          </div>
+
+          <!-- واترمارك -->
+          <div style="margin-bottom:1.2rem">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:.5rem">💧 ${L('الواترمارك (نص خلفي)','Filigrane')}</div>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <input class="form-input" id="printWatermark" style="flex:1"
+                placeholder="${L('مثال: CONFIDENTIEL، سري، مسودة...','Ex: CONFIDENTIEL, BROUILLON...')}"
+                value="${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).watermark||''}"
+                oninput="savePrintSettings()">
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;white-space:nowrap">
+                <input type="checkbox" id="printWatermarkShow"
+                  ${(JSON.parse(localStorage.getItem('sbtp_print_settings')||'{}')).showWatermark?'checked':''}
+                  style="accent-color:var(--gold)" onchange="savePrintSettings()">
+                ${L('تفعيل','Activer')}
+              </label>
+            </div>
+          </div>
+
+          <!-- معاينة -->
+          <div id="printPreview" style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+            <div style="font-size:.7rem;color:var(--dim);margin-bottom:.4rem">👁️ ${L('معاينة سريعة','Aperçu rapide')}</div>
+            <div id="printPreviewBox" style="background:#fff;border-radius:6px;padding:12px 16px;max-height:80px;overflow:hidden;position:relative">
+              <div id="printPreviewContent" style="font-family:Cairo,sans-serif;font-size:13px;color:#B8902F;font-weight:700;border-bottom:2px solid #B8902F;padding-bottom:8px">
+                ${escHtml(Auth.getTenant()?.name||'SmartStruct')} — ${L('وثيقة احترافية','Document professionnel')}
+              </div>
+              <div style="font-size:11px;color:#555;margin-top:6px">${L('هذا مثال على شكل الوثيقة المطبوعة','Aperçu du document imprimé')}</div>
+            </div>
+          </div>
+
+          <button class="btn btn-gold" onclick="savePrintSettings();Toast.success(L('✅ تم حفظ إعدادات الطباعة','✅ Paramètres d\\'impression sauvegardés'))" style="width:100%;justify-content:center">
+            💾 ${L('حفظ إعدادات الطباعة','Enregistrer paramètres')}
+          </button>
+        </div>
+
+        <!-- ☁️ Google Drive Integration -->
+        <div id="gdriveSettingsCard" style="margin-bottom:1rem">
+          <div class="card" style="border:1px solid rgba(66,133,244,.25)">
+            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem">
+              <svg width="28" height="24" viewBox="0 0 87.3 78">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              <div style="flex:1">
+                <div style="font-weight:800">Google Drive</div>
+                <div id="gdriveStatusText" style="font-size:.72rem;color:var(--dim)">${L('جارٍ التحقق...','Vérification...')}</div>
+              </div>
+              <div id="gdriveBadge"></div>
+            </div>
+            <div id="gdriveBody">
+              <div style="font-size:.8rem;color:var(--dim)">${L('جارٍ تحميل إعدادات Google Drive...','Chargement des paramètres Google Drive...')}</div>
+            </div>
+          </div>
+        </div>
+        <script>
+        // تحديث واجهة Drive — يعمل بعد تحميل google-drive.js
+        (function initGDriveCard() {
+          function render() {
+            const statusEl = document.getElementById('gdriveStatusText');
+            const bodyEl   = document.getElementById('gdriveBody');
+            const badgeEl  = document.getElementById('gdriveBadge');
+            const cardEl   = document.getElementById('gdriveSettingsCard')?.querySelector('.card');
+            if (!statusEl || !bodyEl) return;
+
+            const connected = typeof GDrive !== 'undefined' && GDrive.isConnected();
+            const adminCfg  = (typeof DB !== 'undefined') ? DB.get('global_gdrive_config') : null;
+            // ✅ نعتبره مُفعَّلاً دائماً — المستخدم يربط Drive مباشرة
+            const isEnabled = true;
+            const expiry    = JSON.parse(localStorage.getItem('sbtp_gdrive_token') || 'null')?.expiry;
+            const remaining = expiry ? Math.max(0, Math.round((expiry - Date.now()) / 60000)) : 0;
+
+            // لون البطاقة
+            if (cardEl) {
+              cardEl.style.borderColor = connected ? 'rgba(52,195,143,.35)' : 'rgba(66,133,244,.25)';
+            }
+
+            if (connected) {
+              // ── متصل ──
+              statusEl.textContent = '✅ ' + (window.L ? L('متصل بحسابك على Google','Connecté à votre compte Google') : 'Connecté') + ' — ' + remaining + ' min';
+              statusEl.style.color = '#34C38F';
+              badgeEl.innerHTML = '<span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-size:.68rem;padding:3px 10px;border-radius:20px;font-weight:700;white-space:nowrap">⚡ ' + (window.L ? L('حفظ تلقائي','Auto-save') : 'Auto-save') + '</span>';
+              bodyEl.innerHTML = \`
+                <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.15);border-radius:10px;padding:.8rem;margin-bottom:.8rem;font-size:.75rem">
+                  <div style="font-weight:700;color:#34C38F;margin-bottom:.35rem">📂 \${window.L?L('وثائقك تُحفظ تلقائياً في:','Vos documents sauvegardés dans:'):''}</div>
+                  <div style="font-family:monospace;color:var(--dim);line-height:2;font-size:.7rem">
+                    SmartStruct BTP → \${(typeof Auth!=='undefined'&&Auth.getTenant?Auth.getTenant()?.name:'') || 'مؤسستك'} → \${new Date().getFullYear()} → نوع الوثيقة
+                  </div>
+                </div>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                  <button class="btn btn-ghost btn-sm" onclick="GDrive.disconnect();App.navigate('settings')">
+                    🔌 \${window.L?L('قطع الاتصال','Déconnecter'):'Déconnecter'}
+                  </button>
+                  <button class="btn btn-blue btn-sm" onclick="GDrive.connect().then(()=>App.navigate('settings'))">
+                    🔄 \${window.L?L('تجديد الجلسة','Renouveler'):'Renouveler'}
+                  </button>
+                </div>\`;
+            } else if (!isEnabled) {
+              // ── غير مُفعَّل من الأدمن ──
+              statusEl.textContent = window.L ? L('غير مُفعَّل — في انتظار المسؤول','Non activé — en attente admin') : 'Non activé';
+              statusEl.style.color = 'var(--dim)';
+              badgeEl.innerHTML = '';
+              bodyEl.innerHTML = '<div style="font-size:.78rem;color:var(--dim);padding:.5rem 0">' +
+                (window.L ? L('سيتم تفعيل هذه الميزة من قِبَل مسؤول المنصة.','Cette fonctionnalité sera activée par l\'administrateur.') : '') +
+                '</div>';
+            } else {
+              // ── مُفعَّل ولكن غير متصل بعد ──
+              statusEl.textContent = window.L ? L('جاهز للربط','Prêt à connecter') : 'Prêt à connecter';
+              statusEl.style.color = '#4285F4';
+              badgeEl.innerHTML = '';
+              const _hasId = !!(localStorage.getItem('sbtp_gdrive_client_id')||(typeof DB!=='undefined'&&DB.get('global_gdrive_config')?.client_id));
+              if (_hasId) {
+                bodyEl.innerHTML = '<button class="btn btn-blue" style="width:100%;justify-content:center" onclick="GDrive.connect().then(ok=>{if(ok){setTimeout(function(){App.navigate(\'settings\')},800)}})">' + (window.L?L('☁️ ربط حسابي بـ Google Drive','☁️ Connecter Google Drive'):'☁️ Google Drive') + '</button>';
+              } else {
+                bodyEl.innerHTML = '<div style="background:rgba(255,193,7,.07);border:1px solid rgba(255,193,7,.25);border-radius:10px;padding:.9rem"><div style="font-weight:700;font-size:.82rem;margin-bottom:.4rem">⚙️ Google OAuth Client ID</div><div style="font-size:.73rem;color:var(--dim);margin-bottom:.6rem;line-height:1.6">1. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#4285F4">Google Cloud Console</a> → Credentials<br>2. Créez OAuth 2.0 Client ID (Web Application)<br>3. Authorized origins: <code>' + window.location.origin + '</code></div><div style="display:flex;gap:.4rem"><input id="gcId" class="form-input" style="flex:1;font-size:.76rem" dir="ltr" placeholder="xxxx.apps.googleusercontent.com"><button class="btn btn-gold btn-sm" onclick="_saveGDriveClientId()">' + (window.L?L('💾 حفظ','Sauvegarder'):'💾') + '</button></div></div>';
+              }
+            } // end else (not connected)
+
+          // ✅ render فوري — لا نحتاج GDrive لعرض الواجهة
+          render();
+          // إذا GDrive غير محمل بعد، أعد render بعد تحميله
+          if (typeof GDrive === 'undefined') {
+            let tries = 0;
+            const wait = setInterval(function() {
+              tries++;
+              if (typeof GDrive !== 'undefined') {
+                clearInterval(wait);
+                render(); // إعادة render بعد تحميل GDrive
+              } else if (tries > 40) {
+                clearInterval(wait); // 6 ثوانٍ كحد أقصى
+              }
+            }, 150);
+          }
+        })();
+        </script>
 
 
       </div>
@@ -6350,15 +9071,15 @@ function clearAIKey() {
 }
 
 function switchAdminTab(tab) {
-  const tabs = ['tenants','ai','notif','supabase'];
-  const colors = { tenants:'var(--gold)', ai:'#9B6DFF', notif:'var(--blue)', supabase:'#34C38F' };
+  const tabs = ['tenants','ai','gdrive','notif','supabase'];
+  const colors = { tenants:'var(--gold)', ai:'#9B6DFF', gdrive:'#4285F4', notif:'var(--blue)', supabase:'#34C38F' };
   tabs.forEach(t => {
     const btn = document.getElementById('adminTab_' + t);
     const panel = document.getElementById('adminTabContent_' + t);
     if (!btn || !panel) return;
     if (t === tab) {
       btn.style.background = colors[t] || 'var(--gold)';
-      btn.style.color = t === 'ai' ? '#fff' : '#1a1a1a';
+      btn.style.color = (t==='ai'||t==='gdrive') ? '#fff' : '#1a1a1a';
       panel.style.display = 'block';
     } else {
       btn.style.background = 'transparent';
@@ -6417,6 +9138,79 @@ function patchSmartAIWithSavedConfig() {
 
 /* ─── ADMIN ─── */
 Pages.admin = function() {
+  // ✅ تحميل الإشعارات من Supabase تلقائياً في الخلفية
+  // ⚠️ نتجاهل الجلب إذا كانت عملية حذف جارية أو انتهت للتو
+  const _skipCount = parseInt(sessionStorage.getItem('admin_skip_pull') || '0');
+  const _skipPull = _skipCount > 0;
+  if (_skipCount > 0) {
+    sessionStorage.setItem('admin_skip_pull', String(_skipCount - 1));
+  }
+
+  if (!_skipPull) {
+  setTimeout(async () => {
+    try {
+      const sbCfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+      if (!sbCfg?.url || !sbCfg?.key) return;
+      const h = { 'apikey': sbCfg.key, 'Authorization': `Bearer ${sbCfg.key}` };
+
+      // جلب الإشعارات الجديدة فقط (pending)
+      const nR = await fetch(`${sbCfg.url}/rest/v1/notifications?order=id.desc&limit=100`, { headers: h });
+      if (nR.ok) {
+        const sbNotifs = await nR.json();
+        if (sbNotifs.length) {
+          const local = DB.get('notifications') || [];
+          const merged = [...sbNotifs];
+          local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
+          merged.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+          if (typeof DB.setSilent === 'function') DB.setSilent('notifications', merged);
+          else DB.set('notifications', merged);
+          const pendingCount = merged.filter(n => !n.read || n.status === 'pending').length;
+          const badge = document.querySelector('[data-admin-notif-badge]');
+          if (badge) badge.textContent = pendingCount > 0 ? pendingCount : '';
+          const notifTab = document.getElementById('adminTabContent_notif');
+          if (notifTab && notifTab.style.display !== 'none') App.navigate('admin');
+        }
+      }
+
+      // ✅ جلب tenants/users فقط للإضافات الجديدة (merge بدون استبدال المحذوف)
+      const [tR, uR] = await Promise.all([
+        fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h }),
+        fetch(`${sbCfg.url}/rest/v1/users?order=id.asc`, { headers: h }),
+      ]);
+
+      if (tR.ok) {
+        const sbTenants = await tR.json();
+        if (sbTenants.length) {
+          const localTenants = DB.get('tenants') || [];
+          // ✅ فقط أضف ما هو موجود في Supabase لكن غائب محلياً
+          // لا تُعِد الحسابات المحذوفة محلياً
+          const localIds = new Set(localTenants.map(t => t.id));
+          const newFromSb = sbTenants.filter(t => !localIds.has(t.id));
+          if (newFromSb.length) {
+            const merged = [...localTenants, ...newFromSb];
+            if (typeof DB.setSilent === 'function') DB.setSilent('tenants', merged);
+            else DB.set('tenants', merged);
+          }
+        }
+      }
+
+      if (uR.ok) {
+        const sbUsers = await uR.json();
+        if (sbUsers.length) {
+          const localUsers = DB.get('users') || [];
+          const localIds = new Set(localUsers.map(u => u.id));
+          const newFromSb = sbUsers.filter(u => !localIds.has(u.id));
+          if (newFromSb.length) {
+            const merged = [...localUsers, ...newFromSb];
+            if (typeof DB.setSilent === 'function') DB.setSilent('users', merged);
+            else DB.set('users', merged);
+          }
+        }
+      }
+
+    } catch(e) { console.warn('[Admin autoload]', e.message); }
+  }, 500);
+  } // end !_skipPull
 
   const tenants=DB.get('tenants'), users=DB.get('users'), plans=DB.get('plans');
   const projects=DB.get('projects'), workers=DB.get('workers');
@@ -6461,9 +9255,10 @@ Pages.admin = function() {
       })()}</td>
       <td>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap">
-          <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف المؤسسة','Désactiver l\'entreprise'):L('تفعيل المؤسسة','Activer l\'entreprise')}">${t.is_active?'⏸️':'▶️'}</button>
+          <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف المؤسسة','Désactiver'):L('تفعيل المؤسسة','Activer')}">${t.is_active?'⏸️':'▶️'}</button>
           <button class="btn btn-sm btn-blue" onclick="editTenantPlan(${t.id})" title="${L('تعديل الخطة','Modifier le plan')}">⚙️</button>
           <button class="btn btn-sm btn-ghost" onclick="openSubInvoicesModal(${t.id})" title="${L('فواتير الاشتراك','Factures abonnement')}">🧾</button>
+          <button class="btn btn-sm btn-ghost" onclick="printTenantReport(${t.id})" title="${L('طباعة تقرير المؤسسة','Imprimer rapport')}">🖨️</button>
           <button class="btn btn-sm btn-red" onclick="deleteTenantAccount(${t.id})" title="${L('حذف المؤسسة نهائياً','Supprimer définitivement')}">🗑️</button>
         </div>
       </td>
@@ -6486,29 +9281,156 @@ Pages.admin = function() {
           </div>
           <div class="page-actions">
             <button class="btn btn-ghost btn-sm" data-nav="landing">🌐 ${L('الموقع','Site')}</button>
-            <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Sync Supabase')}</button>
-            <button class="btn btn-ghost btn-sm" onclick="cleanupDuplicateTenants()" title="${L('حذف المؤسسات المكررة والمستخدمين اليتامى','Supprimer les doublons')}">🧹 ${L('تنظيف التكرارات','Nettoyer doublons')}</button>
-            <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter entreprise')}</button>
+            <button id="syncAdminBtn" class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث','Sync')}</button>
+            <!-- زر الأدوات المتقدمة -->
+            <div style="position:relative;display:inline-block">
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('adminToolsMenu').style.display=document.getElementById('adminToolsMenu').style.display==='none'?'block':'none'" style="display:flex;align-items:center;gap:.3rem">
+                🛠️ ${L('أدوات متقدمة','Outils avancés')} <span style="font-size:.7rem">▾</span>
+              </button>
+              <div id="adminToolsMenu" style="display:none;position:absolute;top:110%;${I18N.currentLang==='ar'?'left:0':'right:0'};background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;min-width:260px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5);overflow:hidden" onclick="document.getElementById('adminToolsMenu').style.display='none'">
+                <div style="padding:.5rem .8rem;font-size:.68rem;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">🔧 ${L('أدوات الصيانة','Outils de maintenance')}</div>
+                <button onclick="cleanupDuplicateTenants()" style="width:100%;text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.65rem 1rem;background:none;border:none;color:var(--text);cursor:pointer;font-size:.82rem;font-family:inherit;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='none'">🧹 <span>${L('تنظيف التكرارات والمؤسسات اليتيمة','Nettoyer les doublons')}</span></button>
+                <button onclick="cleanupAccountsWithoutEmail()" style="width:100%;text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.65rem 1rem;background:none;border:none;color:var(--text);cursor:pointer;font-size:.82rem;font-family:inherit;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='none'">📧 <span>${L('حذف الحسابات بلا إيميل','Supprimer comptes sans email')}</span></button>
+                <div style="padding:.5rem .8rem;font-size:.68rem;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:.6px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">⚠️ ${L('منطقة الخطر','Zone dangereuse')}</div>
+                <button onclick="openAdminDangerModal()" style="width:100%;text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.65rem 1rem;background:none;border:none;color:#F04E6A;cursor:pointer;font-size:.82rem;font-family:inherit;display:flex;align-items:center;gap:.6rem" onmouseover="this.style.background='rgba(240,78,106,.08)'" onmouseout="this.style.background='none'">🗑️ <span style="font-weight:700">${L('مسح البيانات وإدارة الحسابات','Supprimer/Gérer les comptes')}</span></button>
+              </div>
+            </div>
+            <button class="btn btn-gold" data-modal-open="addTenantModal">+ ${L('إضافة مؤسسة','Ajouter')}</button>
+          </div>
+        </div>
+
+        <!-- ══ DANGER MODAL: مركز الإدارة المتقدمة ══ -->
+        <div id="adminDangerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:none;align-items:center;justify-content:center;padding:1rem">
+          <div style="background:var(--card-bg,#0e1720);border:1px solid rgba(240,78,106,.3);border-radius:18px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.7)">
+            <!-- Header -->
+            <div style="padding:1.2rem 1.5rem;border-bottom:1px solid rgba(240,78,106,.2);background:linear-gradient(135deg,rgba(240,78,106,.08),transparent);display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:1.1rem;font-weight:900;color:#F04E6A">⚠️ ${L('مركز الإدارة المتقدمة','Centre d\'administration avancé')}</div>
+                <div style="font-size:.74rem;color:var(--muted);margin-top:.2rem">${L('هذه العمليات لا يمكن التراجع عنها — تأكد قبل التنفيذ','Ces opérations sont irréversibles — confirmez avant d\'exécuter')}</div>
+              </div>
+              <button onclick="document.getElementById('adminDangerModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer">✕</button>
+            </div>
+            <div style="padding:1.2rem 1.5rem">
+
+              <!-- ① حذف الحسابات التجريبية المنتهية -->
+              <div style="background:rgba(255,112,67,.06);border:1px solid rgba(255,112,67,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:800;font-size:.9rem;color:#FF7043">🕐 ${L('حذف الحسابات التجريبية المنتهية','Supprimer essais expirés')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يحذف المؤسسات التي انتهت فترة تجربتها ولم تشترك','Supprime les essais expirés sans abonnement')}</div>
+                  </div>
+                  <button class="btn btn-sm" style="background:rgba(255,112,67,.15);color:#FF7043;border:1px solid rgba(255,112,67,.3);font-weight:700" onclick="adminDeleteExpiredTrials()">
+                    🗑️ ${L('تنفيذ','Exécuter')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ② حذف الحسابات المعلقة (بانتظار التفعيل لأكثر من X يوم) -->
+              <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:800;font-size:.9rem;color:#E8B84B">⏳ ${L('حذف الطلبات المعلقة القديمة','Supprimer demandes en attente anciennes')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يحذف حسابات "بانتظار التفعيل" منذ أكثر من:','Supprime comptes en attente depuis plus de:')}</div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem">
+                      <input type="number" id="dangPendingDays" value="30" min="1" max="365" style="width:70px;padding:.3rem .5rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:.82rem">
+                      <span style="font-size:.8rem;color:var(--muted)">${L('يوم','jour(s)')}</span>
+                    </div>
+                  </div>
+                  <button class="btn btn-sm" style="background:rgba(232,184,75,.15);color:#E8B84B;border:1px solid rgba(232,184,75,.3);font-weight:700" onclick="adminDeletePendingOlderThan()">
+                    🗑️ ${L('تنفيذ','Exécuter')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ③ حذف مؤسسة بعينها -->
+              <div style="background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="font-weight:800;font-size:.9rem;color:#F04E6A;margin-bottom:.5rem">🎯 ${L('حذف مؤسسة محددة','Supprimer une entreprise spécifique')}</div>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                  <select id="dangSelectTenant" style="flex:1;min-width:200px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                    <option value="">${L('اختر المؤسسة للحذف...','Choisir l\'entreprise...')}</option>
+                    ${(()=>{
+                      const safeTenants = DB.get('tenants').filter(t=>t.id!==1);
+                      return safeTenants.map(t=>`<option value="${t.id}">${escHtml(t.name)} (ID:${t.id}${t.is_active?' ✅':' ⏸️'})</option>`).join('');
+                    })()}
+                  </select>
+                  <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--muted);cursor:pointer">
+                    <input type="checkbox" id="dangDeleteSb" checked style="accent-color:#F04E6A">
+                    ${L('من Supabase أيضاً','Supabase aussi')}
+                  </label>
+                  <button class="btn btn-sm btn-red" onclick="adminDeleteSingleTenant()">
+                    🗑️ ${L('حذف','Supprimer')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ④ مسح كل الحسابات ماعدا التجريبي -->
+              <div style="background:rgba(240,78,106,.08);border:2px solid rgba(240,78,106,.3);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:900;font-size:.92rem;color:#F04E6A">☢️ ${L('مسح جميع الحسابات','Effacer TOUS les comptes')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يحذف كل المؤسسات والمستخدمين والبيانات ماعدا الحساب التجريبي (ID=1)','Supprime tout sauf le compte démo (ID=1)')}</div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;flex-wrap:wrap">
+                      <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--muted);cursor:pointer"><input type="checkbox" id="dangKeepTrial" checked style="accent-color:#E8B84B"> ${L('الإبقاء على الحساب التجريبي','Garder compte démo')}</label>
+                      <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--muted);cursor:pointer"><input type="checkbox" id="dangDeleteSbAll" checked style="accent-color:#F04E6A"> ${L('حذف من Supabase أيضاً','Aussi de Supabase')}</label>
+                    </div>
+                  </div>
+                  <button class="btn btn-red" onclick="adminNukeAllAccounts()" style="font-weight:900;font-size:.85rem">
+                    ☢️ ${L('مسح الكل','Effacer tout')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ⑤ تصدير كل البيانات قبل الحذف -->
+              <div style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.2);border-radius:12px;padding:1rem;margin-bottom:.8rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                  <div>
+                    <div style="font-weight:800;font-size:.9rem;color:#34C38F">💾 ${L('تصدير نسخة احتياطية قبل الحذف','Exporter une sauvegarde avant suppression')}</div>
+                    <div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">${L('يصدّر كل بيانات المؤسسات كملف JSON للحاسوب','Exporte toutes les données en JSON')}</div>
+                  </div>
+                  <button class="btn btn-sm" style="background:rgba(52,195,143,.15);color:#34C38F;border:1px solid rgba(52,195,143,.3);font-weight:700" onclick="adminExportAllData()">
+                    💾 ${L('تصدير JSON','Exporter JSON')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- ⑥ إعادة تعيين كلمة مرور مؤسسة -->
+              <div style="background:rgba(74,144,226,.06);border:1px solid rgba(74,144,226,.2);border-radius:12px;padding:1rem">
+                <div style="font-weight:800;font-size:.9rem;color:#4A90E2;margin-bottom:.6rem">🔐 ${L('تعيين كلمة مرور لمؤسسة','Réinitialiser MDP d\'une entreprise')}</div>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                  <select id="dangResetTenant" style="flex:1;min-width:180px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                    <option value="">${L('اختر المؤسسة...','Choisir...')}</option>
+                    ${DB.get('tenants').filter(t=>t.id!==1).map(t=>`<option value="${t.id}">${escHtml(t.name)}</option>`).join('')}
+                  </select>
+                  <input type="text" id="dangNewPass" type="password" placeholder="${L('كلمة المرور الجديدة','Nouveau MDP')}" dir="ltr" autocomplete="new-password" style="width:160px;padding:.45rem .7rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:.82rem">
+                  <button class="btn btn-blue btn-sm" onclick="adminResetTenantPassword()" style="font-weight:700">🔐 ${L('تعيين','Définir')}</button>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
 
         <!-- Admin Tabs -->
-        <div style="display:flex;gap:.4rem;margin-bottom:1.5rem;background:rgba(255,255,255,0.03);border:1px solid var(--border2);border-radius:14px;padding:.35rem">
+        <div style="display:flex;gap:.4rem;margin-bottom:1.5rem;background:rgba(255,255,255,0.03);border:1px solid var(--border2);border-radius:14px;padding:.35rem;flex-wrap:wrap">
           <button id="adminTab_tenants" onclick="switchAdminTab('tenants')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:var(--gold);color:#1a1a1a">
-            🏢 المؤسسات والإحصائيات
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:var(--gold);color:#1a1a1a">
+            🏢 المؤسسات
           </button>
           <button id="adminTab_ai" onclick="switchAdminTab('ai')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            🤖 إعدادات SmartAI
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            🤖 SmartAI
+          </button>
+          <button id="adminTab_gdrive" onclick="switchAdminTab('gdrive')"
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            ☁️ Google Drive
           </button>
           <button id="adminTab_notif" onclick="switchAdminTab('notif')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            📧 الإشعارات والبريد
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            📧 البريد
           </button>
           <button id="adminTab_supabase" onclick="switchAdminTab('supabase')"
-            style="flex:1;padding:.55rem 1rem;border-radius:10px;font-size:.82rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
-            🗄️ قاعدة البيانات Supabase
+            style="flex:1;min-width:120px;padding:.55rem 1rem;border-radius:10px;font-size:.8rem;font-weight:800;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--muted)">
+            🗄️ Supabase
           </button>
         </div>
 
@@ -6597,6 +9519,123 @@ Pages.admin = function() {
           </table></div>
         </div>
 
+        <!-- ══ 💳 لوحة حالة المدفوعات ══ -->
+        <div class="card" style="margin-top:1rem;padding:0">
+          <div style="padding:1.1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+            <div>
+              <div style="font-weight:800;font-size:.95rem">💳 ${L('حالة المدفوعات والاشتراكات','Statut des paiements & abonnements')}</div>
+              <div style="font-size:.72rem;color:var(--dim);margin-top:.2rem">${L('نظرة شاملة على جميع المؤسسات — دفعت / لم تدفع / الوقت المتبقي','Vue d\'ensemble — payé / impayé / temps restant')}</div>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${(()=>{
+                const paid    = tenants.filter(t=>t.id!==1 && t.subscription_status==='active' && t.is_active).length;
+                const trial   = tenants.filter(t=>t.id!==1 && t.subscription_status==='trial').length;
+                const expired = tenants.filter(t=>t.id!==1 && (t.subscription_status==='expired' || !t.is_active)).length;
+                const totalRevenue = (DB.get('subscription_invoices')||[]).reduce((s,i)=>s+Number(i.amount||0),0);
+                return `
+                <span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.25);color:#34C38F;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">✅ ${L('دفعت','Payé')} (${paid})</span>
+                <span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:#E8B84B;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⏱️ ${L('تجربة','Essai')} (${trial})</span>
+                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>
+                <span style="background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.2);color:var(--gold);padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">💰 ${fmt(totalRevenue)} ${L('دج','DA')}</span>`;
+              })()}
+            </div>
+          </div>
+          <div class="table-wrap" style="border:none;border-radius:0">
+            <table>
+              <thead><tr>
+                <th>${L('المؤسسة','Entreprise')}</th>
+                <th>${L('حالة الدفع','Statut')}</th>
+                <th>${L('الخطة','Plan')}</th>
+                <th style="min-width:140px">${L('الوقت المتبقي','Temps restant')}</th>
+                <th>${L('تاريخ الانتهاء','Expiration')}</th>
+                <th>${L('إجراءات','Actions')}</th>
+              </tr></thead>
+              <tbody>
+                ${(()=>{
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  return tenants
+                    .filter(t => t.id !== 1)
+                    .sort((a,b) => {
+                      // ترتيب: منتهي → تجربة قريبة الانتهاء → نشط
+                      const score = t => t.subscription_status==='expired'?0:t.subscription_status==='trial'?1:2;
+                      return score(a)-score(b);
+                    })
+                    .map(t => {
+                      const pl = plans.find(p=>p.id===t.plan_id);
+                      const st = t.subscription_status || '';
+                      const isTrial   = st === 'trial';
+                      const isPaid    = st === 'active' && t.is_active;
+                      const isExpired = st === 'expired' || (!t.is_active && st !== 'trial' && st !== 'pending');
+
+                      // حساب الأيام المتبقية
+                      let daysLeft = null, endDate = null, totalDays = 30;
+                      if (isTrial) {
+                        const tEnd = t.trial_end || t.trial_ends_at;
+                        if (tEnd) { endDate=tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); totalDays=14; }
+                      } else if (isPaid) {
+                        const sEnd = t.subscription_end || t.subscription_ends_at;
+                        if (sEnd) {
+                          endDate=sEnd;
+                          const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000);
+                          if (t.subscription_start) totalDays=Math.round((new Date(sEnd)-new Date(t.subscription_start))/86400000)||30;
+                        }
+                      }
+
+                      const pct = daysLeft!==null ? Math.max(0,Math.min(100,Math.round(daysLeft/totalDays*100))) : 0;
+                      const barC = daysLeft===null?'var(--dim)':daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
+
+                      // عرض الوقت المتبقي مع شريط
+                      let daysHtml = '<span style="color:var(--dim)">—</span>';
+                      if (daysLeft !== null) {
+                        const label = daysLeft<0 ? `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`
+                          : daysLeft===0 ? `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم!','Aujourd\'hui!')}</span>`
+                          : daysLeft<=3 ? `<span style="color:#F04E6A;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`
+                          : daysLeft<=7 ? `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`
+                          : `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
+                        daysHtml = `<div style="display:flex;flex-direction:column;gap:3px;min-width:120px">
+                          ${label}
+                          <div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden">
+                            <div style="height:3px;background:${barC};width:${pct}%;border-radius:2px;transition:width .8s"></div>
+                          </div>
+                        </div>`;
+                      }
+
+                      let payHtml = isPaid
+                        ? `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`
+                        : isTrial && daysLeft!==null && daysLeft>=0
+                          ? `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة','Essai')}</span>`
+                          : `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
+
+                      const endStr = endDate
+                        ? new Date(endDate).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'2-digit',month:'short',year:'numeric'})
+                        : '—';
+
+                      return `<tr style="${isExpired?'background:rgba(240,78,106,.04)':''}${daysLeft!==null&&daysLeft<=3&&!isExpired?'background:rgba(232,184,75,.03)':''}">
+                        <td>
+                          <div style="font-weight:700;font-size:.85rem">${escHtml(t.name)}</div>
+                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')} · ID:${t.id}</div>
+                        </td>
+                        <td>${payHtml}</td>
+                        <td><span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span></td>
+                        <td>${daysHtml}</td>
+                        <td>
+                          <span style="font-size:.8rem;font-weight:700;color:${daysLeft!==null&&daysLeft<=7?barC:'var(--text)'};font-family:monospace">${endStr}</span>
+                        </td>
+                        <td>
+                          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+                            <button class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:.2rem .5rem" onclick="editTenantPlan(${t.id})" title="${L('تعديل الخطة','Modifier plan')}">⚙️</button>
+                            <button class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:.2rem .5rem" onclick="openSubInvoicesModal(${t.id})" title="${L('فواتير الاشتراك','Factures')}">🧾</button>
+                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.68rem;padding:.2rem .5rem" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">${t.is_active?'⏸️':'▶️'}</button>
+                          </div>
+                        </td>
+                      </tr>`;
+                    }).join('')
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         </div><!-- END adminTabContent_tenants -->
 
         <!-- TAB CONTENT: الإشعارات والبريد -->
@@ -6604,41 +9643,96 @@ Pages.admin = function() {
 
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
-          const notifs = (DB.get('notifications')||[]).filter(n=>!n.read||n.status==='pending');
-          if(!notifs.length) return '';
+          // ✅ نعرض كل الإشعارات التي لم تُفعَّل بعد (pending) أو التي تحتاج إجراء
+          // ولكن نستبعد المُخفية (dismissed)
+          const allNotifs = DB.get('notifications') || [];
+          const notifs = allNotifs.filter(n =>
+            n.status !== 'dismissed' && (
+              n.status === 'pending' ||
+              n.type === 'new_account' ||
+              n.type === 'reset_password' ||
+              n.type === 'upgrade_request'
+            )
+          ).sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+
+          const pendingCount = notifs.filter(n => n.status === 'pending').length;
+
+          if(!notifs.length) return `
+            <div class="card" style="text-align:center;padding:2rem;color:var(--dim)">
+              <div style="font-size:2.5rem;margin-bottom:.8rem">🔔</div>
+              <div style="font-size:.95rem;font-weight:700">${L('لا توجد إشعارات','Aucune notification')}</div>
+              <div style="font-size:.78rem;margin-top:.4rem">${L('عند تسجيل حساب جديد ستظهر هنا','Les nouveaux comptes apparaîtront ici')}</div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:1rem" onclick="syncAdminFromSupabase()">🔄 ${L('تحديث من Supabase','Actualiser')}</button>
+            </div>`;
+
           const nrows = notifs.map(n=>{
             const isReset   = n.type==='reset_password';
             const isUpgrade = n.type==='upgrade_request';
             const isNew     = n.type==='new_account';
             const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : '🆕';
-            const badge   = isReset ? 'badge-delayed' : isUpgrade ? 'badge-paused' : 'badge-paused';
-            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? 'طلب ترقية' : L('حساب جديد — بانتظار التفعيل','Nouveau compte — En attente');
-            const dateStr = new Date(n.date).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-            // تحقق هل الحساب لا يزال معلقاً
-            const linkedUser = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
-            const isPending  = linkedUser && !linkedUser.is_active;
-            return `<tr>
-              <td><span style="font-size:1.3rem">${icon}</span></td>
-              <td style="font-weight:700">${escHtml(n.title)}</td>
-              <td style="font-size:.82rem;color:var(--muted)">${escHtml(n.body)}</td>
-              <td><span class="badge ${isPending?'badge-paused':badge}">${isPending?'⏳ '+badgeTxt:(isNew?'✅ مُفعَّل':badgeTxt)}</span></td>
-              <td style="font-size:.75rem;color:var(--dim)">${dateStr}</td>
-              <td style="display:flex;gap:.4rem;flex-wrap:wrap">
-                ${isNew && isPending ? `<button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id},${n.tenant_id})">✅ تفعيل وإرسال إيميل</button>` : ''}
-                ${isNew && !isPending ? `<span style="font-size:.75rem;color:var(--green)">✅ مُفعَّل</span>` : ''}
-                ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
-                ${isUpgrade && n.status==='pending' ? `<button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id})">✅ موافقة</button><button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ رفض</button>` : ''}
-                <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})">✓ ${L('إخفاء','Masquer')}</button>
+            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? L('طلب ترقية','Upgrade') : L('حساب جديد','Nouveau compte');
+            const dateStr = new Date(n.date||n.created_at||Date.now()).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+            // ✅ تحقق من الحالة من Supabase (عبر بيانات محلية مُحدَّثة)
+            const linkedUser   = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
+            const linkedTenant = isNew ? (DB.get('tenants')||[]).find(t=>t.id===n.tenant_id) : null;
+            const isPending    = n.status === 'pending' && (!linkedUser || !linkedUser.is_active);
+            const isActivated  = !isPending && (linkedUser?.is_active || n.status === 'activated');
+
+            return `<tr style="${isPending ? 'background:rgba(232,184,75,.04)' : ''}">
+              <td><span style="font-size:1.4rem">${icon}</span></td>
+              <td style="font-weight:700;font-size:.85rem">${escHtml(n.title)}</td>
+              <td style="font-size:.8rem;color:var(--muted);max-width:280px">
+                ${linkedTenant ? `
+                  <div style="display:flex;flex-direction:column;gap:.2rem">
+                    <div style="font-weight:700;color:var(--text)">🏢 ${escHtml(linkedTenant.name||'')}</div>
+                    <div style="font-size:.74rem">👤 ${escHtml(linkedUser?.full_name||'')}</div>
+                    <div style="font-size:.74rem;direction:ltr;text-align:${I18N.currentLang==='ar'?'right':'left'}">📧 ${escHtml(linkedUser?.email||'')}</div>
+                    ${linkedUser?.phone ? `<div style="font-size:.74rem;direction:ltr;text-align:${I18N.currentLang==='ar'?'right':'left'};color:var(--green)">📞 ${escHtml(linkedUser.phone)}</div>` : ''}
+                    ${linkedTenant.wilaya ? `<div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(linkedTenant.wilaya)}</div>` : ''}
+                  </div>
+                ` : escHtml(n.body)}
+              </td>
+              <td>
+                ${isPending ? `<span class="badge badge-paused">⏳ ${L('بانتظار التفعيل','En attente')}</span>` :
+                  isActivated ? `<span class="badge badge-active">✅ ${L('مُفعَّل','Activé')}</span>` :
+                  `<span class="badge badge-delayed">${badgeTxt}</span>`}
+              </td>
+              <td style="font-size:.75rem;color:var(--dim);white-space:nowrap">${dateStr}</td>
+              <td>
+                <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">
+                  ${isNew && isPending ? `
+                    <button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id||0},${n.tenant_id||0})" style="font-weight:800">
+                      ✅ ${L('تفعيل + إيميل','Activer + Email')}
+                    </button>` : ''}
+                  ${isNew && isActivated ? `<span style="font-size:.75rem;color:var(--green);font-weight:700">✅ ${L('مُفعَّل','Activé')}</span>` : ''}
+                  ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id||0})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
+                  ${isUpgrade && n.status==='pending' ? `
+                    <button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id||0})">✅ ${L('موافقة','Approuver')}</button>
+                    <button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ ${L('رفض','Rejeter')}</button>` : ''}
+                  <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})" title="${L('إخفاء','Masquer')}">✕</button>
+                </div>
               </td>
             </tr>`;
           }).join('');
+
           return `<div class="card" style="margin-bottom:1rem;border-color:rgba(232,184,75,.25)">
-            <div style="font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
-              🔔 ${L('الإشعارات','Notifications')}
-              <span style="background:var(--red);color:#fff;border-radius:20px;padding:1px 8px;font-size:.7rem;font-weight:800">${notifs.length}</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+              <div style="display:flex;align-items:center;gap:.5rem;font-weight:800">
+                🔔 ${L('الإشعارات والطلبات','Notifications & Demandes')}
+                ${pendingCount > 0 ? `<span style="background:var(--red);color:#fff;border-radius:20px;padding:1px 10px;font-size:.72rem;font-weight:800">${pendingCount} ${L('بانتظار التفعيل','en attente')}</span>` : ''}
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="syncAdminFromSupabase()" title="${L('جلب الإشعارات من Supabase','Actualiser depuis Supabase')}">🔄 ${L('تحديث','Actualiser')}</button>
             </div>
             <div class="table-wrap"><table>
-              <thead><tr><th></th><th>${L('العنوان','Titre')}</th><th>${L('التفاصيل','Détails')}</th><th>${L('النوع','Type')}</th><th>${L('التاريخ','Date')}</th><th>${L('الإجراء','Action')}</th></tr></thead>
+              <thead><tr>
+                <th style="width:40px"></th>
+                <th>${L('العنوان','Titre')}</th>
+                <th>${L('التفاصيل','Détails')}</th>
+                <th>${L('الحالة','Statut')}</th>
+                <th>${L('التاريخ','Date')}</th>
+                <th>${L('الإجراء','Action')}</th>
+              </tr></thead>
               <tbody>${nrows}</tbody>
             </table></div>
           </div>`;
@@ -6769,6 +9863,140 @@ Pages.admin = function() {
         <div id="adminTabContent_ai" style="display:none">
           ${renderAIProviderSettings()}
         </div><!-- END adminTabContent_ai -->
+
+        <!-- ══════════════════════════════════════════════════ -->
+        <!-- TAB: Google Drive API Settings -->
+        <!-- ══════════════════════════════════════════════════ -->
+        <div id="adminTabContent_gdrive" style="display:none">
+          <div class="card" style="margin-bottom:1rem">
+            <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem">
+              <svg width="32" height="28" viewBox="0 0 87.3 78">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              <div>
+                <div style="font-size:1.1rem;font-weight:900">Google Drive API</div>
+                <div style="font-size:.75rem;color:var(--dim)">إعداد مركزي — يُطبَّق على كل المستخدمين</div>
+              </div>
+            </div>
+
+            <!-- الشرح -->
+            <div style="background:rgba(66,133,244,.08);border:1px solid rgba(66,133,244,.2);border-radius:10px;padding:1rem;margin-bottom:1.2rem;font-size:.8rem;line-height:1.8;color:var(--text)">
+              <strong>☁️ كيف يعمل؟</strong><br>
+              أنت كمسؤول تُدخل <strong>Client ID</strong> مرة واحدة هنا.
+              كل مستخدم يرى زر <strong>"ربط حسابي بـ Google Drive"</strong> في إعداداته الشخصية —
+              عند الضغط يسجّل دخوله بحساب Google الخاص به ويُحفظ كل وثائقه في Drive الشخصي <strong>تلقائياً ومنفصلاً</strong>.
+              لا يرى SmartStruct ملفات المستخدمين.
+            </div>
+
+            <!-- خطوات الإعداد -->
+            <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:10px;padding:1rem;margin-bottom:1.2rem">
+              <div style="font-weight:800;color:var(--gold);margin-bottom:.7rem">📋 خطوات إنشاء Google OAuth Client ID</div>
+              <ol style="padding-right:1.3rem;font-size:.78rem;line-height:2;color:var(--muted);margin:0">
+                <li>اذهب إلى <a href="https://console.cloud.google.com" target="_blank" style="color:#4285F4;font-weight:700">console.cloud.google.com</a></li>
+                <li>أنشئ مشروع جديد أو اختر مشروعاً موجوداً</li>
+                <li>اذهب لـ <strong>APIs &amp; Services → Library</strong> → ابحث عن <strong>"Google Drive API"</strong> → فعّله</li>
+                <li>اذهب لـ <strong>APIs &amp; Services → Credentials → Create Credentials → OAuth 2.0 Client ID</strong></li>
+                <li>اختر <strong>Web application</strong></li>
+                <li>في <strong>Authorized JavaScript origins</strong> أضف نطاق موقعك (مثال: <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px">https://smartstruct.dz</code>)</li>
+                <li>انسخ الـ <strong>Client ID</strong> والصقه أدناه</li>
+                <li>احفظ — سيظهر زر الربط لجميع المستخدمين فوراً</li>
+              </ol>
+            </div>
+
+            <!-- حقل Client ID -->
+            <div class="form-group" style="margin-bottom:1rem">
+              <label class="form-label">🔑 Google OAuth Client ID</label>
+              <div style="display:flex;gap:.5rem">
+                <input class="form-input" id="adminGdriveClientId" type="text" dir="ltr"
+                  placeholder="123456789-abcdefghijk.apps.googleusercontent.com"
+                  value="${escHtml(DB.get('global_gdrive_config')?.client_id || '')}"
+                  style="font-family:monospace;font-size:.78rem;flex:1">
+                <button class="btn btn-blue" onclick="(function(){
+                  const id = document.getElementById('adminGdriveClientId').value.trim();
+                  if (!id) { Toast.error('أدخل Client ID أولاً'); return; }
+                  if (!id.includes('.apps.googleusercontent.com')) {
+                    Toast.warn('تأكد من صيغة Client ID الصحيحة');
+                  }
+                  const cfg = { client_id: id, enabled: true, updated_at: new Date().toISOString() };
+                  DB.set('global_gdrive_config', cfg);
+                  localStorage.setItem('sbtp_gdrive_client_id', id);
+                  Toast.success('✅ تم حفظ Google Client ID بنجاح!');
+                  document.getElementById('adminGdriveStatus').innerHTML = adminGdriveStatusHTML(true, id);
+                })()">
+                  💾 حفظ
+                </button>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.4rem">
+                الصيغة الصحيحة: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">XXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.apps.googleusercontent.com</code>
+              </div>
+            </div>
+
+            <!-- حالة الإعداد -->
+            <div id="adminGdriveStatus">
+              ${(function(){
+                const cfg = DB.get('global_gdrive_config');
+                const enabled = cfg?.enabled && cfg?.client_id;
+                if (enabled) return `<div style="background:rgba(52,195,143,.08);border:1px solid rgba(52,195,143,.25);border-radius:10px;padding:.8rem 1rem;display:flex;align-items:center;gap:.7rem">
+                  <span style="font-size:1.3rem">✅</span>
+                  <div>
+                    <div style="font-weight:700;color:#34C38F;font-size:.85rem">Google Drive API مُفعَّل</div>
+                    <div style="font-size:.72rem;color:var(--dim);font-family:monospace;margin-top:2px">${escHtml(cfg.client_id.substring(0,40))}...</div>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" style="margin-right:auto" onclick="(function(){
+                    if(!confirm('هل تريد تعطيل Google Drive لجميع المستخدمين؟')) return;
+                    DB.set('global_gdrive_config',{client_id:'',enabled:false});
+                    localStorage.removeItem('sbtp_gdrive_client_id');
+                    Toast.info('تم تعطيل Google Drive');
+                    App.navigate('admin');
+                  })()">🗑️ تعطيل</button>
+                </div>`;
+                return `<div style="background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.2);border-radius:10px;padding:.8rem 1rem;font-size:.82rem;color:var(--dim)">
+                  ⭕ Google Drive غير مُفعَّل — أدخل Client ID أعلاه لتفعيله لجميع المستخدمين.
+                </div>`;
+              })()}
+            </div>
+          </div>
+
+          <!-- إحصائيات الربط -->
+          <div class="card" style="margin-bottom:1rem">
+            <div style="font-weight:800;margin-bottom:.8rem">📊 إحصائيات الربط</div>
+            ${(function(){
+              const cfg = DB.get('global_gdrive_config');
+              if (!cfg?.enabled) return `<div style="font-size:.8rem;color:var(--dim)">فعّل Google Drive أولاً لعرض الإحصائيات.</div>`;
+              // نبحث في users عن من ربط Drive
+              const allUsers = DB.get('users')||[];
+              const tenantUsers = allUsers.filter(u=>!u.is_admin);
+              // المستخدمون الذين لديهم gdrive_connected = true في localStorage لا يمكن معرفتهم من الأدمن
+              // لكن نعرض إجمالي المستخدمين
+              return `
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem">
+                  <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value">${tenantUsers.length}</div><div class="stat-label">إجمالي المستخدمين</div></div>
+                  <div class="stat-card"><div class="stat-icon" style="color:#4285F4">☁️</div><div class="stat-value" style="color:#4285F4">${tenantUsers.filter(u=>u.gdrive_connected).length}</div><div class="stat-label">ربطوا Drive</div></div>
+                  <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-value" style="color:var(--gold)">${(DB.get('gdrive_uploads')||[]).length}</div><div class="stat-label">وثيقة رُفعت</div></div>
+                </div>
+                <div style="margin-top:.8rem;font-size:.75rem;color:var(--dim);background:rgba(255,255,255,.03);border-radius:8px;padding:.6rem .8rem">
+                  💡 كل مستخدم يربط Drive الخاص به. الوثائق تُحفظ في Drive الشخصي لكل مستخدم — لا يمكن للأدمن الوصول إليها.
+                </div>`;
+            })()}
+          </div>
+
+          <!-- دليل المستخدم -->
+          <div class="card">
+            <div style="font-weight:800;margin-bottom:.8rem">📖 ما يراه المستخدم في إعداداته</div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:1rem;font-size:.78rem;color:var(--dim);line-height:1.8">
+              بعد حفظ Client ID، يجد كل مستخدم في صفحة <strong>الإعدادات</strong> بطاقة <strong>"Google Drive"</strong> تحتوي على:<br>
+              • زر <strong>"ربط حسابي بـ Google Drive"</strong> يفتح نافذة تسجيل دخول Google<br>
+              • بعد الربط: كل وثيقة تُولَّد تُحفظ تلقائياً في Drive الشخصي<br>
+              • البنية: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">SmartStruct BTP / اسم المؤسسة / 2026 / نوع الوثيقة</code><br>
+              • زر "قطع الاتصال" لإلغاء الربط في أي وقت
+            </div>
+          </div>
+        </div><!-- END adminTabContent_gdrive -->
 
         <!-- TAB CONTENT: Supabase -->
         <div id="adminTabContent_supabase" style="display:none">
@@ -7021,7 +10249,7 @@ Pages.admin = function() {
       </main>
       <footer style="padding:.8rem 1.8rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
         <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct Admin Panel</span>
-        <span style="font-size:.7rem;color:var(--dim)">v7.0 Pro Edition</span>
+        
       </footer>
     </div>
   </div>`;
@@ -7061,6 +10289,20 @@ Pages.project_detail = function() {
       </div>
       <div class="page-actions">
         <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ ${L('طباعة','Imprimer')}</button>
+        <div style="position:relative;display:inline-block" class="dz-dd">
+          <button class="btn btn-blue btn-sm" onclick="toggleProjDocs(event)" title="${L('وثائق الميدان','Documents chantier')}">📚 ${L('وثائق الميدان','Docs chantier')} ▾</button>
+          <div id="projDocsMenu" class="dz-dd-menu" style="display:none;position:absolute;top:100%;${I18N.currentLang==='ar'?'right':'left'}:0;margin-top:4px;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:240px;z-index:100;padding:.3rem">
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('pv_ouverture',${p.id})">🚀 ${L('محضر بدء الأشغال','PV d\'Ouverture')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('attachement',${p.id})">📐 ${L('كشف المرفقات','Attachement')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('journal',${p.id})">📔 ${L('يوميات الورشة','Journal Chantier')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('pv_reception_pro',${p.id})">🤝 ${L('استلام مؤقت','PV Réception Provisoire')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('pv_reception_def',${p.id})">✅ ${L('استلام نهائي','PV Réception Définitive')}</button>
+            <div style="height:1px;background:var(--border);margin:.3rem 0"></div>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('acompte',${p.id})">⏩ ${L('فاتورة تسبيق','Facture Acompte')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('situation',${p.id})">📈 ${L('كشف أشغال (وضعية)','Situation Travaux')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.openForProject('def_invoice',${p.id})">🏁 ${L('فاتورة نهائية','Facture Définitive')}</button>
+          </div>
+        </div>
         <button class="btn btn-blue btn-sm" onclick="editProject(${p.id})">✏️ ${L('تعديل','Modifier')}</button>
       </div>
     </div>
@@ -7172,10 +10414,10 @@ Pages.project_detail = function() {
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus"><option value="active">${L('نشط','Actif')}</option><option value="completed">${L('مكتمل','Terminé')}</option><option value="delayed">${L('متأخر','En retard')}</option><option value="paused">${L('متوقف','Pausé')}</option></select></div>
-          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100"></div>
-          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number"></div>
+          <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('المرحلة','Phase')}</label><select class="form-select" id="epPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom du client')}</label><input class="form-input" id="epClient"></div>
+          <div class="form-group"><label class="form-label">${L('اسم العميل','Nom du client')}</label><input class="form-input" id="epClient" type="text" placeholder="${L('اسم العميل','Nom client')}"></div>
           <div class="form-group"><label class="form-label">${L('تاريخ الانتهاء','Date de fin')}</label><input class="form-input" id="epEnd" type="date"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="saveProject()">💾 ${L('حفظ التعديلات','Enregistrer')}</button></div>
@@ -7322,16 +10564,23 @@ const SB_SCHEMA = {
   equipment:       ['id','tenant_id','name','model','plate_number','icon','status','purchase_price','project_id','notes'],
   transactions:    ['id','tenant_id','type','category','amount','description','project_id','date','payment_method','supplier','worker_id'],
   attendance:      ['id','tenant_id','worker_id','project_id','date','status','hours','note'],
-  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date'],
+  salary_records:  ['id','tenant_id','worker_id','month_key','amount','paid_date','allowances','deductions'],
+  leave_requests:  ['id','tenant_id','worker_id','type','start_date','end_date','days','reason','status','approved_by','created_at'],
+  suppliers:       ['id','tenant_id','name','name_fr','phone','phone2','email','address','wilaya','nif','nis','rc','activity','category','rating','notes','is_active','created_at'],
+  supplier_purchases:  ['id','tenant_id','supplier_id','project_id','date','description','amount','payment_method','payment_status','due_date','receipt_number','notes'],
+  supplier_prices:     ['id','tenant_id','supplier_id','item_name','unit','unit_price','date','project_id','note'],
+  supplier_obligations:['id','tenant_id','supplier_id','type','description','amount','due_date','ref','status','done_date','created_at'],
+  worker_warnings: ['id','tenant_id','worker_id','date','type','reason','action','created_at'],
+  worker_overtime: ['id','tenant_id','worker_id','date','hours','rate','amount','project_id'],
   materials:       ['id','tenant_id','name','unit','quantity','min_quantity','unit_price','project_id','supplier'],
   stock_movements: ['id','tenant_id','material_id','type','quantity','date','note'],
   invoices:        ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method'],
-  documents:       ['id','tenant_id','name','project_id','category','type','url','size','date','uploader_id'],
+  documents:       ['id','tenant_id','name','project_id','worker_id','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number'],
   kanban_tasks:    ['id','tenant_id','title','project_id','priority','assignee_id','due_date','col'],
   notes:           ['id','tenant_id','project_id','user_id','text','date'],
   obligations:     ['id','tenant_id','title','amount','due'],
   users:           ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login'],
-  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name'],
+  tenants:         ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','article_imp','rib','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
   notifications:   ['id','type','title','body','user_id','tenant_id','date','read','status'],
   audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent'],
   custom_roles:        ['id','tenant_id','name','description','permissions','scope'],
@@ -7521,23 +10770,35 @@ async function sbSync(table, record, method='POST') {
     let url = `${sbUrl}/rest/v1/${table}`;
 
     if (method === 'POST') {
-      // ✅ لا نرسل id أبداً عند الإدراج — Supabase يولده تلقائياً بـ SERIAL
-      // هذا يمنع خطأ "duplicate key value violates unique constraint"
-      const oldId = record && record.id;
+      // ✅ استخدام UPSERT مع ON CONFLICT DO NOTHING لمنع أي duplicate key error
+      // هذا يعني: إذا السجل موجود مسبقاً في Supabase → نتجاهله بدون خطأ
+      const upsertHeaders = {
+        ...headers,
+        'Prefer': 'return=representation,resolution=ignore-duplicates'
+      };
       const postRecord = { ...cleanRecord };
-      delete postRecord.id;
+      // إذا لم يكن السجل يملك id محلي حقيقي (مثل التسجيل)، احذفه ليولّده Supabase
+      const oldId = record && record.id;
+      const isLocalTempId = oldId && oldId > 1000000000000; // milliseconds timestamp → local temp ID
+      if (isLocalTempId) delete postRecord.id;
 
-      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(postRecord) });
+      const res = await fetch(url, { method: 'POST', headers: upsertHeaders, body: JSON.stringify(postRecord) });
       if (!res.ok) {
         const err = await res.text();
+        let errJson = {};
+        try { errJson = JSON.parse(err); } catch(_) {}
+        // إذا كان duplicate key (23505) → تجاهل بدون خطأ (السجل موجود مسبقاً)
+        if (errJson.code === '23505') {
+          console.log(`ℹ️ sbSync [POST ${table}] already exists in Supabase — skipped (OK)`);
+          return;
+        }
         console.warn(`⚠️ sbSync [POST ${table}]:`, err);
-        // عند الفشل: حفظ في Offline Queue للمزامنة لاحقاً
         _saveSbOpToOfflineQueue(table, record, 'POST');
       } else {
         const data = await res.json();
         const newId = Array.isArray(data) ? data[0]?.id : data?.id;
-        console.log(`✅ sbSync [POST ${table}] → Supabase ID=${newId} (local was ${oldId})`);
-        // ✅ مزامنة الـ ID المحلي مع الـ ID الذي ولّده Supabase (لتجنب تكرار)
+        if (newId) console.log(`✅ sbSync [POST ${table}] → Supabase ID=${newId}`);
+        // مزامنة الـ ID المحلي مع الـ ID من Supabase
         if (newId && oldId && newId !== oldId) {
           try {
             const local = DB.get(table) || [];
@@ -7723,13 +10984,13 @@ function checkSupabaseStatus() {
   }
 }
 
-async function syncAllDataToSupabase() {
-  const btn = document.getElementById('syncAllBtn');
+async function syncAllDataToSupabase(silent) {
+  const btn = silent ? null : document.getElementById('syncAllBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '⏳ جاري الرفع...'; }
 
   const user = Auth.getUser();
   if (!user || !user.tenant_id) {
-    Toast.error('❌ يجب تسجيل الدخول أولاً');
+    if (!silent) Toast.error('❌ يجب تسجيل الدخول أولاً');
     if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
@@ -7738,7 +10999,7 @@ async function syncAllDataToSupabase() {
   // ── جلب إعدادات Supabase ──
   const sbCfg = getSupabaseConfig();
   if (!sbCfg || !sbCfg.url || !sbCfg.key) {
-    Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
+    if (!silent) Toast.error('❌ Supabase غير مربوط — اذهب للإعدادات وأدخل URL والـ Key');
     if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
     return;
   }
@@ -7824,6 +11085,12 @@ async function syncAllDataToSupabase() {
 
   if (btn) { btn.disabled = false; btn.innerHTML = '☁️ رفع البيانات'; }
 
+  if (silent) {
+    // وضع silent: لا toast، فقط console
+    console.log(`[syncAll silent] ${totalSent} سجل مرفوع، ${errors.length} خطأ`);
+    return { totalSent, errors };
+  }
+
   if (errors.length === 0) {
     Toast.success(`✅ تم رفع ${totalSent} سجل إلى Supabase بنجاح!`);
   } else if (totalSent > 0) {
@@ -7833,8 +11100,48 @@ async function syncAllDataToSupabase() {
   }
 }
 
+// ── مزامنة جداول محددة (يستدعيها AutoSync) ──
+async function syncTablesToSupabase(tables, silent) {
+  if (!tables || tables.length === 0) return;
+  const user = Auth.getUser();
+  if (!user || !user.tenant_id) return;
+  const sbCfg = getSupabaseConfig();
+  if (!sbCfg || !sbCfg.url || !sbCfg.key) return;
+
+  const tid = user.tenant_id;
+  const sbH = {
+    'Content-Type': 'application/json',
+    'apikey': sbCfg.key,
+    'Authorization': `Bearer ${sbCfg.key}`,
+    'Prefer': 'resolution=merge-duplicates,return=minimal'
+  };
+
+  let total = 0;
+  for (const table of tables) {
+    try {
+      const records = DB.get(table) || [];
+      const myRecords = records.filter(r => !r.tenant_id || r.tenant_id === tid);
+      if (myRecords.length === 0) continue;
+      // تنظيف وتنقية للـ Supabase
+      const cleaned = myRecords.map(r => (typeof cleanForSupabase === 'function') ? cleanForSupabase(table, r) : r);
+      const res = await fetch(`${sbCfg.url}/rest/v1/${table}`, {
+        method: 'POST', headers: sbH, body: JSON.stringify(cleaned)
+      });
+      if (res.ok) total += myRecords.length;
+    } catch(e) {
+      console.warn(`[syncTables ${table}]`, e.message);
+    }
+  }
+  if (!silent && total > 0 && typeof Toast !== 'undefined') {
+    Toast.success(`⚡ تمت مزامنة ${total} سجل`);
+  }
+  return total;
+}
+window.syncTablesToSupabase = syncTablesToSupabase;
+
 
 function addNote(pid) {
+  if (!canDo('write_notes')) { Toast.error(L('ليس لديك صلاحية لإضافة ملاحظة','Permission refusée : note')); return; }
   const text = document.getElementById('noteText')?.value?.trim();
   if (!text) { Toast.error('أدخل نص الملاحظة'); return; }
   const user = Auth.getUser();
@@ -7848,6 +11155,7 @@ function addNote(pid) {
 }
 
 function deleteNote(id, pid) {
+  if (!canDo('write_notes')) { Toast.error(L('ليس لديك صلاحية لحذف الملاحظة','Permission refusée : note')); return; }
   if (!confirm('حذف هذه الملاحظة؟')) return;
   DB.set('notes', DB.get('notes').filter(n=>n.id!==id));
   sbSyncDelete('notes', id).catch(()=>{});
@@ -7857,6 +11165,7 @@ function deleteNote(id, pid) {
 
 /* ─── MATERIALS ─── */
 function addMat() {
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لإضافة مادة','Permission refusée : matériau')); return; }
   const name = document.getElementById('mName')?.value?.trim();
   if (!name) { Toast.error('أدخل اسم المادة'); return; }
   const tid = Auth.getUser().tenant_id;
@@ -7870,6 +11179,7 @@ function addMat() {
 }
 
 function updateMatQty(id, delta) {
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتعديل المخزون','Permission refusée : stock')); return; }
   const mats = DB.get('materials');
   const idx = mats.findIndex(m=>m.id===id); if (idx<0) return;
   mats[idx].quantity = Math.max(0, (mats[idx].quantity||0) + delta);
@@ -7879,6 +11189,7 @@ function updateMatQty(id, delta) {
 }
 
 function deleteMat(id) {
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لحذف المادة','Permission refusée : matériau')); return; }
   if (!confirm('حذف هذه المادة؟')) return;
   DB.set('materials', DB.get('materials').filter(m=>m.id!==id));
   sbSyncDelete('materials', id).catch(()=>{});
@@ -7905,7 +11216,86 @@ function exportFinancialCSV() {
   txs.forEach(t=>{ const proj=projs.find(p=>p.id===t.project_id); csv+=`"${t.date}","${t.type==='revenue'?'إيراد':'مصروف'}","${t.description}","${t.category}","${t.amount}","${proj?.name||'—'}","${t.payment_method||''}"\n`; });
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='financial_report.csv'; a.click();
-  Toast.success('تم تصدير التقرير المالي');
+  Toast.success('تم تصدير التقرير المالي CSV');
+}
+
+// ✅ تصدير Excel (XLSX) باستخدام مكتبة SheetJS عبر CDN
+function exportFinancialXLSX() {
+  const tid = Auth.getUser().tenant_id;
+  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const projs = DB.get('projects');
+
+  function doExport(XLSX) {
+    const rows = txs.map(t => {
+      const proj = projs.find(p=>p.id===t.project_id);
+      return {
+        'التاريخ': t.date||'',
+        'النوع': t.type==='revenue'?'إيراد':'مصروف',
+        'الوصف': t.description||'',
+        'الفئة': t.category||'',
+        'المبلغ (دج)': Number(t.amount)||0,
+        'المشروع': proj?.name||'—',
+        'طريقة الدفع': t.payment_method||'',
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [12,15,25,15,14,20,12].map(w=>({wch:w}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'المعاملات');
+
+    // ورقة إجماليات
+    const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
+    const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+    const summary = [
+      { 'البيان': 'إجمالي الإيرادات', 'المبلغ (دج)': revenue },
+      { 'البيان': 'إجمالي المصاريف', 'المبلغ (دج)': expense },
+      { 'البيان': 'صافي الربح', 'المبلغ (دج)': revenue - expense },
+    ];
+    const ws2 = XLSX.utils.json_to_sheet(summary);
+    XLSX.utils.book_append_sheet(wb, ws2, 'الملخص');
+    XLSX.writeFile(wb, `SmartStruct_مالي_${new Date().toISOString().split('T')[0]}.xlsx`);
+    Toast.success(L('✅ تم تصدير Excel بنجاح','✅ Excel exporté avec succès'));
+  }
+
+  if (typeof XLSX !== 'undefined') { doExport(XLSX); return; }
+  // تحميل SheetJS
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  script.onload = () => doExport(window.XLSX);
+  script.onerror = () => Toast.error(L('تعذّر تحميل مكتبة Excel','Échec chargement bibliothèque Excel'));
+  document.head.appendChild(script);
+}
+
+function exportSalaryXLSX() {
+  const tid = Auth.getUser().tenant_id;
+  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const records = DB.get('salary_records')||[];
+
+  function doExport(XLSX) {
+    const rows = [];
+    workers.forEach(w => {
+      const wRecs = records.filter(r=>r.worker_id===w.id);
+      if (!wRecs.length) {
+        rows.push({ 'العامل': w.full_name, 'المنصب': w.role||'', 'الشهر': '—', 'الإجمالي': 0, 'CNAS 9%': 0, 'IRG': 0, 'الصافي': 0, 'الحالة': '—' });
+      } else {
+        wRecs.forEach(r => {
+          rows.push({ 'العامل': w.full_name, 'المنصب': w.role||'', 'الشهر': r.month_key||'', 'الإجمالي': Number(r.amount||0), 'CNAS 9%': Math.round(Number(r.amount||0)*0.09), 'IRG': 0, 'الصافي': Number(r.amount||0) - Math.round(Number(r.amount||0)*0.09), 'الحالة': r.status==='paid'?'مصروف':'معلق' });
+        });
+      }
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [20,15,12,14,12,10,14,10].map(w=>({wch:w}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'الرواتب');
+    XLSX.writeFile(wb, `SmartStruct_رواتب_${new Date().toISOString().split('T')[0]}.xlsx`);
+    Toast.success(L('✅ تم تصدير Excel الرواتب','✅ Excel salaires exporté'));
+  }
+
+  if (typeof XLSX !== 'undefined') { doExport(XLSX); return; }
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  script.onload = () => doExport(window.XLSX);
+  document.head.appendChild(script);
 }
 
 /* ─── EXPORT MONTHLY ATTENDANCE CSV ─── */
@@ -7991,7 +11381,48 @@ async function doLogin() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط');
+    // ── قبل كل شيء: تحقق من حساب الأدمن محلياً (is_admin=true لا يحتاج Supabase) ──
+    const localAllUsers = DB.get('users') || [];
+    const localAdmin = localAllUsers.find(u =>
+      u.email && u.email.toLowerCase() === email && u.is_admin === true
+    );
+    if (localAdmin) {
+      // تحقق من كلمة المرور محلياً
+      let adminPassOk = false;
+      try {
+        if (typeof SmartCrypto !== 'undefined' && SmartCrypto.verify) {
+          adminPassOk = await SmartCrypto.verify(pass, localAdmin.password);
+        } else {
+          adminPassOk = (localAdmin.password === pass);
+        }
+      } catch(_) {
+        adminPassOk = (localAdmin.password === pass);
+      }
+
+      if (adminPassOk) {
+        // ✅ تسجيل دخول ناجح للأدمن بدون Supabase
+        Auth.currentUser = localAdmin;
+        sessionStorage.setItem('sbtp_user', JSON.stringify(localAdmin));
+        localStorage.setItem('sbtp_admin_auth', '1');
+        if (btn) { btn.disabled = false; btn.innerHTML = L('تسجيل الدخول →','Connexion →'); }
+        App.navigate('admin');
+        // مزامنة في الخلفية
+        setTimeout(() => {
+          try {
+            if (typeof AutoSync !== 'undefined' && !AutoSync._enabled) AutoSync.enable();
+            if (typeof SmartRealtime !== 'undefined' && !SmartRealtime.isLive) SmartRealtime.start(null);
+          } catch(_) {}
+        }, 1500);
+        return;
+      } else {
+        resetBtn();
+        showErrMsg(L('❌ كلمة المرور غير صحيحة','❌ Mot de passe incorrect'));
+        return;
+      }
+    }
+
+    // ── للمستخدمين العاديين: التحقق من Supabase ──
+    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
 
     const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
 
@@ -8131,7 +11562,7 @@ async function doLogin() {
     // ── 7. تسجيل الجلسة ──
     Auth.currentUser = sbUser;
     sessionStorage.setItem('sbtp_user', JSON.stringify(sbUser));
-    if (sbUser.is_admin) sessionStorage.setItem('sbtp_admin_auth', '1');
+    if (sbUser.is_admin) localStorage.setItem('sbtp_admin_auth', '1');
 
     resetBtn();
 
@@ -8157,10 +11588,14 @@ async function doLogin() {
     App.navigate(sbUser.is_admin ? 'admin' : 'dashboard');
     setTimeout(() => TrialManager.checkAndEnforce(), 200);
 
-    // ⚡ تشغيل Realtime بعد تسجيل الدخول
+    // ⚡ تشغيل Realtime + AutoSync بعد تسجيل الدخول
     setTimeout(() => {
       if (typeof SmartRealtime !== 'undefined' && !SmartRealtime.isLive) {
         SmartRealtime.start(sbUser.tenant_id || null);
+      }
+      // 🔄 تفعيل المزامنة التلقائية (بدلاً من زر "رفع البيانات")
+      if (typeof AutoSync !== 'undefined') {
+        AutoSync.enable();
       }
     }, 1500);
     setTimeout(() => TrialManager.checkExpiryWarning(), 1500);
@@ -8201,6 +11636,18 @@ async function pullAllTenantDataFromSupabase(tenantId) {
     'Authorization': `Bearer ${cfg.key}`
   };
 
+  // ✅ قرأ blacklist مرة واحدة
+  let deletedTenantIds = [];
+  try {
+    deletedTenantIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+  } catch(_) {}
+
+  // تجاهل جلب بيانات مؤسسة في الـ blacklist
+  if (deletedTenantIds.includes(Number(tenantId))) {
+    console.warn(`pullAllTenantData: تجاهل tenant_id=${tenantId} (في blacklist المحذوفات)`);
+    return;
+  }
+
   const TABLES = [
     'projects','workers','equipment','transactions','attendance',
     'materials','stock_movements','invoices','salary_records',
@@ -8217,13 +11664,12 @@ async function pullAllTenantDataFromSupabase(tenantId) {
       const remote = await r.json();
       if (!Array.isArray(remote)) continue;
 
-      // دمج: نفضّل بيانات Supabase (أحدث) لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
+      // دمج: نفضّل بيانات Supabase لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
       const local = DB.get(table) || [];
       const remoteIds = new Set(remote.map(r => r.id));
       const localOnly = local.filter(l => !remoteIds.has(l.id));
       const merged = [...remote, ...localOnly];
 
-      // حفظ مباشر في localStorage بدون استدعاء _smartSync (لأننا نسحب من السحابة)
       localStorage.setItem('sbtp5_' + table, JSON.stringify(merged));
       console.log(`📥 Pulled ${table}: ${remote.length} remote + ${localOnly.length} local-only`);
     } catch(e) {
@@ -8231,7 +11677,6 @@ async function pullAllTenantDataFromSupabase(tenantId) {
     }
   }
 
-  // إعادة رسم الصفحة الحالية بعد الجلب
   try {
     if (typeof App !== 'undefined' && App.render && App.currentPage &&
         !['landing','login','admin'].includes(App.currentPage)) {
@@ -8247,11 +11692,12 @@ async function pullAllTenantDataFromSupabase(tenantId) {
    يتأكد أن كل حقل متوافق مع قاعدة البيانات قبل الحفظ
 ══════════════════════════════════════════════════════ */
 function validateForm(fields) {
-  // fields = [{ val, label, type }]
-  // type: 'required' | 'number' | 'email' | 'date' | 'phone'
+  // fields = [{ val, label, type, min, max }]
+  // type: 'required'|'number'|'email'|'date'|'phone'|'nif'|'nis'|'password'|'positive'
   for (const f of fields) {
     const v = (f.val === null || f.val === undefined) ? '' : String(f.val).trim();
 
+    // ─── مطلوب ───
     if (f.type === 'required' || !f.type) {
       if (!v) {
         Toast.error(L(`⚠️ الحقل "${f.label}" مطلوب`, `⚠️ Le champ "${f.label}" est requis`));
@@ -8259,36 +11705,76 @@ function validateForm(fields) {
       }
     }
 
-    if (f.type === 'number') {
+    // ─── رقم ───
+    if (f.type === 'number' || f.type === 'positive') {
       if (!v) {
         Toast.error(L(`⚠️ الحقل "${f.label}" مطلوب`, `⚠️ Le champ "${f.label}" est requis`));
         return false;
       }
       const n = Number(v.replace(/\s/g,'').replace(',','.'));
-      if (isNaN(n) || n < 0) {
-        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون رقماً صحيحاً`, `⚠️ "${f.label}" doit être un nombre valide`));
+      if (isNaN(n)) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون رقماً`, `⚠️ "${f.label}" doit être un nombre`));
+        return false;
+      }
+      if (f.type === 'positive' && n <= 0) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون أكبر من صفر`, `⚠️ "${f.label}" doit être > 0`));
+        return false;
+      }
+      if (f.min !== undefined && n < f.min) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون ≥ ${f.min}`, `⚠️ "${f.label}" doit être ≥ ${f.min}`));
+        return false;
+      }
+      if (f.max !== undefined && n > f.max) {
+        Toast.error(L(`⚠️ "${f.label}" يجب أن يكون ≤ ${f.max}`, `⚠️ "${f.label}" doit être ≤ ${f.max}`));
         return false;
       }
     }
 
+    // ─── بريد إلكتروني ───
     if (f.type === 'email' && v) {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) {
-        Toast.error(L(`⚠️ البريد الإلكتروني "${f.label}" غير صالح`, `⚠️ Email "${f.label}" invalide`));
+        Toast.error(L(`⚠️ البريد "${f.label}" غير صالح (مثال: nom@société.dz)`, `⚠️ Email "${f.label}" invalide`));
         return false;
       }
     }
 
+    // ─── تاريخ ───
     if (f.type === 'date' && v) {
-      // يجب أن يكون بصيغة YYYY-MM-DD
       if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-        Toast.error(L(`⚠️ تاريخ "${f.label}" غير صالح (أدخل بصيغة يوم/شهر/سنة)`, `⚠️ Date "${f.label}" invalide`));
+        Toast.error(L(`⚠️ تاريخ "${f.label}" غير صالح — استخدم منتقي التاريخ`, `⚠️ Date "${f.label}" invalide — utilisez le sélecteur`));
         return false;
       }
     }
 
+    // ─── هاتف جزائري ───
     if (f.type === 'phone' && v) {
-      if (!/^[\d\s\+\-\(\)]{7,20}$/.test(v)) {
-        Toast.error(L(`⚠️ رقم هاتف "${f.label}" غير صالح`, `⚠️ Téléphone "${f.label}" invalide`));
+      const digits = v.replace(/[\s\-\(\)\+]/g, '');
+      if (!/^\d{9,10}$/.test(digits)) {
+        Toast.error(L(`⚠️ رقم هاتف "${f.label}" غير صالح — أدخل 9 أو 10 أرقام (مثال: 0550 XX XX XX)`, `⚠️ Téléphone "${f.label}" invalide — 9 ou 10 chiffres requis`));
+        return false;
+      }
+    }
+
+    // ─── NIF الجزائري (15 رقم) ───
+    if (f.type === 'nif' && v) {
+      if (!/^\d{15}$/.test(v.replace(/\s/g,''))) {
+        Toast.error(L(`⚠️ NIF "${f.label}" غير صالح — يجب أن يكون 15 رقماً`, `⚠️ NIF "${f.label}" invalide — 15 chiffres requis`));
+        return false;
+      }
+    }
+
+    // ─── NIS الجزائري (15 رقم) ───
+    if (f.type === 'nis' && v) {
+      if (!/^\d{15}$/.test(v.replace(/\s/g,''))) {
+        Toast.error(L(`⚠️ NIS "${f.label}" غير صالح — يجب أن يكون 15 رقماً`, `⚠️ NIS "${f.label}" invalide — 15 chiffres requis`));
+        return false;
+      }
+    }
+
+    // ─── كلمة المرور (6 أحرف على الأقل) ───
+    if (f.type === 'password' && v) {
+      if (v.length < 6) {
+        Toast.error(L(`⚠️ كلمة المرور "${f.label}" قصيرة جداً — 6 أحرف على الأقل`, `⚠️ Mot de passe "${f.label}" trop court — 6 caractères minimum`));
         return false;
       }
     }
@@ -8319,6 +11805,7 @@ function sanitizeFileName(name) {
 }
 
 function addProject() {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لإضافة مشروع','Permission refusée : projet')); return; }
   const name = document.getElementById('pName')?.value?.trim();
   const budget = document.getElementById('pBudget')?.value;
   if (!validateForm([
@@ -8327,7 +11814,27 @@ function addProject() {
   ])) return;
   const tid = Auth.getUser().tenant_id;
   const projs = DB.get('projects');
-  const newProject = { id:DB.nextId('projects'), tenant_id:tid, name, project_type:document.getElementById('pType')?.value||'', wilaya:document.getElementById('pWilaya')?.value||'', client_name:document.getElementById('pClient')?.value||'', phone:document.getElementById('pPhone')?.value||'', budget:Number(document.getElementById('pBudget')?.value)||0, total_spent:0, progress:0, status:'active', color:document.getElementById('pColor')?.value||'#4A90E2', phase:document.getElementById('pPhase')?.value||'', description:document.getElementById('pDesc')?.value||'', start_date:document.getElementById('pStart')?.value||'', end_date:document.getElementById('pEnd')?.value||'', is_archived:false };
+  const newProject = {
+    id: DB.nextId('projects'), tenant_id: tid, name,
+    project_type: document.getElementById('pType')?.value||'',
+    wilaya:       document.getElementById('pWilaya')?.value||'',
+    client_name:    document.getElementById('pClient')?.value||'',
+    client_name_fr: document.getElementById('pClientFr')?.value||'',
+    phone:        document.getElementById('pPhone')?.value||'',
+    budget:       Number(document.getElementById('pBudget')?.value)||0,
+    market_ref:   document.getElementById('pMarket')?.value||'',
+    location:     document.getElementById('pLocation')?.value||'',
+    surface:      Number(document.getElementById('pSurface')?.value)||0,
+    bet:          document.getElementById('pBet')?.value||'',
+    ctrl:         document.getElementById('pCtrl')?.value||'',
+    total_spent:  0, progress: 0, status: 'active',
+    color:        document.getElementById('pColor')?.value||'#4A90E2',
+    phase:        document.getElementById('pPhase')?.value||'',
+    description:  document.getElementById('pDesc')?.value||'',
+    start_date:   document.getElementById('pStart')?.value||'',
+    end_date:     document.getElementById('pEnd')?.value||'',
+    is_archived:  false
+  };
   projs.push(newProject);
   DB.set('projects', projs);
   sbSync('projects', newProject, 'POST').catch(()=>{});
@@ -8336,6 +11843,7 @@ function addProject() {
 }
 
 function editProject(id) {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لتعديل المشروع','Permission refusée : projet')); return; }
   const p = DB.get('projects').find(p=>p.id===id); if (!p) return;
   document.getElementById('epId').value=id; document.getElementById('epName').value=p.name;
   document.getElementById('epType').value=p.project_type||'';
@@ -8347,6 +11855,7 @@ function editProject(id) {
 }
 
 function saveProject() {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لتعديل المشروع','Permission refusée : projet')); return; }
   const id=Number(document.getElementById('epId').value);
   const projs=DB.get('projects'); const idx=projs.findIndex(p=>p.id===id); if(idx<0) return;
   projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
@@ -8358,6 +11867,7 @@ function saveProject() {
 }
 
 function deleteProject(id,name) {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لحذف المشروع','Permission refusée : projet')); return; }
   if(!confirm(`حذف المشروع "${name}"؟`)) return;
   const updProjs = DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p);
   DB.set('projects', updProjs);
@@ -8365,18 +11875,133 @@ function deleteProject(id,name) {
   Toast.success('تم حذف المشروع'); App.navigate('projects');
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  حساب الراتب الجزائري 2026 — IRG + CNAS + Allocations Familiales
+//  المرجع: باريم IRG لـ LF 2022 المطبّق في 2026
+// ════════════════════════════════════════════════════════════════════
+function calcAlgerianSalary(opts) {
+  /*
+   * opts: {
+   *   gross:           الراتب الإجمالي (brut imposable)
+   *   marital_status:  'single'|'married'|'divorced'|'widowed'
+   *   children_count:  عدد الأطفال المعالين
+   *   spouse_works:    0/1 — هل الزوج/ة يعمل؟
+   *   is_handicap:     0/1 — معاق/متقاعد → تخفيض IRG 10%
+   *   transport:       إضافات غير خاضعة للضريبة (transport, panier...)
+   * }
+   * يُرجع: { gross, cnas, taxableBase, irg_raw, abattement, irg_net, allocations, transport_net, net }
+   */
+  const gross          = Number(opts.gross || 0);
+  const married        = opts.marital_status === 'married';
+  const children       = Number(opts.children_count || 0);
+  const spouseWorks    = Number(opts.spouse_works || 0) === 1;
+  const handicap       = Number(opts.is_handicap || 0) === 1;
+  const transportBonus = Number(opts.transport || 0); // غير خاضع للضريبة
+
+  // ── 1. CNAS سالارية: 9% من الراتب الإجمالي ──
+  const cnas = Math.round(gross * 0.09);
+
+  // ── 2. الراتب الخاضع للضريبة ──
+  const taxableBase = gross - cnas;
+
+  // ── 3. IRG الخام — باريم 2026 (LF 2022) ──
+  let irg_raw = 0;
+  if (taxableBase <= 30000) {
+    irg_raw = 0;                                                    // 0% ← EXONÉRÉ
+  } else if (taxableBase <= 40000) {
+    irg_raw = (taxableBase - 30000) * 0.23;                        // 23%
+  } else if (taxableBase <= 80000) {
+    irg_raw = 2300 + (taxableBase - 40000) * 0.27;                 // 27%
+  } else if (taxableBase <= 160000) {
+    irg_raw = 2300 + 10800 + (taxableBase - 80000) * 0.30;         // 30%
+  } else if (taxableBase <= 320000) {
+    irg_raw = 2300 + 10800 + 24000 + (taxableBase - 160000) * 0.33;// 33%
+  } else {
+    irg_raw = 2300 + 10800 + 24000 + 52800 + (taxableBase - 320000) * 0.35; // 35%
+  }
+  irg_raw = Math.round(irg_raw);
+
+  // ── 4. Abattement 40% (حد أدنى 1000 دج، أقصى 1500 دج) ──
+  let abattement = Math.round(irg_raw * 0.40);
+  abattement = Math.min(Math.max(abattement, 1000), 1500);
+  if (irg_raw === 0) abattement = 0; // لا abattement إذا كان IRG = 0
+
+  // ── 5. IRG الصافي بعد الabattement ──
+  let irg_net = Math.max(0, irg_raw - abattement);
+
+  // ── 6. تخفيض المعاقين والمتقاعدين (10% من IRG) ──
+  if (handicap && irg_net > 0) {
+    irg_net = Math.round(irg_net * 0.90);
+  }
+
+  // ── 7. Allocations familiales (غير خاضعة للضريبة) ──
+  let allocations = 0;
+  if (married || opts.marital_status === 'widowed') {
+    // Allocation par enfant: 300 دج/شهر
+    allocations += children * 300;
+    // Salaire unique: 800 دج إذا الزوج/ة لا يعمل
+    if (married && !spouseWorks) allocations += 800;
+  } else if (opts.marital_status === 'divorced') {
+    // المطلق يستفيد من منح الأطفال إذا كان حاضنهم
+    allocations += children * 300;
+  }
+
+  // ── 8. الراتب الصافي النهائي ──
+  const net = Math.max(0, taxableBase - irg_net + allocations + transportBonus);
+
+  return {
+    gross,
+    cnas,
+    taxableBase,
+    irg_raw,
+    abattement,
+    irg_net,
+    allocations,
+    transport_net: transportBonus,
+    net,
+    // تفاصيل للعرض
+    deductions: cnas + irg_net,
+    effective_rate: gross > 0 ? ((cnas + irg_net) / gross * 100).toFixed(1) : 0,
+  };
+}
+
 function addWorker() {
-  const name=document.getElementById('wName')?.value?.trim(), role=document.getElementById('wRole')?.value?.trim();
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لإضافة عامل','Permission refusée : ouvrier')); return; }
+  const name=document.getElementById('wName')?.value?.trim(),
+        nameFr=document.getElementById('wNameFr')?.value?.trim()||'',
+        role=document.getElementById('wRole')?.value?.trim();
   const phone=document.getElementById('wPhone')?.value?.trim();
   const salary=document.getElementById('wSalary')?.value;
   if (!validateForm([
-    { val: name,   label: L('الاسم الكامل','Nom complet'), type: 'required' },
-    { val: role,   label: L('المهنة','Métier'),             type: 'required' },
-    { val: salary, label: L('الأجر اليومي','Salaire journalier'), type: 'number' },
-    { val: phone,  label: L('الهاتف','Téléphone'),         type: 'phone'    },
+    { val: name,   label: L('الاسم الكامل','Nom complet'),         type: 'required' },
+    { val: role,   label: L('المهنة','Métier'),                      type: 'required' },
+    { val: salary, label: L('الأجر اليومي','Salaire journalier'),    type: 'number', min: 0 },
+    { val: phone,  label: L('الهاتف','Téléphone'),                   type: 'phone'    },
   ])) return;
+  const dailySal = Number(document.getElementById('wSalary')?.value)||0;
+  const monthlyVal = document.getElementById('wMonthly')?.value;
+  const monthly_base = monthlyVal ? Number(monthlyVal) : Math.round(dailySal * 26);
   const tid=Auth.getUser().tenant_id; const ws=DB.get('workers');
-  const newWorker = { id:DB.nextId('workers'), tenant_id:tid, full_name:name, role, phone:document.getElementById('wPhone')?.value||'', national_id:document.getElementById('wNid')?.value||'', daily_salary:Number(document.getElementById('wSalary')?.value)||0, contract_type:document.getElementById('wContract')?.value||'daily', project_id:Number(document.getElementById('wProject')?.value)||null, hire_date:document.getElementById('wHire')?.value||'', color:document.getElementById('wColor')?.value||'#4A90E2' };
+  const newWorker = {
+    id: DB.nextId('workers'), tenant_id: tid, full_name: name, full_name_fr: nameFr||name, role,
+    phone:        document.getElementById('wPhone')?.value||'',
+    national_id:  document.getElementById('wNid')?.value||'',
+    dob:          document.getElementById('wDob')?.value||'',
+    cnas_number:  document.getElementById('wCnas')?.value||'',
+    address:      document.getElementById('wAddress')?.value||'',
+    emergency_contact: document.getElementById('wEmergency')?.value||'',
+    daily_salary: dailySal,
+    monthly_base,
+    contract_type:document.getElementById('wContract')?.value||'daily',
+    project_id:   Number(document.getElementById('wProject')?.value)||null,
+    hire_date:    document.getElementById('wHire')?.value||'',
+    contract_end: document.getElementById('wContractEnd')?.value||'',
+    color:        document.getElementById('wColor')?.value||'#4A90E2',
+    marital_status:  document.getElementById('wMarital')?.value||'single',
+    children_count:  Number(document.getElementById('wChildren')?.value)||0,
+    spouse_works:    Number(document.getElementById('wSpouseWorks')?.value)||0,
+    is_handicap:     Number(document.getElementById('wHandicap')?.value)||0,
+  };
   ws.push(newWorker);
   DB.set('workers',ws);
   sbSync('workers', newWorker, 'POST').catch(()=>{});
@@ -8384,15 +12009,129 @@ function addWorker() {
 }
 
 function editWorker(id) {
-  const w=DB.get('workers').find(w=>w.id===id); if(!w) return;
-  document.getElementById('ewId').value=id; document.getElementById('ewName').value=w.full_name;
-  document.getElementById('ewRole').value=w.role; document.getElementById('ewPhone').value=w.phone||'';
-  document.getElementById('ewSalary').value=w.daily_salary; document.getElementById('ewContract').value=w.contract_type;
-  document.getElementById('ewProject').value=w.project_id||'';
-  document.getElementById('editWorkerModal').classList.add('show');
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لتعديل العامل','Permission refusée : ouvrier')); return; }
+  const w = DB.get('workers').find(w=>w.id===id);
+  if (!w) return;
+
+  // إذا كان الـ modal غير موجود في الصفحة الحالية → نُنشئه
+  if (!document.getElementById('editWorkerModal')) {
+    const tid = Auth.getUser().tenant_id;
+    const projects = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid&&!p.is_archived);
+    const modalDiv = document.createElement('div');
+    modalDiv.id = 'editWorkerModal';
+    modalDiv.className = 'modal-overlay show';
+    modalDiv.innerHTML = `
+      <div class="modal modal-lg">
+        <div class="modal-title">✏️ ${L('تعديل بيانات العامل','Modifier ouvrier')}</div>
+        <input type="hidden" id="ewId">
+        <div class="form-grid-2">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label>
+            <input class="form-input" id="ewName">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المهنة *','Métier *')}</label>
+            <input class="form-input" id="ewRole">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الهاتف','Téléphone')}</label>
+            <input class="form-input" id="ewPhone" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الأجر اليومي (دج)','Salaire/j (DA)')}</label>
+            <input class="form-input" id="ewSalary" type="number" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('نوع العقد','Type contrat')}</label>
+            <select class="form-select" id="ewContract">
+              <option value="daily">${L('يومي','Journalier')}</option>
+              <option value="monthly">${L('شهري','Mensuel')}</option>
+              <option value="seasonal">${L('موسمي','Saisonnier')}</option>
+              <option value="contract">${L('مقاول','Sous-traitant')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المشروع','Projet')}</label>
+            <select class="form-select" id="ewProject">
+              <option value="">—</option>
+              ${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ التعيين','Date embauche')}</label>
+            <input class="form-input" id="ewHire" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ انتهاء العقد','Fin contrat')}</label>
+            <input class="form-input" id="ewContractEnd" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الحالة الاجتماعية','Situation familiale')}</label>
+            <select class="form-select" id="ewMarital">
+              <option value="single">${L('أعزب','Célibataire')}</option>
+              <option value="married">${L('متزوج','Marié(e)')}</option>
+              <option value="divorced">${L('مطلق','Divorcé(e)')}</option>
+              <option value="widowed">${L('أرمل','Veuf/Veuve')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('عدد الأطفال','Nb enfants')}</label>
+            <input class="form-input" id="ewChildren" type="number" min="0" value="0" dir="ltr">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="document.getElementById('editWorkerModal').remove()">${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveWorkerEdit()">💾 ${L('حفظ','Enregistrer')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modalDiv);
+  }
+
+  // ملء البيانات
+  document.getElementById('ewId').value = id;
+  document.getElementById('ewName').value = w.full_name || '';
+  document.getElementById('ewRole').value = w.role || '';
+  document.getElementById('ewPhone').value = w.phone || '';
+  document.getElementById('ewSalary').value = w.daily_salary || 0;
+  document.getElementById('ewContract').value = w.contract_type || 'daily';
+  document.getElementById('ewProject').value = w.project_id || '';
+  if(document.getElementById('ewHire')) document.getElementById('ewHire').value = w.hire_date||'';
+  if(document.getElementById('ewContractEnd')) document.getElementById('ewContractEnd').value = w.contract_end||'';
+  if(document.getElementById('ewMarital')) document.getElementById('ewMarital').value = w.marital_status||'single';
+  if(document.getElementById('ewChildren')) document.getElementById('ewChildren').value = w.children_count||0;
+
+  const modal = document.getElementById('editWorkerModal');
+  modal.classList.add('show');
+}
+
+function saveWorkerEdit() {
+  const id = Number(document.getElementById('ewId')?.value);
+  const ws = DB.get('workers');
+  const idx = ws.findIndex(w=>w.id===id);
+  if(idx<0) return;
+  ws[idx] = { ...ws[idx],
+    full_name:    document.getElementById('ewName')?.value||ws[idx].full_name,
+    role:         document.getElementById('ewRole')?.value||ws[idx].role,
+    phone:        document.getElementById('ewPhone')?.value||'',
+    daily_salary: Number(document.getElementById('ewSalary')?.value)||0,
+    contract_type:document.getElementById('ewContract')?.value||'daily',
+    project_id:   Number(document.getElementById('ewProject')?.value)||null,
+    hire_date:    document.getElementById('ewHire')?.value||ws[idx].hire_date||'',
+    contract_end: document.getElementById('ewContractEnd')?.value||'',
+    marital_status: document.getElementById('ewMarital')?.value||'single',
+    children_count: Number(document.getElementById('ewChildren')?.value)||0,
+  };
+  DB.set('workers', ws);
+  sbSync('workers', ws[idx], 'PATCH').catch(()=>{});
+  document.getElementById('editWorkerModal')?.remove();
+  Toast.success(L('✅ تم تحديث العامل','✅ Ouvrier mis à jour'));
+  // إعادة تحميل الصفحة الحالية
+  if(App.currentPage==='worker_profile') App.navigate('worker_profile',{id,tab:'info'});
+  else App.navigate('workers');
 }
 
 function saveWorker() {
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لتعديل العامل','Permission refusée : ouvrier')); return; }
   const id=Number(document.getElementById('ewId').value); const ws=DB.get('workers');
   const idx=ws.findIndex(w=>w.id===id); if(idx<0) return;
   ws[idx]={...ws[idx], full_name:document.getElementById('ewName').value, role:document.getElementById('ewRole').value, phone:document.getElementById('ewPhone').value, daily_salary:Number(document.getElementById('ewSalary').value)||0, contract_type:document.getElementById('ewContract').value, project_id:Number(document.getElementById('ewProject').value)||null };
@@ -8402,6 +12141,7 @@ function saveWorker() {
 }
 
 function deleteWorker(id,name) {
+  if (!canDo('write_workers')) { Toast.error(L('ليس لديك صلاحية لحذف العامل','Permission refusée : ouvrier')); return; }
   if(!confirm(`حذف العامل "${name}"؟`)) return;
   DB.set('workers', DB.get('workers').filter(w=>w.id!==id));
   sbSyncDelete('workers', id).catch(()=>{});
@@ -8419,17 +12159,265 @@ function exportWorkers() {
 }
 
 function addEquip() {
-  const name=document.getElementById('eName')?.value?.trim();
-  if(!name){Toast.error('أدخل اسم المعدة');return;}
-  const tid=Auth.getUser().tenant_id; const eq=DB.get('equipment');
-  const newEquip = { id:DB.nextId('equipment'), tenant_id:tid, name, model:document.getElementById('eModel')?.value||'', plate_number:document.getElementById('ePlate')?.value||'', icon:document.getElementById('eIcon')?.value||'🚜', status:'active', purchase_price:Number(document.getElementById('ePrice')?.value)||0, project_id:Number(document.getElementById('eProject')?.value)||null, notes:document.getElementById('eNotes')?.value||'' };
-  eq.push(newEquip);
-  DB.set('equipment',eq);
-  sbSync('equipment', newEquip, 'POST').catch(()=>{});
-  Toast.success('✅ تم إضافة المعدة'); App.navigate('equipment');
+  const name = document.getElementById('eName')?.value?.trim();
+  if (!name) { Toast.error(L('اسم المعدة مطلوب','Nom équipement requis')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const equips = DB.get('equipment');
+  equips.push({
+    id: DB.nextId('equipment'), tenant_id: tid,
+    name, model: document.getElementById('eModel')?.value||'',
+    type: document.getElementById('eType')?.value||'',
+    serial: document.getElementById('eSerial')?.value||'',
+    plate_number: document.getElementById('ePlate')?.value||'',
+    project_id: Number(document.getElementById('eProject')?.value)||null,
+    purchase_price: Number(document.getElementById('ePrice')?.value)||0,
+    purchase_date: document.getElementById('ePurchaseDate')?.value||'',
+    next_maintenance: document.getElementById('eNextMaint')?.value||'',
+    insurance_expiry: document.getElementById('eInsurance')?.value||'',
+    icon: document.getElementById('eIcon')?.value||'🚜',
+    status: document.getElementById('eStatus')?.value||'active',
+  });
+  DB.set('equipment', equips);
+  closeModal('addEquipModal');
+  Toast.success(L('✅ تمت إضافة المعدة','✅ Équipement ajouté'));
+  App.navigate('equipment');
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  سجل الصيانة والعمليات للمعدة
+// ════════════════════════════════════════════════════════════════════
+function openEquipLog(eid) {
+  const equip = (DB.get('equipment')||[]).find(e=>e.id===eid);
+  if (!equip) return;
+  document.getElementById('equipLogEid').value = eid;
+  document.getElementById('equipLogModalTitle').textContent =
+    `📋 ${L('إضافة سجل','Ajouter entrée')} — ${equip.name}`;
+  // تحديد "صيانة" افتراضياً
+  const firstRadio = document.querySelector('[name="logType"]');
+  if (firstRadio) { firstRadio.checked = true; firstRadio.dispatchEvent(new Event('change')); }
+  // إفراغ الحقول
+  ['logDate','logCost','logNote','logNextMaint','logVendor'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.value = id==='logDate' ? new Date().toISOString().split('T')[0] : '';
+  });
+  openModal('equipLogModal');
+}
+
+function saveEquipLog() {
+  const eid  = Number(document.getElementById('equipLogEid')?.value);
+  const type = document.querySelector('[name="logType"]:checked')?.value;
+  const date = document.getElementById('logDate')?.value;
+  if (!eid || !type) { Toast.error(L('اختر نوع العملية','Choisir le type')); return; }
+  if (!date) { Toast.error(L('التاريخ مطلوب','Date requise')); return; }
+
+  const tid  = Auth.getUser().tenant_id;
+  const logs = DB.get('equipment_logs') || [];
+  const newLog = {
+    id:           DB.nextId('equipment_logs'),
+    equipment_id: eid,
+    tenant_id:    tid,
+    type,
+    date,
+    cost:     Number(document.getElementById('logCost')?.value) || 0,
+    note:     document.getElementById('logNote')?.value?.trim() || '',
+    vendor:   document.getElementById('logVendor')?.value?.trim() || '',
+    next_maintenance: document.getElementById('logNextMaint')?.value || '',
+    created_at: new Date().toISOString(),
+  };
+  logs.push(newLog);
+  DB.set('equipment_logs', logs);
+
+  // تحديث next_maintenance في المعدة إذا أُدخل
+  if (newLog.next_maintenance) {
+    const equips = DB.get('equipment') || [];
+    const idx = equips.findIndex(e=>e.id===eid);
+    if (idx>=0) { equips[idx].next_maintenance = newLog.next_maintenance; DB.set('equipment',equips); }
+  }
+  // تحديث حالة المعدة إلى "صيانة" إذا كان نوع السجل صيانة
+  if (type === 'maintenance') {
+    const equips = DB.get('equipment') || [];
+    const idx = equips.findIndex(e=>e.id===eid);
+    if (idx>=0 && equips[idx].status==='active') {
+      equips[idx].status = 'maintenance';
+      DB.set('equipment', equips);
+    }
+  }
+
+  closeModal('equipLogModal');
+  Toast.success(L('✅ تم حفظ السجل','✅ Entrée enregistrée'));
+  App.navigate('equipment');
+}
+
+function viewEquipHistory(eid) {
+  const equip = (DB.get('equipment')||[]).find(e=>e.id===eid);
+  if (!equip) return;
+  const logs  = (DB.get('equipment_logs')||[]).filter(l=>l.equipment_id===eid).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const typeColors = { maintenance:'#34C38F', fuel:'#4A90E2', repair:'#F04E6A', incident:'#FF7043', inspection:'#9B6DFF', use:'#E8B84B' };
+  const typeLabels = {
+    maintenance:L('صيانة','Maintenance'), fuel:L('وقود','Carburant'),
+    repair:L('إصلاح','Réparation'),       incident:L('حادث','Incident'),
+    inspection:L('فحص','Inspection'),     use:L('استخدام','Utilisation'),
+  };
+
+  const totalCost = logs.reduce((s,l)=>s+Number(l.cost||0), 0);
+  const byType = {};
+  logs.forEach(l=>{ byType[l.type]=(byType[l.type]||0)+1; });
+
+  document.getElementById('equipHistoryTitle').textContent = `📊 ${equip.icon||'🚜'} ${equip.name} — ${logs.length} ${L('عملية','opération(s)')}`;
+
+  document.getElementById('equipHistoryBody').innerHTML = !logs.length
+    ? `<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">${L('لا توجد سجلات بعد','Aucun enregistrement')}</div><div class="empty-text"><button class="btn btn-gold" onclick="closeModal('equipHistoryModal');openEquipLog(${eid})">+ ${L('إضافة أول سجل','Ajouter premier enregistrement')}</button></div></div>`
+    : `
+    <!-- إحصائيات سريعة -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1rem">
+      <div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.15);border-radius:8px;padding:.7rem;text-align:center">
+        <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${logs.length}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${L('إجمالي العمليات','Total opérations')}</div>
+      </div>
+      <div style="background:rgba(240,78,106,.06);border:1px solid rgba(240,78,106,.15);border-radius:8px;padding:.7rem;text-align:center">
+        <div style="font-size:1.1rem;font-weight:900;color:#F04E6A;font-family:monospace">${fmt(totalCost)}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${L('إجمالي التكاليف (دج)','Total coûts (DA)')}</div>
+      </div>
+      <div style="background:rgba(52,195,143,.06);border:1px solid rgba(52,195,143,.15);border-radius:8px;padding:.7rem;text-align:center">
+        <div style="font-size:1.3rem;font-weight:900;color:#34C38F">${byType['maintenance']||0}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${L('مرات الصيانة','Maintenances')}</div>
+      </div>
+    </div>
+    <!-- جدول السجلات -->
+    <div style="display:flex;flex-direction:column;gap:.4rem">
+      ${logs.map(l => {
+        const c = typeColors[l.type]||'var(--dim)';
+        return `
+        <div style="background:rgba(255,255,255,.025);border:1px solid ${c}22;border-right:3px solid ${c};border-radius:8px;padding:.7rem 1rem;display:grid;grid-template-columns:auto 1fr auto auto;gap:.5rem .8rem;align-items:center">
+          <span style="background:${c}18;color:${c};font-size:.7rem;font-weight:800;padding:3px 8px;border-radius:6px;white-space:nowrap">${typeLabels[l.type]||l.type}</span>
+          <div>
+            <div style="font-weight:700;font-size:.82rem">${escHtml(l.note||'—')}</div>
+            ${l.vendor?`<div style="font-size:.7rem;color:var(--dim)">🏪 ${escHtml(l.vendor)}</div>`:''}
+            ${l.next_maintenance?`<div style="font-size:.7rem;color:#E8B84B">🔧 ${L('الصيانة القادمة','Proch. maint.')}: ${l.next_maintenance}</div>`:''}
+          </div>
+          <span style="font-size:.75rem;color:var(--dim);white-space:nowrap">${l.date}</span>
+          ${l.cost>0?`<span style="font-size:.78rem;font-weight:900;color:#F04E6A;font-family:monospace;white-space:nowrap">${fmt(l.cost)} ${L('دج','DA')}</span>`:'<span></span>'}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:.8rem;text-align:center">
+      <button class="btn btn-gold btn-sm" onclick="closeModal('equipHistoryModal');openEquipLog(${eid})">
+        + ${L('إضافة سجل جديد','Ajouter une entrée')}
+      </button>
+    </div>`;
+
+  // حفظ eid للطباعة
+  window._currentEquipHistoryId = eid;
+  openModal('equipHistoryModal');
+}
+
+function printEquipHistory() {
+  const eid   = window._currentEquipHistoryId;
+  const equip = (DB.get('equipment')||[]).find(e=>e.id===eid);
+  const logs  = (DB.get('equipment_logs')||[]).filter(l=>l.equipment_id===eid).sort((a,b)=>b.date.localeCompare(a.date));
+  const tenant= Auth.getTenant()||{};
+  const isAr  = I18N.currentLang==='ar';
+  if (!equip) return;
+
+  const typeLabels = {
+    maintenance:isAr?'صيانة':'Maintenance', fuel:isAr?'وقود':'Carburant',
+    repair:isAr?'إصلاح':'Réparation',       incident:isAr?'حادث':'Incident',
+    inspection:isAr?'فحص':'Inspection',     use:isAr?'استخدام':'Utilisation',
+  };
+  const typeColors = { maintenance:'#34C38F',fuel:'#4A90E2',repair:'#F04E6A',incident:'#FF7043',inspection:'#9B6DFF',use:'#E8B84B' };
+  const totalCost = logs.reduce((s,l)=>s+Number(l.cost||0),0);
+
+  const html = `<!DOCTYPE html><html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head><meta charset="UTF-8"><title>${isAr?'سجل المعدة':'Historique équipement'} — ${equip.name}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:20px;direction:${isAr?'rtl':'ltr'}}
+@page{size:A4;margin:15mm}
+@media print{.no-print{display:none!important}}
+.no-print{position:fixed;top:10px;${isAr?'left':'right'}:10px;display:flex;gap:8px}
+.btn{padding:8px 18px;background:#B8902F;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B8902F;padding-bottom:12px;margin-bottom:16px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#f8f5ee;border:1px solid #e0c97a;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.82rem}
+.info-item{display:flex;flex-direction:column;gap:2px}
+.info-lbl{font-size:.68rem;color:#888;text-transform:uppercase;letter-spacing:.4px}
+.info-val{font-weight:700;color:#1a1a1a}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat{background:#f8f5ee;border-radius:8px;padding:10px;text-align:center;border:1px solid #e0c97a}
+.stat-num{font-size:1.5rem;font-weight:900;color:#B8902F}
+.stat-lbl{font-size:.7rem;color:#888;margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}
+thead tr{background:#B8902F;color:#fff}
+th{padding:8px 10px;text-align:${isAr?'right':'left'};font-weight:700}
+tbody tr:nth-child(even){background:#f8f3e8}
+td{padding:7px 10px;border-bottom:1px solid #f0ede0}
+.type-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;color:#fff}
+.gold-bar{height:3px;background:linear-gradient(90deg,#B8902F,#E8B84B,#B8902F);border-radius:2px;margin:12px 0}
+.footer{font-size:.72rem;color:#999;display:flex;justify-content:space-between;margin-top:16px;border-top:1px solid #e0d4a8;padding-top:8px}
+</style></head>
+<body>
+<div class="no-print">
+  <button class="btn" onclick="window.print()">🖨️ ${isAr?'طباعة':'Imprimer'}</button>
+  <button class="btn" style="background:#888" onclick="window.close()">✕</button>
+</div>
+<div class="header">
+  <div>
+    <div style="font-size:1.1rem;font-weight:900">▦ ${tenant.name||'SmartStruct'}</div>
+    <div style="font-size:.75rem;color:#666">${tenant.rc_number?'RC: '+tenant.rc_number+'  ':''} ${tenant.nif?'NIF: '+tenant.nif:''}</div>
+  </div>
+  <div style="text-align:${isAr?'left':'right'}">
+    <div style="font-size:1.2rem;font-weight:900;color:#B8902F">${isAr?'سجل المعدة':'HISTORIQUE ÉQUIPEMENT'}</div>
+    <div style="font-size:.75rem;color:#888">${isAr?'تاريخ الإصدار':'Émis le'}: ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</div>
+  </div>
+</div>
+<div class="info-grid">
+  <div class="info-item"><span class="info-lbl">${isAr?'المعدة':'Équipement'}</span><span class="info-val">${equip.icon||''} ${equip.name}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'الطراز':'Modèle'}</span><span class="info-val">${equip.model||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'رقم اللوحة':'N° Plaque'}</span><span class="info-val" dir="ltr">${equip.plate_number||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'الرقم التسلسلي':'N° Série'}</span><span class="info-val" dir="ltr">${equip.serial||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'تاريخ الشراء':'Date achat'}</span><span class="info-val">${equip.purchase_date||'—'}</span></div>
+  <div class="info-item"><span class="info-lbl">${isAr?'الصيانة القادمة':'Proch. maintenance'}</span><span class="info-val" style="color:${equip.next_maintenance&&new Date(equip.next_maintenance)<=new Date()?'#c0392b':'#1a1a1a'}">${equip.next_maintenance||'—'}</span></div>
+</div>
+<div class="gold-bar"></div>
+<div class="stat-row">
+  <div class="stat"><div class="stat-num">${logs.length}</div><div class="stat-lbl">${isAr?'إجمالي العمليات':'Total opérations'}</div></div>
+  <div class="stat"><div class="stat-num" style="font-size:1.1rem">${Number(totalCost).toLocaleString('fr-DZ')} ${isAr?'دج':'DA'}</div><div class="stat-lbl">${isAr?'إجمالي التكاليف':'Total coûts'}</div></div>
+  <div class="stat"><div class="stat-num">${logs.filter(l=>l.type==='maintenance').length}</div><div class="stat-lbl">${isAr?'مرات الصيانة':'Maintenances'}</div></div>
+</div>
+<table>
+  <thead><tr>
+    <th>${isAr?'التاريخ':'Date'}</th>
+    <th>${isAr?'نوع العملية':'Type'}</th>
+    <th>${isAr?'الملاحظة':'Note'}</th>
+    <th>${isAr?'المورد':'Fournisseur'}</th>
+    <th>${isAr?'التكلفة (دج)':'Coût (DA)'}</th>
+    <th>${isAr?'الصيانة القادمة':'Proch. maint.'}</th>
+  </tr></thead>
+  <tbody>
+    ${logs.map(l=>`<tr>
+      <td style="white-space:nowrap">${l.date}</td>
+      <td><span class="type-badge" style="background:${typeColors[l.type]||'#888'}">${typeLabels[l.type]||l.type}</span></td>
+      <td>${escHtml(l.note||'—')}</td>
+      <td>${escHtml(l.vendor||'—')}</td>
+      <td style="font-weight:700;font-family:monospace;text-align:center">${l.cost>0?Number(l.cost).toLocaleString('fr-DZ'):'—'}</td>
+      <td>${l.next_maintenance||'—'}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+<div class="footer">
+  <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme gestion BTP Algérie'}</span>
+  <span>${equip.name} | ${logs.length} ${isAr?'عملية':'opération(s)'}</span>
+</div>
+</body></html>`;
+
+  const win = window.open('','_blank','width=900,height=700');
+  if (!win) { Toast.error(L('السماح بالنوافذ مطلوب','Autorisez les popups')); return; }
+  win.document.write(html);
+  win.document.close();
 }
 
 function updateEquipStatus(id,status) {
+  if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لتعديل حالة المعدة','Permission refusée : équipement')); return; }
   const updEquip = DB.get('equipment').map(e=>e.id===id?{...e,status}:e);
   DB.set('equipment', updEquip);
   sbSync('equipment', {id, status}, 'PATCH').catch(()=>{});
@@ -8437,6 +12425,7 @@ function updateEquipStatus(id,status) {
 }
 
 function deleteEquip(id,name) {
+  if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لحذف المعدة','Permission refusée : équipement')); return; }
   if(!confirm(`حذف "${name}"؟`)) return;
   DB.set('equipment', DB.get('equipment').filter(e=>e.id!==id));
   sbSyncDelete('equipment', id).catch(()=>{});
@@ -8465,6 +12454,7 @@ function updateTxCats() {
 }
 
 function addTx() {
+  if (!canDo('write_transactions')) { Toast.error(L('ليس لديك صلاحية لإضافة معاملة مالية','Permission refusée : transaction')); return; }
   const amount=document.getElementById('txAmount')?.value;
   const desc=document.getElementById('txDesc')?.value?.trim();
   if (!validateForm([
@@ -8486,10 +12476,26 @@ function addTx() {
 }
 
 function deleteTx(id) {
-  if(!confirm('حذف هذه المعاملة؟')) return;
+  if (!canDo('write_transactions')) { Toast.error(L('ليس لديك صلاحية لحذف المعاملة','Permission refusée : transaction')); return; }
+  if(!confirm(L('حذف هذه المعاملة؟','Supprimer cette transaction ?'))) return;
+  const txToDelete = DB.get('transactions').find(t=>t.id===id);
   DB.set('transactions', DB.get('transactions').filter(t=>t.id!==id));
   sbSyncDelete('transactions', id).catch(()=>{});
-  Toast.success('تم حذف المعاملة'); App.navigate('transactions');
+  // ✅ إعادة حساب total_spent للمشروع إذا كانت المعاملة مصروفاً
+  if (txToDelete && txToDelete.type==='expense' && txToDelete.project_id) {
+    const pid = txToDelete.project_id;
+    const projs = DB.get('projects');
+    const pidx = projs.findIndex(p=>p.id===pid);
+    if (pidx>=0) {
+      projs[pidx].total_spent = DB.get('transactions')
+        .filter(t=>t.project_id===pid && t.type==='expense')
+        .reduce((s,t)=>s+Number(t.amount||0),0);
+      DB.set('projects', projs);
+      sbSync('projects', projs[pidx], 'PATCH').catch(()=>{});
+    }
+  }
+  Toast.success(L('تم حذف المعاملة','Transaction supprimée'));
+  App.navigate('transactions');
 }
 
 function saveAtt(wid, date, status) {
@@ -8521,12 +12527,14 @@ function saveAtt(wid, date, status) {
 }
 
 function saveAttHours(wid, date, hours) {
+  if (!canDo('write_attendance')) { Toast.error(L('ليس لديك صلاحية لتعديل ساعات الحضور','Permission refusée : présence')); return; }
   var att = DB.get('attendance');
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
   if (idx >= 0) { att[idx].hours = Number(hours); DB.set('attendance', att); sbSync('attendance', att[idx], 'PATCH').catch(()=>{}); }
 }
 
 function saveAttNote(wid, date, note) {
+  if (!canDo('write_attendance')) { Toast.error(L('ليس لديك صلاحية لتعديل ملاحظات الحضور','Permission refusée : présence')); return; }
   var att = DB.get('attendance');
   var idx = att.findIndex(function(a) { return a.worker_id === wid && a.date === date; });
   if (idx >= 0) {
@@ -8562,7 +12570,13 @@ function markAll(status) {
 function saveTenantSettings() {
 
   const tid=Auth.getUser().tenant_id;
-  const tenants=DB.get('tenants').map(t=>t.id===tid?{...t,name:document.getElementById('setName')?.value||t.name,wilaya:document.getElementById('setWilaya')?.value||t.wilaya,phone:document.getElementById('setPhone')?.value||t.phone,rc_number:document.getElementById('setRc')?.value||t.rc_number}:t);
+  const tenants=DB.get('tenants').map(t=>t.id===tid?{...t,
+    name:    document.getElementById('setName')?.value||t.name,
+    name_fr: document.getElementById('setNameFr')?.value||t.name_fr||'',
+    wilaya:  document.getElementById('setWilaya')?.value||t.wilaya,
+    phone:   document.getElementById('setPhone')?.value||t.phone,
+    rc_number: document.getElementById('setRc')?.value||t.rc_number
+  }:t);
   DB.set('tenants',tenants);
   const updTenant = tenants.find(t=>t.id===tid);
   if (updTenant) sbSync('tenants', updTenant, 'PATCH').catch(()=>{});
@@ -8573,11 +12587,14 @@ function saveTenantSettings() {
 function saveLegalSettings() {
 
   const tid=Auth.getUser().tenant_id;
+  const rc_number = document.getElementById('setRc')?.value||'';
   const nif = document.getElementById('setNif')?.value||'';
   const nis = document.getElementById('setNis')?.value||'';
+  const article_imp = document.getElementById('setArticleImp')?.value||'';
+  const rib = document.getElementById('setRib')?.value||'';
   const tva = document.getElementById('setTva')?.value||'19';
   const address = document.getElementById('setAddress')?.value||'';
-  const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, nif, nis, tva_rate: parseFloat(tva), address }:t);
+  const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, rc_number, nif, nis, article_imp, rib, tva_rate: parseFloat(tva), address }:t);
   DB.set('tenants', tenants);
   const updLegalTenant = tenants.find(t=>t.id===tid);
   if (updLegalTenant) sbSync('tenants', updLegalTenant, 'PATCH').catch(()=>{});
@@ -8658,6 +12675,18 @@ async function activateAccount(notifId, userId, tenantId) {
         if (r.ok) {
           const arr = await r.json();
           if (arr.length) tenant = arr[0];
+        }
+      } catch(_) {}
+    }
+
+    // ✅ اجلب الإشعار من Supabase للحصول على extra_data (كلمة المرور الأصلية)
+    let notifRecord = (DB.get('notifications')||[]).find(n => n.id === notifId);
+    if (!notifRecord || !notifRecord.extra_data) {
+      try {
+        const nR = await fetch(`${sbUrl}/rest/v1/notifications?id=eq.${notifId}&select=*`, { headers: sbH });
+        if (nR.ok) {
+          const arr = await nR.json();
+          if (arr.length) notifRecord = arr[0];
         }
       } catch(_) {}
     }
@@ -8760,10 +12789,20 @@ async function activateAccount(notifId, userId, tenantId) {
     // ── 7. إرسال إيميل التفعيل ──
     let emailOk = false;
     try {
+      // ✅ استخدام كلمة المرور الأصلية من extra_data (base64)
+      let plainPassword = '';
+      if (notifRecord?.extra_data) {
+        try {
+          plainPassword = decodeURIComponent(escape(atob(notifRecord.extra_data)));
+        } catch(_) { plainPassword = notifRecord.extra_data; }
+      }
+      // fallback: استخدم الـ hash إذا لم نجد الأصلية (المستخدم يحتاج إعادة تعيين)
+      const passwordToSend = plainPassword || '[يُرجى تسجيل الدخول وتغيير كلمة المرور]';
+
       emailOk = await EMAILJS.sendActivationEmail({
         email:     user.email,
         full_name: user.full_name,
-        password:  user.password,  // ⚠️ ملاحظة: مشفّرة الآن، الإيميل قد يحتاج كلمة المرور الأصلية
+        password:  passwordToSend,
         company:   tenant.name || ''
       });
     } catch(e) { console.warn('Email send failed:', e); }
@@ -8876,6 +12915,562 @@ async function toggleTenant(id) {
    يبحث عن المؤسسات التي لها نفس الاسم أو نفس الـ NIF/RC،
    ويُبقي على الأقدم (الأصلي) ويحذف النسخ المكررة من Supabase.
 ══════════════════════════════════════════════════════ */
+// ════════════════════════════════════════════════════════════════════
+// 🧹 حذف الحسابات التي ليس لديها بريد إلكتروني (admin only)
+// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+// 🛠️ مركز الإدارة المتقدمة — أدوات الأدمن الخطرة
+// ════════════════════════════════════════════════════════════════════
+
+function openAdminDangerModal() {
+  const modal = document.getElementById('adminDangerModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+// ① حذف الحسابات التجريبية المنتهية
+async function adminDeleteExpiredTrials() {
+  if (!confirm(L(
+    'سيُحذف كل حساب تجريبي انتهت صلاحيته ولم يشترك.\nهل أنت متأكد؟',
+    'Tous les essais expirés sans abonnement seront supprimés.\nConfirmer?'
+  ))) return;
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+  const today = new Date().toISOString().split('T')[0];
+  const tenants = DB.get('tenants');
+  const users   = DB.get('users');
+
+  const expired = tenants.filter(t =>
+    t.id !== 1 &&
+    t.subscription_status === 'trial' &&
+    t.trial_end && t.trial_end < today &&
+    !t.is_active
+  );
+
+  if (!expired.length) { Toast.info(L('لا توجد حسابات تجريبية منتهية','Aucun essai expiré')); return; }
+
+  let deleted = 0;
+  for (const t of expired) {
+    // حذف من Supabase
+    if (sbH) {
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`,  { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    deleted++;
+  }
+
+  // حذف محلي
+  const expiredIds = new Set(expired.map(t => t.id));
+  // ✅ blacklist
+  try {
+    const existing = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    const merged = [...new Set([...existing, ...expired.map(t => Number(t.id))])];
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(merged));
+  } catch(_) {}
+
+  DB.set('tenants', tenants.filter(t => !expiredIds.has(t.id)));
+  DB.set('users',   users.filter(u => !expiredIds.has(u.tenant_id)));
+  Toast.success(`✅ ${L('تم حذف','Supprimés:')} ${deleted} ${L('حساب تجريبي منتهٍ','essais expirés')}`);
+  document.getElementById('adminDangerModal').style.display = 'none';
+  App.navigate('admin');
+}
+
+// ② حذف الطلبات المعلقة القديمة
+async function adminDeletePendingOlderThan() {
+  const days = parseInt(document.getElementById('dangPendingDays')?.value) || 30;
+  if (!confirm(L(
+    `سيُحذف كل حساب معلّق (بانتظار التفعيل) منذ أكثر من ${days} يوم.\nهل أنت متأكد؟`,
+    `Tous les comptes en attente depuis plus de ${days} jours seront supprimés.\nConfirmer?`
+  ))) return;
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+  const tenants = DB.get('tenants');
+  const users   = DB.get('users');
+
+  const pending = tenants.filter(t =>
+    t.id !== 1 &&
+    !t.is_active &&
+    (t.subscription_status === 'pending' || !t.subscription_status) &&
+    t.created_at && t.created_at < cutoff
+  );
+
+  if (!pending.length) { Toast.info(L('لا توجد طلبات معلقة قديمة','Aucune demande ancienne')); return; }
+
+  let deleted = 0;
+  for (const t of pending) {
+    if (sbH) {
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${t.id}`,  { method:'DELETE', headers:sbH }).catch(()=>{});
+      await fetch(`${cfg.url}/rest/v1/notifications?tenant_id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    deleted++;
+  }
+
+  // ✅ blacklist
+  try {
+    const existing = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    const merged = [...new Set([...existing, ...pending.map(t => Number(t.id))])];
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(merged));
+  } catch(_) {}
+
+  const pendingIds = new Set(pending.map(t => t.id));
+  DB.set('tenants', tenants.filter(t => !pendingIds.has(t.id)));
+  DB.set('users',   users.filter(u => !pendingIds.has(u.tenant_id)));
+  Toast.success(`✅ ${L('تم حذف','Supprimés:')} ${deleted} ${L('طلب معلق قديم','demandes anciennes')}`);
+  document.getElementById('adminDangerModal').style.display = 'none';
+  App.navigate('admin');
+}
+
+// ③ حذف مؤسسة واحدة محددة
+async function adminDeleteSingleTenant() {
+  const tid = parseInt(document.getElementById('dangSelectTenant')?.value);
+  const delSb = document.getElementById('dangDeleteSb')?.checked;
+  if (!tid) { Toast.error(L('اختر مؤسسة أولاً','Sélectionner une entreprise')); return; }
+  if (tid === 1) { Toast.error(L('لا يمكن حذف المؤسسة التجريبية','Impossible de supprimer la démo')); return; }
+
+  const tenants = DB.get('tenants');
+  const tenant  = tenants.find(t => t.id === tid);
+  if (!tenant) { Toast.error(L('المؤسسة غير موجودة','Entreprise introuvable')); return; }
+
+  if (!confirm(L(
+    `سيُحذف "${tenant.name}" وكل بياناتها (عمال، مشاريع، فواتير...).\nهذا لا يمكن التراجع عنه!\nاكتب "حذف" للتأكيد في المربع القادم.`,
+    `"${tenant.name}" et toutes ses données seront supprimées.\nIrréversible! Confirmez en tapant "supprimer".`
+  ))) return;
+
+  const confirm2 = prompt(L(`اكتب "حذف" للتأكيد:`, `Tapez "supprimer" pour confirmer:`));
+  if (confirm2 !== 'حذف' && confirm2 !== 'supprimer') { Toast.error(L('تم إلغاء العملية','Opération annulée')); return; }
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+
+  if (delSb && sbH) {
+    // حذف كل بيانات المؤسسة من Supabase (يُطبَّق CASCADE تلقائياً)
+    const tables = ['transactions','workers','projects','equipment','materials','invoices','attendance','salary_records','documents','notifications','kanban_tasks'];
+    for (const tbl of tables) {
+      await fetch(`${cfg.url}/rest/v1/${tbl}?tenant_id=eq.${tid}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${tid}`,   { method:'DELETE', headers:sbH }).catch(()=>{});
+    await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tid}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+  }
+
+  // حذف محلي
+  const keys = ['projects','workers','equipment','transactions','attendance','salary_records','materials','invoices','documents','kanban_tasks'];
+  keys.forEach(k => DB.set(k, (DB.get(k)||[]).filter(r => r.tenant_id !== tid)));
+  DB.set('users',   (DB.get('users')||[]).filter(u => u.tenant_id !== tid));
+  DB.set('tenants', tenants.filter(t => t.id !== tid));
+  DB.set('notifications', (DB.get('notifications')||[]).filter(n => n.tenant_id !== tid));
+
+  // ✅ حفظ ID المحذوف في blacklist
+  try {
+    const existingDeleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    if (!existingDeleted.includes(Number(tid))) existingDeleted.push(Number(tid));
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(existingDeleted));
+  } catch(_) {}
+
+  Toast.success(`✅ ${L('تم حذف مؤسسة','Entreprise supprimée:')} "${tenant.name}"`);
+  sessionStorage.setItem('admin_skip_pull', '3');
+  document.getElementById('adminDangerModal').style.display = 'none';
+  App.navigate('admin');
+}
+
+// ④ مسح جميع الحسابات (الخيار النووي)
+async function adminNukeAllAccounts() {
+  const keepDemo  = document.getElementById('dangKeepTrial')?.checked !== false;
+  const deleteSb  = document.getElementById('dangDeleteSbAll')?.checked !== false;
+
+  const confirm1 = confirm(L(
+    `⚠️ خطر شديد!\nسيُحذف كل المؤسسات ${keepDemo?'(ماعدا ID=1)':''} وجميع بياناتها من localStorage${deleteSb?' ومن Supabase':''}\n\nهذا لا يمكن التراجع عنه نهائياً!\nهل أنت متأكد 100%؟`,
+    `⚠️ DANGER!\nTous les comptes ${keepDemo?'(sauf ID=1)':''} et données seront supprimés.\n\nConfirmer?`
+  ));
+  if (!confirm1) return;
+
+  const confirm2 = prompt(L('اكتب "امسح كل شيء" للتأكيد النهائي:', 'Tapez "effacer tout" pour confirmer:'));
+  if (confirm2 !== 'امسح كل شيء' && confirm2 !== 'effacer tout') {
+    Toast.error(L('تم إلغاء العملية','Opération annulée'));
+    return;
+  }
+
+  Toast.info(L('⏳ جاري المسح...','⏳ Suppression en cours...'));
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}` } : null;
+
+  const tenants = DB.get('tenants');
+  const toDelete = tenants.filter(t => keepDemo ? t.id !== 1 : true);
+
+  if (deleteSb && sbH) {
+    for (const t of toDelete) {
+      const tables = ['transactions','workers','projects','equipment','materials','invoices',
+                      'attendance','salary_records','documents','notifications','kanban_tasks'];
+      for (const tbl of tables) {
+        await fetch(`${cfg.url}/rest/v1/${tbl}?tenant_id=eq.${t.id}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+      }
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${t.id}`,   { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+    // حذف المؤسسات
+    const idsToDelete = toDelete.map(t => t.id);
+    for (const tid of idsToDelete) {
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tid}`, { method:'DELETE', headers:sbH }).catch(()=>{});
+    }
+  }
+
+  // حذف محلي
+  const keepIds = keepDemo ? new Set([1]) : new Set();
+  const allTables = ['projects','workers','equipment','transactions','attendance','salary_records','materials','invoices','documents','kanban_tasks','notifications'];
+  allTables.forEach(k => {
+    const kept = (DB.get(k)||[]).filter(r => keepIds.has(r.tenant_id));
+    DB.set(k, kept);
+  });
+  DB.set('users',   (DB.get('users')||[]).filter(u => keepIds.has(u.tenant_id) || u.is_admin));
+  DB.set('tenants', (DB.get('tenants')||[]).filter(t => keepIds.has(t.id)));
+
+  // ✅ تنظيف offline queue من عمليات المؤسسة المحذوفة
+  function _cleanQueueForTenant(tenantIds) {
+    try {
+      const QUEUE_KEY = 'sbtp5_offline_queue';
+      const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+      const ids = tenantIds.map(Number);
+      const cleaned = q.filter(op => {
+        const tid = op.record?.tenant_id || (op.table === 'tenants' ? op.record?.id : null);
+        return !tid || !ids.includes(Number(tid));
+      });
+      if (cleaned.length < q.length) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(cleaned));
+        console.log(`🛡️ cleanQueue: حُذفت ${q.length - cleaned.length} عملية معلقة`);
+      }
+    } catch(_) {}
+  }
+
+  // ✅ حفظ IDs المحذوفة في blacklist لمنع SmartRealtime من إعادتها
+  try {
+    const existingDeleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    const newDeleted = toDelete.map(t => Number(t.id));
+    const mergedDeleted = [...new Set([...existingDeleted, ...newDeleted])];
+    localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(mergedDeleted));
+  } catch(_) {}
+
+  Toast.success(`✅ ${L('تم المسح','Effacé')}: ${toDelete.length} ${L('مؤسسة','entreprise(s)')}`);
+  // ✅ منع Pages.admin من إعادة جلب البيانات من Supabase في الـ render القادم
+  sessionStorage.setItem('admin_skip_pull', '3'); // تجاهل 3 renders قادمة
+  document.getElementById('adminDangerModal').style.display = 'none';
+  setTimeout(() => App.navigate('admin'), 800);
+}
+
+// ⑤ تصدير كل البيانات كـ JSON
+// ── طباعة تقرير مؤسسة من لوحة الأدمن ──
+function printTenantReport(tenantId) {
+  const tenants = DB.get('tenants') || [];
+  const tenant  = tenants.find(t => t.id === tenantId);
+  if (!tenant) { Toast.error('المؤسسة غير موجودة'); return; }
+
+  const users    = (DB.get('users')    || []).filter(u => u.tenant_id === tenantId);
+  const projects = (DB.get('projects') || []).filter(p => p.tenant_id === tenantId);
+  const workers  = (DB.get('workers')  || []).filter(w => w.tenant_id === tenantId);
+  const txs      = (DB.get('transactions') || []).filter(t => t.tenant_id === tenantId);
+  const invoices = (DB.get('invoices') || []).filter(i => i.tenant_id === tenantId);
+  const revenue  = txs.filter(t => t.type==='revenue').reduce((s,t) => s+Number(t.amount), 0);
+  const expense  = txs.filter(t => t.type==='expense').reduce((s,t) => s+Number(t.amount), 0);
+  const ps       = getPrintSettings ? getPrintSettings() : {};
+  const _ic      = ps.accentColor || '#B8902F';
+  const _if      = ps.fontFamily  || 'Cairo';
+  const fmt      = n => Number(n||0).toLocaleString('ar-DZ');
+  const now      = new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'});
+
+  const planNames = {1:'المبتدئ',2:'الاحترافي',3:'المؤسسي'};
+  const subBadge  = tenant.subscription_status === 'active' ? '#34C38F'
+                  : tenant.subscription_status === 'trial'  ? '#E8B84B' : '#F04E6A';
+  const subLabel  = tenant.subscription_status === 'active' ? '✅ نشط'
+                  : tenant.subscription_status === 'trial'  ? '⏳ تجريبي' : '⛔ منتهي';
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8">
+<title>تقرير مؤسسة — ${escHtml(tenant.name)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${_if}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;direction:rtl}
+.no-print{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.tb{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_if}',Arial,sans-serif}
+.page{background:#fff;max-width:820px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.hdr{background:#fff;border-bottom:3px solid ${_ic};padding:24px 32px;display:flex;justify-content:space-between;align-items:center}
+.kpi{background:#fafaf7;border:1px solid #e8e0cc;border-radius:8px;padding:14px 16px;text-align:center;flex:1}
+.kpi-v{font-size:18px;font-weight:900;font-family:monospace}
+.kpi-l{font-size:10px;color:#888;margin-bottom:4px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:${_ic};color:#fff;padding:8px 12px;text-align:right}
+tbody td{padding:7px 12px;border-bottom:1px solid #f5f0e8}
+tbody tr:nth-child(odd) td{background:#fafaf7}
+.footer-bar{background:#f8f5ee;border-top:2px solid ${_ic};padding:10px 32px;display:flex;justify-content:space-between;font-size:10px;color:#666}
+@media print{.no-print{display:none!important}body{background:#fff}.page{box-shadow:none;max-width:100%}@page{margin:12mm}}
+</style></head>
+<body>
+<div class="no-print">
+  <button class="tb" style="background:${_ic};color:#fff" onclick="window.print()">🖨️ طباعة / PDF</button>
+  <button class="tb" style="background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='Tenant_${tenantId}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 حفظ على الحاسوب</button>
+  <button class="tb" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="window.close()">✕ إغلاق</button>
+</div>
+<div style="margin-top:52px;padding:20px;background:#e8eaed">
+<div class="page">
+  <div class="hdr">
+    <div>
+      <div style="font-size:20px;font-weight:900;color:${_ic}">▦ SmartStruct — تقرير مؤسسة</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">الأدمن · ${now}</div>
+    </div>
+    <div style="text-align:left">
+      <div style="font-size:16px;font-weight:900">${escHtml(tenant.name)}</div>
+      <span style="background:${subBadge}22;border:1px solid ${subBadge}55;color:${subBadge};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">${subLabel}</span>
+    </div>
+  </div>
+
+  <div style="padding:20px 32px;display:flex;gap:10px;flex-wrap:wrap">
+    <div class="kpi"><div class="kpi-l">الخطة</div><div class="kpi-v" style="color:${_ic}">${planNames[tenant.plan_id]||'—'}</div></div>
+    <div class="kpi"><div class="kpi-l">المشاريع</div><div class="kpi-v">${projects.length}</div></div>
+    <div class="kpi"><div class="kpi-l">العمال</div><div class="kpi-v">${workers.length}</div></div>
+    <div class="kpi"><div class="kpi-l">الإيرادات</div><div class="kpi-v" style="color:#0a6e3f">${fmt(revenue)}</div></div>
+    <div class="kpi"><div class="kpi-l">المصاريف</div><div class="kpi-v" style="color:#c0392b">${fmt(expense)}</div></div>
+    <div class="kpi"><div class="kpi-l">الفواتير</div><div class="kpi-v">${invoices.length}</div></div>
+  </div>
+
+  <div style="padding:0 32px 20px">
+    <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:10px">معلومات المؤسسة</div>
+    <table>
+      <tbody>
+        ${[['الولاية',tenant.wilaya],['الهاتف',tenant.phone],['NIF',tenant.nif],['NIS',tenant.nis],
+           ['RC',tenant.rc_number],['البريد',tenant.email],['تاريخ التجربة',tenant.trial_end],
+           ['انتهاء الاشتراك',tenant.subscription_end]].filter(([k,v])=>v).map(([k,v])=>`
+        <tr><td style="font-weight:700;width:150px">${k}</td><td>${escHtml(String(v))}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  ${projects.length ? `
+  <div style="padding:0 32px 20px">
+    <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:10px">المشاريع (${projects.length})</div>
+    <table>
+      <thead><tr><th>اسم المشروع</th><th style="text-align:center">الميزانية</th><th style="text-align:center">الإنجاز</th><th style="text-align:center">الحالة</th></tr></thead>
+      <tbody>
+        ${projects.map(p=>`<tr>
+          <td>${escHtml(p.name)}</td>
+          <td style="text-align:center;font-family:monospace">${fmt(p.budget)} دج</td>
+          <td style="text-align:center">${p.progress||0}%</td>
+          <td style="text-align:center">${p.status==='active'?'🟢 نشط':p.status==='completed'?'✅ مكتمل':'⏸ متوقف'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  <div class="footer-bar">
+    <span>SmartStruct Admin — تقرير مؤسسة</span>
+    <span style="color:${_ic}">ID: ${tenantId} | ${now}</span>
+  </div>
+</div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { Toast.error('السماح بالنوافذ المنبثقة'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `تقرير — ${tenant.name}`;
+}
+
+function adminExportAllData() {
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    Toast.error(L('المتصفح لا يدعم التصدير','Export non supporté'));
+    return;
+  }
+  const allKeys = [
+    'plans','tenants','users',
+    'projects','workers','equipment','equipment_logs',
+    'transactions','invoices','salary_records','bank_transactions',
+    'attendance','materials','stock_movements',
+    'documents','kanban_tasks','notifications','obligations','notes',
+    'leave_requests','worker_warnings','worker_overtime',
+    'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+    'ai_conversations','signatures','tenders','tender_offers',
+    'equipment_locations','custom_roles','global_settings'
+  ];
+  const exportData = {};
+  allKeys.forEach(k => { exportData[k] = DB.get(k) || []; });
+  exportData._meta = { exported_at: new Date().toISOString(), app: 'SmartStruct', version: '7.4', type: 'admin_full' };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `SmartStruct_Backup_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  Toast.success(L('✅ تم تصدير النسخة الاحتياطية','✅ Sauvegarde exportée'));
+}
+
+// ⑥ إعادة تعيين كلمة مرور مؤسسة
+async function adminResetTenantPassword() {
+  const tid  = parseInt(document.getElementById('dangResetTenant')?.value);
+  const pass = document.getElementById('dangNewPass')?.value?.trim();
+  if (!tid)  { Toast.error(L('اختر مؤسسة','Sélectionner entreprise')); return; }
+  if (!pass || pass.length < 4) { Toast.error(L('كلمة المرور قصيرة جداً (4 أحرف على الأقل)','MDP trop court (4 car min)')); return; }
+
+  const cfg = typeof getSupabaseConfig === 'function' ? getSupabaseConfig() : null;
+  const sbH = cfg?.url ? { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}`,'Prefer':'return=minimal' } : null;
+
+  let hashed = pass;
+  try { if (typeof SmartCrypto !== 'undefined') hashed = await SmartCrypto.hash(pass); } catch(_) {}
+
+  const users = DB.get('users');
+  const idx = users.findIndex(u => u.tenant_id === tid && !u.is_admin);
+  if (idx < 0) { Toast.error(L('لم أجد مستخدم لهذه المؤسسة','Utilisateur introuvable')); return; }
+  users[idx].password = hashed;
+  DB.set('users', users);
+
+  if (sbH) {
+    await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${tid}&is_admin=is.false`, {
+      method: 'PATCH', headers: sbH, body: JSON.stringify({ password: hashed })
+    }).catch(()=>{});
+  }
+
+  const tenantName = DB.get('tenants').find(t => t.id === tid)?.name || '';
+  // إرسال إيميل للمستخدم إذا أمكن
+  try {
+    if (typeof EMAILJS !== 'undefined') {
+      await EMAILJS.sendNewPassword({ email: users[idx].email, full_name: users[idx].full_name }, pass);
+    }
+  } catch(_) {}
+
+  Toast.success(`✅ ${L('تم تعيين كلمة المرور لـ','MDP défini pour')} "${tenantName}"`);
+  if (document.getElementById('dangNewPass')) document.getElementById('dangNewPass').value = '';
+}
+
+async function cleanupAccountsWithoutEmail() {
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  const sbConnected = cfg?.url && cfg?.key;
+  const sbH = sbConnected ? {
+    'Content-Type':'application/json',
+    'apikey': cfg.key,
+    'Authorization': `Bearer ${cfg.key}`,
+    'Prefer':'return=representation'
+  } : null;
+
+  Toast.info('🔍 جاري البحث عن الحسابات بدون بريد...');
+
+  try {
+    // ① حسابات بدون email في localStorage
+    const localUsers = (DB.get('users') || []).filter(u => !u.is_admin); // استثناء الأدمن
+    const noEmailUsers = localUsers.filter(u => !u.email || !u.email.trim() || u.email === 'null');
+
+    // ② حسابات بدون email في Supabase
+    let remoteNoEmail = [];
+    let remoteOrphanTenants = [];
+    if (sbConnected) {
+      try {
+        const uRes = await fetch(`${cfg.url}/rest/v1/users?select=*&is_admin=is.false`, { headers: sbH });
+        if (uRes.ok) {
+          const allRemote = await uRes.json();
+          remoteNoEmail = allRemote.filter(u => !u.email || !u.email.trim());
+        }
+        // المؤسسات التي ليس لديها أي مستخدم (يتيمة)
+        const tRes = await fetch(`${cfg.url}/rest/v1/tenants?select=*&id=gt.2`, { headers: sbH });
+        if (tRes.ok) {
+          const allTenants = await tRes.json();
+          const usedTids = new Set((await (await fetch(`${cfg.url}/rest/v1/users?select=tenant_id`, { headers: sbH })).json()).map(u => u.tenant_id));
+          remoteOrphanTenants = allTenants.filter(t => !usedTids.has(t.id));
+        }
+      } catch (e) {
+        console.warn('[cleanup] Supabase fetch failed:', e.message);
+      }
+    }
+
+    const totalToDelete = noEmailUsers.length + remoteNoEmail.length + remoteOrphanTenants.length;
+    if (!totalToDelete) {
+      Toast.success(L('✅ لا توجد حسابات بلا بريد إلكتروني','✅ Aucun compte sans email'));
+      return;
+    }
+
+    // ③ تأكيد المستخدم
+    const msg = L(
+      `هل تريد حذف ${noEmailUsers.length + remoteNoEmail.length} حساب بدون بريد + ${remoteOrphanTenants.length} مؤسسة يتيمة؟\n\n⚠️ هذا الإجراء نهائي ولا يمكن التراجع عنه.`,
+      `Supprimer ${noEmailUsers.length + remoteNoEmail.length} compte(s) sans email + ${remoteOrphanTenants.length} entreprise(s) orpheline(s) ?\n\n⚠️ Cette action est irréversible.`
+    );
+    if (!confirm(msg)) {
+      Toast.info(L('تم الإلغاء','Annulé'));
+      return;
+    }
+
+    let deletedLocal = 0, deletedRemote = 0, deletedTenants = 0;
+    const tenantsToDelete = new Set();
+
+    // ④ حذف من localStorage + جمع tenant_ids
+    if (noEmailUsers.length > 0) {
+      const remainingUsers = (DB.get('users') || []).filter(u => {
+        if (u.is_admin) return true;
+        if (!u.email || !u.email.trim() || u.email === 'null') {
+          if (u.tenant_id) tenantsToDelete.add(u.tenant_id);
+          deletedLocal++;
+          return false;
+        }
+        return true;
+      });
+      DB.set('users', remainingUsers);
+    }
+
+    // ⑤ حذف من Supabase
+    if (sbConnected) {
+      for (const u of remoteNoEmail) {
+        try {
+          await fetch(`${cfg.url}/rest/v1/users?id=eq.${u.id}`, { method:'DELETE', headers: sbH });
+          if (u.tenant_id) tenantsToDelete.add(u.tenant_id);
+          deletedRemote++;
+        } catch(e) { console.warn('[cleanup] delete user failed:', u.id); }
+      }
+      // حذف المؤسسات اليتيمة
+      for (const t of remoteOrphanTenants) {
+        try {
+          await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${t.id}`, { method:'DELETE', headers: sbH });
+          deletedTenants++;
+        } catch(e) { console.warn('[cleanup] delete tenant failed:', t.id); }
+      }
+      // حذف المؤسسات المرتبطة بالحسابات المحذوفة
+      for (const tid of tenantsToDelete) {
+        if (tid > 2) {  // حماية افتراضي
+          try {
+            // التحقق أن المؤسسة فعلاً لا يوجد بها مستخدم آخر
+            const check = await fetch(`${cfg.url}/rest/v1/users?select=id&tenant_id=eq.${tid}&limit=1`, { headers: sbH });
+            const rest = check.ok ? await check.json() : [];
+            if (rest.length === 0) {
+              await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tid}`, { method:'DELETE', headers: sbH });
+              deletedTenants++;
+            }
+          } catch(e) {}
+        }
+      }
+      // حذف من localStorage tenants أيضاً
+      const remTenants = (DB.get('tenants') || []).filter(t => !tenantsToDelete.has(t.id) || t.id <= 2);
+      DB.set('tenants', remTenants);
+    }
+
+    // ⑥ سجل audit
+    if (typeof addAuditLog === 'function') {
+      addAuditLog(L(`تنظيف: ${deletedLocal + deletedRemote} حساب + ${deletedTenants} مؤسسة محذوفة`,
+                    `Nettoyage: ${deletedLocal + deletedRemote} compte(s) + ${deletedTenants} entreprise(s) supprimés`),
+                  { icon: '🧹' });
+    }
+
+    Toast.success(L(
+      `✅ تم حذف ${deletedLocal + deletedRemote} حساب و ${deletedTenants} مؤسسة`,
+      `✅ ${deletedLocal + deletedRemote} compte(s) et ${deletedTenants} entreprise(s) supprimés`
+    ));
+
+    // إعادة تحميل الصفحة
+    setTimeout(() => App.navigate('admin'), 800);
+  } catch (e) {
+    console.error('[cleanupAccountsWithoutEmail]', e);
+    Toast.error(L('❌ فشل التنظيف: ','❌ Échec: ') + e.message);
+  }
+}
+
 async function cleanupDuplicateTenants() {
   const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
   if (!cfg?.url || !cfg?.key) {
@@ -9074,11 +13669,29 @@ async function deleteTenantAccount(tenantId){
   depTables.forEach(tbl => { try { backup[tbl] = [...(DB.get(tbl) || [])]; } catch{} });
 
   // ── حذف من Supabase أولاً (مصدر الحقيقة) ──
+  // استخدام SupabaseClient المُهيَّأ (يملك الصلاحيات الصحيحة)
+  const sbClient = (typeof SupabaseClient !== 'undefined') ? SupabaseClient : null;
   const sbH = {
     'Content-Type':'application/json',
     'apikey': sbKey,
     'Authorization': `Bearer ${sbKey}`,
     'Prefer': 'return=minimal'
+  };
+
+  const _sbDelete = async (table, filter) => {
+    // استخدام SupabaseClient.delete إذا كان متاحاً
+    if (sbClient && sbClient.delete) {
+      try {
+        await sbClient.delete(table, filter);
+        return true;
+      } catch(e) {
+        console.warn(`⚠️ sbClient.delete ${table}:`, e.message);
+      }
+    }
+    // fallback: fetch مباشر
+    const params = Object.entries(filter).map(([k,v]) => `${k}=eq.${v}`).join('&');
+    const res = await fetch(`${sbUrl}/rest/v1/${table}?${params}`, { method: 'DELETE', headers: sbH });
+    return res.ok || res.status === 404 || res.status === 406;
   };
 
   // الترتيب مهم: الجداول الفرعية أولاً ثم الأم
@@ -9096,37 +13709,32 @@ async function deleteTenantAccount(tenantId){
 
   for (const tbl of sbDepTables) {
     try {
-      const res = await fetch(
-        `${sbUrl}/rest/v1/${tbl}?tenant_id=eq.${tid}`,
-        { method: 'DELETE', headers: sbH }
-      );
-      if (!res.ok) {
-        const errText = await res.text().catch(()=> '');
-        // 404 / 406 مقبولة (الجدول قد يكون فارغاً)
-        if (res.status !== 404 && res.status !== 406) {
-          console.warn(`⚠️ حذف ${tbl} من Supabase فشل (${res.status}):`, errText);
-          failures.push(`${tbl}: HTTP ${res.status}`);
-        }
-      } else {
+      const ok = await _sbDelete(tbl, { tenant_id: tid });
+      if (ok) {
         console.log(`✅ حُذف من ${tbl} (tenant_id=${tid})`);
+      } else {
+        failures.push(`${tbl}: فشل`);
       }
       progress++;
     } catch(e) {
-      console.warn(`⚠️ حذف ${tbl} من Supabase فشل:`, e.message);
+      console.warn(`⚠️ حذف ${tbl} فشل:`, e.message);
       failures.push(`${tbl}: ${e.message}`);
     }
   }
 
+  // ✅ سجّل ID المؤسسة كمحذوفة فوراً — يمنع أي مزامنة لها لاحقاً
+  try {
+    const existDel = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+    if (!existDel.includes(tid)) {
+      existDel.push(tid);
+      localStorage.setItem('sbtp_deleted_tenant_ids', JSON.stringify(existDel));
+    }
+  } catch{}
+
   // ── حذف المؤسسة نفسها ──
   try {
-    const res = await fetch(
-      `${sbUrl}/rest/v1/tenants?id=eq.${tid}`,
-      { method: 'DELETE', headers: sbH }
-    );
-    if (!res.ok) {
-      const errText = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status} — ${errText}`);
-    }
+    const ok = await _sbDelete('tenants', { id: tid });
+    if (!ok) throw new Error('فشل حذف المؤسسة');
     console.log(`✅ حُذفت المؤسسة #${tid} من Supabase`);
   } catch(e) {
     // فشل حذف المؤسسة الأم — أعد الاسترجاع
@@ -9136,22 +13744,27 @@ async function deleteTenantAccount(tenantId){
     return;
   }
 
-  // ── نجح الحذف من Supabase → احذف محلياً أيضاً ──
-  DB.set('tenants', tenants.filter(x => x.id !== tid));
+  // ── نجح الحذف من Supabase → احذف محلياً نهائياً ──
+  // استخدم setSilent لمنع إعادة رفع الحذف إلى Supabase
+  const setSilentFn = (typeof DB.setSilent === 'function') ? DB.setSilent.bind(DB) : DB.set.bind(DB);
+  setSilentFn('tenants', tenants.filter(x => x.id !== tid));
   depTables.forEach(tbl => {
     try {
       const arr = DB.get(tbl);
-      if (Array.isArray(arr)) DB.set(tbl, arr.filter(r => r.tenant_id !== tid));
+      if (Array.isArray(arr)) setSilentFn(tbl, arr.filter(r => r.tenant_id !== tid));
     } catch{}
   });
 
   // ── إزالة عمليات معلّقة في Offline Queue تخص هذه المؤسسة ──
+  // (مهم: بدونه قد تُعاد المؤسسة المحذوفة عند مزامنة الـ queue)
   try {
     const Q_KEY = 'sbtp5_offline_queue';
     const q = JSON.parse(localStorage.getItem(Q_KEY) || '[]');
     const filtered = q.filter(op => {
       const recTid = op?.record?.tenant_id;
-      return recTid !== tid;
+      const recId  = op?.record?.id;
+      // احذف أي عملية تخص هذه المؤسسة أو تنشئها من جديد
+      return recTid !== tid && !(op?.table === 'tenants' && recId === tid);
     });
     localStorage.setItem(Q_KEY, JSON.stringify(filtered));
     if (typeof DBHybrid !== 'undefined' && DBHybrid._updateAdminSyncUI) {
@@ -9337,7 +13950,7 @@ function openSubInvoicesModal(tenantId) {
           </div>
           <div class="form-group">
             <label class="form-label">${L('المبلغ (دج)','Montant (DA)')}</label>
-            <input class="form-input" id="subInvAmount" type="number" min="0" placeholder="7900" value="">
+            <input class="form-input" id="subInvAmount" type="number" min="0" step="1" inputmode="numeric" placeholder="7900" value="">
           </div>
           <div class="form-group">
             <label class="form-label">${L('بداية الفترة','Début période')}</label>
@@ -9378,6 +13991,12 @@ function openSubInvoicesModal(tenantId) {
 // مزامنة لوحة الأدمن من Supabase (تُستدعى يدوياً)
 // ══════════════════════════════════════════════════════
 async function syncAdminFromSupabase() {
+  // ⚠️ إذا كانت عملية حذف انتهت للتو، لا تُزامن (لتجنب رجوع البيانات)
+  const skipCount = parseInt(sessionStorage.getItem('admin_skip_pull') || '0');
+  if (skipCount > 0) {
+    Toast.warn(L('⚠️ تعذّر التحديث — تم حذف بيانات للتو. انتظر قليلاً ثم أعد المحاولة.','⚠️ Synchronisation bloquée après suppression. Réessayez dans un moment.'));
+    return;
+  }
   const btn = document.getElementById('syncAdminBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التحديث...'; }
 
@@ -9393,15 +14012,17 @@ async function syncAdminFromSupabase() {
     }
     const h = { 'apikey': sbCfg.anonKey, 'Authorization': `Bearer ${sbCfg.anonKey}` };
 
+    // ✅ Supabase هو مصدر الحقيقة — استبدل المحلي بالبيانات من السحابة
+    // (لا دمج، لأن الدمج يعيد الحسابات المحذوفة)
+
     // جلب المؤسسات
     const tResp = await fetch(`${sbCfg.url}/rest/v1/tenants?order=id.asc`, { headers: h });
     if (tResp.ok) {
       const sbTenants = await tResp.json();
       if (sbTenants.length) {
-        const local = DB.get('tenants');
-        const merged = [...sbTenants];
-        local.forEach(lt => { if (!merged.find(st => st.id === lt.id)) merged.push(lt); });
-        DB.set('tenants', merged);
+        // استبدل المحلي مباشرةً — لا دمج
+        if (typeof DB.setSilent === 'function') DB.setSilent('tenants', sbTenants);
+        else DB.set('tenants', sbTenants);
       }
     }
     // جلب المستخدمين
@@ -9409,10 +14030,8 @@ async function syncAdminFromSupabase() {
     if (uResp.ok) {
       const sbUsers = await uResp.json();
       if (sbUsers.length) {
-        const local = DB.get('users');
-        const merged = [...sbUsers];
-        local.forEach(lu => { if (!merged.find(su => su.id === lu.id)) merged.push(lu); });
-        DB.set('users', merged);
+        if (typeof DB.setSilent === 'function') DB.setSilent('users', sbUsers);
+        else DB.set('users', sbUsers);
       }
     }
     // جلب الإشعارات
@@ -9420,10 +14039,9 @@ async function syncAdminFromSupabase() {
     if (nResp.ok) {
       const sbNotifs = await nResp.json();
       if (sbNotifs.length) {
-        const local = DB.get('notifications') || [];
-        const merged = [...sbNotifs];
-        local.forEach(ln => { if (!merged.find(sn => sn.id === ln.id)) merged.push(ln); });
-        DB.set('notifications', merged.sort((a,b) => new Date(b.date||0)-new Date(a.date||0)));
+        const sorted = sbNotifs.sort((a,b) => new Date(b.date||0)-new Date(a.date||0));
+        if (typeof DB.setSilent === 'function') DB.setSilent('notifications', sorted);
+        else DB.set('notifications', sorted);
       }
     }
 
@@ -9832,12 +14450,45 @@ function downloadUpdatedHTML(apiKey, provider, model) {
   }
 }
 
-function dismissNotif(notifId) {
+async function dismissNotif(notifId) {
   const notifs = DB.get('notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
-  DB.set('notifications', notifs);
+  if (ni < 0) { App.navigate('admin'); return; }
+
+  // ① تحديث Supabase
+  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+  if (cfg?.url && cfg?.key) {
+    try {
+      await fetch(`${cfg.url}/rest/v1/notifications?id=eq.${notifId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type':'application/json',
+          'apikey': cfg.key,
+          'Authorization': `Bearer ${cfg.key}`,
+          'Prefer':'return=minimal'
+        },
+        body: JSON.stringify({ read: true, status: 'dismissed' })
+      });
+    } catch(e) { console.warn('dismissNotif Supabase failed:', e); }
+  }
+
+  // ② تحديث محلي
+  notifs[ni].read   = true;
+  notifs[ni].status = 'dismissed';
+  if (typeof DB.setSilent === 'function') DB.setSilent('notifications', notifs);
+  else DB.set('notifications', notifs);
+
+  Toast.success(L('✓ تم إخفاء الإشعار','✓ Notification masquée'));
   App.navigate('admin');
+  setTimeout(() => { try { switchAdminTab('notif'); } catch(_){} }, 300);
+}
+
+// ✅ فتح صفحة الأدمن مباشرةً على تبويب الإشعارات
+function openAdminNotifTab() {
+  App.navigate('admin');
+  setTimeout(() => {
+    try { switchAdminTab('notif'); } catch(_) {}
+  }, 400);
 }
 
 // ── موافقة المسؤول على طلب الترقية ──
@@ -9996,11 +14647,180 @@ async function testEmailJS(event) {
 
 
 /* ══════════════════════════════════════════════════════
+   SUPABASE NOTIFICATIONS — عرض الإشعارات الواردة من Supabase
+   يعمل مع الـ Realtime pull ويعرضها كـ Toast فور وصولها
+══════════════════════════════════════════════════════ */
+const NotificationWatcher = {
+  _seenIds:  new Set(JSON.parse(localStorage.getItem('sbtp_seen_notif_ids') || '[]')),
+  _interval: null,
+  _lastCount: 0,
+
+  start() {
+    if (this._interval) return;
+    // فحص كل 8 ثوانٍ
+    this._interval = setInterval(() => this._check(), 8000);
+    // فحص فوري بعد ثانيتين من بدء التشغيل
+    setTimeout(() => this._check(), 2000);
+    // استمع لأحداث الـ Realtime القادمة من supabase-db.js
+    document.addEventListener('smartsync', () => setTimeout(() => this._check(), 500));
+    console.log('🔔 NotificationWatcher بدأ');
+  },
+
+  stop() {
+    if (this._interval) { clearInterval(this._interval); this._interval = null; }
+  },
+
+  _check() {
+    const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
+    if (!user) return;
+
+    const allNotifs = (DB.get('notifications') || []);
+    // الإشعارات المخصصة لهذا المستخدم أو لمؤسسته أو العامة
+    const myNotifs = allNotifs.filter(n =>
+      (!n.user_id || n.user_id === user.id) &&
+      (!n.tenant_id || n.tenant_id === user.tenant_id)
+    );
+
+    // اكتشاف الإشعارات الجديدة
+    const newNotifs = myNotifs.filter(n => !this._seenIds.has(String(n.id)));
+    if (!newNotifs.length) return;
+
+    newNotifs.forEach(n => {
+      this._seenIds.add(String(n.id));
+      this._showNotif(n);
+    });
+
+    // حفظ IDs المُشاهَدة (أبقِ آخر 200 فقط لتجنب تضخم localStorage)
+    const idsArr = [...this._seenIds].slice(-200);
+    this._seenIds = new Set(idsArr);
+    localStorage.setItem('sbtp_seen_notif_ids', JSON.stringify(idsArr));
+  },
+
+  _showNotif(n) {
+    const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
+
+    // تحديد نوع الإشعار
+    const typeMap = {
+      success: 'success',
+      error:   'error',
+      warning: 'warn',
+      warn:    'warn',
+      info:    'info',
+      alert:   'warn',
+    };
+    const toastType = typeMap[n.type] || typeMap[n.category] || 'info';
+
+    // بناء رسالة الإشعار
+    let msg = '';
+    if (n.title) msg += `<strong>${String(n.title).replace(/</g,'&lt;')}</strong> `;
+    if (n.message || n.body) msg += String(n.message || n.body).replace(/</g,'&lt;');
+    if (!msg.trim()) return; // لا نعرض إشعارات فارغة
+
+    // إضافة رابط إذا وجد
+    if (n.link || n.action_url) {
+      const url = n.link || n.action_url;
+      const label = isAr ? 'عرض' : 'Voir';
+      msg += ` <a href="#" onclick="event.preventDefault();App.navigate('${url.replace(/['"]/g,'')}')" style="color:var(--gold);text-decoration:underline;font-weight:700">${label}</a>`;
+    }
+
+    // عرض Toast مع مدة أطول للإشعارات المهمة
+    const duration = (toastType === 'error' || toastType === 'warn') ? 8000 : 6000;
+    if (typeof Toast !== 'undefined') Toast.show(msg, toastType, duration);
+
+    console.log('[NotificationWatcher] إشعار جديد:', n);
+  },
+};
+
+// بدء المراقبة عند تسجيل الدخول
+const _origLogin = Auth.login?.bind(Auth);
+if (_origLogin) {
+  Auth.login = function(...args) {
+    const result = _origLogin(...args);
+    setTimeout(async () => {
+      NotificationWatcher.start();
+      const user = Auth.getUser();
+      if (user && typeof DB !== 'undefined' && DB._useSupabase && typeof DB._initialSync === 'function') {
+        try {
+          if (typeof Toast !== 'undefined') Toast.info(L('⏳ جارٍ مزامنة بياناتك...','⏳ Synchronisation...'), 3000);
+          await DB._initialSync(); // يشمل flush تلقائياً الآن
+          if (typeof Toast !== 'undefined') Toast.success(L('✅ تمت المزامنة','✅ Synchronisé'));
+          if (typeof App !== 'undefined' && App.currentPage) {
+            setTimeout(() => App.render(), 300);
+          }
+        } catch(e) {
+          console.warn('[Login sync]', e.message);
+        }
+      }
+    }, 1500);
+    return result;
+  };
+}
+
+// عند فتح التطبيق مع مستخدم موجود → flush تلقائي للعمليات المعلقة
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(async () => {
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return;
+    NotificationWatcher.start();
+    // flush تلقائي للعمليات المعلقة إذا وُجدت
+    if (typeof DB !== 'undefined' && DB._useSupabase && navigator.onLine) {
+      const cnt = DB.getOfflineQueueCount?.() || 0;
+      if (cnt > 0) {
+        console.log(`🚀 فتح التطبيق: ${cnt} عملية معلقة → رفع تلقائي...`);
+        updateSyncPill('syncing');
+        try {
+          await DB._flushOfflineQueue();
+          const remaining = DB.getOfflineQueueCount?.() || 0;
+          updateSyncPill(remaining > 0 ? 'pending' : 'synced',
+            remaining > 0 ? L(`${remaining} معلقة`, `${remaining} en attente`) : '');
+          if (remaining === 0 && typeof Toast !== 'undefined') {
+            Toast.success(L(`✅ رُفعت ${cnt} عملية معلقة تلقائياً`, `✅ ${cnt} opérations synchronisées`));
+          }
+        } catch(e) {
+          console.warn('[DOMContentLoaded flush]', e.message);
+        }
+      }
+    }
+  }, 3000); // انتظر 3 ثوانٍ حتى يكتمل تهيئة Supabase
+});
+
+/* ══════════════════════════════════════════════════════
+   DOC LANGUAGE SWITCH — يستقبل طلب تبديل اللغة من نافذة الوثيقة
+══════════════════════════════════════════════════════ */
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'rebuildDoc') return;
+  const newLang = e.data.lang;
+  if (newLang !== 'fr' && newLang !== 'ar') return;
+  // حفظ اللغة المختارة
+  localStorage.setItem('sbtp_doc_lang', newLang);
+  // إعادة فتح آخر وثيقة بالبيانات نفسها باللغة الجديدة
+  if (window._lastDocCall && typeof DZDocs !== 'undefined' && DZDocs._setLang) {
+    try {
+      DZDocs._setLang(newLang);
+      const { fn, args } = window._lastDocCall;
+      DZDocs[fn](...args);
+    } catch(err) {
+      console.warn('[DocLang switch]', err.message);
+    }
+  }
+});
+
+/* ══════════════════════════════════════════════════════
    SMOOTH SCROLL FOR LANDING ANCHORS
+   ملاحظة مهمة: هذا الكود يعمل فقط على الروابط التي تحتوي على href يبدأ بـ #
+   ولا تحتوي على onclick أو data-nav، لكي لا يتدخل في روابط التنقل بين الصفحات
 ══════════════════════════════════════════════════════ */
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href^="#"]');
-  if (a) { e.preventDefault(); const el = document.querySelector(a.getAttribute('href')); if(el) el.scrollIntoView({behavior:'smooth'}); }
+  if (!a) return;
+  // تجاهل الروابط التي تستخدم onclick للتنقل أو لها data-nav
+  if (a.hasAttribute('onclick') || a.hasAttribute('data-nav')) return;
+  // تجاهل href يساوي "#" فقط (روابط placeholder)
+  const href = a.getAttribute('href');
+  if (!href || href === '#' || href.length < 2) return;
+  // smooth scroll للرابط الداخلي الفعلي
+  e.preventDefault();
+  const el = document.querySelector(href);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
 });
 
 document.addEventListener('keydown', e => {
@@ -10062,9 +14882,12 @@ function topbarHTMLv5(title) {
   const user = Auth.getUser();
   const allNotifs = DB.get('notifications') || [];
   const unread = allNotifs.filter(n => n.tenant_id === user?.tenant_id && !n.read).length;
-  // Admin: show a dedicated bell for pending reset-password requests (system-level)
+  // Admin: عرض عدد الطلبات المعلقة (حسابات جديدة + إعادة كلمة مرور + ترقيات)
   const adminResetPending = user?.is_admin
-    ? allNotifs.filter(n => n.type === 'reset_password' && (n.status || 'pending') === 'pending').length
+    ? allNotifs.filter(n =>
+        (n.type === 'reset_password' || n.type === 'new_account' || n.type === 'upgrade_request')
+        && (n.status === 'pending')
+      ).length
     : 0;
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:.8rem">
@@ -10089,25 +14912,30 @@ function topbarHTMLv5(title) {
         </div>
         ${buildNotifPanel()}
       </div>
+      <!-- زر تبديل المود — بجانب جرس الإشعارات -->
+      <button id="themeToggleBtn"
+        title="${L('تبديل المظهر','Changer apparence')}"
+        onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
+        style="width:34px;height:34px;border-radius:50%;border:1px solid var(--border2);
+               background:rgba(255,255,255,.05);cursor:pointer;font-size:1rem;line-height:1;
+               display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
+        onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
+        onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='var(--border2)'">
+        ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
+      </button>
       ${avatarHtml(user?.full_name, user?.avatar_color || '#E8B84B', 32)}
     </div>
   </header>`;
 }
 
-function openAdminNotifTab(){
-  const u = Auth.getUser();
-  if(!u?.is_admin) return;
-  try{
-    App.navigate('admin', {tab:'notif'});
-    // ensure tab switch after render
-    setTimeout(()=>{ try{ if(typeof switchAdminTab==='function') switchAdminTab('notif'); }catch(e){} }, 60);
-  }catch(e){}
-}
-
 function buildNotifPanel() {
   const user = Auth.getUser();
   if (!user) return '';
-  const notifs = DB.get('notifications').filter(n => n.tenant_id === user.tenant_id).slice(0, 8);
+  // إشعارات طلبات التسجيل الجديدة (new_account) تُعرض فقط لـ Super Admin — لا تظهر لأدمن المؤسسة
+  const notifs = DB.get('notifications').filter(n => {
+    if (n.type === 'new_account' && !user.is_admin) return false;
+    return n.tenant_id === user.tenant_id;
+  }).slice(0, 8);
   if (!notifs.length) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد إشعارات</div></div>`;
   return `<div class="notif-panel" id="notifPanel" style="display:none">
     <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center">
@@ -10148,6 +14976,139 @@ function markAllNotifsRead() {
 function markNotifRead(id) {
   DB.set('notifications', DB.get('notifications').map(n => n.id === id ? {...n, read:true} : n));
 }
+// ── modal عروض الاشتراك — يظهر عند الضغط على "الترقية" في بانر الأيام التجريبية ──
+// خاص بأدمن المؤسسة فقط (ليس أعضاء الفريق)
+function showSubscriptionPlansModal() {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant();
+  if (!user || !tenant) return;
+  // فقط أدمن المؤسسة (tenant admin)
+  if (user.is_admin) return App.navigate('admin');
+
+  const isAr = I18N.currentLang === 'ar';
+  const t = (a, f) => isAr ? a : f;
+  const plans = typeof ChargilyPayment !== 'undefined' ? ChargilyPayment.PLANS : {
+    1: { id:1, emoji:'👷', nameAr:'المبتدئ', nameFr:'Starter', descAr:'للمقاول الفردي', descFr:'Pour le contractant', price:2900, color:'#34C38F' },
+    2: { id:2, emoji:'⭐', nameAr:'الاحترافي', nameFr:'Pro', descAr:'للشركات', descFr:'Pour les entreprises', price:7900, color:'#E8B84B', featured:true },
+    3: { id:3, emoji:'🏛️', nameAr:'المؤسسي', nameFr:'Entreprise', descAr:'للمؤسسات الكبرى', descFr:'Grandes entreprises', price:19900, color:'#9B6DFF' }
+  };
+
+  const old = document.getElementById('subPlansModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'subPlansModal';
+  modal.style.cssText = `position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);
+    display:flex;align-items:center;justify-content:center;padding:1rem;direction:${isAr?'rtl':'ltr'};animation:spmFade .3s ease`;
+
+  const da = isAr ? 'دج' : 'DA';
+  const plansHTML = Object.values(plans).map(plan => `
+    <div onclick="window._spmSelectedPlan=${plan.id};document.querySelectorAll('.spm-plan').forEach(el=>el.classList.remove('spm-selected'));this.classList.add('spm-selected')"
+      class="spm-plan${plan.featured?' spm-featured':''}" style="background:rgba(255,255,255,.04);border:2px solid ${plan.featured?'rgba(232,184,75,.5)':'rgba(255,255,255,.1)'};border-radius:14px;padding:1.2rem;text-align:center;cursor:pointer;transition:all .2s;position:relative">
+      ${plan.featured?`<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#E8B84B,#C9971B);color:#0a0e1a;font-size:.65rem;font-weight:800;padding:2px 10px;border-radius:20px">${t('الأكثر طلباً','Plus populaire')}</div>`:''}
+      <div style="font-size:2.2rem;margin-bottom:.4rem">${plan.emoji}</div>
+      <div style="font-size:1rem;font-weight:800;color:${plan.color}">${isAr?plan.nameAr:plan.nameFr}</div>
+      <div style="font-size:.75rem;color:var(--dim,#8a9)margin:.2rem 0">${isAr?(plan.descAr||''):(plan.descFr||'')}</div>
+      <div style="font-size:1.6rem;font-weight:900;color:#fff;margin:.7rem 0">${Number(plan.price||0).toLocaleString(isAr?'ar-DZ':'fr-DZ')} <span style="font-size:.75rem;color:#8a9">${da}/${t('شهر','mois')}</span></div>
+    </div>`).join('');
+
+  modal.innerHTML = `
+    <style>
+      @keyframes spmFade{from{opacity:0}to{opacity:1}}
+      @keyframes spmUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+      .spm-card{background:linear-gradient(135deg,#1a1f2e,#0f1420);border:1px solid rgba(232,184,75,.25);border-radius:20px;max-width:640px;width:100%;max-height:93vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.6);animation:spmUp .35s ease}
+      .spm-plan.spm-selected{border-color:rgba(52,195,143,.7)!important;background:rgba(52,195,143,.07)!important;transform:translateY(-3px)}
+      .spm-plan:hover{border-color:rgba(232,184,75,.4)!important;transform:translateY(-2px)}
+    </style>
+    <div class="spm-card">
+      <div style="padding:1.7rem 2rem 1.2rem;text-align:center;border-bottom:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:2.5rem">💳</div>
+        <div style="font-size:1.4rem;font-weight:900;color:#E8B84B;margin:.5rem 0">${t('اختر خطتك واستمر 14 يوماً إضافياً!','Choisissez votre plan — 14 jours supplémentaires!')}</div>
+        <div style="font-size:.85rem;color:var(--dim,#8a9ab0);line-height:1.6">${t('بمجرد اشتراكك، تُضاف 14 يوماً إضافية تلقائياً إلى حسابك 🎁','Dès votre abonnement, 14 jours supplémentaires sont ajoutés automatiquement 🎁')}</div>
+      </div>
+      <div style="padding:1.5rem 2rem">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:.85rem;margin-bottom:1.5rem">
+          ${plansHTML}
+        </div>
+        <div style="display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center">
+          <button onclick="window._spmProceed()" style="padding:.85rem 2rem;background:linear-gradient(135deg,#E8B84B,#C9971B);color:#0a0e1a;border:none;border-radius:10px;font-weight:800;font-size:.95rem;cursor:pointer;min-width:170px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+            💳 ${t('اشترك الآن','S\'abonner maintenant')}
+          </button>
+          <button onclick="document.getElementById('subPlansModal')?.remove();document.body.style.overflow=''" style="padding:.85rem 1.5rem;background:rgba(255,255,255,.05);color:#c8d4e8;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer">
+            ${t('لاحقاً','Plus tard')}
+          </button>
+        </div>
+        <div style="margin-top:1rem;text-align:center;font-size:.78rem;color:var(--dim,#8a9ab0)">
+          🔒 ${t('دفع آمن عبر Chargily Pay — EDAHABIA & CIB','Paiement sécurisé Chargily Pay — EDAHABIA & CIB')}
+        </div>
+      </div>
+    </div>`;
+
+  // دالة المتابعة للدفع
+  window._spmProceed = function() {
+    const planId = window._spmSelectedPlan || 2;
+    document.getElementById('subPlansModal')?.remove();
+    document.body.style.overflow = '';
+    if (typeof ChargilyPayment !== 'undefined') {
+      ChargilyPayment.initiatePayment(planId);
+    } else {
+      // Fallback: طلب ترقية + إضافة 14 يوم تجريبية إضافية
+      _grantExtraTrialDays(14, planId);
+    }
+  };
+
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  // إغلاق عند الضغط خارج الكارد
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) { modal.remove(); document.body.style.overflow = ''; }
+  });
+}
+
+// ── منح أيام تجريبية إضافية (14 يوم) عند الاشتراك ── خاص بأدمن المؤسسة
+async function _grantExtraTrialDays(days, planId) {
+  const user = Auth.getUser();
+  const tenant = Auth.getTenant();
+  if (!user || !tenant || user.is_admin) return;
+
+  const cfg = typeof getSupabaseConfig !== 'undefined' ? getSupabaseConfig() : null;
+  const newEnd = new Date();
+  // احسب من اليوم أو من نهاية الاشتراك الحالي أيهما أبعد
+  const currentEnd = tenant.trial_end ? new Date(tenant.trial_end) : new Date();
+  const baseDate = currentEnd > newEnd ? currentEnd : newEnd;
+  baseDate.setDate(baseDate.getDate() + days);
+  const newEndStr = baseDate.toISOString().split('T')[0];
+
+  // تحديث محلي فوري
+  const tenants = DB.get('tenants') || [];
+  const idx = tenants.findIndex(t => t.id === tenant.id);
+  if (idx !== -1) {
+    tenants[idx].trial_end = newEndStr;
+    tenants[idx].subscription_status = 'trial';
+    tenants[idx].is_active = true;
+    DB.set('tenants', tenants);
+    Auth.reloadTenant?.();
+  }
+
+  // تحديث Supabase إن كان متاحاً
+  if (cfg?.url && cfg?.key) {
+    try {
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tenant.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+        body: JSON.stringify({ trial_end: newEndStr, subscription_status: 'trial', is_active: true })
+      });
+    } catch(e) { console.warn('Extra trial days update failed:', e); }
+  }
+
+  if (typeof Toast !== 'undefined') {
+    const isAr = I18N.currentLang === 'ar';
+    Toast.success(isAr ? `✅ تمت إضافة ${days} يوماً إضافياً — تجربتك ممتدة حتى ${newEndStr}` : `✅ ${days} jours supplémentaires ajoutés — jusqu'au ${newEndStr}`);
+  }
+  setTimeout(() => App.navigate('dashboard'), 1200);
+}
+
 function addNotification(tid, title, message, type='info') {
   const notifs = DB.get('notifications');
   notifs.unshift({id:DB.nextId('notifications'),tenant_id:tid,title,message,read:false,date:todayStr(),type});
@@ -10214,12 +15175,15 @@ function sidebarHTML(active='') {
     // ── Stock Section ──
     const stockLinks = [
       navLink('inventory','📦',__('nav.inventory')),
+      navLink('suppliers','🏪',__('nav.suppliers')),
       navLink('equipment','🚜',__('nav.equipment')),
     ].filter(Boolean).join('');
 
     // ── Docs & Reports Section ──
     const docLinks = [
       navLink('documents','📁',__('nav.documents')),
+      navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
+      navLink('archive','📂',L('أرشيف الوثائق','Archive documents')),
       navLink('reports','📈',__('nav.reports')),
       navLink('bank_report','🏦',L('تقرير بنكي','Rapport bancaire')),
       navLink('simulator','🧮',L('محاكي الربح','Simulateur')),
@@ -10230,6 +15194,7 @@ function sidebarHTML(active='') {
     // ── Account Section ──
     const accountLinks = [
       navLink('team','👥',__('nav.team')),
+      navLink('subscription','💳',L('الاشتراك','Abonnement')),
       navLink('settings','⚙️',__('nav.settings')),
     ].filter(Boolean).join('');
 
@@ -10268,8 +15233,8 @@ function sidebarHTML(active='') {
       </div>
       ${unread>0?`<div style="font-size:.72rem;color:var(--gold);padding:.3rem .8rem;background:rgba(232,184,75,0.08);border-radius:8px;margin-bottom:.4rem">🔔 ${unread} ${L('إشعار جديد','nouvelle(s) notification(s)')}</div>`:''}
       <div style="display:flex;gap:.4rem;margin-bottom:.4rem">
-        <button onclick="I18N.setLang('ar')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='ar'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='ar'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='ar'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">🇩🇿 عربي</button>
-        <button onclick="I18N.setLang('fr')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='fr'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='fr'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='fr'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">🇫🇷 FR</button>
+        <button onclick="I18N.setLang('ar')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='ar'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='ar'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='ar'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">AR عربي</button>
+        <button onclick="I18N.setLang('fr')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='fr'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='fr'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='fr'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">FR</button>
       </div>
       <!-- ⚡ Realtime Badge -->
       <div style="margin-bottom:.4rem">
@@ -10281,7 +15246,7 @@ function sidebarHTML(active='') {
           border:1px solid ${typeof SmartRealtime!=='undefined'&&SmartRealtime.isLive?'rgba(52,195,143,.3)':'rgba(240,78,106,.25)'};
           cursor:default;width:100%;justify-content:center;
         ">
-          ${typeof SmartRealtime!=='undefined'&&SmartRealtime.isLive?'⚡ Realtime نشط':'⚡ Realtime غير متصل'}
+          ${typeof SmartRealtime!=='undefined'&&(SmartRealtime.isLive||SmartRealtime._pollActive)?'⚡ Realtime نشط':'⚡ غير متصل'}
         </span>
       </div>
       <button class="nav-link logout" onclick="Auth.logout()">🚪 ${L('تسجيل الخروج','Déconnexion')}</button>
@@ -10394,6 +15359,7 @@ function kanbanDrop(e, colKey) {
   Toast.success('✅ تم نقل المهمة');
 }
 function addKanbanTask() {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لإضافة مهمة','Permission refusée : tâche')); return; }
   const title = document.getElementById('taskTitle')?.value?.trim();
   if (!title) { Toast.error('أدخل عنوان المهمة'); return; }
   const tid = Auth.getUser().tenant_id;
@@ -10406,6 +15372,7 @@ function addKanbanTask() {
   App.navigate('kanban');
 }
 function deleteKanbanTask(id) {
+  if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لحذف المهمة','Permission refusée : tâche')); return; }
   if (!confirm('حذف هذه المهمة؟')) return;
   DB.set('kanban_tasks', DB.get('kanban_tasks').filter(t => t.id !== id));
   sbSyncDelete('kanban_tasks', id).catch(()=>{});
@@ -10421,145 +15388,162 @@ function quickAddTask(col) {
 Pages.gantt = function() {
   const tid = Auth.getUser().tenant_id;
   const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const validP   = projects.filter(p => p.start_date && p.end_date);
+  const noDateP  = projects.filter(p => !p.start_date || !p.end_date);
 
-  // Projects with no dates → show warning card
-  const validProjects = projects.filter(p => p.start_date && p.end_date);
-  const noDateProjects = projects.filter(p => !p.start_date || !p.end_date);
+  if (!projects.length) return layoutHTML('gantt','Gantt Chart',`
+    <div class="empty"><div class="empty-icon">📅</div>
+    <div class="empty-title">${L('لا توجد مشاريع','Aucun projet')}</div>
+    <div class="empty-text">${L('أضف مشاريع أولاً','Ajoutez des projets d\'abord')}</div></div>`);
 
-  if (!projects.length) return layoutHTML('gantt', 'Gantt Chart', `
-    <div class="empty">
-      <div class="empty-icon">📅</div>
-      <div class="empty-title">لا توجد مشاريع</div>
-      <div class="empty-text">أضف مشاريع أولاً لعرض الجدول الزمني</div>
-    </div>`);
+  if (!validP.length) return layoutHTML('gantt','Gantt Chart',`
+    <div class="page-header"><div><div class="page-title">📅 Gantt Chart</div></div></div>
+    <div class="alert alert-error">${L('⚠️ لا توجد مشاريع بتواريخ. عدّل المشاريع وأضف تواريخ البداية والنهاية.','⚠️ Aucun projet avec des dates. Modifiez les projets.')}</div>
+    <div class="grid-cards">${projects.map(p=>`<div class="card" style="display:flex;align-items:center;gap:1rem">
+      <div style="width:10px;height:40px;border-radius:4px;background:${p.color||'#E8B84B'};flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-weight:700">${escHtml(p.name)}</div>
+      <div style="font-size:.75rem;color:var(--red)">⚠️ ${L('بدون تواريخ','Sans dates')}</div></div>
+      <button class="btn btn-blue btn-sm" onclick="editProject(${p.id})">✏️</button>
+    </div>`).join('')}</div>`);
 
-  // Fallback if no valid date projects
-  if (!validProjects.length) return layoutHTML('gantt', 'Gantt Chart', `
-    <div class="page-header">
-      <div><div class="page-title">📅 Gantt Chart</div><div class="page-sub">الجدول الزمني التفاعلي للمشاريع</div></div>
-    </div>
-    <div class="alert alert-error">⚠️ لا توجد مشاريع بتواريخ بداية ونهاية محددة. يرجى تعديل المشاريع وإضافة التواريخ.</div>
-    <div class="grid-cards">
-      ${projects.map(p=>`
-        <div class="card" style="display:flex;align-items:center;gap:1rem">
-          <div style="width:10px;height:40px;border-radius:4px;background:${p.color};flex-shrink:0"></div>
-          <div style="flex:1">
-            <div style="font-weight:700">${escHtml(p.name)}</div>
-            <div style="font-size:.75rem;color:var(--red)">⚠️ بدون تواريخ</div>
-          </div>
-          <button class="btn btn-blue btn-sm" onclick="editProject(${p.id})">✏️ تعديل</button>
-        </div>`).join('')}
-    </div>`);
-
-  // Calculate date range from valid projects only
-  const allDates = validProjects.flatMap(p => [new Date(p.start_date), new Date(p.end_date)]);
-  const minDate = new Date(Math.min(...allDates.map(d=>d.getTime())));
-  const maxDate = new Date(Math.max(...allDates.map(d=>d.getTime())));
-  // Add padding
-  minDate.setDate(minDate.getDate() - 15);
-  maxDate.setDate(maxDate.getDate() + 30);
-
-  const totalDays = Math.ceil((maxDate - minDate) / (1000*60*60*24));
+  const allDates = validP.flatMap(p=>[new Date(p.start_date),new Date(p.end_date)]);
+  let minDate = new Date(Math.min(...allDates)); minDate.setDate(minDate.getDate()-7);
+  let maxDate = new Date(Math.max(...allDates)); maxDate.setDate(maxDate.getDate()+14);
+  const totalDays = Math.ceil((maxDate-minDate)/(864e5));
   const today = new Date();
-  const todayOffset = Math.ceil((today - minDate) / (1000*60*60*24));
+  const todayOff = Math.ceil((today-minDate)/(864e5));
+  const DAY_W = 28, LABEL_W = 220;
 
-  // Responsive: smaller day width on mobile
-  const DAY_W = window.innerWidth < 768 ? 4 : 6;
-  const LABEL_W = window.innerWidth < 768 ? 130 : 180;
-
-  // Build months header
-  let months = [];
-  let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-  while (cur <= maxDate) {
-    months.push(new Date(cur));
-    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
-  }
-
-  const monthsHTML = months.map(m => {
-    const daysInM = new Date(m.getFullYear(), m.getMonth()+1, 0).getDate();
-    const startOff = Math.max(0, Math.ceil((m - minDate) / (1000*60*60*24)));
-    return `<div style="position:absolute;left:${startOff*DAY_W}px;width:${daysInM*DAY_W}px;font-size:.62rem;color:var(--dim);font-weight:700;text-align:center;border-right:1px solid rgba(255,255,255,0.06);padding-top:5px;overflow:hidden">${MONTHS_AR[m.getMonth()]} ${m.getFullYear()}</div>`;
+  // Months header
+  let months=[]; let cur=new Date(minDate.getFullYear(),minDate.getMonth(),1);
+  while(cur<=maxDate){months.push(new Date(cur));cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);}
+  const monthsHTML = months.map(m=>{
+    const daysInM=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
+    const off=Math.max(0,Math.ceil((m-minDate)/(864e5)));
+    return `<div style="position:absolute;left:${off*DAY_W}px;width:${daysInM*DAY_W}px;font-size:.65rem;color:var(--dim);font-weight:700;border-right:1px solid rgba(255,255,255,.06);padding:4px 0;text-align:center;overflow:hidden">${MONTHS_AR[m.getMonth()]} ${m.getFullYear()}</div>`;
   }).join('');
 
-  const rowsHTML = projects.map(p => {
-    const start = new Date(p.start_date), end = new Date(p.end_date);
-    const hasDate = !isNaN(start) && !isNaN(end) && p.start_date && p.end_date;
-    const pct = Math.max(0, Math.min(100, p.progress || 0));
+  // Days header (shows day numbers)
+  let daysHTML='';
+  for(let i=0;i<totalDays;i++){
+    const d=new Date(minDate); d.setDate(d.getDate()+i);
+    const isWeekend=d.getDay()===5||d.getDay()===6;
+    const isToday=d.toDateString()===today.toDateString();
+    daysHTML+=`<div style="position:absolute;left:${i*DAY_W}px;width:${DAY_W}px;font-size:.55rem;text-align:center;color:${isToday?'var(--gold)':isWeekend?'rgba(255,255,255,.3)':'rgba(255,255,255,.35)'};font-weight:${isToday?'900':'400'};border-right:1px solid rgba(255,255,255,.04);padding-top:2px">${d.getDate()}</div>`;
+  }
 
-    let barHTML = '';
-    if (hasDate) {
-      const left = Math.max(0, Math.ceil((start - minDate) / (1000*60*60*24)));
-      const width = Math.max(14, Math.ceil((end - start) / (1000*60*60*24)));
-      const isOverdue = end < today && p.status !== 'completed';
-      barHTML = `
-        <div style="position:absolute;left:${left*DAY_W}px;width:${width*DAY_W}px;height:26px;background:rgba(255,255,255,0.07);border-radius:5px;border:1px solid rgba(255,255,255,0.08)">
-          <div style="width:${pct}%;height:100%;background:${isOverdue?'var(--red)':p.color};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#fff;overflow:hidden;transition:width 0.6s ease">
-            ${pct>15?pct+'%':''}
+  // Project rows
+  const rowsHTML = projects.map((p,ri)=>{
+    const start=new Date(p.start_date), end=new Date(p.end_date);
+    const hasDate=!isNaN(start)&&!isNaN(end)&&p.start_date&&p.end_date;
+    const pct=Math.max(0,Math.min(100,p.progress||0));
+    const status=p.status||'active';
+    const isOverdue=hasDate&&end<today&&status!=='completed';
+    const isCompleted=status==='completed';
+    const barColor=isCompleted?'#34C38F':isOverdue?'#F04E6A':(p.color||'#E8B84B');
+    const daysTotal=hasDate?Math.ceil((end-start)/(864e5)):0;
+    const daysLeft=hasDate?Math.ceil((end-today)/(864e5)):0;
+
+    let barHTML='';
+    if(hasDate){
+      const left=Math.max(0,Math.ceil((start-minDate)/(864e5)));
+      const width=Math.max(2,Math.ceil((end-start)/(864e5)));
+      barHTML=`
+        <div title="${escHtml(p.name)}: ${fmtDate(p.start_date)} → ${fmtDate(p.end_date)} (${daysTotal}j)" 
+          style="position:absolute;left:${left*DAY_W}px;width:${width*DAY_W}px;height:28px;background:${barColor}22;border:1.5px solid ${barColor};border-radius:6px;cursor:pointer;overflow:hidden"
+          onclick="editProject(${p.id})">
+          <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width .4s;display:flex;align-items:center;justify-content:flex-end;padding-right:4px">
+            ${pct>20?`<span style="font-size:.6rem;font-weight:900;color:${isCompleted||isOverdue?'#fff':'#0a1a0a'}">${pct}%</span>`:''}
           </div>
+          ${pct<=20?`<span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:.6rem;font-weight:900;color:${barColor}">${pct}%</span>`:''}
         </div>`;
     } else {
-      barHTML = `<div style="position:absolute;left:8px;font-size:.7rem;color:var(--dim);line-height:26px">بدون تواريخ</div>`;
+      barHTML=`<div style="position:absolute;left:8px;font-size:.72rem;color:var(--dim);line-height:28px;font-style:italic">${L('بدون تواريخ','Sans dates')}</div>`;
     }
+    const bgRow=ri%2===0?'rgba(255,255,255,.015)':'transparent';
+    const statusBadge=isCompleted?`<span style="font-size:.55rem;background:rgba(52,195,143,.2);color:#34C38F;padding:1px 5px;border-radius:4px">✓</span>`:
+      isOverdue?`<span style="font-size:.55rem;background:rgba(240,78,106,.2);color:#F04E6A;padding:1px 5px;border-radius:4px">${L('متأخر','Retard')}</span>`:'';
 
-    return `<div class="gantt-row-v5" style="min-height:48px">
-      <div style="width:${LABEL_W}px;flex-shrink:0;padding:.45rem .8rem;border-left:1px solid rgba(255,255,255,0.05)">
-        <div style="display:flex;align-items:center;gap:.4rem">
-          <div style="width:8px;height:8px;border-radius:50%;background:${p.color};flex-shrink:0"></div>
-          <div style="font-weight:700;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
+    return `<div style="display:flex;min-height:44px;border-bottom:1px solid rgba(255,255,255,.04);background:${bgRow}" onmouseover="this.style.background='rgba(232,184,75,.04)'" onmouseout="this.style.background='${bgRow}'">
+      <div style="width:${LABEL_W}px;flex-shrink:0;padding:.4rem .7rem;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;justify-content:center;gap:2px">
+        <div style="display:flex;align-items:center;gap:.35rem">
+          <div style="width:8px;height:8px;border-radius:50%;background:${barColor};flex-shrink:0"></div>
+          <span style="font-weight:700;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(p.name)}</span>
+          ${statusBadge}
         </div>
-        <div style="font-size:.62rem;color:var(--dim);margin-top:2px">${pct}% • ${hasDate?fmtDate(p.start_date):'—'}</div>
+        <div style="font-size:.62rem;color:var(--dim)">${hasDate?fmtDate(p.start_date)+' → '+fmtDate(p.end_date):'—'} ${hasDate&&!isCompleted&&daysLeft>0?`• ${daysLeft}${L('ي','j')} ${L('متبقي','restant')}`:''}${hasDate&&!isCompleted&&daysLeft<0?`• <span style="color:var(--red)">${Math.abs(daysLeft)}${L('ي','j')} ${L('تأخر','retard')}</span>`:''}</div>
       </div>
-      <div style="flex:1;position:relative;padding:.45rem 0;overflow:hidden">
-        <div style="position:relative;height:26px;width:${totalDays*DAY_W}px">
+      <div style="flex:1;position:relative;overflow:hidden">
+        <div style="position:relative;height:44px;width:${totalDays*DAY_W}px">
           ${barHTML}
-          ${todayOffset>0 && todayOffset<totalDays ? `<div style="position:absolute;left:${todayOffset*DAY_W}px;top:-6px;bottom:-6px;width:2px;background:var(--red);border-radius:2px;opacity:0.9;z-index:2"></div>` : ''}
+          ${todayOff>0&&todayOff<totalDays?`<div style="position:absolute;left:${todayOff*DAY_W}px;top:0;bottom:0;width:2px;background:rgba(232,184,75,.8);pointer-events:none;z-index:3"></div>`:''}
         </div>
       </div>
     </div>`;
   }).join('');
 
-  const noDateWarning = noDateProjects.length
-    ? `<div class="alert" style="background:rgba(232,184,75,0.08);border:1px solid rgba(232,184,75,0.25);color:var(--gold);font-size:.8rem;margin-bottom:1rem">
-        ⚠️ ${noDateProjects.length} مشروع بدون تواريخ: ${noDateProjects.map(p=>escHtml(p.name)).join('، ')}
-      </div>`
-    : '';
+  // Stats bar
+  const completed=projects.filter(p=>p.status==='completed').length;
+  const overdue=validP.filter(p=>new Date(p.end_date)<today&&p.status!=='completed').length;
+  const onTrack=validP.length-overdue-completed;
+  const avgPct=projects.length?Math.round(projects.reduce((s,p)=>s+(p.progress||0),0)/projects.length):0;
 
   return layoutHTML('gantt', 'Gantt Chart', `
     <div class="page-header">
-      <div>
-        <div class="page-title">📅 Gantt Chart</div>
-        <div class="page-sub">الجدول الزمني التفاعلي للمشاريع</div>
-      </div>
+      <div><div class="page-title">📅 Gantt Chart</div><div class="page-sub">${L('الجدول الزمني التفاعلي','Calendrier interactif')}</div></div>
       <div class="page-actions">
-        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ طباعة</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ ${L('طباعة','Imprimer')}</button>
       </div>
     </div>
-    ${noDateWarning}
+
+    <!-- إحصائيات سريعة -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-value">${projects.length}</div><div class="stat-label">${L('إجمالي المشاريع','Total projets')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--green)">✅</div><div class="stat-value" style="color:var(--green)">${completed}</div><div class="stat-label">${L('مكتمل','Terminés')}</div></div>
+      <div class="stat-card"><div class="stat-icon" style="color:var(--red)">⚠️</div><div class="stat-value" style="color:var(--red)">${overdue}</div><div class="stat-label">${L('متأخر','En retard')}</div></div>
+      <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" style="color:var(--gold)">${avgPct}%</div><div class="stat-label">${L('متوسط التقدم','Avancement moyen')}</div></div>
+    </div>
+
+    ${noDateP.length?`<div style="background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:10px;padding:.7rem 1rem;font-size:.8rem;color:var(--gold);margin-bottom:1rem">
+      ⚠️ ${noDateP.length} ${L('مشاريع بدون تواريخ:','projets sans dates:')} ${noDateP.map(p=>`<button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:2px 6px" onclick="editProject(${p.id})">${escHtml(p.name)}</button>`).join(' ')}
+    </div>`:''}
+
+    <!-- مخطط Gantt -->
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-        <div style="min-width:${LABEL_W + totalDays*DAY_W}px">
+      <!-- Legend -->
+      <div style="display:flex;align-items:center;gap:1rem;padding:.6rem 1rem;border-bottom:1px solid var(--border);font-size:.72rem;flex-wrap:wrap">
+        <span style="font-weight:700;color:var(--dim)">${L('مفتاح الألوان:','Légende:')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:8px;background:#34C38F;border-radius:2px"></span>${L('مكتمل','Terminé')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:8px;background:#E8B84B;border-radius:2px"></span>${L('جارٍ','En cours')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:8px;background:#F04E6A;border-radius:2px"></span>${L('متأخر','En retard')}</span>
+        <span style="display:flex;align-items:center;gap:.3rem"><span style="width:14px;height:3px;background:rgba(232,184,75,.8)"></span>${L('اليوم','Aujourd\'hui')}</span>
+        <span style="color:var(--dim);font-size:.68rem">${L('انقر على أي شريط لتعديل المشروع','Cliquez sur une barre pour modifier')}</span>
+      </div>
 
-          <!-- Header: months -->
-          <div style="display:flex;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);height:30px;position:sticky;top:0;z-index:5">
-            <div style="width:${LABEL_W}px;flex-shrink:0;padding:.4rem .8rem;font-size:.7rem;font-weight:800;color:var(--dim);border-left:1px solid rgba(255,255,255,0.05)">المشروع</div>
-            <div style="flex:1;position:relative;height:30px">${monthsHTML}</div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch" id="ganttScroll">
+        <div style="min-width:${LABEL_W+totalDays*DAY_W}px">
+          <!-- الشعار المثبت في الأعلى -->
+          <div style="display:flex;border-bottom:1px solid var(--border);background:var(--card-bg,#0e1720);position:sticky;top:0;z-index:10">
+            <div style="width:${LABEL_W}px;flex-shrink:0;padding:.4rem .7rem;font-size:.72rem;font-weight:800;color:var(--dim);border-right:1px solid rgba(255,255,255,.06)">${L('المشروع','Projet')}</div>
+            <div style="flex:1;position:relative">
+              <!-- Months -->
+              <div style="position:relative;height:24px;border-bottom:1px solid rgba(255,255,255,.06)">${monthsHTML}</div>
+              <!-- Days -->
+              <div style="position:relative;height:18px">${daysHTML}</div>
+            </div>
           </div>
-
-          <!-- Rows -->
+          <!-- صفوف المشاريع -->
           ${rowsHTML}
-
-          <!-- Legend -->
-          <div style="padding:.6rem 1rem;font-size:.7rem;color:var(--dim);border-top:1px solid var(--border);display:flex;gap:1.2rem;flex-wrap:wrap">
-            <span style="display:inline-flex;align-items:center;gap:.4rem">
-              <span style="width:16px;height:2px;background:var(--red);display:inline-block;border-radius:1px"></span>اليوم
-            </span>
-            <span style="display:inline-flex;align-items:center;gap:.4rem">
-              <span style="width:16px;height:8px;background:rgba(255,255,255,0.07);border-radius:3px;display:inline-block"></span>نطاق المشروع
-            </span>
-          </div>
         </div>
       </div>
     </div>
+    <script>
+      // اسكرول تلقائي ليظهر اليوم الحالي
+      setTimeout(()=>{
+        const s=document.getElementById('ganttScroll');
+        if(s){ const td=${todayOff}*${DAY_W}; s.scrollLeft=Math.max(0,td-s.clientWidth/2); }
+      },100);
+    </script>
   `);
 };
 
@@ -10571,31 +15555,637 @@ Pages.analytics = function() {
   const workers  = DB.get('workers').filter(w => w.tenant_id===tid);
   const equip    = DB.get('equipment').filter(e => e.tenant_id===tid);
   const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
+  const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id===tid);
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+
+  // ✅ احسب مؤشرات BTP
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equip, salaryRecsData);
+
+  // ✅ احسب الذكاء التحليلي (AI Insights)
+  const aiInsights = generateAIInsights(btp, projects, txs, workers, invoicesData, materialsData);
+
   return layoutHTML('analytics', 'التحليلات', `
     <div class="page-header">
-      <div><div class="page-title">📊 التحليلات والرسوم البيانية</div></div>
-      <div class="page-actions"><button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ PDF</button></div>
-    </div>
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(revenue)}</div><div class="stat-label">الإيرادات (دج)</div></div>
-      <div class="stat-card"><div class="stat-icon">📉</div><div class="stat-value" style="color:var(--red);font-size:1.1rem">${fmt(expense)}</div><div class="stat-label">المصاريف (دج)</div></div>
-      <div class="stat-card"><div class="stat-icon">💹</div><div class="stat-value" style="color:${revenue-expense>=0?'var(--green)':'var(--red)'};font-size:1.1rem">${fmt(revenue-expense)}</div><div class="stat-label">الربح الصافي (دج)</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-      <div class="chart-card"><div class="chart-title">📊 الإيرادات الشهرية</div><canvas id="chartRevenue" height="220"></canvas></div>
-      <div class="chart-card"><div class="chart-title">🍩 توزيع المصاريف</div><canvas id="chartExpense" height="220"></canvas></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-      <div class="chart-card"><div class="chart-title">💹 تطور الربح الصافي</div><canvas id="chartProfit" height="220"></canvas></div>
-      <div class="chart-card"><div class="chart-title">🏗️ تقدم المشاريع</div><canvas id="chartProjects" height="220"></canvas></div>
+      <div>
+        <div class="page-title">📊 ${L('التحليلات الذكية والتقارير','Analyses intelligentes')}</div>
+        <div class="page-sub">${L('مؤشرات الأداء الاحترافية وتوصيات الذكاء الاصطناعي','KPIs professionnels et recommandations IA')}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-blue btn-sm" onclick="openAIAdvisor()" title="${L('استشر المحلل الذكي','Consulter l\'IA')}">🤖 ${L('المحلل الذكي','Conseiller IA')}</button>
+        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ PDF</button>
+      </div>
     </div>
 
-    <!-- ══ التحليلات الذكية ══ -->
+    <!-- ══ AI Advisor Banner — توصيات ذكية ══ -->
+    <div style="background:linear-gradient(135deg,rgba(155,109,255,.08),rgba(74,144,226,.04));border:1px solid rgba(155,109,255,.3);border-radius:16px;padding:1.2rem;margin-bottom:1.2rem;display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap">
+      <div style="font-size:2.2rem;flex-shrink:0">🤖</div>
+      <div style="flex:1;min-width:280px">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <span style="font-size:1rem;font-weight:900;color:#9B6DFF">${L('تحليل ذكي لمؤسستك','Analyse intelligente')}</span>
+          <span style="font-size:.65rem;background:rgba(155,109,255,.15);color:#9B6DFF;padding:2px 8px;border-radius:6px;font-weight:700">AI</span>
+        </div>
+        <div style="font-size:.85rem;color:var(--text);line-height:1.7;margin-bottom:.7rem">
+          ${aiInsights.summary}
+        </div>
+        ${aiInsights.recommendations.length > 0 ? `
+        <div style="display:flex;flex-direction:column;gap:.4rem">
+          ${aiInsights.recommendations.slice(0,3).map((rec,i)=>`
+            <div style="display:flex;align-items:flex-start;gap:.6rem;padding:.6rem .8rem;background:rgba(255,255,255,.03);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${rec.color};border-radius:0 8px 8px 0">
+              <span style="font-size:1.1rem">${rec.icon}</span>
+              <div style="flex:1">
+                <div style="font-size:.78rem;font-weight:700;color:${rec.color}">${rec.title}</div>
+                <div style="font-size:.72rem;color:var(--muted);line-height:1.6;margin-top:.15rem">${rec.text}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>` : ''}
+      </div>
+    </div>
+
+    <!-- ══ مؤشرات BTP الكبيرة ══ -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.8rem;margin-bottom:1.2rem">
+      <!-- الإيرادات -->
+      <div style="background:linear-gradient(135deg,rgba(52,195,143,.08),rgba(52,195,143,.02));border:1px solid rgba(52,195,143,.25);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:#34C38F;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">📈 ${L('الإيرادات الإجمالية','Revenus totaux')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:#34C38F;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(revenue)}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${L('دج','DA')}</div>
+      </div>
+      <!-- المصاريف -->
+      <div style="background:linear-gradient(135deg,rgba(240,78,106,.08),rgba(240,78,106,.02));border:1px solid rgba(240,78,106,.25);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:#F04E6A;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">📉 ${L('المصاريف الإجمالية','Dépenses')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:#F04E6A;font-family:'JetBrains Mono',monospace;line-height:1">${fmt(expense)}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${L('دج','DA')}</div>
+      </div>
+      <!-- الربح -->
+      <div style="background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.3);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">💹 ${L('الربح الصافي','Profit net')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:${revenue-expense>=0?'#34C38F':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${fmt(revenue-expense)}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${btp.grossMargin!==null?L(`هامش ${btp.grossMargin}%`,`Marge ${btp.grossMargin}%`):L('—','—')}</div>
+      </div>
+      <!-- مؤشر الأداء CPI -->
+      <div style="background:linear-gradient(135deg,rgba(74,144,226,.08),rgba(74,144,226,.02));border:1px solid rgba(74,144,226,.25);border-radius:14px;padding:1.1rem">
+        <div style="font-size:.7rem;color:#4A90E2;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">⚖️ CPI — ${L('أداء التكلفة','Performance coût')}</div>
+        <div style="font-size:1.6rem;font-weight:900;color:${btp.cpi===null?'#777':btp.cpi>=1?'#34C38F':btp.cpi>=0.9?'#E8B84B':'#F04E6A'};font-family:'JetBrains Mono',monospace;line-height:1">${btp.cpi===null?'—':btp.cpi}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${btp.cpi===null?L('بيانات غير كافية','Données insuff.'):btp.cpi>=1?L('ضمن الميزانية','Dans le budget'):L('تجاوز','Dépassement')}</div>
+      </div>
+    </div>
+
+    <!-- ══ الرسوم البيانية ══ -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="chart-card">
+        <div class="chart-title">📊 ${L('الإيرادات الشهرية','Revenus mensuels')}</div>
+        <canvas id="chartRevenue" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🍩 ${L('توزيع المصاريف','Répartition dépenses')}</div>
+        <canvas id="chartExpense" height="220"></canvas>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="chart-card">
+        <div class="chart-title">💹 ${L('تطور الربح الصافي','Évolution du profit')}</div>
+        <canvas id="chartProfit" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🏗️ ${L('تقدم المشاريع','Progrès des projets')}</div>
+        <canvas id="chartProjects" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- ══ تحليل ربحية كل مشروع ══ -->
+    ${projects.length > 0 ? `
+    <div class="chart-card" style="margin-bottom:1rem">
+      <div class="chart-title">📊 ${L('ربحية المشاريع — تحليل تفصيلي','Rentabilité par projet')}</div>
+      <div style="margin-top:1rem;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:${I18N.currentLang==='ar'?'right':'left'};padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('المشروع','Projet')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('الميزانية','Budget')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('المنفق','Dépensé')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('التقدم','Progrès')}</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">CPI</th>
+              <th style="text-align:center;padding:.7rem;color:var(--gold);font-weight:700;font-size:.78rem">${L('الحالة','Statut')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${projects.map(p => {
+              const budget = Number(p.budget||0);
+              const spent  = Number(p.total_spent||0);
+              const progress = Number(p.progress||0);
+              const ev = budget * progress / 100;
+              const cpi = spent > 0 ? +(ev / spent).toFixed(2) : null;
+              const statusColor = cpi === null ? '#777' : cpi >= 1 ? '#34C38F' : cpi >= 0.9 ? '#E8B84B' : '#F04E6A';
+              const statusText = cpi === null ? L('—','—') : cpi >= 1 ? L('ربح','Profit') : cpi >= 0.9 ? L('متوازن','Équilibré') : L('خسارة','Perte');
+              return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+                  <td style="padding:.7rem"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color||'#888'};margin-${I18N.currentLang==='ar'?'left':'right'}:.5rem"></span>${escHtml(p.name)}</td>
+                  <td style="text-align:center;padding:.7rem;font-family:monospace">${fmt(budget)}</td>
+                  <td style="text-align:center;padding:.7rem;font-family:monospace;color:${spent>budget?'#F04E6A':'var(--text)'}">${fmt(spent)}</td>
+                  <td style="text-align:center;padding:.7rem">
+                    <div style="display:inline-flex;align-items:center;gap:.4rem">
+                      <div style="width:60px;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
+                        <div style="height:100%;width:${Math.min(100,progress)}%;background:${progress>=80?'#34C38F':progress>=40?'#E8B84B':'#F04E6A'}"></div>
+                      </div>
+                      <span style="font-size:.78rem;font-weight:700">${progress}%</span>
+                    </div>
+                  </td>
+                  <td style="text-align:center;padding:.7rem;font-family:monospace;font-weight:800;color:${statusColor}">${cpi===null?'—':cpi}</td>
+                  <td style="text-align:center;padding:.7rem"><span style="font-size:.72rem;padding:3px 10px;border-radius:6px;background:${statusColor}22;color:${statusColor};font-weight:700">${statusText}</span></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    <!-- ══ التوصيات الكاملة من AI ══ -->
+    ${aiInsights.recommendations.length > 3 ? `
+    <div class="chart-card" style="margin-bottom:1rem">
+      <div class="chart-title">🤖 ${L('كل التوصيات الذكية','Toutes les recommandations IA')}</div>
+      <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.6rem">
+        ${aiInsights.recommendations.map((rec) => `
+          <div style="display:flex;align-items:flex-start;gap:.7rem;padding:.8rem;background:rgba(255,255,255,.02);border-${I18N.currentLang==='ar'?'right':'left'}:3px solid ${rec.color};border-radius:0 10px 10px 0">
+            <div style="font-size:1.4rem;flex-shrink:0">${rec.icon}</div>
+            <div style="flex:1">
+              <div style="font-size:.85rem;font-weight:800;color:${rec.color};margin-bottom:.2rem">${rec.title}</div>
+              <div style="font-size:.78rem;color:var(--muted);line-height:1.7">${rec.text}</div>
+              ${rec.action ? `<div style="margin-top:.4rem"><button class="btn btn-ghost btn-sm" style="font-size:.7rem;padding:.3rem .7rem" onclick="${rec.action}">→ ${rec.actionLabel || L('عرض التفاصيل','Voir détails')}</button></div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- ══ التحليلات الذكية الإضافية ══ -->
     ${renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance, tid)}
   `);
 };
+
+// ════════════════════════════════════════════════════════════════════
+// 🤖 AI Insights Generator — مولّد التوصيات الذكية
+// ════════════════════════════════════════════════════════════════════
+function generateAIInsights(btp, projects, txs, workers, invoices, materials) {
+  const recommendations = [];
+
+  // ① تحليل CPI
+  if (btp.cpi !== null) {
+    if (btp.cpi < 0.85) {
+      recommendations.push({
+        icon: '🚨', color: '#F04E6A',
+        title: L('تحذير: تجاوز تكلفة كبير','Alerte: dépassement de coût'),
+        text: L(`مؤشر أداء التكلفة CPI = ${btp.cpi} (أقل من 1) — هذا يعني أنك تنفق أكثر من المخطط بنسبة ${Math.round((1-btp.cpi)*100)}%. راجع المشاريع التي تستهلك ميزانية أكبر من المتوقع وقلّل المصاريف غير الضرورية.`,
+              `CPI = ${btp.cpi} — vous dépensez ${Math.round((1-btp.cpi)*100)}% de plus que prévu. Révisez les projets qui consomment plus que le budget.`),
+        action: "App.navigate('projects')", actionLabel: L('عرض المشاريع','Voir projets')
+      });
+    } else if (btp.cpi >= 1.1) {
+      recommendations.push({
+        icon: '✨', color: '#34C38F',
+        title: L('ممتاز: أداء تكلفة قوي','Excellent: forte performance'),
+        text: L(`CPI = ${btp.cpi} يعني أنك تنجز أعمالاً قيمتها ${Math.round((btp.cpi-1)*100)}% أكثر من المنفق. استمر في هذا الأداء وفكّر في توسيع نشاطك.`,
+              `CPI = ${btp.cpi} — vous livrez ${Math.round((btp.cpi-1)*100)}% de plus que dépensé. Continuez sur cette voie!`),
+      });
+    }
+  }
+
+  // ② تحليل SPI
+  if (btp.spi !== null && btp.spi < 0.85) {
+    const delayedProj = projects.filter(p => p.status === 'delayed' || p.status === 'late');
+    recommendations.push({
+      icon: '⏰', color: '#FF7043',
+      title: L('تأخر زمني في المشاريع','Retards dans les projets'),
+      text: L(`SPI = ${btp.spi} — مشاريعك متأخرة عن الجدول الزمني المخطط بنسبة ${Math.round((1-btp.spi)*100)}%. ${delayedProj.length>0?`يوجد ${delayedProj.length} مشروع متأخر. `:''}راجع المهام وأعد جدولة الأنشطة.`,
+            `SPI = ${btp.spi} — Retard de ${Math.round((1-btp.spi)*100)}%. ${delayedProj.length>0?`${delayedProj.length} projet(s) en retard. `:''}Revoyez la planification.`),
+      action: "App.navigate('gantt')", actionLabel: L('جدول Gantt','Voir Gantt')
+    });
+  }
+
+  // ③ تحليل Cash Runway
+  if (btp.cashRunway !== null) {
+    if (btp.cashRunway > 0 && btp.cashRunway < 30) {
+      recommendations.push({
+        icon: '🚨', color: '#F04E6A',
+        title: L('خطر: نفاد السيولة قريب','Alerte: liquidité critique'),
+        text: L(`السيولة ستنفد خلال ${btp.cashRunway} يوم فقط بالمعدل الحالي. سارع بـ: ① تحصيل الفواتير المعلقة ② تأجيل المصاريف غير الحرجة ③ التفاوض على دفعات مع العملاء.`,
+              `Liquidité épuisée dans ${btp.cashRunway} jours. Urgent: collecter les impayés, reporter les dépenses non critiques.`),
+        action: "App.navigate('invoices')", actionLabel: L('عرض الفواتير المعلقة','Voir impayés')
+      });
+    } else if (btp.cashRunway >= 30 && btp.cashRunway < 90) {
+      recommendations.push({
+        icon: '⚠️', color: '#E8B84B',
+        title: L('احذر: السيولة محدودة','Attention: liquidité limitée'),
+        text: L(`السيولة الحالية تكفي ${btp.cashRunway} يوم. خطّط لتحصيل الفواتير المعلقة ومتابعة العملاء قبل الوصول لمستوى حرج.`,
+              `Liquidité actuelle: ${btp.cashRunway} jours. Planifiez les encaissements.`),
+      });
+    }
+  }
+
+  // ④ تحليل الفواتير المعلقة
+  if (btp.unpaidAmount > 100000 && btp.unpaidInvoices.length > 0) {
+    const oldInvoices = btp.unpaidInvoices.filter(i => {
+      const d = new Date(i.date || i.created_at);
+      const days = (Date.now() - d.getTime()) / (1000*60*60*24);
+      return days > 60;
+    });
+    recommendations.push({
+      icon: '💰', color: '#FF7043',
+      title: L('فواتير معلقة كبيرة','Factures impayées importantes'),
+      text: L(`لديك ${btp.unpaidInvoices.length} فاتورة غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج. ${oldInvoices.length>0?`${oldInvoices.length} منها متأخرة أكثر من 60 يوم. `:''}اتصل بالعملاء وأرسل تذكيرات.`,
+            `${btp.unpaidInvoices.length} factures impayées (${fmt(Math.round(btp.unpaidAmount))} DA). ${oldInvoices.length>0?`${oldInvoices.length} > 60 jours. `:''}Contactez vos clients.`),
+      action: "App.navigate('invoices')", actionLabel: L('متابعة التحصيل','Suivre encaissement')
+    });
+  }
+
+  // ⑤ تحليل المخزون
+  if (btp.lowStockCount > 0) {
+    recommendations.push({
+      icon: '📦', color: '#E8B84B',
+      title: L('مخزون منخفض','Stock bas'),
+      text: L(`${btp.lowStockCount} مادة وصلت للحد الأدنى${btp.lowStockList.length>0?`: ${btp.lowStockList.join('، ')}. `:''}اطلب من الموردين قبل توقف الأشغال.`,
+            `${btp.lowStockCount} matériaux sous le minimum${btp.lowStockList.length>0?`: ${btp.lowStockList.join(', ')}. `:''}Commandez avant rupture.`),
+      action: "App.navigate('materials')", actionLabel: L('عرض المخزون','Voir stock')
+    });
+  }
+
+  // ⑥ تحليل هامش الربح
+  if (btp.grossMargin !== null) {
+    if (btp.grossMargin < 5) {
+      recommendations.push({
+        icon: '📉', color: '#F04E6A',
+        title: L('هامش ربح منخفض جداً','Marge très faible'),
+        text: L(`هامش ربحك ${btp.grossMargin}% — هذا منخفض جداً للقطاع. راجع التسعير، قلّل المصاريف الإدارية، أو ركّز على مشاريع أكثر ربحية. الهدف: 15-20% على الأقل.`,
+              `Marge ${btp.grossMargin}% — très faible. Révisez les prix, réduisez les frais administratifs. Objectif: 15-20%.`),
+      });
+    } else if (btp.grossMargin >= 25) {
+      recommendations.push({
+        icon: '🏆', color: '#34C38F',
+        title: L('هامش ربح ممتاز','Marge excellente'),
+        text: L(`هامش ربحك ${btp.grossMargin}% — ممتاز للقطاع! استثمر هذا الفائض في معدات جديدة، تدريب العمال، أو توسيع النشاط.`,
+              `Marge ${btp.grossMargin}% — excellente! Investissez dans l'expansion.`),
+      });
+    }
+  }
+
+  // ⑦ تحليل DSO
+  if (btp.dso !== null && btp.dso > 75) {
+    recommendations.push({
+      icon: '⏳', color: '#FF7043',
+      title: L('بطء في التحصيل','Encaissement lent'),
+      text: L(`متوسط فترة تحصيل الفواتير ${btp.dso} يوم — أعلى من المعقول. ضع شروط دفع أقصر (30 يوم)، أعطِ خصومات للدفع السريع، أو اطلب دفعة مقدمة.`,
+            `DSO ${btp.dso} jours — trop long. Imposez 30 jours, offrez des remises pour paiement rapide.`),
+    });
+  }
+
+  // ⑧ تحليل نسبة الأجور
+  if (btp.payrollRatio !== null && btp.payrollRatio > 50) {
+    recommendations.push({
+      icon: '👷', color: '#E8B84B',
+      title: L('نسبة أجور مرتفعة','Ratio paie élevé'),
+      text: L(`أجور العمال تستهلك ${btp.payrollRatio}% من إيراداتك — هذا مرتفع. حسّن الإنتاجية، استثمر في معدات أحدث، أو راجع توزيع العمال على المشاريع.`,
+            `La paie représente ${btp.payrollRatio}% des revenus — élevé. Améliorez la productivité.`),
+      action: "App.navigate('workers')", actionLabel: L('عرض العمال','Voir personnel')
+    });
+  }
+
+  // ⑨ تحليل استخدام المعدات
+  const equipCount = projects.length > 0 ? DB.get('equipment').filter(e => e.tenant_id === Auth.getUser().tenant_id).length : 0;
+  if (equipCount > 0 && btp.equipUtilization < 40) {
+    recommendations.push({
+      icon: '🚜', color: '#E8B84B',
+      title: L('معدات غير مستغلة','Équipement sous-utilisé'),
+      text: L(`فقط ${btp.equipUtilization}% من معداتك نشطة. فكّر في تأجير المعدات الراكدة، أو بيع ما لا تحتاجه لتحرير سيولة.`,
+            `Seulement ${btp.equipUtilization}% des équipements actifs. Louez ou vendez le matériel inutilisé.`),
+      action: "App.navigate('equipment')", actionLabel: L('عرض المعدات','Voir équipement')
+    });
+  }
+
+  // ⑩ تحليل المشاريع المتأخرة
+  const delayedProjects = projects.filter(p => p.status === 'delayed' || p.status === 'late');
+  if (delayedProjects.length >= 2) {
+    recommendations.push({
+      icon: '⚠️', color: '#FF7043',
+      title: L('عدة مشاريع متأخرة','Plusieurs projets en retard'),
+      text: L(`${delayedProjects.length} مشاريع متأخرة عن المخطط: ${delayedProjects.slice(0,3).map(p=>escHtml(p.name)).join('، ')}. حدد الأسباب الجذرية: نقص عمالة؟ موارد؟ مشاكل تقنية؟`,
+            `${delayedProjects.length} projets en retard. Identifiez les causes: manque de main d'œuvre, ressources, problèmes techniques?`),
+    });
+  }
+
+  // ━━ التلخيص الذكي العام ━━
+  let summary = '';
+  if (projects.length === 0) {
+    summary = L('🎯 ابدأ بإضافة مشاريعك لنقدم لك تحليلات دقيقة وتوصيات مخصصة.',
+              '🎯 Commencez par ajouter vos projets pour obtenir des analyses précises.');
+  } else if (recommendations.length === 0) {
+    summary = L(`✨ مؤسستك تعمل بأداء ممتاز! ${projects.length} مشروع نشط بإيرادات ${fmt(Math.round((txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0)||0)))} دج وهامش ربح صحي. حافظ على هذا المستوى وفكّر في النمو.`,
+              `✨ Votre entreprise performe excellemment! ${projects.length} projets actifs avec une marge saine.`);
+  } else {
+    const danger = recommendations.filter(r => r.color === '#F04E6A').length;
+    const warning = recommendations.filter(r => r.color === '#E8B84B' || r.color === '#FF7043').length;
+    const success = recommendations.filter(r => r.color === '#34C38F').length;
+    if (danger > 0) {
+      summary = L(`⚡ بناءً على تحليل بياناتك: ${danger} مشكلة حرجة تحتاج تدخلك فوراً، و ${warning} تحذير. ركّز على المشاكل المالية والزمنية أولاً. اضغط على التوصيات أدناه للتنقل مباشرة لحل المشكلة.`,
+                `⚡ Analyse: ${danger} problème(s) critique(s), ${warning} avertissement(s). Priorité aux problèmes financiers.`);
+    } else if (warning > 0) {
+      summary = L(`💡 مؤسستك في حالة جيدة لكن يوجد ${warning} نقطة تحسينية. التوصيات أدناه ستساعدك على رفع الأداء وتحقيق هامش ربح أعلى.`,
+                `💡 État correct, ${warning} amélioration(s) possible(s).`);
+    } else {
+      summary = L(`✨ أداء جيد! ${success} نقطة قوة محددة. استمر على هذه الوتيرة.`,
+                `✨ Bonne performance! ${success} points forts identifiés.`);
+    }
+  }
+
+  return { summary, recommendations };
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 🤖 AI Advisor Modal — بوت تفاعلي
+// ════════════════════════════════════════════════════════════════════
+function openAIAdvisor() {
+  const tid = Auth.getUser().tenant_id;
+  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
+  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
+  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
+  const equipData = DB.get('equipment').filter(e => e.tenant_id===tid);
+  const salaryData = DB.get('salary_records').filter(s => s.tenant_id===tid);
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equipData, salaryData);
+  const insights = generateAIInsights(btp, projects, txs, workers, invoicesData, materialsData);
+  const tenantName = Auth.getTenant()?.name || L('مؤسستك','Votre entreprise');
+
+  // أسئلة جاهزة سريعة
+  const quickQuestions = [
+    { icon: '💰', text: L('كيف أحسّن السيولة؟','Comment améliorer la liquidité?') },
+    { icon: '📈', text: L('ما هي أكثر المصاريف؟','Quelles sont mes plus grosses dépenses?') },
+    { icon: '🏗️', text: L('أي مشاريعي الأكثر ربحاً؟','Quel projet est le plus rentable?') },
+    { icon: '⏰', text: L('لماذا تأخرت مشاريعي؟','Pourquoi mes projets sont en retard?') },
+    { icon: '📊', text: L('كيف أرفع هامش الربح؟','Comment augmenter ma marge?') },
+    { icon: '👷', text: L('هل عمالي ينتجون بكفاءة؟','Mes employés sont-ils productifs?') },
+  ];
+
+  const modalHTML = `
+    <div id="aiAdvisorModal" class="modal-overlay show" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem">
+      <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:16px;max-width:780px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+        <!-- رأس -->
+        <div style="padding:1.2rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(155,109,255,.08),rgba(74,144,226,.04))">
+          <div style="display:flex;align-items:center;gap:.8rem">
+            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#9B6DFF,#4A90E2);display:flex;align-items:center;justify-content:center;font-size:1.6rem">🤖</div>
+            <div>
+              <div style="font-size:1.05rem;font-weight:900;color:var(--text)">${L('المحلل الذكي','Conseiller IA')}</div>
+              <div style="font-size:.74rem;color:var(--muted);margin-top:.15rem">${L('تحليل بيانات','Analyse de')} ${escHtml(tenantName)}</div>
+            </div>
+          </div>
+          <button onclick="document.getElementById('aiAdvisorModal').remove()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;padding:0 .5rem">✕</button>
+        </div>
+
+        <!-- محتوى الشات -->
+        <div id="aiChatBody" style="flex:1;overflow-y:auto;padding:1.2rem;display:flex;flex-direction:column;gap:.8rem">
+          <!-- رسالة ترحيب من البوت -->
+          <div style="display:flex;gap:.6rem;align-items:flex-start">
+            <div style="font-size:1.6rem;flex-shrink:0">🤖</div>
+            <div style="background:rgba(155,109,255,.06);border:1px solid rgba(155,109,255,.2);border-radius:12px;padding:.8rem 1rem;max-width:88%">
+              <div style="font-size:.78rem;color:#9B6DFF;font-weight:700;margin-bottom:.3rem">${L('المحلل','Conseiller')}</div>
+              <div style="font-size:.88rem;color:var(--text);line-height:1.8">
+                ${L(`مرحباً! أنا المحلل الذكي لمؤسستك. حلّلت بياناتك ووجدت:`,`Bonjour! J'ai analysé vos données et trouvé:`)}
+                <div style="margin-top:.7rem;font-size:.82rem">${insights.summary}</div>
+                <div style="margin-top:.7rem;font-size:.82rem;color:var(--muted)">${L('اختر سؤالاً سريعاً أو اطرح سؤالك الخاص:','Choisissez une question rapide ou posez la vôtre:')}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- أسئلة سريعة -->
+        <div id="quickQuestionsBox" style="padding:.8rem 1.4rem;border-top:1px solid var(--border);background:rgba(255,255,255,.01)">
+          <div style="font-size:.72rem;color:var(--dim);font-weight:700;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.4px">⚡ ${L('أسئلة سريعة','Questions rapides')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+            ${quickQuestions.map(q => `
+              <button onclick="askAIAdvisor('${q.text.replace(/'/g,"\'")}')" style="padding:.4rem .8rem;background:rgba(155,109,255,.08);border:1px solid rgba(155,109,255,.25);border-radius:18px;color:var(--text);font-size:.74rem;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit;transition:all .15s">
+                <span>${q.icon}</span> ${q.text}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- مدخل السؤال -->
+        <div style="padding:1rem 1.4rem;border-top:1px solid var(--border);display:flex;gap:.6rem;align-items:center">
+          <input id="aiAdvisorInput" type="text" placeholder="${L('اطرح سؤالك حول مؤسستك...','Posez votre question...')}" style="flex:1;padding:.7rem 1rem;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:.85rem"
+            onkeydown="if(event.key==='Enter'){askAIAdvisor(this.value);this.value='';}">
+          <button onclick="const v=document.getElementById('aiAdvisorInput').value;if(v){askAIAdvisor(v);document.getElementById('aiAdvisorInput').value='';}" style="padding:.7rem 1.2rem;background:linear-gradient(135deg,#9B6DFF,#4A90E2);color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-family:inherit;font-size:.85rem">
+            ➤
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// محرك أسئلة وأجوبة محلي ذكي
+function askAIAdvisor(question) {
+  if (!question || !question.trim()) return;
+  const body = document.getElementById('aiChatBody');
+  if (!body) return;
+
+  // إخفاء قسم الأسئلة السريعة بعد أول سؤال
+  const qBox = document.getElementById('quickQuestionsBox');
+  if (qBox) qBox.style.display = 'none';
+
+  // أضف سؤال المستخدم
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText = 'display:flex;gap:.6rem;justify-content:flex-end';
+  userMsg.innerHTML = `
+    <div style="background:rgba(74,144,226,.1);border:1px solid rgba(74,144,226,.3);border-radius:12px;padding:.7rem 1rem;max-width:75%;font-size:.85rem;color:var(--text);line-height:1.7">${escHtml(question)}</div>
+    <div style="font-size:1.4rem;flex-shrink:0">👤</div>
+  `;
+  body.appendChild(userMsg);
+  body.scrollTop = body.scrollHeight;
+
+  // مؤشر التحميل
+  const loading = document.createElement('div');
+  loading.id = 'aiThinking';
+  loading.style.cssText = 'display:flex;gap:.6rem;align-items:center';
+  loading.innerHTML = `<div style="font-size:1.4rem">🤖</div><div style="background:rgba(155,109,255,.06);border-radius:12px;padding:.7rem 1rem;font-size:.82rem;color:var(--muted)">${L('أحلّل بياناتك...','J\'analyse...')} <span class="ai-dots">●●●</span></div>`;
+  body.appendChild(loading);
+  body.scrollTop = body.scrollHeight;
+
+  // محاكاة تفكير
+  setTimeout(() => {
+    const answer = generateAIAnswer(question);
+    loading.remove();
+    const botMsg = document.createElement('div');
+    botMsg.style.cssText = 'display:flex;gap:.6rem;align-items:flex-start';
+    botMsg.innerHTML = `
+      <div style="font-size:1.4rem;flex-shrink:0">🤖</div>
+      <div style="background:rgba(155,109,255,.06);border:1px solid rgba(155,109,255,.2);border-radius:12px;padding:.8rem 1rem;max-width:88%">
+        <div style="font-size:.86rem;color:var(--text);line-height:1.8;white-space:pre-wrap">${answer}</div>
+      </div>
+    `;
+    body.appendChild(botMsg);
+    body.scrollTop = body.scrollHeight;
+  }, 800);
+}
+
+// توليد إجابات ذكية بناءً على البيانات الفعلية
+function generateAIAnswer(question) {
+  const q = question.toLowerCase();
+  const tid = Auth.getUser().tenant_id;
+  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
+  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
+  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
+  const equipData = DB.get('equipment').filter(e => e.tenant_id===tid);
+  const salaryData = DB.get('salary_records').filter(s => s.tenant_id===tid);
+  const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equipData, salaryData);
+
+  // ── أسئلة حول السيولة والمالية ──
+  if (q.includes('سيول') || q.includes('liquid') || q.includes('cash') || q.includes('نقد')) {
+    const cash = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount||0),0) - txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+    let ans = `💰 **${L('وضع السيولة','État de la liquidité')}**\n\n`;
+    ans += `• ${L('السيولة الحالية','Liquidité actuelle')}: <strong>${fmt(cash)} ${L('دج','DA')}</strong>\n`;
+    if (btp.cashRunway !== null && btp.cashRunway > 0) ans += `• ${L('مدة التمويل','Durée')}: <strong>${btp.cashRunway} ${L('يوم','jours')}</strong>\n`;
+    if (btp.burnRate > 0) ans += `• ${L('معدل الحرق اليومي','Consommation/jour')}: <strong>${fmt(btp.burnRate)} ${L('دج','DA')}</strong>\n`;
+    ans += `\n🎯 **${L('نصائح لتحسين السيولة','Conseils pour améliorer')}:**\n`;
+    if (btp.unpaidAmount > 0) ans += `1. ${L('حصّل','Encaissez')} <strong>${fmt(Math.round(btp.unpaidAmount))} ${L('دج','DA')}</strong> ${L('من الفواتير المعلقة','de factures impayées')} (${btp.unpaidInvoices.length} ${L('فاتورة','facture(s)')})\n`;
+    ans += `${btp.unpaidAmount > 0 ? '2' : '1'}. ${L('فاوض على دفعات مقدمة 30-50%','Négociez des avances 30-50%')}\n`;
+    ans += `${btp.unpaidAmount > 0 ? '3' : '2'}. ${L('قلّل المصاريف غير الضرورية','Réduisez les dépenses non essentielles')}\n`;
+    ans += `${btp.unpaidAmount > 0 ? '4' : '3'}. ${L('بع المعدات الراكدة','Vendez l\'équipement inutilisé')}`;
+    return ans;
+  }
+
+  // ── أكثر المصاريف ──
+  if (q.includes('مصاريف') || q.includes('مصروف') || q.includes('dépense') || q.includes('expense') || q.includes('cost')) {
+    const expensesByCategory = {};
+    txs.filter(t=>t.type==='expense').forEach(t => {
+      const cat = t.category || L('غير محدد','Non catégorisé');
+      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + Number(t.amount||0);
+    });
+    const sorted = Object.entries(expensesByCategory).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    if (sorted.length === 0) return L('لم تسجّل أي مصاريف بعد. ابدأ بإضافة معاملاتك في صفحة "المعاملات".','Aucune dépense enregistrée. Ajoutez-en dans "Transactions".');
+    let ans = `📊 **${L('أكبر 5 فئات مصاريف','Top 5 catégories')}:**\n\n`;
+    sorted.forEach(([cat, amt], i) => {
+      ans += `${i+1}. **${cat}**: ${fmt(Math.round(amt))} ${L('دج','DA')}\n`;
+    });
+    const total = sorted.reduce((s,[,v])=>s+v,0);
+    const topPct = total > 0 ? Math.round((sorted[0][1] / total) * 100) : 0;
+    ans += `\n💡 ${L('الفئة الأكبر','La plus grosse')} "${sorted[0][0]}" ${L('تمثل','représente')} <strong>${topPct}%</strong> ${L('من المصاريف. راجع هذه الفئة للبحث عن فرص لتقليل التكاليف.','des dépenses. Cherchez des opportunités de réduction.')}`;
+    return ans;
+  }
+
+  // ── أكثر مشروع ربحاً ──
+  if (q.includes('ربح') || q.includes('profit') || q.includes('rent') || q.includes('marge')) {
+    const projectProfit = projects.map(p => {
+      const budget = Number(p.budget||0);
+      const spent = Number(p.total_spent||0);
+      const progress = Number(p.progress||0);
+      const ev = budget * progress / 100;
+      const margin = spent > 0 ? ((ev - spent) / spent) * 100 : 0;
+      return { name: p.name, margin: +margin.toFixed(1), profit: ev - spent, budget, spent, progress };
+    }).filter(p => p.spent > 0).sort((a,b)=>b.margin-a.margin);
+    if (projectProfit.length === 0) return L('لا توجد بيانات كافية. تأكد من إدخال الميزانية والمنفق لكل مشروع.','Données insuffisantes. Assurez-vous d\'avoir saisi le budget et les dépenses.');
+    let ans = `🏆 **${L('ترتيب المشاريع حسب الربحية','Classement par rentabilité')}:**\n\n`;
+    projectProfit.slice(0,5).forEach((p,i) => {
+      const icon = p.margin >= 15 ? '✅' : p.margin >= 0 ? '⚖️' : '❌';
+      ans += `${icon} **${i+1}. ${p.name}**: ${p.margin > 0 ? '+' : ''}${p.margin}% ${L('هامش','marge')} (${fmt(Math.round(p.profit))} ${L('دج','DA')})\n`;
+    });
+    if (projectProfit[0].margin >= 15) {
+      ans += `\n💡 ${L('مشروع "','Le projet "')}${projectProfit[0].name}${L('" هو الأكثر ربحاً — ادرس عوامل نجاحه وكرّرها في المشاريع الأخرى.','" est le plus rentable — étudiez ses facteurs de succès.')}`;
+    }
+    if (projectProfit[projectProfit.length-1].margin < 0) {
+      ans += `\n⚠️ ${L('مشروع "','Projet "')}${projectProfit[projectProfit.length-1].name}${L('" يخسر — راجع الميزانية أو تفاوض مع العميل على تكاليف إضافية.','" perd de l\'argent — révisez le budget.')}`;
+    }
+    return ans;
+  }
+
+  // ── التأخير ──
+  if (q.includes('تأخ') || q.includes('retard') || q.includes('delay') || q.includes('late')) {
+    const delayed = projects.filter(p => p.status === 'delayed' || p.status === 'late');
+    if (delayed.length === 0 && (btp.spi === null || btp.spi >= 1)) {
+      return L('✅ ممتاز! لا توجد مشاريع متأخرة وفقاً للبيانات. كل المشاريع تسير ضمن الجدول الزمني.','✅ Excellent! Aucun projet en retard.');
+    }
+    let ans = `⏰ **${L('تحليل التأخيرات','Analyse des retards')}:**\n\n`;
+    if (btp.spi !== null) ans += `• SPI = <strong>${btp.spi}</strong> ${btp.spi < 1 ? L('(متأخر)','(en retard)') : L('(في الوقت)','(à l\'heure)')}\n`;
+    if (delayed.length > 0) {
+      ans += `\n📋 **${L('المشاريع المتأخرة','Projets en retard')}:**\n`;
+      delayed.forEach(p => { ans += `• ${p.name} — ${L('التقدم','progrès')}: ${p.progress||0}%\n`; });
+    }
+    ans += `\n🎯 **${L('الأسباب الشائعة للتأخير','Causes courantes')}:**\n`;
+    ans += `1. ${L('نقص في العمالة أو غياب متكرر','Manque de main d\'œuvre')}\n`;
+    ans += `2. ${L('تأخر استلام المواد من الموردين','Retard de livraison de matériaux')}\n`;
+    ans += `3. ${L('سوء تقدير الجدول الزمني','Mauvaise estimation des délais')}\n`;
+    ans += `4. ${L('مشاكل تقنية غير متوقعة','Problèmes techniques imprévus')}\n`;
+    ans += `5. ${L('تعديلات من العميل','Modifications du client')}\n`;
+    ans += `\n💡 ${L('استخدم صفحة Gantt لمراجعة الجدول الزمني وأعد تخطيط المهام الحرجة.','Utilisez Gantt pour replanifier les tâches.')}`;
+    return ans;
+  }
+
+  // ── رفع هامش الربح ──
+  if (q.includes('هامش') || q.includes('marge') || q.includes('rentab') || q.includes('ربحية')) {
+    const margin = btp.grossMargin;
+    let ans = `📈 **${L('رفع هامش الربح','Augmenter la marge')}**\n\n`;
+    if (margin !== null) ans += `• ${L('هامشك الحالي','Marge actuelle')}: <strong>${margin}%</strong>\n\n`;
+    ans += `🎯 **${L('استراتيجيات عملية','Stratégies pratiques')}:**\n\n`;
+    ans += `**${L('① تسعير ذكي','① Tarification intelligente')}:**\n`;
+    ans += `• ${L('احسب التكلفة الحقيقية + هامش 20-30%','Calculez coût réel + 20-30%')}\n`;
+    ans += `• ${L('ميّز خدماتك (جودة، سرعة، ضمان)','Différenciez vos services')}\n\n`;
+    ans += `**${L('② تقليل التكاليف','② Réduction des coûts')}:**\n`;
+    ans += `• ${L('فاوض الموردين على خصومات الكميات','Négociez les volumes')}\n`;
+    ans += `• ${L('قلّل الهدر في المواد','Réduisez le gaspillage')}\n`;
+    ans += `• ${L('استثمر في تدريب العمال (إنتاجية أعلى)','Formez vos employés')}\n\n`;
+    ans += `**${L('③ تحسين العمليات','③ Optimisation')}:**\n`;
+    ans += `• ${L('أتمتة المهام الإدارية','Automatisez l\'administratif')}\n`;
+    ans += `• ${L('استخدم معدات أحدث','Modernisez l\'équipement')}\n`;
+    ans += `• ${L('ركّز على المشاريع ذات الربح العالي','Focus projets rentables')}`;
+    return ans;
+  }
+
+  // ── إنتاجية العمال ──
+  if (q.includes('عمال') || q.includes('employ') || q.includes('worker') || q.includes('productiv') || q.includes('إنتاج')) {
+    const today = new Date().toISOString().split('T')[0];
+    const presentToday = attendance.filter(a => a.date === today && a.status === 'present').length;
+    const rate = workers.length > 0 ? Math.round((presentToday / workers.length) * 100) : 0;
+    let ans = `👷 **${L('تحليل العمالة','Analyse personnel')}**\n\n`;
+    ans += `• ${L('عدد العمال','Total employés')}: <strong>${workers.length}</strong>\n`;
+    ans += `• ${L('حضور اليوم','Présents aujourd\'hui')}: <strong>${presentToday}/${workers.length} (${rate}%)</strong>\n`;
+    if (btp.payrollRatio !== null) ans += `• ${L('نسبة الأجور للإيرادات','Ratio paie/revenus')}: <strong>${btp.payrollRatio}%</strong>\n`;
+    ans += `• ${L('الإنتاجية لكل عامل','Productivité/employé')}: <strong>${btp.productivity}%</strong>\n\n`;
+    ans += `💡 **${L('مؤشرات الكفاءة','Indicateurs')}:**\n`;
+    if (rate < 80) ans += `⚠️ ${L('معدل الحضور','Taux présence')} ${rate}% ${L('منخفض. حقّق في أسباب الغياب.','— bas, enquêtez sur les absences.')}\n`;
+    if (btp.payrollRatio !== null && btp.payrollRatio > 40) ans += `⚠️ ${L('نسبة الأجور مرتفعة. حسّن الإنتاجية أو راجع التوظيف.','Ratio paie élevé.')}\n`;
+    if (btp.payrollRatio !== null && btp.payrollRatio <= 30 && rate >= 85) ans += `✅ ${L('أداء عمالتك ممتاز!','Performance excellente!')}\n`;
+    ans += `\n🎯 **${L('لتحسين الإنتاجية','Pour améliorer')}:**\n`;
+    ans += `1. ${L('استثمر في تدريب العمال','Formez régulièrement')}\n`;
+    ans += `2. ${L('وفّر معدات أفضل','Équipement moderne')}\n`;
+    ans += `3. ${L('ربط المكافآت بالإنجاز','Primes selon performance')}\n`;
+    ans += `4. ${L('قياس الإنتاج لكل عامل','Mesurez par employé')}`;
+    return ans;
+  }
+
+  // ── إجابة عامة ذكية ──
+  let ans = `🤔 ${L('سؤال جيد. دعني أحلّل بياناتك:','Bonne question. Voici l\'analyse:')}\n\n`;
+  ans += `**${L('وضع مؤسستك الحالي','État actuel')}:**\n`;
+  ans += `• ${L('مشاريع نشطة','Projets actifs')}: <strong>${projects.filter(p=>p.status==='active').length}</strong>\n`;
+  ans += `• ${L('عمال','Employés')}: <strong>${workers.length}</strong>\n`;
+  if (btp.grossMargin !== null) ans += `• ${L('هامش الربح','Marge')}: <strong>${btp.grossMargin}%</strong>\n`;
+  if (btp.cpi !== null) ans += `• CPI: <strong>${btp.cpi}</strong>\n`;
+  if (btp.spi !== null) ans += `• SPI: <strong>${btp.spi}</strong>\n`;
+  ans += `\n💡 ${L('للحصول على إجابة محددة، جرّب أسئلة مثل:','Pour une réponse précise, essayez:')}\n`;
+  ans += `• ${L('"كيف أحسّن السيولة؟"','"Comment améliorer la liquidité?"')}\n`;
+  ans += `• ${L('"ما هي أكثر المصاريف؟"','"Quelles sont mes plus grosses dépenses?"')}\n`;
+  ans += `• ${L('"أي مشاريعي الأكثر ربحاً؟"','"Quel projet est le plus rentable?"')}`;
+  return ans;
+}
+
+window.openAIAdvisor = openAIAdvisor;
+window.askAIAdvisor = askAIAdvisor;
+window.generateAIAnswer = generateAIAnswer;
+window.generateAIInsights = generateAIInsights;
 
 function initAnalyticsCharts() {
   const tid = Auth.getUser()?.tenant_id;
@@ -10635,6 +16225,983 @@ function initAnalyticsCharts() {
 }
 
 /* ── SALARY PAGE ── */
+/* ════════════════════════════════════════════════════════════
+   👤 WORKER PROFILE — ملف العامل التفصيلي
+════════════════════════════════════════════════════════════ */
+Pages.worker_profile = function() {
+  const tid = Auth.getUser().tenant_id;
+  const wid = Number(App.params.id);
+  const worker = (DB.get('workers')||[]).find(w=>w.id===wid && w.tenant_id===tid);
+  if (!worker) return layoutHTML('workers', L('العمال','Ouvriers'), `<div class="empty"><div class="empty-icon">❌</div><div class="empty-title">${L('العامل غير موجود','Ouvrier introuvable')}</div></div>`);
+
+  const att = (DB.get('attendance')||[]).filter(a=>a.worker_id===wid);
+  const leaves = (DB.get('leave_requests')||[]).filter(l=>l.worker_id===wid);
+  const warnings = (DB.get('worker_warnings')||[]).filter(w=>w.worker_id===wid);
+  const overtime = (DB.get('worker_overtime')||[]).filter(o=>o.worker_id===wid);
+  const salRecs = (DB.get('salary_records')||[]).filter(r=>r.worker_id===wid);
+  const projects = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid);
+
+  // إحصاءات الحضور
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const attThisMonth = att.filter(a=>(a.date||'').startsWith(thisMonth));
+  const presentDays = att.filter(a=>a.status==='present').length;
+  const absentDays  = att.filter(a=>a.status==='absent').length;
+  const halfDays    = att.filter(a=>a.status==='halfday').length;
+  const totalAtt    = presentDays + absentDays + halfDays;
+  const attRate     = totalAtt>0 ? Math.round((presentDays+halfDays*.5)/totalAtt*100) : 0;
+
+  // إجازات مُعتمدة
+  const approvedLeaves = leaves.filter(l=>l.status==='approved');
+  const usedLeaveDays  = approvedLeaves.reduce((s,l)=>s+Number(l.days||0),0);
+  const annualLeave    = 30; // القانون الجزائري
+  const remainLeave    = Math.max(0, annualLeave - usedLeaveDays);
+
+  // انتهاء العقد
+  const contractEnd = worker.contract_end || '';
+  let contractAlert = '';
+  if (contractEnd) {
+    const daysLeft = Math.floor((new Date(contractEnd)-now)/(1000*60*60*24));
+    if (daysLeft <= 30 && daysLeft >= 0) contractAlert = `<div style="background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.3);border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.8rem;color:var(--red)">⚠️ ${L('ينتهي العقد خلال','Le contrat expire dans')} <strong>${daysLeft} ${L('يوم','jours')}</strong></div>`;
+    else if (daysLeft < 0) contractAlert = `<div style="background:rgba(240,78,106,.08);border:1px solid rgba(240,78,106,.3);border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.8rem;color:var(--red)">🔴 ${L('انتهى العقد منذ','Contrat expiré depuis')} <strong>${Math.abs(daysLeft)} ${L('يوم','jours')}</strong></div>`;
+  }
+
+  return layoutHTML('workers', escHtml(worker.full_name), `
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('workers')">← ${L('رجوع','Retour')}</button>
+        <div>${avatarHtml(worker.full_name, worker.color, 48)}</div>
+        <div>
+          <div class="page-title" style="font-size:1.1rem">${escHtml(worker.full_name)}</div>
+          <div class="page-sub">${escHtml(worker.role)} • ${escHtml(projects.find(p=>p.id===worker.project_id)?.name||L('بدون مشروع','Sans projet'))}</div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editWorker(${worker.id})">✏️ ${L('تعديل','Modifier')}</button>
+        <button class="btn btn-gold btn-sm" data-modal-open="leaveModal">+ ${L('طلب إجازة','Congé')}</button>
+        <button class="btn btn-ghost btn-sm" data-modal-open="warnModal">⚠️ ${L('إنذار','Avertissement')}</button>
+      </div>
+    </div>
+
+    ${contractAlert}
+
+    <!-- KPIs -->
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:1.5rem">
+      <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-value" style="color:var(--green)">${attRate}%</div>
+        <div class="stat-label">${L('نسبة الحضور','Taux présence')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${presentDays} ${L('يوم حضور','j. présent')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏖️</div>
+        <div class="stat-value" style="color:var(--blue)">${remainLeave}</div>
+        <div class="stat-label">${L('إجازة متبقية','Congé restant')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${usedLeaveDays}/${annualLeave} ${L('يوم','j.')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-value" style="color:var(--gold)">${overtime.reduce((s,o)=>s+Number(o.hours||0),0)}</div>
+        <div class="stat-label">${L('ساعات إضافية','Heures sup.')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-value" style="color:var(--orange)">${warnings.length}</div>
+        <div class="stat-label">${L('إنذارات','Avertissements')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💵</div>
+        <div class="stat-value" style="color:var(--green);font-size:.95rem">${fmt(worker.daily_salary)}</div>
+        <div class="stat-label">${L('أجر يومي (دج)','Salaire/j (DA)')}</div>
+      </div>
+    </div>
+
+    <!-- محتوى بالتابات -->
+    <div style="display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:.5rem">
+      ${['info','attendance','leaves','salary','warnings','overtime'].map((tab,i)=>{
+        const labels = [L('المعلومات','Infos'), L('الحضور','Présence'), L('الإجازات','Congés'), L('الرواتب','Salaires'), L('الإنذارات','Avertissements'), L('الإضافي','Heures sup.')];
+        const active = (App.params.tab||'info')===tab;
+        return `<button class="btn ${active?'btn-gold':'btn-ghost'} btn-sm" onclick="App.navigate('worker_profile',{id:${wid},tab:'${tab}'})">${labels[i]}</button>`;
+      }).join('')}
+    </div>
+
+    ${(()=>{
+      const tab = App.params.tab||'info';
+
+      if (tab==='info') return `
+        <div class="form-grid-2" style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.2rem;gap:1rem">
+          ${[
+            [L('الاسم الكامل','Nom complet'), worker.full_name],
+            [L('الاسم بالفرنسية','Nom FR'), worker.full_name_fr||'—'],
+            [L('المهنة','Métier'), worker.role],
+            [L('الهاتف','Téléphone'), worker.phone||'—'],
+            ['رقم الهوية / NIF', worker.national_id||'—'],
+            [L('رقم CNAS','N° CNAS'), worker.cnas_number||'—'],
+            [L('تاريخ الميلاد','Date naissance'), fmtDate(worker.dob)||'—'],
+            [L('نوع العقد','Type contrat'), worker.contract_type||'—'],
+            [L('تاريخ التعيين','Date embauche'), fmtDate(worker.hire_date)||'—'],
+            [L('تاريخ انتهاء العقد','Fin contrat'), worker.contract_end?fmtDate(worker.contract_end):'—'],
+            [L('الحالة الاجتماعية','Situation familiale'), worker.marital_status==='married'?L('متزوج','Marié'):L('أعزب','Célibataire')],
+            [L('عدد الأطفال','Nb enfants'), worker.children_count||0],
+            [L('الأجر الشهري الأساسي','Salaire mensuel'), fmt(worker.monthly_base||worker.daily_salary*26)+' دج'],
+            [L('العنوان','Adresse'), worker.address||'—'],
+            [L('جهة الاتصال للطوارئ','Contact urgence'), worker.emergency_contact||'—'],
+          ].map(([k,v])=>`<div><div style="font-size:.72rem;color:var(--dim);margin-bottom:.2rem">${k}</div><div style="font-weight:600;font-size:.88rem">${escHtml(String(v))}</div></div>`).join('')}
+        </div>`;
+
+      if (tab==='attendance') {
+        const months = [...new Set(att.map(a=>(a.date||'').substring(0,7)))].sort().reverse().slice(0,6);
+        return `<div style="display:flex;flex-direction:column;gap:1rem">
+          ${months.length===0?`<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">${L('لا يوجد سجل حضور','Aucun pointage')}</div></div>`:''}
+          ${months.map(m=>{
+            const mAtt = att.filter(a=>(a.date||'').startsWith(m));
+            const p=mAtt.filter(a=>a.status==='present').length;
+            const h=mAtt.filter(a=>a.status==='halfday').length;
+            const ab=mAtt.filter(a=>a.status==='absent').length;
+            const rate=mAtt.length>0?Math.round((p+h*.5)/mAtt.length*100):0;
+            return `<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+              <div style="font-weight:700">${m}</div>
+              <div style="display:flex;gap:1rem;font-size:.82rem">
+                <span style="color:var(--green)">✅ ${p} ${L('حضور','présent')}</span>
+                <span style="color:var(--gold)">½ ${h}</span>
+                <span style="color:var(--red)">❌ ${ab} ${L('غياب','absent')}</span>
+              </div>
+              <div style="font-weight:800;font-size:.9rem;color:${rate>=85?'var(--green)':rate>=70?'var(--gold)':'var(--red)'}">${rate}%</div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }
+
+      if (tab==='leaves') return `
+        <div style="display:flex;flex-direction:column;gap:.8rem">
+          <div style="background:rgba(74,144,226,.08);border:1px solid rgba(74,144,226,.2);border-radius:10px;padding:.8rem 1.1rem;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:.82rem">${L('رصيد الإجازة السنوية المتبقية','Solde congé annuel restant')}</span>
+            <span style="font-size:1.1rem;font-weight:900;color:var(--gold)">${remainLeave} ${L('يوم','jours')}</span>
+          </div>
+          ${leaves.length===0?`<div class="empty"><div class="empty-icon">🏖️</div><div class="empty-title">${L('لا توجد طلبات إجازة','Aucune demande de congé')}</div></div>`:
+          `<div class="table-wrap"><table>
+            <thead><tr><th>${L('النوع','Type')}</th><th>${L('من','Du')}</th><th>${L('إلى','Au')}</th><th>${L('الأيام','Jours')}</th><th>${L('السبب','Motif')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
+            <tbody>${leaves.sort((a,b)=>b.id-a.id).map(l=>{
+              const typeLabel = {annual:L('سنوية','Annuel'),sick:L('مرضية','Maladie'),maternity:L('أمومة','Maternité'),unpaid:L('بدون أجر','Sans solde'),other:L('أخرى','Autre')}[l.type]||l.type;
+              const stBadge = l.status==='approved'?`<span class="badge badge-active">✅ ${L('مُعتمد','Approuvé')}</span>`:
+                              l.status==='rejected'?`<span class="badge badge-delayed">❌ ${L('مرفوض','Refusé')}</span>`:
+                              `<span class="badge badge-paused">⏳ ${L('بانتظار','En attente')}</span>`;
+              return `<tr>
+                <td>${typeLabel}</td>
+                <td style="font-size:.8rem">${fmtDate(l.start_date)}</td>
+                <td style="font-size:.8rem">${fmtDate(l.end_date)}</td>
+                <td style="font-weight:700;color:var(--gold)">${l.days}</td>
+                <td style="font-size:.78rem;color:var(--dim)">${escHtml(l.reason||'—')}</td>
+                <td>${stBadge}</td>
+                <td><div style="display:flex;gap:.3rem">
+                  ${l.status==='pending'?`<button class="btn btn-green btn-sm" onclick="approveLeave(${l.id},${wid})">✅</button><button class="btn btn-red btn-sm" onclick="rejectLeave(${l.id},${wid})">❌</button>`:
+                  `<button class="btn btn-red btn-sm" onclick="deleteLeave(${l.id},${wid})">🗑️</button>`}
+                </div></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`}
+        </div>`;
+
+      if (tab==='salary') return `
+        <div class="table-wrap"><table>
+          <thead><tr><th>${L('الشهر','Mois')}</th><th>${L('الإجمالي','Brut')}</th><th>${L('العلاوات','Primes')}</th><th>${L('الخصومات','Déductions')}</th><th>${L('الصافي','Net')}</th><th>${L('تاريخ الصرف','Date paiement')}</th></tr></thead>
+          <tbody>${salRecs.length===0?`<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا يوجد سجل رواتب','Aucun bulletin')}</td></tr>`:
+            salRecs.sort((a,b)=>b.month_key?.localeCompare(a.month_key)).map(r=>`<tr>
+              <td style="font-weight:700">${r.month_key||'—'}</td>
+              <td style="font-family:monospace">${fmt(r.amount)} دج</td>
+              <td style="color:var(--green);font-family:monospace">${r.allowances?'+'+fmt(r.allowances)+' دج':'—'}</td>
+              <td style="color:var(--red);font-family:monospace">${r.deductions?'-'+fmt(r.deductions)+' دج':'—'}</td>
+              <td style="font-weight:800;font-family:monospace;color:var(--gold)">${fmt(Number(r.amount||0)+Number(r.allowances||0)-Number(r.deductions||0))} دج</td>
+              <td style="font-size:.8rem;color:var(--dim)">${fmtDate(r.paid_date)||'—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+
+      if (tab==='warnings') return `
+        <div style="display:flex;flex-direction:column;gap:.7rem">
+          ${warnings.length===0?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">${L('لا توجد إنذارات','Aucun avertissement')}</div></div>`:
+          warnings.sort((a,b)=>b.id-a.id).map(w=>{
+            const typeColor = w.type==='written'?'var(--orange)':w.type==='final'?'var(--red)':'var(--gold)';
+            const typeLabel = {verbal:L('شفوي','Verbal'),written:L('كتابي','Écrit'),final:L('إنذار نهائي','Final')}[w.type]||w.type;
+            return `<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-left:3px solid ${typeColor};border-radius:10px;padding:.9rem 1.1rem">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+                <span style="font-weight:700;color:${typeColor}">⚠️ ${typeLabel}</span>
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <span style="font-size:.75rem;color:var(--dim)">${fmtDate(w.date)}</span>
+                  <button class="btn btn-red btn-sm" onclick="deleteWarning(${w.id},${wid})">🗑️</button>
+                </div>
+              </div>
+              <div style="font-size:.82rem;color:var(--text)">${escHtml(w.reason)}</div>
+              ${w.action?`<div style="font-size:.75rem;color:var(--dim);margin-top:.3rem">📋 ${L('الإجراء','Action')}: ${escHtml(w.action)}</div>`:''}
+            </div>`;
+          }).join('')}
+        </div>`;
+
+      if (tab==='overtime') return `
+        <div class="table-wrap"><table>
+          <thead><tr><th>${L('التاريخ','Date')}</th><th>${L('الساعات','Heures')}</th><th>${L('النسبة','Taux')}</th><th>${L('المبلغ','Montant')}</th><th>${L('المشروع','Projet')}</th><th>🗑️</th></tr></thead>
+          <tbody>${overtime.length===0?`<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد ساعات إضافية','Aucune heure supplémentaire')}</td></tr>`:
+            overtime.sort((a,b)=>b.id-a.id).map(o=>`<tr>
+              <td>${fmtDate(o.date)}</td>
+              <td style="font-weight:700;color:var(--gold)">${o.hours}h</td>
+              <td>${o.rate||125}%</td>
+              <td style="font-family:monospace;color:var(--green)">${fmt(o.amount)} دج</td>
+              <td style="font-size:.78rem;color:var(--dim)">${escHtml(projects.find(p=>p.id===o.project_id)?.name||'—')}</td>
+              <td><button class="btn btn-red btn-sm" onclick="deleteOvertime(${o.id},${wid})">🗑️</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+
+      return '';
+    })()}
+
+    <!-- Modal إجازة -->
+    <div class="modal-overlay" id="leaveModal">
+      <div class="modal">
+        <div class="modal-title">🏖️ ${L('طلب إجازة','Demande de congé')}</div>
+        <div class="form-grid-2">
+          <div class="form-group"><label class="form-label">${L('نوع الإجازة *','Type *')}</label>
+            <select class="form-select" id="leaveType">
+              <option value="annual">${L('سنوية (30 يوم)','Annuel (30j)')}</option>
+              <option value="sick">${L('مرضية','Maladie')}</option>
+              <option value="maternity">${L('أمومة','Maternité')}</option>
+              <option value="unpaid">${L('بدون أجر','Sans solde')}</option>
+              <option value="other">${L('أخرى','Autre')}</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label>
+            <select class="form-select" id="leaveSt">
+              <option value="pending">${L('بانتظار الموافقة','En attente')}</option>
+              <option value="approved">${L('مُعتمد','Approuvé')}</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">${L('من','Du *')}</label><input class="form-input" id="leaveStart" type="date" value="${todayStr()}" oninput="calcLeaveDays()"></div>
+          <div class="form-group"><label class="form-label">${L('إلى','Au *')}</label><input class="form-input" id="leaveEnd" type="date" value="${todayStr()}" oninput="calcLeaveDays()"></div>
+          <div class="form-group"><label class="form-label">${L('عدد الأيام','Nb jours')}</label><input class="form-input" id="leaveDays" type="number" min="1" value="1" dir="ltr"></div>
+          <div class="form-group"><label class="form-label">${L('السبب','Motif')}</label><input class="form-input" id="leaveReason" placeholder="${L('سبب الإجازة...','Motif...')}"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveLeave(${wid})">💾 ${L('حفظ','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal إنذار -->
+    <div class="modal-overlay" id="warnModal">
+      <div class="modal">
+        <div class="modal-title">⚠️ ${L('تسجيل إنذار','Enregistrer avertissement')}</div>
+        <div class="form-grid-2">
+          <div class="form-group"><label class="form-label">${L('نوع الإنذار *','Type *')}</label>
+            <select class="form-select" id="warnType">
+              <option value="verbal">${L('شفوي','Verbal')}</option>
+              <option value="written">${L('كتابي رسمي','Écrit officiel')}</option>
+              <option value="final">${L('إنذار نهائي','Avertissement final')}</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">${L('التاريخ','Date')}</label><input class="form-input" id="warnDate" type="date" value="${todayStr()}"></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">${L('السبب *','Motif *')}</label><textarea class="form-textarea" id="warnReason" placeholder="${L('وصف المخالفة...','Description...')}"></textarea></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">${L('الإجراء المتخذ','Action prise')}</label><input class="form-input" id="warnAction" placeholder="${L('تحذير كتابي، توقيف...','Avertissement écrit, suspension...')}"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveWarning(${wid})">💾 ${L('حفظ','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+/* ════════════════════════════════════════════════════════════
+   🏪 SUPPLIERS — صفحة الموردين
+════════════════════════════════════════════════════════════ */
+Pages.suppliers = function() {
+  const tid = Auth.getUser().tenant_id;
+  const suppliers = (DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid);
+  const purchases = (DB.get('supplier_purchases')||[]).filter(p=>p.tenant_id===tid);
+
+  // إحصاءات
+  const totalSpent   = purchases.reduce((s,p)=>s+Number(p.amount||0),0);
+  const unpaid       = purchases.filter(p=>p.payment_status==='unpaid').reduce((s,p)=>s+Number(p.amount||0),0);
+  const activeCount  = suppliers.filter(s=>s.is_active!==false).length;
+
+  // فلتر
+  const filterCat = sessionStorage.getItem('sup_filter_cat')||'all';
+  const searchQ   = sessionStorage.getItem('sup_search')||'';
+  let filtered = suppliers;
+  if (filterCat!=='all') filtered = filtered.filter(s=>s.category===filterCat);
+  if (searchQ)           filtered = filtered.filter(s=>
+    (s.name||'').toLowerCase().includes(searchQ.toLowerCase()) ||
+    (s.phone||'').includes(searchQ) ||
+    (s.activity||'').toLowerCase().includes(searchQ.toLowerCase())
+  );
+
+  const categories = [
+    {v:'materials',  l:L('مواد بناء','Matériaux')},
+    {v:'equipment',  l:L('معدات وآليات','Engins')},
+    {v:'labor',      l:L('مقاول فرعي','Sous-traitant')},
+    {v:'services',   l:L('خدمات','Services')},
+    {v:'transport',  l:L('نقل','Transport')},
+    {v:'other',      l:L('أخرى','Autre')},
+  ];
+  const catLabel = v => categories.find(c=>c.v===v)?.l || v;
+
+  // تنبيه المستحقات
+  const overdueItems = purchases.filter(p=>{
+    if(p.payment_status==='paid') return false;
+    if(!p.due_date) return false;
+    return new Date(p.due_date) < new Date();
+  });
+
+  return layoutHTML('suppliers', L('الموردون','Fournisseurs'), `
+    <div class="page-header">
+      <div>
+        <div class="page-title">🏪 ${L('الموردون','Fournisseurs')}</div>
+        <div class="page-sub">${suppliers.length} ${L('مورد مسجل','fournisseur(s)')}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="exportSuppliersCSV()">📥 CSV</button>
+        <button class="btn btn-gold" data-modal-open="addSupModal">+ ${L('إضافة مورد','Ajouter fournisseur')}</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+      <div class="stat-card">
+        <div class="stat-icon">🏪</div>
+        <div class="stat-value">${activeCount}</div>
+        <div class="stat-label">${L('موردون نشطون','Fournisseurs actifs')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(74,144,226,.2)">
+        <div class="stat-icon">💸</div>
+        <div class="stat-value" style="color:var(--blue);font-size:1rem">${fmt(totalSpent)}</div>
+        <div class="stat-label">${L('إجمالي المشتريات (دج)','Total achats (DA)')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${purchases.length} ${L('عملية','opération(s)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(240,78,106,.2)">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" style="color:var(--red);font-size:1rem">${fmt(unpaid)}</div>
+        <div class="stat-label">${L('مستحقات غير مدفوعة (دج)','Dettes fournisseurs (DA)')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${purchases.filter(p=>p.payment_status==='unpaid').length} ${L('فاتورة','facture(s)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:${overdueItems.length?'rgba(240,78,106,.3)':'rgba(255,255,255,.07)'}">
+        <div class="stat-icon">🔴</div>
+        <div class="stat-value" style="color:${overdueItems.length?'var(--red)':'var(--text)'}">${overdueItems.length}</div>
+        <div class="stat-label">${L('التزامات متأخرة','Échéances dépassées')}</div>
+      </div>
+    </div>
+
+    <!-- تنبيه المستحقات المتأخرة -->
+    ${overdueItems.length?`
+    <div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);border-radius:10px;padding:.8rem 1.1rem;margin-bottom:1rem">
+      <div style="font-weight:700;color:var(--red);margin-bottom:.4rem">🔴 ${L('التزامات متأخرة السداد','Dettes en retard')} — ${fmt(overdueItems.reduce((s,p)=>s+Number(p.amount),0))} ${L('دج','DA')}</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        ${overdueItems.map(p=>{
+          const sup = suppliers.find(s=>s.id===p.supplier_id);
+          const days = Math.floor((new Date()-new Date(p.due_date))/(1000*60*60*24));
+          return `<span style="background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.2);border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer;color:var(--red)" onclick="App.navigate('supplier_detail',{id:${p.supplier_id}})">${escHtml(sup?.name||'—')} — ${fmt(p.amount)} دج (${days}j)</span>`;
+        }).join('')}
+      </div>
+    </div>`:``}
+
+    <!-- فلاتر + بحث -->
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+      <input class="form-input" style="max-width:220px;padding:.4rem .8rem;font-size:.82rem"
+        placeholder="${L('🔍 بحث...','🔍 Rechercher...')}"
+        value="${escHtml(searchQ)}"
+        oninput="sessionStorage.setItem('sup_search',this.value);App.navigate('suppliers')">
+      <button class="btn ${filterCat==='all'?'btn-gold':'btn-ghost'} btn-sm"
+        onclick="sessionStorage.setItem('sup_filter_cat','all');App.navigate('suppliers')">${L('الكل','Tous')} (${suppliers.length})</button>
+      ${categories.map(cat=>{
+        const n = suppliers.filter(s=>s.category===cat.v).length;
+        if(!n) return '';
+        return `<button class="btn ${filterCat===cat.v?'btn-blue':'btn-ghost'} btn-sm"
+          onclick="sessionStorage.setItem('sup_filter_cat','${cat.v}');App.navigate('suppliers')">${cat.l} (${n})</button>`;
+      }).join('')}
+    </div>
+
+    <!-- Grid الموردين -->
+    ${filtered.length===0?`<div class="empty"><div class="empty-icon">🏪</div>
+      <div class="empty-title">${L('لا يوجد موردون','Aucun fournisseur')}</div>
+      <div class="empty-desc">${L('أضف موردك الأول لتتبع مشترياتك والتزاماتك','Ajoutez votre premier fournisseur')}</div></div>`:
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:1rem">
+      ${filtered.map(s=>{
+        const sPurchases = purchases.filter(p=>p.supplier_id===s.id);
+        const sTotal  = sPurchases.reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const sUnpaid = sPurchases.filter(p=>p.payment_status==='unpaid').reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const sOverdue = sPurchases.filter(p=>p.payment_status==='unpaid'&&p.due_date&&new Date(p.due_date)<new Date()).length;
+        const stars = '★'.repeat(Number(s.rating||0))+'☆'.repeat(5-Number(s.rating||0));
+        return `<div style="background:var(--card-bg,#0e1720);border:1px solid ${sOverdue?'rgba(240,78,106,.35)':'var(--border)'};border-radius:14px;overflow:hidden;transition:all .2s;cursor:pointer"
+          onmouseover="this.style.borderColor='rgba(232,184,75,.4)';this.style.transform='translateY(-2px)'"
+          onmouseout="this.style.borderColor='${sOverdue?'rgba(240,78,106,.35)':'var(--border)'}'  ;this.style.transform=''"
+          onclick="App.navigate('supplier_detail',{id:${s.id}})">
+          <div style="height:3px;background:${s.color||'#4A90E2'}"></div>
+          <div style="padding:1rem 1.1rem">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
+              <div>
+                <div style="font-weight:800;font-size:.92rem">${escHtml(s.name)}</div>
+                <div style="font-size:.72rem;color:var(--gold)">${catLabel(s.category)}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.2rem">
+                <span class="badge" style="background:${s.is_active!==false?'rgba(52,195,143,.1)':'rgba(255,255,255,.05)'};color:${s.is_active!==false?'var(--green)':'var(--dim)'}">
+                  ${s.is_active!==false?L('✅ نشط','✅ Actif'):L('⛔ غير نشط','⛔ Inactif')}
+                </span>
+                <span style="color:var(--gold);font-size:.78rem">${stars}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.2rem;font-size:.76rem;color:var(--dim);margin-bottom:.8rem">
+              ${s.phone?`<div>📞 ${escHtml(s.phone)}</div>`:''}
+              ${s.wilaya?`<div>📍 ${escHtml(s.wilaya)}</div>`:''}
+              ${s.activity?`<div>🔧 ${escHtml(s.activity)}</div>`:''}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;background:rgba(255,255,255,.03);border-radius:8px;padding:.6rem">
+              <div style="text-align:center">
+                <div style="font-size:.68rem;color:var(--dim)">${L('إجمالي الشراء','Total achats')}</div>
+                <div style="font-family:monospace;font-weight:700;font-size:.82rem;color:var(--blue)">${fmt(sTotal)}</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:.68rem;color:var(--dim)">${L('المستحق','Solde dû')}</div>
+                <div style="font-family:monospace;font-weight:700;font-size:.82rem;color:${sUnpaid>0?'var(--red)':'var(--green)'}">${sUnpaid>0?fmt(sUnpaid)+' ⚠️':'✅ 0'}</div>
+              </div>
+            </div>
+            ${sOverdue?`<div style="margin-top:.5rem;font-size:.7rem;color:var(--red);font-weight:700">🔴 ${sOverdue} ${L('التزام متأخر','échéance(s) dépassée(s)')}</div>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`}
+
+    <!-- Modal إضافة مورد -->
+    <div class="modal-overlay" id="addSupModal">
+      <div class="modal modal-lg" style="max-width:700px">
+        <div class="modal-title">🏪 ${L('إضافة مورد جديد','Nouveau fournisseur')}</div>
+        <div style="font-size:.75rem;color:var(--dim);margin-bottom:1rem">
+          🇩🇿 ${L('المعلومات الشخصية والقانونية','Informations personnelles et légales')}
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">🇩🇿 ${L('اسم المورد / المؤسسة *','Nom fournisseur *')}</label>
+            <input class="form-input" id="supName" placeholder="${L('مؤسسة بن علي للبناء','Ets. Benali Construction')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🇫🇷 ${L('الاسم بالفرنسية','Nom en français')}</label>
+            <input class="form-input" id="supNameFr" placeholder="Ets. Benali Construction" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('نشاط المورد / التخصص *','Activité / Spécialité *')}</label>
+            <input class="form-input" id="supActivity" placeholder="${L('حديد، أسمنت، خشب...','Fer, ciment, bois...')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('الفئة *','Catégorie *')}</label>
+            <select class="form-select" id="supCat">
+              <option value="materials">${L('مواد بناء','Matériaux')}</option>
+              <option value="equipment">${L('معدات وآليات','Engins/Équipements')}</option>
+              <option value="labor">${L('مقاول فرعي','Sous-traitant')}</option>
+              <option value="services">${L('خدمات','Services')}</option>
+              <option value="transport">${L('نقل','Transport')}</option>
+              <option value="other">${L('أخرى','Autre')}</option>
+            </select>
+          </div>
+
+          <!-- معلومات الاتصال -->
+          <div class="form-group">
+            <label class="form-label">📞 ${L('رقم الهاتف *','Téléphone *')}</label>
+            <input class="form-input" id="supPhone" type="tel" placeholder="0550 000 000" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📞 ${L('هاتف 2 (اختياري)','Tél. 2 (optionnel)')}</label>
+            <input class="form-input" id="supPhone2" type="tel" placeholder="0770 000 000" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📧 ${L('البريد الإلكتروني','Email')}</label>
+            <input class="form-input" id="supEmail" type="email" placeholder="contact@fournisseur.dz" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📍 ${L('الولاية','Wilaya')}</label>
+            <select class="form-select" id="supWilaya">
+              <option value="">— ${L('اختر الولاية','Choisir wilaya')} —</option>
+              ${WILAYAS.map(w=>`<option value="${escHtml(w)}">${escHtml(w)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">🏠 ${L('العنوان التفصيلي','Adresse détaillée')}</label>
+            <input class="form-input" id="supAddress" placeholder="${L('رقم، شارع، حي...','N°, rue, quartier...')}">
+          </div>
+
+          <!-- المعلومات القانونية -->
+          <div class="form-group">
+            <label class="form-label">NIF <span style="font-size:.7rem;color:var(--dim)">${L('(الرقم الجبائي)','(Numéro fiscal)')}</span></label>
+            <input class="form-input" id="supNif" placeholder="000 111 222 333 444" dir="ltr" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">NIS <span style="font-size:.7rem;color:var(--dim)">${L('(الرقم الإحصائي)','(Numéro stat.)')}</span></label>
+            <input class="form-input" id="supNis" placeholder="0000000000000000000" dir="ltr" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">RC <span style="font-size:.7rem;color:var(--dim)">${L('(السجل التجاري)','(Registre commercial)')}</span></label>
+            <input class="form-input" id="supRc" placeholder="00/00-0000000 B 00" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">⭐ ${L('التقييم','Évaluation')}</label>
+            <select class="form-select" id="supRating">
+              <option value="5">⭐⭐⭐⭐⭐ ${L('ممتاز','Excellent')}</option>
+              <option value="4">⭐⭐⭐⭐ ${L('جيد جداً','Très bien')}</option>
+              <option value="3" selected>⭐⭐⭐ ${L('جيد','Bien')}</option>
+              <option value="2">⭐⭐ ${L('متوسط','Moyen')}</option>
+              <option value="1">⭐ ${L('ضعيف','Faible')}</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">📝 ${L('ملاحظات مهمة','Notes importantes')}</label>
+            <textarea class="form-textarea" id="supNotes" placeholder="${L('شروط الدفع، أوقات التسليم، ملاحظات خاصة...','Conditions paiement, délais livraison, notes...')}"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('اللون المميز','Couleur')}</label>
+            <input class="form-input" id="supColor" type="color" value="#4A90E2" style="height:42px;padding:4px">
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:.8rem;padding-top:1.5rem">
+            <input type="checkbox" id="supActive" checked style="width:18px;height:18px;accent-color:var(--gold)">
+            <label for="supActive" style="font-weight:600">${L('مورد نشط','Fournisseur actif')}</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="saveSupplier()">💾 ${L('حفظ المورد','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+/* ════════════════════════════════════════════════════════════
+   👤 SUPPLIER DETAIL — ملف المورد التفصيلي
+════════════════════════════════════════════════════════════ */
+Pages.supplier_detail = function() {
+  const tid = Auth.getUser().tenant_id;
+  const sid = Number(App.params.id);
+  const s   = (DB.get('suppliers')||[]).find(x=>x.id===sid && x.tenant_id===tid);
+  if (!s) return layoutHTML('suppliers', L('الموردون','Fournisseurs'),
+    `<div class="empty"><div class="empty-icon">❌</div><div class="empty-title">${L('المورد غير موجود','Fournisseur introuvable')}</div></div>`);
+
+  const purchases = (DB.get('supplier_purchases')||[]).filter(p=>p.supplier_id===sid);
+  const projects  = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid);
+
+  const totalSpent = purchases.reduce((x,p)=>x+Number(p.amount||0),0);
+  const paid       = purchases.filter(p=>p.payment_status==='paid').reduce((x,p)=>x+Number(p.amount||0),0);
+  const unpaid     = totalSpent - paid;
+  const overdue    = purchases.filter(p=>p.payment_status==='unpaid'&&p.due_date&&new Date(p.due_date)<new Date());
+
+  const categories = {materials:L('مواد بناء','Matériaux'),equipment:L('معدات','Engins'),labor:L('مقاول فرعي','Sous-traitant'),services:L('خدمات','Services'),transport:L('نقل','Transport'),other:L('أخرى','Autre')};
+  const stars = '★'.repeat(Number(s.rating||0))+'☆'.repeat(5-Number(s.rating||0));
+  const tab   = App.params.tab||'purchases';
+
+  return layoutHTML('suppliers', escHtml(s.name), `
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('suppliers')">← ${L('رجوع','Retour')}</button>
+        <div style="width:46px;height:46px;border-radius:12px;background:${s.color||'#4A90E2'};display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:900;color:#fff;flex-shrink:0">${(s.name||'?')[0]}</div>
+        <div>
+          <div class="page-title" style="font-size:1rem">${escHtml(s.name)}</div>
+          <div class="page-sub">${categories[s.category]||s.category} • <span style="color:var(--gold)">${stars}</span></div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editSupplier(${s.id})">✏️ ${L('تعديل','Modifier')}</button>
+        <button class="btn btn-gold btn-sm" data-modal-open="addPurchaseModal">+ ${L('إضافة عملية','Nouvelle opération')}</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.2rem">
+      <div class="stat-card" style="border-color:rgba(74,144,226,.2)">
+        <div class="stat-icon">💸</div>
+        <div class="stat-value" style="color:var(--blue);font-size:1rem">${fmt(totalSpent)}</div>
+        <div class="stat-label">${L('إجمالي المشتريات (دج)','Total achats (DA)')}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${purchases.length} ${L('عملية','opération(s)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(52,195,143,.2)">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" style="color:var(--green);font-size:1rem">${fmt(paid)}</div>
+        <div class="stat-label">${L('مدفوع (دج)','Payé (DA)')}</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(240,78,106,.2)">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" style="color:var(--red);font-size:1rem">${fmt(unpaid)}</div>
+        <div class="stat-label">${L('مستحق (دج)','Solde dû (DA)')}</div>
+        ${overdue.length?`<div style="font-size:.7rem;color:var(--red)">${overdue.length} ${L('متأخر','en retard')}</div>`:''}
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-value">${new Set(purchases.map(p=>p.description?.split(' ')[0])).size||0}</div>
+        <div class="stat-label">${L('أنواع المواد','Types matériaux')}</div>
+      </div>
+    </div>
+
+    <!-- تنبيه متأخر -->
+    ${overdue.length?`<div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--red);font-weight:700">
+      🔴 ${L('التزامات متأخرة','Dettes en retard')}: ${fmt(overdue.reduce((s,p)=>s+Number(p.amount),0))} ${L('دج','DA')} — ${overdue.length} ${L('فاتورة','facture(s)')}
+    </div>`:''}
+
+    <!-- تابات -->
+    <div style="display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:.5rem">
+      ${['purchases','prices','obligations','info','notes'].map((t,i)=>{
+        const labels = [
+          L('سجل العمليات','Historique'),
+          L('قائمة الأسعار','Tarifs'),
+          L('الالتزامات','Obligations'),
+          L('المعلومات','Informations'),
+          L('الملاحظات','Notes')
+        ];
+        const counts = [
+          purchases.length,
+          (DB.get('supplier_prices')||[]).filter(p=>p.supplier_id===sid).length,
+          (DB.get('supplier_obligations')||[]).filter(o=>o.supplier_id===sid&&o.status!=='done').length,
+          null, null
+        ];
+        return `<button class="btn ${tab===t?'btn-gold':'btn-ghost'} btn-sm" onclick="App.navigate('supplier_detail',{id:${sid},tab:'${t}'})">${labels[i]}${counts[i]!==null&&counts[i]>0?` (${counts[i]})`:''}</button>`;
+      }).join('')}
+    </div>
+
+    ${(()=>{
+      const prices = (DB.get('supplier_prices')||[]).filter(p=>p.supplier_id===sid).sort((a,b)=>b.id-a.id);
+      const obligations = (DB.get('supplier_obligations')||[]).filter(o=>o.supplier_id===sid).sort((a,b)=>b.id-a.id);
+
+      if (tab==='prices') return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <div>
+            <div style="font-weight:700">${L('قائمة الأسعار المرجعية','Tarifs de référence')}</div>
+            <div style="font-size:.75rem;color:var(--dim)">${L('أسعار تاريخية لمقارنة عروض المورد','Historique des prix pour comparaison')}</div>
+          </div>
+          <button class="btn btn-gold btn-sm" data-modal-open="addPriceModal">+ ${L('إضافة سعر','Ajouter prix')}</button>
+        </div>
+
+        ${prices.length===0?`<div class="empty"><div class="empty-icon">💰</div><div class="empty-title">${L('لا توجد أسعار مسجلة','Aucun prix enregistré')}</div><div class="empty-desc">${L('سجّل أسعار هذا المورد لمقارنتها لاحقاً','Enregistrez les prix pour comparaison future')}</div></div>`:
+        `<div class="table-wrap"><table>
+          <thead><tr>
+            <th>${L('المادة / الخدمة','Produit / Service')}</th>
+            <th>${L('الوحدة','Unité')}</th>
+            <th>${L('السعر (دج)','Prix (DA)')}</th>
+            <th>${L('التاريخ','Date')}</th>
+            <th>${L('المشروع','Projet')}</th>
+            <th>${L('ملاحظة','Note')}</th>
+            <th>🗑️</th>
+          </tr></thead>
+          <tbody>${prices.map(p=>{
+            const proj = projects.find(x=>x.id===p.project_id);
+            return `<tr>
+              <td style="font-weight:700">${escHtml(p.item_name)}</td>
+              <td style="color:var(--dim);font-size:.8rem">${escHtml(p.unit||'—')}</td>
+              <td style="font-family:monospace;font-weight:700;color:var(--gold)">${fmt(p.unit_price)} دج</td>
+              <td style="font-size:.8rem;color:var(--dim)">${fmtDate(p.date)}</td>
+              <td style="font-size:.78rem;color:var(--dim)">${proj?escHtml(proj.name.substring(0,18)):'—'}</td>
+              <td style="font-size:.76rem;color:var(--muted)">${escHtml(p.note||'—')}</td>
+              <td><button class="btn btn-red btn-sm" onclick="deleteSupplierPrice(${p.id},${sid})">🗑️</button></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>`}
+
+        <!-- Modal إضافة سعر -->
+        <div class="modal-overlay" id="addPriceModal">
+          <div class="modal" style="max-width:480px">
+            <div class="modal-title">💰 ${L('إضافة سعر مرجعي','Ajouter prix de référence')}</div>
+            <div style="font-size:.78rem;color:var(--gold);margin-bottom:.8rem">📌 ${escHtml(s.name)}</div>
+            <div class="form-grid-2">
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">${L('المادة / الخدمة *','Produit / Service *')}</label>
+                <input class="form-input" id="priceItem" placeholder="${L('حديد HA 10، أسمنت CPJ، نقل...','Fer HA 10, Ciment CPJ, Transport...')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('الوحدة','Unité')}</label>
+                <input class="form-input" id="priceUnit" placeholder="${L('طن، كيس، م²، رحلة...','tonne, sac, m², voyage...')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('السعر للوحدة (دج) *','Prix unitaire (DA) *')}</label>
+                <input class="form-input" id="priceUnit_price" type="number" min="0" dir="ltr" inputmode="decimal">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('تاريخ السعر','Date du prix')}</label>
+                <input class="form-input" id="priceDate" type="date" value="${todayStr()}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('المشروع (للمرجعية)','Projet (référence)')}</label>
+                <select class="form-select" id="priceProj">
+                  <option value="">—</option>
+                  ${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">${L('ملاحظة (شروط، جودة...)','Note (conditions, qualité...')}</label>
+                <input class="form-input" id="priceNote" placeholder="${L('توصيل مجاني، جودة عالية، يتفاوض...','Livraison incluse, qualité A, négociable...')}">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+              <button class="btn btn-gold" onclick="saveSupplierPrice(${sid})">💾 ${L('حفظ السعر','Enregistrer')}</button>
+            </div>
+          </div>
+        </div>`;
+
+      if (tab==='obligations') {
+        const pending = obligations.filter(o=>o.status!=='done');
+        const done    = obligations.filter(o=>o.status==='done');
+        const now2    = new Date(); now2.setHours(0,0,0,0);
+        const overdue2 = pending.filter(o=>o.due_date&&new Date(o.due_date)<now2);
+        const totalObl = pending.reduce((s,o)=>s+Number(o.amount||0),0);
+
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+          <div>
+            <div style="font-weight:700">${L('الالتزامات المستحقة','Obligations et échéances')}</div>
+            <div style="font-size:.75rem;color:var(--dim)">${L('سجّل ديونك، فواتير آجلة، شيكات، ضمانات...','Dettes, factures à terme, chèques, garanties...')}</div>
+          </div>
+          <div style="display:flex;gap:.4rem;align-items:center">
+            ${totalObl>0?`<span style="font-size:.82rem;font-weight:700;color:var(--red);font-family:monospace">${L('المستحق:','Solde dû:')} ${fmt(totalObl)} دج</span>`:''}
+            <button class="btn btn-gold btn-sm" data-modal-open="addOblModal">+ ${L('التزام جديد','Nouvelle obligation')}</button>
+          </div>
+        </div>
+
+        ${overdue2.length?`<div style="background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.25);border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--red)">
+          🔴 <strong>${overdue2.length}</strong> ${L('التزام متأخر بمبلغ','obligation(s) en retard:')} <strong>${fmt(overdue2.reduce((s,o)=>s+Number(o.amount||0),0))} دج</strong>
+        </div>`:''}
+
+        <div style="display:flex;flex-direction:column;gap:.7rem">
+          ${pending.length===0?`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">${L('لا توجد التزامات معلقة','Aucune obligation en attente')}</div></div>`:
+          pending.map(o=>{
+            const isOvd = o.due_date && new Date(o.due_date)<now2;
+            const daysLeft = o.due_date ? Math.ceil((new Date(o.due_date)-now2)/(1000*60*60*24)) : null;
+            const typeLabel = {
+              invoice: L('فاتورة آجلة','Facture à terme'),
+              check:   L('شيك مستحق','Chèque'),
+              deposit: L('ضمان/عربون','Caution/Acompte'),
+              loan:    L('قرض/سلفة','Prêt'),
+              other:   L('أخرى','Autre')
+            }[o.type]||o.type;
+            return `<div style="background:var(--card-bg,#0e1720);border:1px solid ${isOvd?'rgba(240,78,106,.35)':'var(--border)'};border-radius:12px;padding:.9rem 1.1rem;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+                  <span style="background:rgba(232,184,75,.1);border:1px solid rgba(232,184,75,.2);color:var(--gold);border-radius:6px;padding:1px 7px;font-size:.72rem;font-weight:700">${typeLabel}</span>
+                  ${isOvd?`<span style="color:var(--red);font-size:.72rem;font-weight:700">🔴 ${L('متأخر','En retard')} ${Math.abs(daysLeft)} ${L('يوم','j')}</span>`:
+                  daysLeft!==null&&daysLeft<=7?`<span style="color:var(--orange);font-size:.72rem">⚠️ ${daysLeft} ${L('يوم متبقي','j restants')}</span>`:''}
+                </div>
+                <div style="font-weight:700;font-size:.9rem;margin-bottom:.2rem">${escHtml(o.description||'—')}</div>
+                <div style="font-size:.76rem;color:var(--dim)">${o.due_date?`📅 ${fmtDate(o.due_date)}`:''} ${o.ref?`• 🧾 ${escHtml(o.ref)}`:''}</div>
+              </div>
+              <div style="text-align:center;flex-shrink:0">
+                <div style="font-size:1.1rem;font-weight:900;color:${isOvd?'var(--red)':'var(--text)'};font-family:monospace">${fmt(o.amount)} دج</div>
+                <div style="display:flex;gap:.3rem;margin-top:.4rem;justify-content:flex-end">
+                  <button class="btn btn-green btn-sm" onclick="markOblDone(${o.id},${sid})" title="${L('تأشير كمنجز','Marquer accompli')}">✅</button>
+                  <button class="btn btn-red btn-sm" onclick="deleteObligation(${o.id},${sid})">🗑️</button>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+          ${done.length>0?`
+          <div style="margin-top:1rem">
+            <div style="font-size:.75rem;color:var(--dim);margin-bottom:.5rem;font-weight:700">✅ ${L('منجزة','Réalisées')} (${done.length})</div>
+            ${done.slice(0,3).map(o=>`<div style="background:rgba(52,195,143,.04);border:1px solid rgba(52,195,143,.1);border-radius:8px;padding:.5rem .8rem;margin-bottom:.3rem;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:.78rem;color:var(--dim)">${escHtml(o.description||'—')}</span>
+              <span style="font-family:monospace;font-size:.78rem;color:var(--green)">${fmt(o.amount)} دج</span>
+            </div>`).join('')}
+          </div>`:''}
+        </div>
+
+        <!-- Modal إضافة التزام -->
+        <div class="modal-overlay" id="addOblModal">
+          <div class="modal" style="max-width:480px">
+            <div class="modal-title">📋 ${L('إضافة التزام جديد','Nouvelle obligation')}</div>
+            <div style="font-size:.78rem;color:var(--gold);margin-bottom:.8rem">📌 ${escHtml(s.name)}</div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">${L('نوع الالتزام *','Type *')}</label>
+                <select class="form-select" id="oblType">
+                  <option value="invoice">${L('فاتورة آجلة','Facture à terme')}</option>
+                  <option value="check">${L('شيك مستحق','Chèque à encaisser')}</option>
+                  <option value="deposit">${L('ضمان / عربون','Caution / Acompte')}</option>
+                  <option value="loan">${L('قرض / سلفة','Prêt / Avance')}</option>
+                  <option value="other">${L('أخرى','Autre')}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('المبلغ (دج) *','Montant (DA) *')}</label>
+                <input class="form-input" id="oblAmount" type="number" min="0" dir="ltr" inputmode="decimal">
+              </div>
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">${L('الوصف *','Description *')}</label>
+                <input class="form-input" id="oblDesc" placeholder="${L('فاتورة حديد، شيك ضمان، سلفة مشروع X...','Facture fer, chèque caution, avance projet X...')}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('تاريخ الاستحقاق','Date d\'échéance')}</label>
+                <input class="form-input" id="oblDue" type="date">
+              </div>
+              <div class="form-group">
+                <label class="form-label">${L('المرجع (رقم الشيك، الفاتورة...)','Référence')}</label>
+                <input class="form-input" id="oblRef" placeholder="${L('رقم الشيك، رقم الفاتورة...','N° chèque, N° facture...')}" dir="ltr">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+              <button class="btn btn-gold" onclick="saveObligation(${sid})">💾 ${L('حفظ','Enregistrer')}</button>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      if (tab==='info') return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+          <!-- معلومات الاتصال -->
+          <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.1rem">
+            <div style="font-weight:700;margin-bottom:.8rem;color:var(--gold)">📞 ${L('معلومات الاتصال','Contact')}</div>
+            ${[
+              [L('الاسم','Nom'), s.name],
+              [L('الاسم FR','Nom FR'), s.name_fr||'—'],
+              [L('الهاتف','Tél.'), s.phone||'—'],
+              [L('هاتف 2','Tél. 2'), s.phone2||'—'],
+              [L('البريد','Email'), s.email||'—'],
+              [L('الولاية','Wilaya'), s.wilaya||'—'],
+              [L('العنوان','Adresse'), s.address||'—'],
+            ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem">
+              <span style="color:var(--dim)">${k}</span>
+              <span style="font-weight:600;text-align:${L('right','left')}">${escHtml(String(v))}</span>
+            </div>`).join('')}
+          </div>
+          <!-- المعلومات القانونية -->
+          <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.1rem">
+            <div style="font-weight:700;margin-bottom:.8rem;color:var(--gold)">📋 ${L('المعلومات القانونية','Informations légales')}</div>
+            ${[
+              ['NIF', s.nif||'—'],
+              ['NIS', s.nis||'—'],
+              ['RC', s.rc||'—'],
+              [L('النشاط','Activité'), s.activity||'—'],
+              [L('الفئة','Catégorie'), categories[s.category]||s.category||'—'],
+              [L('التقييم','Évaluation'), '★'.repeat(Number(s.rating||0))+'☆'.repeat(5-Number(s.rating||0))],
+              [L('الحالة','Statut'), s.is_active!==false?L('✅ نشط','✅ Actif'):L('⛔ غير نشط','⛔ Inactif')],
+            ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem">
+              <span style="color:var(--dim)">${k}</span>
+              <span style="font-weight:600">${escHtml(String(v))}</span>
+            </div>`).join('')}
+          </div>
+        </div>`;
+
+      if (tab==='notes') return `
+        <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1.2rem">
+          <div style="font-weight:700;margin-bottom:.6rem;color:var(--gold)">📝 ${L('ملاحظات خاصة','Notes personnelles')}</div>
+          <div style="font-size:.88rem;line-height:1.8;white-space:pre-wrap;color:var(--text)">${escHtml(s.notes||L('لا توجد ملاحظات','Aucune note'))}</div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:1rem" onclick="editSupplierNotes(${s.id})">✏️ ${L('تعديل الملاحظات','Modifier notes')}</button>
+        </div>`;
+
+      // tab === purchases
+      const methodLabel = {cash:L('نقداً','Espèces'),bank:L('تحويل بنكي','Virement'),check:L('شيك','Chèque'),credit:L('آجل','Crédit')}
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>${L('التاريخ','Date')}</th>
+              <th>${L('الوصف','Description')}</th>
+              <th>${L('المشروع','Projet')}</th>
+              <th>${L('المبلغ','Montant')}</th>
+              <th>${L('طريقة الدفع','Mode paie.')}</th>
+              <th>${L('تاريخ الاستحقاق','Échéance')}</th>
+              <th>${L('الحالة','Statut')}</th>
+              <th>${L('إجراء','Action')}</th>
+            </tr></thead>
+            <tbody>
+              ${purchases.length===0?`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد عمليات شراء','Aucun achat enregistré')}</td></tr>`:
+              purchases.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(p=>{
+                const proj = projects.find(x=>x.id===p.project_id);
+                const isOverdueP = p.payment_status==='unpaid'&&p.due_date&&new Date(p.due_date)<new Date();
+                const daysLate = isOverdueP?Math.floor((new Date()-new Date(p.due_date))/(1000*60*60*24)):0;
+                return `<tr ${isOverdueP?'style="background:rgba(240,78,106,.04)"':''}>
+                  <td style="font-size:.8rem">${fmtDate(p.date)}</td>
+                  <td style="font-weight:600;max-width:180px">
+                    <div>${escHtml(p.description||'—')}</div>
+                    ${p.receipt_number?`<div style="font-size:.7rem;color:var(--dim)">🧾 ${escHtml(p.receipt_number)}</div>`:''}
+                  </td>
+                  <td style="font-size:.78rem;color:var(--dim)">${proj?escHtml(proj.name.substring(0,18)):'—'}</td>
+                  <td style="font-family:monospace;font-weight:700">${fmt(p.amount)} ${L('دج','DA')}</td>
+                  <td style="font-size:.78rem">${methodLabel[p.payment_method]||p.payment_method||'—'}</td>
+                  <td style="font-size:.78rem;color:${isOverdueP?'var(--red)':'var(--dim)'};font-weight:${isOverdueP?'700':'400'}">
+                    ${p.due_date?fmtDate(p.due_date)+(isOverdueP?` <span style="font-size:.7rem">(${daysLate}j)</span>`:''):'—'}
+                  </td>
+                  <td>${p.payment_status==='paid'
+                    ?`<span class="badge badge-active">✅ ${L('مدفوع','Payé')}</span>`
+                    :isOverdueP
+                    ?`<span class="badge badge-delayed">🔴 ${L('متأخر','Retard')}</span>`
+                    :`<span class="badge badge-paused">⏳ ${L('معلق','En attente')}</span>`}
+                  </td>
+                  <td><div style="display:flex;gap:.25rem">
+                    ${p.payment_status!=='paid'?`<button class="btn btn-green btn-sm" onclick="markPurchasePaid(${p.id},${sid})" title="${L('تأشير كمدفوع','Marquer payé')}">✅</button>`:''}
+                    <button class="btn btn-red btn-sm" onclick="deletePurchase(${p.id},${sid})">🗑️</button>
+                  </div></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    })()}
+
+    <!-- Modal إضافة عملية شراء -->
+    <div class="modal-overlay" id="addPurchaseModal">
+      <div class="modal modal-lg" style="max-width:600px">
+        <div class="modal-title">🛒 ${L('إضافة عملية شراء','Nouvelle opération d\'achat')}</div>
+        <div style="font-size:.78rem;color:var(--gold);margin-bottom:.8rem">📌 ${escHtml(s.name)}</div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">${L('التاريخ *','Date *')}</label>
+            <input class="form-input" id="purDate" type="date" value="${todayStr()}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المشروع','Projet')}</label>
+            <select class="form-select" id="purProj">
+              <option value="">— ${L('بدون مشروع','Sans projet')} —</option>
+              ${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('وصف المشتريات *','Description *')}</label>
+            <input class="form-input" id="purDesc" placeholder="${L('حديد 10 أطنان، أسمنت 200 كيس...','Fer 10T, ciment 200 sacs...')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('المبلغ الإجمالي (دج) *','Montant total (DA) *')}</label>
+            <input class="form-input" id="purAmt" type="number" min="0" dir="ltr" inputmode="decimal">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('رقم الوصل / الفاتورة','N° Bon / Facture')}</label>
+            <input class="form-input" id="purRef" placeholder="BC-2025-001" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('طريقة الدفع','Mode paiement')}</label>
+            <select class="form-select" id="purMethod">
+              <option value="cash">${L('نقداً','Espèces')}</option>
+              <option value="bank">${L('تحويل بنكي','Virement')}</option>
+              <option value="check">${L('شيك','Chèque')}</option>
+              <option value="credit">${L('آجل','Crédit / terme')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('حالة الدفع','Statut paiement')}</label>
+            <select class="form-select" id="purStatus">
+              <option value="unpaid">${L('غير مدفوع (مستحق)','Non payé')}</option>
+              <option value="paid">${L('مدفوع','Payé')}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ الاستحقاق','Date d\'échéance')}</label>
+            <input class="form-input" id="purDue" type="date">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('ملاحظات','Notes')}</label>
+            <textarea class="form-textarea" id="purNotes" placeholder="${L('شروط خاصة، تفاصيل...','Conditions particulières...')}"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+          <button class="btn btn-gold" onclick="savePurchase(${sid})">💾 ${L('حفظ العملية','Enregistrer')}</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+
 Pages.salary = function() {
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w => w.tenant_id===tid);
@@ -10647,11 +17214,25 @@ Pages.salary = function() {
   const monthLabel = MONTHS_AR[sm-1] + ' ' + sy;
   const monthAtt = att.filter(a => (a.date||'').startsWith(selectedMonthKey));
   const calcSalary = w => {
-    const wAtt = monthAtt.filter(a => a.worker_id===w.id);
-    const pDays = wAtt.filter(a=>a.status==='present').length;
-    const hDays = wAtt.filter(a=>a.status==='halfday').length;
-    if (w.contract_type==='monthly') return {base:Number(w.monthly_base||w.daily_salary*26), present:pDays, half:hDays, total:Number(w.monthly_base||w.daily_salary*26)};
-    return {base:Number(w.monthly_base||w.daily_salary*26), present:pDays, half:hDays, total:Math.round((pDays+hDays*0.5)*Number(w.daily_salary))};
+    const wAtt   = monthAtt.filter(a => a.worker_id === w.id);
+    const pDays  = wAtt.filter(a => a.status === 'present').length;
+    const hDays  = wAtt.filter(a => a.status === 'halfday').length;
+    // الراتب الإجمالي الخام
+    let gross;
+    if (w.contract_type === 'monthly') {
+      gross = Number(w.monthly_base || w.daily_salary * 26);
+    } else {
+      gross = Math.round((pDays + hDays * 0.5) * Number(w.daily_salary));
+    }
+    // حساب صافي الراتب بالقانون الجزائري 2026
+    const alg = calcAlgerianSalary({
+      gross,
+      marital_status:  w.marital_status  || 'single',
+      children_count:  w.children_count  || 0,
+      spouse_works:    w.spouse_works     || 0,
+      is_handicap:     w.is_handicap      || 0,
+    });
+    return { ...alg, present: pDays, half: hDays, base: gross, total: alg.net };
   };
   const total = workers.reduce((s,w)=>s+calcSalary(w).total, 0);
   // build month options
@@ -10678,24 +17259,52 @@ Pages.salary = function() {
       ${workers.map(w => {
         const calc = calcSalary(w);
         const paid = records.find(r=>r.worker_id===w.id&&r.month_key===selectedMonthKey);
+        const maritalLabel = w.marital_status==='married'?'💍 '+L('متزوج','Marié(e)'):
+          w.marital_status==='divorced'?L('مطلق','Divorcé(e)'):
+          w.marital_status==='widowed'?L('أرمل','Veuf/Veuve'):
+          L('أعزب','Célibataire');
+
+        // علاوات وخصومات من السجل
+        const salRec = records.find(r=>r.worker_id===w.id&&r.month_key===selectedMonthKey);
+        const allowances  = Number(salRec?.allowances||0);
+        const deductions  = Number(salRec?.deductions||0);
+        // ساعات إضافية هذا الشهر
+        const otThisMonth = (DB.get('worker_overtime')||[]).filter(o=>o.worker_id===w.id&&(o.date||'').startsWith(selectedMonthKey));
+        const otTotal = otThisMonth.reduce((s,o)=>s+Number(o.amount||0),0);
+        const finalNet = calc.net + allowances + otTotal - deductions;
+
         return `<div class="salary-card">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
             <div style="display:flex;align-items:center;gap:.8rem">
               ${avatarHtml(w.full_name, w.color, 44)}
               <div>
                 <div style="font-weight:800;font-size:.9rem">${escHtml(w.full_name)}</div>
-                <div style="font-size:.74rem;color:var(--dim)">${escHtml(w.role)} • ${w.contract_type==='monthly'?L('عقد شهري','Contrat mensuel'):L('أجر يومي','Journalier')}</div>
+                <div style="font-size:.74rem;color:var(--dim)">${escHtml(w.role)} • ${w.contract_type==='monthly'?L('شهري','Mensuel'):L('يومي','Journalier')} • ${maritalLabel}${(w.children_count||0)>0?' • 👶×'+w.children_count:''}</div>
               </div>
             </div>
-            <div style="text-align:left">
-              <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(calc.total)} دج</div>
-              ${paid?`<span class="badge badge-active">✅ تم الصرف</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${calc.total})">💳 صرف</button>`:'<span class="badge">معلق</span>'}
+            <div style="text-align:${L('left','right')}">
+              <div style="font-size:1.1rem;font-weight:900;color:var(--green);font-family:monospace">${fmt(finalNet)} دج <span style="font-size:.7rem;font-weight:500;color:var(--dim)">${L('صافي','NET')}</span></div>
+              <div style="font-size:.7rem;color:var(--dim);font-family:monospace;margin-top:2px">${L('إجمالي','Brut')}: ${fmt(calc.gross)} | CNAS: −${fmt(calc.cnas)} | IRG: −${fmt(calc.irg_net)}${calc.allocations>0?' | '+L('منح','Alloc.')+': +'+fmt(calc.allocations):''}${allowances>0?' | '+L('علاوات','Primes')+': +'+fmt(allowances):''}${otTotal>0?' | '+L('إضافي','H.Sup.')+': +'+fmt(otTotal):''}${deductions>0?' | '+L('خصومات','Déduct.')+': −'+fmt(deductions):''}</div>
+              <div style="display:flex;gap:.3rem;justify-content:flex-end;align-items:center;margin-top:.4rem;flex-wrap:wrap">
+                <button class="btn btn-blue btn-sm" onclick="DZDocsUI.openForWorker('paie',${w.id},{baseSalary:${calc.gross},daysWorked:${calc.present+calc.half},monthKey:'${selectedMonthKey}',cnas:${calc.cnas},irg:${calc.irg_net},allocations:${calc.allocations},netSalary:${finalNet}})" title="${L('كشف راتب PDF احترافي','Bulletin paie PDF')}">📄 PDF</button>
+                <button class="btn btn-ghost btn-sm" onclick="editSalaryDays(${w.id},'${selectedMonthKey}')" title="${L('تعديل الأيام','Modifier jours')}">✏️ ${L('أيام','Jours')}</button>
+                <button class="btn btn-ghost btn-sm" onclick="addAllowanceModal(${w.id},'${selectedMonthKey}')" title="${L('علاوات وخصومات','Primes/Déductions')}">💰 ${L('علاوات','Primes')}</button>
+                <button class="btn btn-ghost btn-sm" onclick="addOvertime(${w.id})" title="${L('ساعات إضافية','Heures sup.')}">⏰</button>
+                <button class="btn btn-ghost btn-sm" onclick="printWorkerHistory(${w.id})" title="${L('كشف حساب كل الأشهر','Relevé annuel')}">📊</button>
+                ${paid?`<span class="badge badge-active">✅ ${L('تم الصرف','Payé')}</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${finalNet})">💳 ${L('صرف','Payer')}</button>`:`<span class="badge">${L('معلق','En attente')}</span>`}
+              </div>
             </div>
           </div>
           <div class="salary-breakdown">
-            <div class="salary-line"><span>أيام الحضور</span><span>${calc.present} يوم${calc.half?` + ${calc.half} نصف يوم`:''}</span></div>
-            <div class="salary-line"><span>الأجر اليومي</span><span>${fmt(w.daily_salary)} دج/يوم</span></div>
-            <div class="salary-line total-line"><span>الراتب المستحق</span><span>${fmt(calc.total)} دج</span></div>
+            <div class="salary-line"><span>${L('أيام الحضور','Jours présence')}</span><span>${calc.present} ${L('يوم','j')}${calc.half?' + '+calc.half+' '+L('نصف','demi'):''}</span></div>
+            <div class="salary-line"><span>${L('الأجر الإجمالي (Brut)','Salaire brut')}</span><span>${fmt(calc.gross)} ${L('دج','DA')}</span></div>
+            <div class="salary-line" style="color:var(--red)"><span>− CNAS 9%</span><span>${fmt(calc.cnas)} ${L('دج','DA')}</span></div>
+            <div class="salary-line" style="color:var(--red)"><span>− IRG ${L('صافي','net')}</span><span>${fmt(calc.irg_net)} ${L('دج','DA')}</span></div>
+            ${calc.allocations>0?`<div class="salary-line" style="color:var(--green)"><span>+ ${L('منح عائلية','Allocations familiales')}</span><span>${fmt(calc.allocations)} ${L('دج','DA')}</span></div>`:''}
+            ${allowances>0?`<div class="salary-line" style="color:var(--green)"><span>+ ${L('علاوات وبدلات','Primes et indemnités')}</span><span>${fmt(allowances)} ${L('دج','DA')}</span></div>`:''}
+            ${otTotal>0?`<div class="salary-line" style="color:var(--blue)"><span>+ ${L('ساعات إضافية','Heures supp.')} (${otThisMonth.reduce((s,o)=>s+Number(o.hours||0),0)}h)</span><span>${fmt(otTotal)} ${L('دج','DA')}</span></div>`:''}
+            ${deductions>0?`<div class="salary-line" style="color:var(--red)"><span>− ${L('خصومات','Déductions')}</span><span>${fmt(deductions)} ${L('دج','DA')}</span></div>`:''}
+            <div class="salary-line total-line"><span>${L('الراتب الصافي للدفع','Net à payer')}</span><span>${fmt(finalNet)} ${L('دج','DA')}</span></div>
           </div>
         </div>`;
       }).join('')}
@@ -10703,7 +17312,324 @@ Pages.salary = function() {
   `);
 };
 
+// ════════════════════════════════════════════════════════════════════
+//  كشف حساب العامل — كل الأشهر التي عمل فيها
+// ════════════════════════════════════════════════════════════════════
+function printWorkerHistory(wid) {
+  const tid     = Auth.getUser().tenant_id;
+  const worker  = (DB.get('workers')||[]).find(w => w.id === wid);
+  const tenant  = Auth.getTenant() || {};
+  if (!worker) { Toast.error(L('العامل غير موجود','Employé introuvable')); return; }
+
+  const allAtt     = (DB.get('attendance')||[]).filter(a => a.worker_id === wid);
+  const allRecords = (DB.get('salary_records')||[]).filter(r => r.worker_id === wid);
+
+  // جمع كل الأشهر التي يوجد فيها حضور أو سجل دفع
+  const monthsSet = new Set();
+  allAtt.forEach(a => { if (a.date) monthsSet.add(a.date.slice(0,7)); });
+  allRecords.forEach(r => { if (r.month_key) monthsSet.add(r.month_key); });
+
+  if (!monthsSet.size) {
+    // إنشاء شهر الحالي كبيانات افتراضية
+    const now2 = new Date();
+    monthsSet.add(`${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`);
+  }
+
+  // ترتيب الأشهر تصاعدياً
+  const months = [...monthsSet].sort();
+
+  // بناء سجل كل شهر مع الحساب الكامل
+  const rows = months.map(mk => {
+    const [y, m]   = mk.split('-').map(Number);
+    const mAtt     = allAtt.filter(a => (a.date||'').startsWith(mk));
+    const pDays    = mAtt.filter(a => a.status === 'present').length;
+    const hDays    = mAtt.filter(a => a.status === 'halfday').length;
+    const totalDays = pDays + hDays * 0.5;
+    const paid     = allRecords.find(r => r.month_key === mk);
+
+    let gross;
+    if (worker.contract_type === 'monthly') {
+      gross = Number(worker.monthly_base || worker.daily_salary * 26);
+    } else {
+      gross = Math.round(totalDays * Number(worker.daily_salary || 0));
+    }
+
+    const alg = typeof calcAlgerianSalary === 'function'
+      ? calcAlgerianSalary({ gross, marital_status: worker.marital_status||'single', children_count: worker.children_count||0, spouse_works: worker.spouse_works||0, is_handicap: worker.is_handicap||0 })
+      : { gross, cnas: Math.round(gross*0.09), irg_net: 0, allocations: 0, net: gross - Math.round(gross*0.09) };
+
+    return { mk, y, m, pDays, hDays, totalDays, gross, ...alg, paid };
+  });
+
+  // حساب الإجماليات
+  const totals = rows.reduce((s, r) => ({
+    gross:       s.gross       + r.gross,
+    cnas:        s.cnas        + r.cnas,
+    irg_net:     s.irg_net     + r.irg_net,
+    allocations: s.allocations + r.allocations,
+    net:         s.net         + r.net,
+    days:        s.days        + r.totalDays,
+  }), { gross:0, cnas:0, irg_net:0, allocations:0, net:0, days:0 });
+
+  const isAr    = I18N.currentLang === 'ar';
+  const fmtNum  = n => Number(n||0).toLocaleString('fr-DZ');
+  const MOIS    = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MOIS_AR = ['جانفي','فيفري','مارس','أفريل','ماي','جوان','جويلية','أوت','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const mLabel  = (m, y) => (isAr ? MOIS_AR[m-1] : MOIS[m-1]) + ' ' + y;
+
+  const maritalLabel = {
+    single: isAr ? 'أعزب' : 'Célibataire',
+    married: isAr ? 'متزوج' : 'Marié(e)',
+    divorced: isAr ? 'مطلق' : 'Divorcé(e)',
+    widowed: isAr ? 'أرمل' : 'Veuf/Veuve',
+  }[worker.marital_status||'single'] || (isAr?'أعزب':'Célibataire');
+
+  // ── بناء HTML للوثيقة ──
+  const tableRows = rows.map((r, i) => `
+    <tr style="background:${i%2===0?'#fafaf8':'#fff'}">
+      <td style="font-weight:600;white-space:nowrap">${mLabel(r.m, r.y)}</td>
+      <td style="text-align:center">${r.totalDays}</td>
+      <td style="text-align:right;font-family:monospace">${fmtNum(r.gross)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(r.cnas)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(r.irg_net)}</td>
+      ${r.allocations>0?`<td style="text-align:right;font-family:monospace;color:#27ae60">+${fmtNum(r.allocations)}</td>`:`<td style="text-align:center;color:#aaa">—</td>`}
+      <td style="text-align:right;font-family:monospace;font-weight:900;color:#0a5c2f">${fmtNum(r.net)}</td>
+      <td style="text-align:center">
+        ${r.paid
+          ? `<span style="background:#e8f8ee;color:#27ae60;border:1px solid #a8d5b5;border-radius:12px;padding:2px 10px;font-size:.8em;font-weight:700">✅ ${isAr?'مُصرَف':'Payé'}</span>`
+          : `<span style="background:#fff8e6;color:#b8902f;border:1px solid #e8c87a;border-radius:12px;padding:2px 10px;font-size:.8em;font-weight:700">⏳ ${isAr?'معلق':'En attente'}</span>`
+        }
+      </td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr?'كشف حساب':'Relevé de salaires'} — ${worker.full_name}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family: 'Segoe UI', 'Arial', sans-serif; font-size:13px; color:#1a1a1a; background:#fff; direction:${isAr?'rtl':'ltr'}; }
+  @page { size:A4 landscape; margin:15mm; }
+  @media print { .no-print { display:none!important; } }
+  .no-print { position:fixed; top:12px; ${isAr?'left':'right'}:12px; display:flex; gap:8px; z-index:999; }
+  .btn-p { padding:9px 18px; background:#B8902F; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700; }
+  .btn-close { padding:9px 16px; background:#eee; color:#333; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700; }
+  /* Entête */
+  .header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:12px; border-bottom:3px solid #B8902F; margin-bottom:16px; }
+  .brand-name { font-size:1.3rem; font-weight:900; color:#0a1a0a; }
+  .brand-sub  { font-size:.78rem; color:#666; margin-top:2px; }
+  .doc-title  { font-size:1.4rem; font-weight:900; color:#B8902F; text-align:${isAr?'left':'right'}; }
+  .doc-sub    { font-size:.78rem; color:#888; text-align:${isAr?'left':'right'}; margin-top:3px; }
+  /* Info worker */
+  .worker-card { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; background:#f8f5ee; border:1px solid #e0c97a; border-radius:10px; padding:12px 16px; margin-bottom:16px; }
+  .worker-field { }
+  .worker-label { font-size:.7rem; color:#888; text-transform:uppercase; letter-spacing:.5px; }
+  .worker-value { font-size:.92rem; font-weight:700; color:#1a1a1a; margin-top:2px; }
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  thead tr { background:#B8902F; color:#fff; }
+  thead th { padding:9px 10px; font-weight:700; text-align:right; }
+  thead th:first-child { text-align:${isAr?'right':'left'}; }
+  tbody td { padding:7px 10px; border-bottom:1px solid #f0ede0; }
+  tfoot tr { background:#f0ede8; font-weight:900; }
+  tfoot td { padding:10px; border-top:2px solid #B8902F; }
+  /* Summary */
+  .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:16px; }
+  .sum-box { background:#f8f5ee; border:1px solid #e0c97a; border-radius:8px; padding:10px 14px; text-align:center; }
+  .sum-num  { font-size:1.1rem; font-weight:900; font-family:monospace; }
+  .sum-lbl  { font-size:.72rem; color:#888; margin-top:3px; }
+  .gold-bar { height:4px; background:linear-gradient(90deg,#B8902F,#E8B84B,#B8902F); border-radius:2px; margin:12px 0; }
+  .footer   { margin-top:16px; padding-top:10px; border-top:1px solid #e8e0cc; display:flex; justify-content:space-between; font-size:.72rem; color:#999; }
+  @media print {
+    .no-print { display:none!important; }
+    body { background:#fff!important; }
+    thead tr { background:#B8902F!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .gold-bar { background:#B8902F!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    @page { size:A4 landscape; margin:12mm; }
+  }
+</head>
+<body>
+<div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=document.title+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="btn-close" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+<div style="margin-top:52px">
+
+<div class="header">
+  <div>
+    <div class="brand-name">▦ ${tenant.name || 'المؤسسة'}</div>
+    <div class="brand-sub">${[tenant.rc_number?'RC: '+tenant.rc_number:'', tenant.nif?'NIF: '+tenant.nif:'', tenant.address||''].filter(Boolean).join(' | ')}</div>
+  </div>
+  <div>
+    <div class="doc-title">${isAr?'كشف حساب الرواتب السنوي':'RELEVÉ ANNUEL DES SALAIRES'}</div>
+    <div class="doc-sub">${isAr?'سجل كامل لكل الأشهر المُستحقة':'Récapitulatif complet de tous les mois travaillés'}</div>
+  </div>
+</div>
+
+<div class="worker-card">
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'العامل':'Employé(e)'}</div>
+    <div class="worker-value">${worker.full_name}</div>
+  </div>
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'المنصب':'Poste'}</div>
+    <div class="worker-value">${worker.role||'—'}</div>
+  </div>
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'الحالة العائلية':'Situation familiale'}</div>
+    <div class="worker-value">${maritalLabel}${(worker.children_count||0)>0?' • '+worker.children_count+' '+(isAr?'أطفال':'enfants'):''}</div>
+  </div>
+  <div class="worker-field">
+    <div class="worker-label">${isAr?'عدد الأشهر':'Mois travaillés'}</div>
+    <div class="worker-value">${rows.length} ${isAr?'شهر':'mois'} | ${totals.days} ${isAr?'يوم إجمالي':'jours total'}</div>
+  </div>
+</div>
+
+<div class="gold-bar"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align:${isAr?'right':'left'}">${isAr?'الشهر':'Mois'}</th>
+      <th>${isAr?'أيام العمل':'Jours'}</th>
+      <th>${isAr?'الإجمالي (دج)':'Brut (DA)'}</th>
+      <th>− CNAS 9%</th>
+      <th>− IRG</th>
+      <th>${isAr?'+ المنح':'+ Alloc.'}</th>
+      <th>${isAr?'الصافي (دج)':'Net (DA)'}</th>
+      <th>${isAr?'الحالة':'Statut'}</th>
+    </tr>
+  </thead>
+  <tbody>${tableRows}</tbody>
+  <tfoot>
+    <tr>
+      <td style="font-weight:900;text-align:${isAr?'right':'left'}">${isAr?'الإجمالي السنوي':'TOTAL ANNUEL'}</td>
+      <td style="text-align:center;font-family:monospace">${totals.days}</td>
+      <td style="text-align:right;font-family:monospace">${fmtNum(totals.gross)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(totals.cnas)}</td>
+      <td style="text-align:right;font-family:monospace;color:#c0392b">−${fmtNum(totals.irg_net)}</td>
+      <td style="text-align:right;font-family:monospace;color:#27ae60">+${fmtNum(totals.allocations)}</td>
+      <td style="text-align:right;font-family:monospace;color:#0a5c2f;font-size:1.05rem">${fmtNum(totals.net)}</td>
+      <td style="text-align:center">—</td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="summary">
+  <div class="sum-box">
+    <div class="sum-num" style="color:#1a1a1a">${fmtNum(totals.gross)}</div>
+    <div class="sum-lbl">${isAr?'إجمالي الرواتب (دج)':'Total brut (DA)'}</div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-num" style="color:#c0392b">${fmtNum(totals.cnas)}</div>
+    <div class="sum-lbl">Total CNAS 9%</div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-num" style="color:#c0392b">${fmtNum(totals.irg_net)}</div>
+    <div class="sum-lbl">Total IRG</div>
+  </div>
+  <div class="sum-box" style="background:#e8f8ee;border-color:#a8d5b5">
+    <div class="sum-num" style="color:#0a5c2f">${fmtNum(totals.net)}</div>
+    <div class="sum-lbl">${isAr?'إجمالي الصافي المصروف (دج)':'Total NET versé (DA)'}</div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme gestion BTP Algérie'}</span>
+  <span>${isAr?'تاريخ الإصدار':'Émis le'}: ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ', {day:'2-digit',month:'long',year:'numeric'})}</span>
+</div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=1100,height=820');
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `Relevé_${worker.full_name.replace(/\s+/g,'_')}.pdf`;
+}
+
+// ── تعديل أيام الحضور يدوياً ──
+function editSalaryDays(workerId, monthKey) {
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+  const att = (DB.get('attendance')||[]).filter(a=>a.worker_id===workerId&&(a.date||'').startsWith(monthKey));
+  const present = att.filter(a=>a.status==='present').length;
+  const halfday = att.filter(a=>a.status==='halfday').length;
+  const absent  = att.filter(a=>a.status==='absent').length;
+  const totalDays = present + halfday * 0.5;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:400px;width:90%">
+      <div class="modal-title">✏️ ${L('تعديل أيام الحضور','Modifier jours de présence')}</div>
+      <div style="font-size:.82rem;color:var(--gold);margin-bottom:.8rem">👷 ${escHtml(worker.full_name)} — ${monthKey}</div>
+      <div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:1rem;font-size:.78rem">
+        <div style="color:var(--dim);margin-bottom:.3rem">${L('الحضور الحالي من سجل الحضور:','Présence actuelle depuis le pointage:')}</div>
+        <div style="display:flex;gap:1rem">
+          <span style="color:var(--green)">✅ ${present} ${L('حضور','présent')}</span>
+          <span style="color:var(--gold)">½ ${halfday} ${L('نصف يوم','demi-j.')}</span>
+          <span style="color:var(--red)">❌ ${absent} ${L('غياب','absent')}</span>
+          <span style="font-weight:700">= ${totalDays} ${L('يوم','j.')}</span>
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem">${L('يمكنك تجاوز الأيام المحسوبة يدوياً:','Vous pouvez remplacer les jours calculés manuellement:')}</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label">${L('أيام حضور كاملة','Jours présence')}</label>
+          <input class="form-input" id="_editPresent" type="number" min="0" max="31" value="${present}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${L('أيام نصف يوم','Demi-journées')}</label>
+          <input class="form-input" id="_editHalf" type="number" min="0" max="31" value="${halfday}" dir="ltr">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_saveSalaryDays(${workerId},'${monthKey}')">💾 ${L('حفظ وإعادة الحساب','Sauvegarder')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _saveSalaryDays(workerId, monthKey) {
+  const present = Number(document.getElementById('_editPresent')?.value)||0;
+  const halfday = Number(document.getElementById('_editHalf')?.value)||0;
+  const tid = Auth.getUser().tenant_id;
+  const att = DB.get('attendance')||[];
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+
+  // حذف سجلات الحضور لهذا الشهر ثم إعادة إنشائها
+  const otherAtt = att.filter(a=>!(a.worker_id===workerId&&(a.date||'').startsWith(monthKey)));
+  const [y,m] = monthKey.split('-').map(Number);
+  const newAtt = [];
+  const startDay = new Date(y,m-1,1);
+
+  // إضافة أيام حضور كاملة
+  for(let i=0;i<present;i++){
+    const d = new Date(startDay);
+    d.setDate(d.getDate()+i);
+    newAtt.push({id:DB.nextId('attendance'),tenant_id:tid,worker_id:workerId,project_id:worker.project_id||null,date:d.toISOString().split('T')[0],status:'present',hours:8,note:L('تعديل يدوي','Modif. manuelle'),created_at:new Date().toISOString()});
+  }
+  // إضافة أيام نصف يوم
+  for(let i=0;i<halfday;i++){
+    const d = new Date(startDay);
+    d.setDate(d.getDate()+present+i);
+    newAtt.push({id:DB.nextId('attendance'),tenant_id:tid,worker_id:workerId,project_id:worker.project_id||null,date:d.toISOString().split('T')[0],status:'halfday',hours:4,note:L('تعديل يدوي','Modif. manuelle'),created_at:new Date().toISOString()});
+  }
+
+  DB.set('attendance',[...otherAtt,...newAtt]);
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(L(`✅ تم تحديث الأيام: ${present} حضور + ${halfday} نصف يوم`,`✅ Jours mis à jour: ${present} présent + ${halfday} demi`));
+  App.navigate('salary',{monthKey});
+}
+
 function paySalary(wid, monthKey, amount) {
+  if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaire')); return; }
   const records = DB.get('salary_records');
   if (records.find(r=>r.worker_id===wid&&r.month_key===monthKey)) { Toast.warn('تم صرف الراتب مسبقاً'); return; }
   const worker = DB.get('workers').find(w=>w.id===wid);
@@ -10722,6 +17648,7 @@ function paySalary(wid, monthKey, amount) {
 }
 
 function payAllSalaries(monthKey) {
+  if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaires')); return; }
   if (!confirm('صرف رواتب جميع العمال لهذا الشهر؟')) return;
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
@@ -10749,9 +17676,15 @@ function payAllSalaries(monthKey) {
 /* ── INVOICES PAGE ── */
 Pages.invoices = function() {
   const tid = Auth.getUser().tenant_id;
-  const invoices = DB.get('invoices').filter(i=>i.tenant_id===tid);
+  const allInvoices = DB.get('invoices').filter(i=>i.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
   const tenant = Auth.getTenant();
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('invoices');
+  const invoices = projFilter==='all' ? allInvoices : allInvoices.filter(i=>String(i.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const total_paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+Number(i.amount),0);
   const total_pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+Number(i.amount),0);
   const today = new Date(); today.setHours(0,0,0,0);
@@ -10768,9 +17701,23 @@ Pages.invoices = function() {
 
   const filterStatus = sessionStorage.getItem('inv_filter_status')||'all';
   let filtered = invoices;
-  if(filterStatus==='paid') filtered=invoices.filter(i=>i.status==='paid');
+  if(filterStatus==='paid')    filtered=invoices.filter(i=>i.status==='paid');
+  else if(filterStatus==='partial') filtered=invoices.filter(i=>i.status==='partial');
+  else if(filterStatus==='draft')   filtered=invoices.filter(i=>i.status==='draft');
   else if(filterStatus==='pending') filtered=invoices.filter(i=>i.status==='pending'&&(!i.due_date||new Date(i.due_date)>=today));
-  else if(filterStatus==='overdue') filtered=invoices.filter(i=>i.status!=='paid'&&i.due_date&&new Date(i.due_date)<today);
+  else if(filterStatus==='overdue') filtered=invoices.filter(i=>i.status!=='paid'&&i.status!=='draft'&&i.due_date&&new Date(i.due_date)<today);
+
+  // ── حساب الذمم المدينة (Aging) ──
+  const aging = {d30:0, d60:0, d90:0, d90p:0};
+  invoices.filter(i=>i.status!=='paid'&&i.status!=='draft'&&i.due_date).forEach(i=>{
+    const days = Math.floor((today - new Date(i.due_date))/(1000*60*60*24));
+    const bal = Number(i.amount) - Number(i.paid_amount||0);
+    if(days<=0) return;
+    if(days<=30) aging.d30+=bal;
+    else if(days<=60) aging.d60+=bal;
+    else if(days<=90) aging.d90+=bal;
+    else aging.d90p+=bal;
+  });
 
   const nextNum = 'FAC-'+(new Date().getFullYear())+'-'+String(invoices.length+1).padStart(3,'0');
 
@@ -10778,16 +17725,32 @@ Pages.invoices = function() {
     <div class="page-header">
       <div>
         <div class="page-title">🧾 ${L('الفواتير','Factures')}</div>
-        <div class="page-sub">${invoices.length} ${L('فاتورة','facture(s)')}</div>
+        <div class="page-sub">${invoices.length}${projFilter!=='all'?` ${L('من','/')} ${allInvoices.length}`:''} ${L('فاتورة','facture(s)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div>
       </div>
       <div class="page-actions">
         ${canDo('transactions')?`<button class="btn btn-gold" data-modal-open="addInvModal">+ ${L('فاتورة جديدة','Nouvelle facture')}</button>`:''}
+        <div style="position:relative;display:inline-block" class="dz-dd">
+          <button class="btn btn-blue" onclick="toggleFinDocs(event)" title="${L('وثائق مالية إضافية','Documents financiers')}">📚 ${L('وثائق مالية','Docs financiers')} ▾</button>
+          <div id="finDocsMenu" class="dz-dd-menu" style="display:none;position:absolute;top:100%;${I18N.currentLang==='ar'?'right':'left'}:0;margin-top:4px;background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:240px;z-index:100;padding:.3rem">
+            <div style="padding:.4rem .8rem;font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px">${L('قبل التعاقد','Pré-contrat')}</div>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('proforma')">📋 ${L('فاتورة شكلية (Proforma)','Facture Proforma')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('devis')">📊 ${L('كشف كمي وتقديري','Devis Estimatif')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('bpu')">💰 ${L('جدول أسعار وحدوية','Bordereau Prix Unit.')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('offre')">🏢 ${L('عرض الخدمة','Offre de Service')}</button>
+            <div style="padding:.4rem .8rem;font-size:.7rem;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:.3rem;border-top:1px solid var(--border)">${L('المرحلية','Intermédiaires')}</div>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('acompte')">⏩ ${L('فاتورة تسبيق','Facture d\'Acompte')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('situation')">📈 ${L('كشف أشغال (وضعية)','Situation de Travaux')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('def_invoice')">🏁 ${L('فاتورة نهائية','Facture Définitive')}</button>
+            <button class="dz-dd-item" onclick="DZDocsUI.open('quittance')">🧾 ${L('وصل تسديد','Quittance Paiement')}</button>
+          </div>
+        </div>
         <button class="btn btn-ghost" onclick="exportInvoicesCSV()">📥 CSV</button>
       </div>
     </div>
 
     <!-- Stats Cards -->
-    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem">
+    ${_projectFilterBar(projects,'invoices',projFilter)}
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
       <div class="stat-card" style="border-color:rgba(52,195,143,0.2)">
         <div class="stat-icon">✅</div>
         <div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total_paid)}</div>
@@ -10814,11 +17777,39 @@ Pages.invoices = function() {
       </div>
     </div>
 
+    <!-- تقرير الذمم المدينة (Aging Report) -->
+    ${(aging.d30+aging.d60+aging.d90+aging.d90p)>0?`
+    <div style="background:rgba(240,78,106,0.05);border:1px solid rgba(240,78,106,0.2);border-radius:12px;padding:1rem 1.2rem;margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem">
+        <div style="font-weight:700;font-size:.9rem">📊 ${L('تقرير الذمم المدينة — تحليل التأخر','Rapport Aging — Analyse des retards')}</div>
+        <span style="font-size:.72rem;color:var(--dim)">${L('المبالغ غير المحصّلة بحسب مدة التأخر','Montants non encaissés par ancienneté')}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem">
+        ${[
+          [L('1-30 يوم','1-30 jours'), aging.d30, 'var(--orange)'],
+          [L('31-60 يوم','31-60 jours'), aging.d60, '#e67e22'],
+          [L('61-90 يوم','61-90 jours'), aging.d90, '#e74c3c'],
+          [L('+90 يوم','+90 jours'), aging.d90p, '#c0392b'],
+        ].map(([lbl,val,clr])=>val>0?`
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:.6rem .8rem;text-align:center">
+            <div style="font-size:.7rem;color:var(--dim);margin-bottom:.2rem">${lbl}</div>
+            <div style="font-size:.95rem;font-weight:800;color:${clr};font-family:monospace">${fmt(val)}</div>
+            <div style="font-size:.65rem;color:var(--dim)">${L('دج','DA')}</div>
+          </div>`:``).join('')}
+      </div>
+      <div style="margin-top:.7rem;padding-top:.7rem;border-top:1px solid rgba(240,78,106,0.15);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.8rem;color:var(--muted)">${L('إجمالي الذمم المدينة','Total créances')}:</span>
+        <span style="font-size:1rem;font-weight:900;color:var(--red);font-family:monospace">${fmt(aging.d30+aging.d60+aging.d90+aging.d90p)} ${L('دج','DA')}</span>
+      </div>
+    </div>`:``}
+
     <!-- Filter Tabs -->
     <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
       <button class="btn ${filterStatus==='all'?'btn-gold':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','all');App.navigate('invoices')">${L('الكل','Tout')} (${invoices.length})</button>
-      <button class="btn ${filterStatus==='paid'?'btn-green':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','paid');App.navigate('invoices')">✅ ${L('مدفوعة','Payées')} (${invoices.filter(i=>i.status==='paid').length})</button>
+      <button class="btn ${filterStatus==='draft'?'btn-blue':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','draft');App.navigate('invoices')">📝 ${L('مسودة','Brouillon')} (${invoices.filter(i=>i.status==='draft').length})</button>
       <button class="btn ${filterStatus==='pending'?'btn-blue':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','pending');App.navigate('invoices')">⏳ ${L('معلقة','En attente')} (${invoices.filter(i=>i.status==='pending').length})</button>
+      <button class="btn ${filterStatus==='partial'?'btn-blue':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','partial');App.navigate('invoices')">💰 ${L('جزئية','Partiel')} (${invoices.filter(i=>i.status==='partial').length})</button>
+      <button class="btn ${filterStatus==='paid'?'btn-green':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','paid');App.navigate('invoices')">✅ ${L('مدفوعة','Payées')} (${invoices.filter(i=>i.status==='paid').length})</button>
       <button class="btn ${filterStatus==='overdue'?'btn-red':'btn-ghost'} btn-sm" onclick="sessionStorage.setItem('inv_filter_status','overdue');App.navigate('invoices')">🔴 ${L('متأخرة','En retard')} (${total_count_overdue})</button>
     </div>
 
@@ -10830,20 +17821,29 @@ Pages.invoices = function() {
           <th>${L('العميل','Client')}</th>
           <th>${L('المشروع','Projet')}</th>
           <th>${L('المبلغ TTC','Montant TTC')}</th>
+          <th>${L('المدفوع','Payé')}</th>
+          <th>${L('الرصيد','Solde')}</th>
           <th>${L('تاريخ الإصدار','Date émission')}</th>
           <th>${L('تاريخ الاستحقاق','Date échéance')}</th>
           <th>${L('الحالة','Statut')}</th>
           <th>${L('الإجراءات','Actions')}</th>
         </tr></thead>
-        <tbody>${filtered.length===0?`<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد فواتير','Aucune facture')}</td></tr>`:filtered.map(inv=>{
+        <tbody>${filtered.length===0?`<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--dim)">${L('لا توجد فواتير','Aucune facture')}</td></tr>`:filtered.map(inv=>{
           const proj=projects.find(p=>p.id===inv.project_id);
-          const isOverdue = inv.status!=='paid' && inv.due_date && new Date(inv.due_date)<today;
+          const isOverdue = inv.status!=='paid'&&inv.status!=='draft'&&inv.due_date&&new Date(inv.due_date)<today;
           const tvaRate=tenant?.tva_rate||19;
           const amountHT=Math.round(Number(inv.amount)/(1+tvaRate/100));
+          const paidAmt = Number(inv.paid_amount||0);
+          const balance = Number(inv.amount) - paidAmt;
+          const daysLate = inv.due_date&&isOverdue ? Math.floor((today-new Date(inv.due_date))/(1000*60*60*24)) : 0;
+
           let statusBadge='';
-          if(inv.status==='paid') statusBadge=`<span class="badge badge-active">✅ ${L('مدفوعة','Payée')}</span>`;
-          else if(isOverdue) statusBadge=`<span class="badge badge-delayed">🔴 ${L('متأخرة','En retard')}</span>`;
+          if(inv.status==='draft')    statusBadge=`<span class="badge" style="background:rgba(74,144,226,.15);color:#4A90E2">📝 ${L('مسودة','Brouillon')}</span>`;
+          else if(inv.status==='paid') statusBadge=`<span class="badge badge-active">✅ ${L('مدفوعة','Payée')}</span>`;
+          else if(inv.status==='partial') statusBadge=`<span class="badge" style="background:rgba(232,184,75,.15);color:var(--gold)">💰 ${L('جزئية','Partiel')} ${Math.round(paidAmt/Number(inv.amount)*100)}%</span>`;
+          else if(isOverdue) statusBadge=`<span class="badge badge-delayed" title="${daysLate} ${L('يوم تأخر','jours retard')}">🔴 ${L('متأخرة','En retard')} (${daysLate}j)</span>`;
           else statusBadge=`<span class="badge badge-paused">⏳ ${L('معلقة','En attente')}</span>`;
+
           return `<tr ${isOverdue?'style="background:rgba(240,78,106,0.04)"':''}>
             <td style="font-family:monospace;color:var(--gold);font-size:.82rem;font-weight:700">${escHtml(inv.number)}</td>
             <td style="font-weight:700">${escHtml(inv.client)}</td>
@@ -10852,13 +17852,19 @@ Pages.invoices = function() {
               <div style="font-family:monospace;font-weight:700">${fmt(inv.amount)} ${L('دج','DA')}</div>
               <div style="font-size:.72rem;color:var(--dim)">HT: ${fmt(amountHT)}</div>
             </td>
+            <td style="font-family:monospace;color:var(--green)">${paidAmt>0?fmt(paidAmt)+' '+L('دج','DA'):'—'}</td>
+            <td style="font-family:monospace;font-weight:700;color:${balance>0?'var(--red)':'var(--green)'}">${inv.status==='paid'?'✅':fmt(balance)+' '+L('دج','DA')}</td>
             <td style="font-size:.8rem;color:var(--dim)">${fmtDate(inv.date)}</td>
             <td style="font-size:.8rem;color:${isOverdue?'var(--red)':'var(--dim)'};font-weight:${isOverdue?'700':'400'}">${inv.due_date?fmtDate(inv.due_date):'—'}</td>
             <td>${statusBadge}</td>
             <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
               <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
-              ${inv.status!=='paid'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة','Marquer payée')}">✅</button>`:''}
+              <button class="btn btn-ghost btn-sm" onclick="uploadInvoiceToDrive(${inv.id})" title="${L('رفع لـ Google Drive','Envoyer vers Drive')}">☁️</button>
+              ${inv.status==='paid'?`<button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForInvoice('quittance',${inv.id})" title="${L('وصل تسديد PDF','Quittance PDF')}">🧾</button>`:''}
+              ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة كلياً','Marquer payée')}">✅</button>`:''}
+              ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-gold btn-sm" onclick="recordPartialPayment(${inv.id})" title="${L('تسجيل دفع جزئي','Paiement partiel')}">💰</button>`:''}
+              ${inv.status==='draft'&&canDo('transactions')?`<button class="btn btn-blue btn-sm" onclick="confirmInvoice(${inv.id})" title="${L('تأكيد الفاتورة','Confirmer facture')}">📤</button>`:''}
               ${canDo('transactions')?`<button class="btn btn-red btn-sm" onclick="deleteInvoiceItem(${inv.id})">🗑️</button>`:''}
             </div></td>
           </tr>`;
@@ -10880,6 +17886,10 @@ Pages.invoices = function() {
             <input class="form-input" id="invClient" placeholder="${L('اسم العميل أو الشركة','Nom client ou société')}">
           </div>
           <div class="form-group">
+            <label class="form-label">NIF ${L('العميل','Client')}</label>
+            <input class="form-input" id="invClientNif" type="text" placeholder="000 111 222 333 444" dir="ltr" inputmode="numeric" maxlength="20">
+          </div>
+          <div class="form-group">
             <label class="form-label">${L('المشروع','Projet')}</label>
             <select class="form-select" id="invProj">
               <option value="">—</option>
@@ -10889,7 +17899,8 @@ Pages.invoices = function() {
           <div class="form-group">
             <label class="form-label">${L('الحالة','Statut')}</label>
             <select class="form-select" id="invSt">
-              <option value="pending">${L('معلقة','En attente')}</option>
+              <option value="draft">${L('مسودة (غير مؤكدة)','Brouillon')}</option>
+              <option value="pending" selected>${L('معلقة','En attente')}</option>
               <option value="paid">${L('مدفوعة','Payée')}</option>
             </select>
           </div>
@@ -10910,8 +17921,16 @@ Pages.invoices = function() {
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">${L('رقم الشيك / مرجع التحويل','N° Chèque / Réf. virement')}</label>
+            <input class="form-input" id="invPayRef" placeholder="${L('اختياري','Optionnel')}" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${L('تاريخ الدفع الفعلي','Date paiement réel')}</label>
+            <input class="form-input" id="invPaidDate" type="date">
+          </div>
+          <div class="form-group">
             <label class="form-label">${L('نسبة TVA (%)','Taux TVA (%)')}</label>
-            <input class="form-input" id="invTVA" type="number" value="${tenant?.tva_rate||19}" min="0" max="100">
+            <input class="form-input" id="invTVA" type="number" value="${tenant?.tva_rate||19}" min="0" max="100" step="0.01" inputmode="decimal">
           </div>
         </div>
 
@@ -10955,10 +17974,125 @@ Pages.invoices = function() {
         </div>
       </div>
     </div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- 📂 قسم الوثائق المولَّدة (مدمج في صفحة الفواتير)   -->
+<!-- ════════════════════════════════════════════════════ -->
+<div style="margin-top:2.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <div class="section-title" style="font-size:1.05rem;font-weight:800">📂 ${L('الوثائق المولَّدة','Documents générés')}</div>
+      <div style="font-size:.75rem;color:var(--dim)">${(()=>{
+        const tid2=Auth.getUser().tenant_id;
+        const cnt=(DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id===tid2).length;
+        return cnt + ' ' + L('وثيقة محفوظة','document(s)');
+      })()}</div>
+    </div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="App.navigate('dz_documents')">📚 ${L('مركز الوثائق','Centre docs')}</button>
+      <button class="btn btn-red btn-sm" id="dzsClearBtn" style="display:none" onclick="dzsClearAll()">🗑️ ${L('مسح الكل','Tout effacer')}</button>
+    </div>
+  </div>
+
+  <!-- فلتر النوع -->
+  <div id="dzsFilterBar" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem"></div>
+
+  <!-- البطاقات -->
+  <div id="dzsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:.8rem"></div>
+  <div id="dzsEmpty" style="display:none;text-align:center;padding:2rem 1rem;color:var(--dim)">
+    <div style="font-size:2.5rem">📂</div>
+    <div style="font-size:.85rem;margin-top:.5rem">${L('لا توجد وثائق محفوظة بعد','Aucun document enregistré')}</div>
+    <div style="font-size:.72rem;margin-top:.3rem">${L('كل وثيقة تولّدها ستُحفظ هنا تلقائياً','Chaque document généré sera automatiquement enregistré ici')}</div>
+  </div>
+</div>
+
+<script>
+(function initDzsGrid(){
+  // خريطة أنواع الوثائق
+  const META = {};
+  if(typeof DZ_DOC_CATALOG !== 'undefined'){
+    DZ_DOC_CATALOG.forEach(sec => sec.docs.forEach(d=>{
+      META[d.key]={icon:d.icon, ar:d.name.ar, fr:d.name.fr};
+    }));
+  }
+  const lbl = (ar,fr) => {try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;}};
+  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const tid = Auth.getUser().tenant_id;
+  let allDocs = (DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id===tid);
+  let activeFilter = sessionStorage.getItem('dzs_filter')||'all';
+
+  // زر مسح الكل
+  const clearBtn = document.getElementById('dzsClearBtn');
+  if(clearBtn && allDocs.length > 0) clearBtn.style.display='';
+
+  // فلتر
+  const bar = document.getElementById('dzsFilterBar');
+  if(bar){
+    const usedKeys = [...new Set(allDocs.map(d=>d.doc_type).filter(Boolean))];
+    const mkBtn = (key, label, count) => {
+      const b = document.createElement('button');
+      b.className = 'btn btn-sm ' + (activeFilter===key?'btn-gold':'btn-ghost');
+      b.textContent = label + ' (' + count + ')';
+      b.onclick = () => { sessionStorage.setItem('dzs_filter',key); initDzsGrid(); };
+      return b;
+    };
+    bar.innerHTML='';
+    bar.appendChild(mkBtn('all', lbl('الكل','Tout'), allDocs.length));
+    usedKeys.forEach(k=>{
+      const m=META[k];
+      const name = m ? (lbl(m.ar,m.fr)) : k;
+      const icon = m ? m.icon+' ' : '';
+      bar.appendChild(mkBtn(k, icon+name, allDocs.filter(d=>d.doc_type===k).length));
+    });
+  }
+
+  // الوثائق المفلترة
+  const shown = activeFilter==='all' ? allDocs : allDocs.filter(d=>d.doc_type===activeFilter);
+  const grid  = document.getElementById('dzsGrid');
+  const empty = document.getElementById('dzsEmpty');
+  if(!grid) return;
+
+  if(shown.length===0){
+    grid.style.display='none';
+    if(empty) empty.style.display='';
+    return;
+  }
+  grid.style.display='';
+  if(empty) empty.style.display='none';
+
+  grid.innerHTML = shown.map(doc => {
+    const m = META[doc.doc_type];
+    const icon  = m ? m.icon  : '📄';
+    const tname = m ? lbl(m.ar,m.fr) : (doc.doc_type||'—');
+    // أبرز الحقول
+    const f = doc.fields||{};
+    const snippet = Object.keys(f).slice(0,5).map(k=>{
+      const v=String(f[k]||'').trim();
+      return v && v.length<60 ? '<span style="color:var(--text)">'+esc(v.substring(0,35))+'</span>' : '';
+    }).filter(Boolean).join(' <span style="color:var(--dim)">·</span> ');
+
+    return \`<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(232,184,75,.5)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="font-size:.66rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">\${icon} \${esc(tname)}</div>
+      <div style="font-size:.88rem;font-weight:800;line-height:1.3">\${esc(doc.doc_title||tname)}</div>
+      <div style="font-size:.7rem;color:var(--dim)">📅 \${doc.date||''}</div>
+      \${snippet ? \`<div style="font-size:.7rem;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:.35rem;margin-top:.1rem">\${snippet}</div>\` : ''}
+      <div style="display:flex;gap:.35rem;margin-top:auto;padding-top:.45rem">
+        <button class="btn btn-gold btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReopen(\${doc.id})" title="\${lbl('تعديل وإعادة توليد','Modifier & regénérer')}">✏️ \${lbl('تعديل','Modifier')}</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReprint(\${doc.id})" title="\${lbl('إعادة طباعة','Réimprimer')}">🖨️ \${lbl('طباعة','Imprimer')}</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="dzsPrintPDF(\${doc.id})" title="PDF">📥 PDF</button>
+        <button class="btn btn-red btn-sm" style="font-size:.72rem" onclick="dzsDelete(\${doc.id})" title="\${lbl('حذف','Supprimer')}">🗑️</button>
+      </div>
+    </div>\`;
+  }).join('');
+})();
+</script>
+
   `);
 };
 
 function addInvLine() {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لإضافة سطر فاتورة','Permission refusée : facture')); return; }
   const L_fn = (ar, fr) => I18N.currentLang==='ar'?ar:fr;
   const row = document.createElement('div');
   row.className='inv-line-row';
@@ -10992,6 +18126,7 @@ function calcInvTotal() {
 }
 
 function addInvoiceItem() {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لإضافة فاتورة','Permission refusée : facture')); return; }
   const num=document.getElementById('invNum')?.value?.trim();
   const client=document.getElementById('invClient')?.value?.trim();
   if(!num||!client){Toast.error(L('أدخل رقم الفاتورة والعميل','Renseignez le numéro et le client'));return;}
@@ -11015,11 +18150,14 @@ function addInvoiceItem() {
   const amount = ttc>0 ? ttc : 0;
 
   const invs=DB.get('invoices');
+  const st  = document.getElementById('invSt')?.value||'pending';
+  const paidDate = document.getElementById('invPaidDate')?.value||'';
   invs.push({
     id:DB.nextId('invoices'),
     tenant_id:Auth.getUser().tenant_id,
     number:num,
     client,
+    client_nif: document.getElementById('invClientNif')?.value||'',
     project_id:Number(document.getElementById('invProj')?.value)||null,
     amount,
     amount_ht:totalHT,
@@ -11027,8 +18165,10 @@ function addInvoiceItem() {
     tva_amount:tva,
     date:document.getElementById('invDt')?.value||todayStr(),
     due_date:document.getElementById('invDue')?.value||'',
-    status:document.getElementById('invSt')?.value||'pending',
+    paid_date: st==='paid' ? (paidDate||todayStr()) : paidDate,
+    status: st,
     payment_method:document.getElementById('invPayMethod')?.value||'cash',
+    payment_ref:   document.getElementById('invPayRef')?.value||'',
     description:document.getElementById('invDesc')?.value||'',
     items
   });
@@ -11039,6 +18179,7 @@ function addInvoiceItem() {
 }
 
 function deleteInvoiceItem(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لحذف الفاتورة','Permission refusée : facture')); return; }
   if(!confirm(L('حذف هذه الفاتورة؟','Supprimer cette facture ?')))return;
   DB.set('invoices',DB.get('invoices').filter(i=>i.id!==id));
   sbSyncDelete('invoices', id).catch(()=>{});
@@ -11047,15 +18188,649 @@ function deleteInvoiceItem(id) {
 }
 
 function markInvoicePaid(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لتعديل الفاتورة','Permission refusée : facture')); return; }
   const invs=DB.get('invoices');
   const idx=invs.findIndex(i=>i.id===id);
   if(idx<0)return;
+  // نطلب طريقة الدفع ومرجع الدفع بسرعة
+  const method = prompt(L('طريقة الدفع؟\n1=نقداً  2=تحويل بنكي  3=شيك','Mode de paiement?\n1=Espèces  2=Virement  3=Chèque'),'1');
+  if (method === null) return; // إلغاء
+  const methodMap = {'1':'cash','2':'bank','3':'check'};
+  const payRef = prompt(L('رقم الشيك / مرجع التحويل (اتركه فارغاً إن لم يكن متاحاً)','N° Chèque / Réf. virement (laisser vide si N/A)'),'') || '';
   invs[idx].status='paid';
   invs[idx].paid_date=todayStr();
+  invs[idx].payment_method = methodMap[method] || invs[idx].payment_method || 'cash';
+  if (payRef) invs[idx].payment_ref = payRef;
   DB.set('invoices',invs);
   sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تأشير الفاتورة كمدفوعة','✅ Facture marquée comme payée'));
   App.navigate('invoices');
+}
+
+// ── تأكيد الفاتورة (من مسودة → معلقة) ──
+function confirmInvoice(id) {
+  if (!canDo('write_invoices')) return;
+  if (!confirm(L('تأكيد الفاتورة وإرسالها؟','Confirmer et émettre la facture ?'))) return;
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  invs[idx].status = 'pending';
+  invs[idx].confirmed_date = todayStr();
+  DB.set('invoices', invs);
+  sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('تم تأكيد الفاتورة','Facture confirmée'));
+  App.navigate('invoices');
+}
+
+// ── تسجيل دفع جزئي ──
+function recordPartialPayment(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية','Permission refusée')); return; }
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  const inv = invs[idx];
+  const remaining = Number(inv.amount) - Number(inv.paid_amount||0);
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:420px;width:90%">
+      <div class="modal-title">💰 ${L('تسجيل دفع جزئي','Enregistrer paiement partiel')}</div>
+      <div style="background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.2);border-radius:8px;padding:.8rem;margin-bottom:1rem;display:flex;justify-content:space-between">
+        <span style="font-size:.8rem;color:var(--muted)">${L('الرصيد المتبقي','Solde restant')}</span>
+        <span style="font-family:monospace;font-weight:800;color:var(--gold)">${fmt(remaining)} ${L('دج','DA')}</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('المبلغ المدفوع *','Montant payé *')}</label>
+        <input class="form-input" id="_partialAmt" type="number" min="1" max="${remaining}" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('طريقة الدفع','Mode paiement')}</label>
+        <select class="form-select" id="_partialMethod">
+          <option value="cash">${L('نقداً','Espèces')}</option>
+          <option value="bank">${L('تحويل بنكي','Virement')}</option>
+          <option value="check">${L('شيك','Chèque')}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('مرجع / رقم الشيك','Réf. / N° Chèque')}</label>
+        <input class="form-input" id="_partialRef" placeholder="${L('اختياري','Optionnel')}" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${L('تاريخ الدفع','Date paiement')}</label>
+        <input class="form-input" id="_partialDate" type="date" value="${todayStr()}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_savePartialPayment(${id},${remaining})">${L('حفظ','Enregistrer')}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function _savePartialPayment(id, remaining) {
+  const amount = parseFloat(document.getElementById('_partialAmt')?.value)||0;
+  if(!amount||amount<=0) { Toast.error(L('أدخل مبلغاً صحيحاً','Montant invalide')); return; }
+  if(amount>remaining+0.01) { Toast.error(L('المبلغ أكبر من الرصيد','Montant dépasse le solde')); return; }
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  const inv = invs[idx];
+  const newPaid = Number(inv.paid_amount||0) + amount;
+  const newBalance = Number(inv.amount) - newPaid;
+  if(!inv.payment_history) inv.payment_history = [];
+  inv.payment_history.push({
+    amount,
+    date: document.getElementById('_partialDate')?.value||todayStr(),
+    method: document.getElementById('_partialMethod')?.value||'cash',
+    ref: document.getElementById('_partialRef')?.value||''
+  });
+  invs[idx].paid_amount = newPaid;
+  invs[idx].status = newBalance<=0.01 ? 'paid' : 'partial';
+  if(newBalance<=0.01) invs[idx].paid_date = todayStr();
+  DB.set('invoices', invs);
+  sbSync('invoices', invs[idx], 'PATCH').catch(()=>{});
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(newBalance<=0.01
+    ? L('تم سداد الفاتورة كاملاً','Facture soldée intégralement')
+    : L('تم تسجيل الدفع الجزئي','Paiement partiel enregistré')
+  );
+  App.navigate('invoices');
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   دوال الموارد البشرية — HR Functions
+════════════════════════════════════════════════════════════ */
+
+// ── حساب أيام الإجازة تلقائياً ──
+function calcLeaveDays() {
+  const s = document.getElementById('leaveStart')?.value;
+  const e = document.getElementById('leaveEnd')?.value;
+  if (s && e) {
+    const days = Math.max(1, Math.round((new Date(e)-new Date(s))/(1000*60*60*24))+1);
+    const el = document.getElementById('leaveDays');
+    if (el) el.value = days;
+  }
+}
+
+// ── حفظ طلب إجازة ──
+function saveLeave(workerId) {
+  const start = document.getElementById('leaveStart')?.value;
+  const end   = document.getElementById('leaveEnd')?.value;
+  const days  = Number(document.getElementById('leaveDays')?.value)||1;
+  if (!start||!end) { Toast.error(L('أدخل تواريخ الإجازة','Renseignez les dates')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const leaves = DB.get('leave_requests')||[];
+  const rec = {
+    id: DB.nextId('leave_requests'),
+    tenant_id: tid, worker_id: workerId,
+    type:   document.getElementById('leaveType')?.value||'annual',
+    status: document.getElementById('leaveSt')?.value||'pending',
+    start_date: start, end_date: end, days,
+    reason: document.getElementById('leaveReason')?.value||'',
+    created_at: todayStr()
+  };
+  leaves.push(rec);
+  DB.set('leave_requests', leaves);
+  sbSync('leave_requests', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل طلب الإجازة','✅ Congé enregistré'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── موافقة على إجازة ──
+function approveLeave(leaveId, workerId) {
+  const leaves = DB.get('leave_requests')||[];
+  const idx = leaves.findIndex(l=>l.id===leaveId);
+  if(idx<0) return;
+  leaves[idx].status = 'approved';
+  leaves[idx].approved_by = Auth.getUser().full_name||'';
+  DB.set('leave_requests', leaves);
+  sbSync('leave_requests', leaves[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم اعتماد الإجازة','✅ Congé approuvé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── رفض إجازة ──
+function rejectLeave(leaveId, workerId) {
+  const leaves = DB.get('leave_requests')||[];
+  const idx = leaves.findIndex(l=>l.id===leaveId);
+  if(idx<0) return;
+  leaves[idx].status = 'rejected';
+  DB.set('leave_requests', leaves);
+  sbSync('leave_requests', leaves[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('تم رفض الإجازة','Congé refusé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── حذف إجازة ──
+function deleteLeave(leaveId, workerId) {
+  if (!confirm(L('حذف هذه الإجازة؟','Supprimer ce congé ?'))) return;
+  DB.set('leave_requests', (DB.get('leave_requests')||[]).filter(l=>l.id!==leaveId));
+  sbSyncDelete('leave_requests', leaveId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'leaves'});
+}
+
+// ── حفظ إنذار ──
+function saveWarning(workerId) {
+  const reason = document.getElementById('warnReason')?.value?.trim();
+  if (!reason) { Toast.error(L('أدخل سبب الإنذار','Renseignez le motif')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const warnings = DB.get('worker_warnings')||[];
+  const rec = {
+    id: DB.nextId('worker_warnings'),
+    tenant_id: tid, worker_id: workerId,
+    type:   document.getElementById('warnType')?.value||'verbal',
+    date:   document.getElementById('warnDate')?.value||todayStr(),
+    reason,
+    action: document.getElementById('warnAction')?.value||'',
+    created_at: todayStr()
+  };
+  warnings.push(rec);
+  DB.set('worker_warnings', warnings);
+  sbSync('worker_warnings', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل الإنذار','✅ Avertissement enregistré'));
+  App.navigate('worker_profile', {id: workerId, tab: 'warnings'});
+}
+
+// ── حذف إنذار ──
+function deleteWarning(warnId, workerId) {
+  if (!confirm(L('حذف هذا الإنذار؟','Supprimer cet avertissement ?'))) return;
+  DB.set('worker_warnings', (DB.get('worker_warnings')||[]).filter(w=>w.id!==warnId));
+  sbSyncDelete('worker_warnings', warnId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'warnings'});
+}
+
+// ── حذف ساعات إضافية ──
+function deleteOvertime(otId, workerId) {
+  if (!confirm(L('حذف هذا السجل؟','Supprimer ?'))) return;
+  DB.set('worker_overtime', (DB.get('worker_overtime')||[]).filter(o=>o.id!==otId));
+  sbSyncDelete('worker_overtime', otId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('worker_profile', {id: workerId, tab: 'overtime'});
+}
+
+// ── تسجيل ساعات إضافية من صفحة الحضور ──
+function addOvertime(workerId) {
+  const tid = Auth.getUser().tenant_id;
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:380px;width:90%">
+      <div class="modal-title">⏰ ${L('ساعات إضافية','Heures supplémentaires')}</div>
+      <div style="font-size:.8rem;color:var(--gold);margin-bottom:.8rem">${escHtml(worker.full_name)}</div>
+      <div class="form-grid-2">
+        <div class="form-group"><label class="form-label">${L('التاريخ','Date')}</label><input class="form-input" id="_otDate" type="date" value="${todayStr()}"></div>
+        <div class="form-group"><label class="form-label">${L('عدد الساعات','Nb heures')}</label><input class="form-input" id="_otHours" type="number" min=".5" step=".5" value="1" dir="ltr" oninput="_calcOT(${worker.daily_salary})"></div>
+        <div class="form-group"><label class="form-label">${L('نسبة المكافأة','Taux')}</label>
+          <select class="form-select" id="_otRate" onchange="_calcOT(${worker.daily_salary})">
+            <option value="125">125% ${L('(عادي)','(normal)')}</option>
+            <option value="150">150% ${L('(ليلي/أسبوعي)','(nuit/hebdo)')}</option>
+            <option value="200">200% ${L('(عيد)','(férié)')}</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">${L('المبلغ المحسوب','Montant calculé')}</label><input class="form-input" id="_otAmt" dir="ltr" readonly style="color:var(--gold);font-weight:700"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_saveOT(${workerId}, ${tid})">💾 ${L('حفظ','Enregistrer')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  _calcOT(worker.daily_salary);
+}
+
+function _calcOT(dailySalary) {
+  const hours = parseFloat(document.getElementById('_otHours')?.value)||0;
+  const rate  = parseFloat(document.getElementById('_otRate')?.value)||125;
+  const hourly = dailySalary / 8;
+  const amount = Math.round(hours * hourly * rate / 100);
+  const el = document.getElementById('_otAmt');
+  if (el) el.value = fmt(amount) + ' دج';
+}
+
+function _saveOT(workerId, tid) {
+  const hours = parseFloat(document.getElementById('_otHours')?.value)||0;
+  if (!hours) { Toast.error(L('أدخل عدد الساعات','Renseignez les heures')); return; }
+  const rate    = parseFloat(document.getElementById('_otRate')?.value)||125;
+  const worker  = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  const hourly  = (worker?.daily_salary||0) / 8;
+  const amount  = Math.round(hours * hourly * rate / 100);
+  const ots = DB.get('worker_overtime')||[];
+  const rec = {
+    id: DB.nextId('worker_overtime'), tenant_id: tid, worker_id: workerId,
+    date: document.getElementById('_otDate')?.value||todayStr(),
+    hours, rate, amount
+  };
+  ots.push(rec);
+  DB.set('worker_overtime', ots);
+  sbSync('worker_overtime', rec, 'POST').catch(()=>{});
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(L('✅ تم تسجيل الساعات الإضافية','✅ Heures supplémentaires enregistrées'));
+  App.navigate('worker_profile', {id: workerId, tab: 'overtime'});
+}
+
+
+// ── modal العلاوات والخصومات ──
+function addAllowanceModal(workerId, monthKey) {
+  const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
+  if (!worker) return;
+  const records = DB.get('salary_records')||[];
+  const rec = records.find(r=>r.worker_id===workerId&&r.month_key===monthKey);
+  const modal = document.createElement('div');
+  modal.className='modal-overlay';
+  modal.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center';
+  modal.innerHTML=`
+    <div class="modal" style="max-width:400px;width:90%">
+      <div class="modal-title">💰 ${L('علاوات وخصومات','Primes et Déductions')}</div>
+      <div style="font-size:.8rem;color:var(--gold);margin-bottom:.8rem">${escHtml(worker.full_name)} — ${monthKey}</div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label">+ ${L('بدل نقل','Indemnité transport')}</label>
+          <input class="form-input" id="_allowTransport" type="number" min="0" value="${rec?.allowance_transport||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">+ ${L('علاوة إنتاجية','Prime productivité')}</label>
+          <input class="form-input" id="_allowProd" type="number" min="0" value="${rec?.allowance_prod||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">+ ${L('بدل إقامة','Indemnité logement')}</label>
+          <input class="form-input" id="_allowHousing" type="number" min="0" value="${rec?.allowance_housing||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">− ${L('خصم تأخير','Retard')}</label>
+          <input class="form-input" id="_dedLate" type="number" min="0" value="${rec?.ded_late||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">− ${L('خصم سلفة','Avance')}</label>
+          <input class="form-input" id="_dedAdvance" type="number" min="0" value="${rec?.ded_advance||0}" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">− ${L('خصومات أخرى','Autres')}</label>
+          <input class="form-input" id="_dedOther" type="number" min="0" value="${rec?.ded_other||0}" dir="ltr">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">${L('إلغاء','Annuler')}</button>
+        <button class="btn btn-gold" onclick="_saveAllowances(${workerId},'${monthKey}')">${L('💾 حفظ','Enregistrer')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _saveAllowances(workerId, monthKey) {
+  const t = parseFloat; const g = id => parseFloat(document.getElementById(id)?.value)||0;
+  const allowances = g('_allowTransport') + g('_allowProd') + g('_allowHousing');
+  const deductions = g('_dedLate') + g('_dedAdvance') + g('_dedOther');
+  const tid = Auth.getUser().tenant_id;
+  const records = DB.get('salary_records')||[];
+  const idx = records.findIndex(r=>r.worker_id===workerId&&r.month_key===monthKey);
+  const data = {
+    allowances, deductions,
+    allowance_transport: g('_allowTransport'),
+    allowance_prod: g('_allowProd'),
+    allowance_housing: g('_allowHousing'),
+    ded_late: g('_dedLate'),
+    ded_advance: g('_dedAdvance'),
+    ded_other: g('_dedOther')
+  };
+  if (idx>=0) {
+    Object.assign(records[idx], data);
+    DB.set('salary_records', records);
+    sbSync('salary_records', records[idx], 'PATCH').catch(()=>{});
+  } else {
+    const rec = {id:DB.nextId('salary_records'), tenant_id:tid, worker_id:workerId, month_key:monthKey, amount:0, ...data};
+    records.push(rec);
+    DB.set('salary_records', records);
+    sbSync('salary_records', rec, 'POST').catch(()=>{});
+  }
+  document.querySelector('.modal-overlay')?.remove();
+  Toast.success(L('✅ تم حفظ العلاوات والخصومات','✅ Primes et déductions enregistrées'));
+  App.navigate('salary', {monthKey});
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   دوال الموردين — Supplier Functions
+════════════════════════════════════════════════════════════ */
+
+function saveSupplier() {
+  const name = document.getElementById('supName')?.value?.trim();
+  const phone = document.getElementById('supPhone')?.value?.trim();
+  const activity = document.getElementById('supActivity')?.value?.trim();
+  if (!name) { Toast.error(L('اسم المورد مطلوب','Nom fournisseur requis')); return; }
+  if (!phone) { Toast.error(L('رقم الهاتف مطلوب','Téléphone requis')); return; }
+
+  const tid = Auth.getUser().tenant_id;
+  const suppliers = DB.get('suppliers') || [];
+  const rec = {
+    id:         DB.nextId('suppliers'),
+    tenant_id:  tid,
+    name,
+    name_fr:    document.getElementById('supNameFr')?.value?.trim()||'',
+    activity,
+    category:   document.getElementById('supCat')?.value||'materials',
+    phone,
+    phone2:     document.getElementById('supPhone2')?.value?.trim()||'',
+    email:      document.getElementById('supEmail')?.value?.trim()||'',
+    wilaya:     document.getElementById('supWilaya')?.value||'',
+    address:    document.getElementById('supAddress')?.value?.trim()||'',
+    nif:        document.getElementById('supNif')?.value?.trim()||'',
+    nis:        document.getElementById('supNis')?.value?.trim()||'',
+    rc:         document.getElementById('supRc')?.value?.trim()||'',
+    rating:     Number(document.getElementById('supRating')?.value)||3,
+    notes:      document.getElementById('supNotes')?.value||'',
+    color:      document.getElementById('supColor')?.value||'#4A90E2',
+    is_active:  document.getElementById('supActive')?.checked !== false,
+    created_at: todayStr()
+  };
+  suppliers.push(rec);
+  DB.set('suppliers', suppliers);
+  sbSync('suppliers', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم إضافة المورد','✅ Fournisseur ajouté'));
+  App.navigate('supplier_detail', {id: rec.id});
+}
+
+function editSupplier(id) {
+  const suppliers = DB.get('suppliers')||[];
+  const s = suppliers.find(x=>x.id===id);
+  if (!s) return;
+  // نعيد فتح modal الإضافة محمّلاً بالبيانات
+  App.navigate('supplier_edit', {id});
+}
+
+function editSupplierNotes(id) {
+  const suppliers = DB.get('suppliers')||[];
+  const idx = suppliers.findIndex(x=>x.id===id);
+  if (idx<0) return;
+  const newNotes = prompt(L('تعديل الملاحظات:','Modifier les notes:'), suppliers[idx].notes||'');
+  if (newNotes === null) return;
+  suppliers[idx].notes = newNotes;
+  DB.set('suppliers', suppliers);
+  sbSync('suppliers', suppliers[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم حفظ الملاحظات','✅ Notes enregistrées'));
+  App.navigate('supplier_detail', {id, tab:'notes'});
+}
+
+function savePurchase(supplierId) {
+  const desc   = document.getElementById('purDesc')?.value?.trim();
+  const amount = parseFloat(document.getElementById('purAmt')?.value)||0;
+  if (!desc)   { Toast.error(L('أدخل وصف العملية','Renseignez la description')); return; }
+  if (!amount) { Toast.error(L('أدخل المبلغ','Renseignez le montant')); return; }
+
+  const tid = Auth.getUser().tenant_id;
+  const purchases = DB.get('supplier_purchases')||[];
+  const rec = {
+    id:             DB.nextId('supplier_purchases'),
+    tenant_id:      tid,
+    supplier_id:    supplierId,
+    project_id:     Number(document.getElementById('purProj')?.value)||null,
+    date:           document.getElementById('purDate')?.value||todayStr(),
+    description:    desc,
+    amount,
+    payment_method: document.getElementById('purMethod')?.value||'cash',
+    payment_status: document.getElementById('purStatus')?.value||'unpaid',
+    due_date:       document.getElementById('purDue')?.value||'',
+    receipt_number: document.getElementById('purRef')?.value?.trim()||'',
+    notes:          document.getElementById('purNotes')?.value||''
+  };
+  purchases.push(rec);
+  DB.set('supplier_purchases', purchases);
+  sbSync('supplier_purchases', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل العملية','✅ Opération enregistrée'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+function markPurchasePaid(purchaseId, supplierId) {
+  const purchases = DB.get('supplier_purchases')||[];
+  const idx = purchases.findIndex(p=>p.id===purchaseId);
+  if (idx<0) return;
+  purchases[idx].payment_status = 'paid';
+  purchases[idx].paid_date = todayStr();
+  DB.set('supplier_purchases', purchases);
+  sbSync('supplier_purchases', purchases[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم تأشير العملية كمدفوعة','✅ Marqué comme payé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+function deletePurchase(purchaseId, supplierId) {
+  if (!confirm(L('حذف هذه العملية؟','Supprimer cette opération ?'))) return;
+  DB.set('supplier_purchases', (DB.get('supplier_purchases')||[]).filter(p=>p.id!==purchaseId));
+  sbSyncDelete('supplier_purchases', purchaseId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+function deletePurchase(purchaseId, supplierId) {
+  if (!confirm(L('حذف هذه العملية؟','Supprimer cette opération ?'))) return;
+  DB.set('supplier_purchases', (DB.get('supplier_purchases')||[]).filter(p=>p.id!==purchaseId));
+  sbSyncDelete('supplier_purchases', purchaseId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'purchases'});
+}
+
+// ── حفظ سعر مرجعي ──
+function saveSupplierPrice(supplierId) {
+  const item = document.getElementById('priceItem')?.value?.trim();
+  const price = parseFloat(document.getElementById('priceUnit_price')?.value)||0;
+  if (!item) { Toast.error(L('أدخل اسم المادة','Renseignez le produit')); return; }
+  if (!price) { Toast.error(L('أدخل السعر','Renseignez le prix')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const prices = DB.get('supplier_prices')||[];
+  const rec = {
+    id: DB.nextId('supplier_prices'),
+    tenant_id: tid, supplier_id: supplierId,
+    item_name: item,
+    unit:       document.getElementById('priceUnit')?.value||'',
+    unit_price: price,
+    date:       document.getElementById('priceDate')?.value||todayStr(),
+    project_id: Number(document.getElementById('priceProj')?.value)||null,
+    note:       document.getElementById('priceNote')?.value||''
+  };
+  prices.push(rec);
+  DB.set('supplier_prices', prices);
+  sbSync('supplier_prices', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم حفظ السعر','✅ Prix enregistré'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'prices'});
+}
+
+function deleteSupplierPrice(priceId, supplierId) {
+  if (!confirm(L('حذف هذا السعر؟','Supprimer ce prix ?'))) return;
+  DB.set('supplier_prices', (DB.get('supplier_prices')||[]).filter(p=>p.id!==priceId));
+  sbSyncDelete('supplier_prices', priceId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'prices'});
+}
+
+// ── حفظ التزام ──
+function saveObligation(supplierId) {
+  const desc   = document.getElementById('oblDesc')?.value?.trim();
+  const amount = parseFloat(document.getElementById('oblAmount')?.value)||0;
+  if (!desc)   { Toast.error(L('أدخل وصف الالتزام','Renseignez la description')); return; }
+  if (!amount) { Toast.error(L('أدخل المبلغ','Renseignez le montant')); return; }
+  const tid = Auth.getUser().tenant_id;
+  const obls = DB.get('supplier_obligations')||[];
+  const rec = {
+    id: DB.nextId('supplier_obligations'),
+    tenant_id: tid, supplier_id: supplierId,
+    type:        document.getElementById('oblType')?.value||'invoice',
+    description: desc,
+    amount,
+    due_date:    document.getElementById('oblDue')?.value||'',
+    ref:         document.getElementById('oblRef')?.value||'',
+    status:      'pending',
+    created_at:  todayStr()
+  };
+  obls.push(rec);
+  DB.set('supplier_obligations', obls);
+  sbSync('supplier_obligations', rec, 'POST').catch(()=>{});
+  Toast.success(L('✅ تم تسجيل الالتزام','✅ Obligation enregistrée'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'obligations'});
+}
+
+function markOblDone(oblId, supplierId) {
+  const obls = DB.get('supplier_obligations')||[];
+  const idx  = obls.findIndex(o=>o.id===oblId);
+  if (idx<0) return;
+  obls[idx].status   = 'done';
+  obls[idx].done_date = todayStr();
+  DB.set('supplier_obligations', obls);
+  sbSync('supplier_obligations', obls[idx], 'PATCH').catch(()=>{});
+  Toast.success(L('✅ تم تأشير الالتزام كمنجز','✅ Obligation accomplie'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'obligations'});
+}
+
+function deleteObligation(oblId, supplierId) {
+  if (!confirm(L('حذف هذا الالتزام؟','Supprimer cette obligation ?'))) return;
+  DB.set('supplier_obligations', (DB.get('supplier_obligations')||[]).filter(o=>o.id!==oblId));
+  sbSyncDelete('supplier_obligations', oblId).catch(()=>{});
+  Toast.success(L('تم الحذف','Supprimé'));
+  App.navigate('supplier_detail', {id: supplierId, tab:'obligations'});
+}
+
+function exportSuppliersCSV() {
+  const tid = Auth.getUser().tenant_id;
+  const suppliers = (DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid);
+  const header = [L('الاسم','Nom'),L('النشاط','Activité'),L('الهاتف','Téléphone'),'NIF','RC',L('الولاية','Wilaya'),'Email',L('التقييم','Évaluation'),L('الملاحظات','Notes')];
+  const rows = suppliers.map(s=>[s.name,s.activity||'',s.phone||'',s.nif||'',s.rc||'',s.wilaya||'',s.email||'',(s.rating||0)+'/5',s.notes||'']);
+  const csv = [header,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Fournisseurs_SmartStruct_'+todayStr()+'.csv';
+  a.click();
+  Toast.success(L('✅ تم تصدير CSV','✅ CSV exporté'));
+}
+
+
+// ── رفع الفاتورة لـ Google Drive ──
+function uploadInvoiceToDrive(invoiceId) {
+  if (typeof SmartDrive === 'undefined') {
+    Toast.error(L('Google Drive غير مُهيَّأ — اذهب للإعدادات','Google Drive non configuré'));
+    return;
+  }
+  if (!SmartDrive.isConnected()) {
+    if (confirm(L('Google Drive غير متصل. هل تريد ربطه الآن؟','Google Drive non connecté. Connecter maintenant ?'))) {
+      App.navigate('settings');
+    }
+    return;
+  }
+
+  const tid = Auth.getUser().tenant_id;
+  const inv = (DB.get('invoices')||[]).find(i=>i.id===invoiceId);
+  if (!inv) return;
+
+  Toast.info(L('⏳ جاري رفع الفاتورة لـ Drive...','⏳ Envoi vers Drive...'));
+
+  // توليد PDF كـ blob ثم رفعه
+  try {
+    // استخدام printInvoiceWindow لتوليد المحتوى
+    const blob = _generateInvoiceBlob(invoiceId);
+    const fileName = `Facture_${inv.number||invoiceId}_${todayStr()}.pdf`;
+
+    if (SmartDrive.uploadFile) {
+      SmartDrive.uploadFile(blob, fileName, 'SmartStruct/Factures').then(result => {
+        if (result?.id) {
+          Toast.success(L(`✅ تم رفع ${fileName} لـ Drive`, `✅ ${fileName} envoyé sur Drive`));
+        }
+      }).catch(() => Toast.error(L('فشل الرفع — حاول مجدداً','Échec de l\'envoi')));
+    } else {
+      // fallback: فتح Drive
+      window.open('https://drive.google.com', '_blank');
+      Toast.info(L('افتح Drive وارفع الملف يدوياً بعد تصدير PDF','Ouvrez Drive et uploadez le PDF manuellement'));
+    }
+  } catch(e) {
+    // fallback: تصدير PDF عادي
+    exportInvoicePDF(invoiceId);
+    Toast.info(L('تم تصدير PDF — ارفعه يدوياً على Drive','PDF exporté — uploadez-le manuellement sur Drive'));
+  }
+}
+
+function _generateInvoiceBlob(invoiceId) {
+  // للآن نُعيد null ويستخدم fallback
+  return null;
+}
+
+// ── حفظ Google Drive Client ID ──
+function _saveGDriveClientId() {
+  const v = document.getElementById('gcId')?.value?.trim();
+  if (!v || !v.includes('googleusercontent')) {
+    Toast.error(L('أدخل Client ID صحيح ينتهي بـ .apps.googleusercontent.com','Client ID invalide'));
+    return;
+  }
+  localStorage.setItem('sbtp_gdrive_client_id', v);
+  if (typeof DB !== 'undefined') {
+    DB.set('global_gdrive_config', { enabled: true, client_id: v });
+  }
+  Toast.success(L('✅ تم حفظ Client ID — اضغط "ربط حسابي" الآن','✅ Client ID sauvegardé'));
+  App.navigate('settings');
 }
 
 function exportInvoicesCSV() {
@@ -11070,6 +18845,392 @@ function exportInvoicesCSV() {
   Toast.success(L('✅ تم تصدير CSV','✅ CSV exporté'));
 }
 // ── PDF Export — يستخدم نفس قالب الطباعة الاحترافي ──
+// ══════════════════════════════════════════════════════════════
+//  🖨️ _buildPrintShell — Toolbar + Panel لكل نوافذ الطباعة
+// ══════════════════════════════════════════════════════════════
+function _buildPrintShell({ title, bodyHtml, isAr, extraCSS = '', onPrint = '' }) {
+  const ps = getPrintSettings();
+  const _font   = ps.fontFamily    || 'Cairo';
+  const _size   = ps.fontSize      || 13;
+  const _color  = ps.accentColor   || '#B8902F';
+  const _margin = ps.margin        || '12mm';
+  const _lh     = ps.lineHeight    || 1.6;
+  const _tc     = ps.tableHeaderColor || _color;
+  const _rb     = ps.rowBgColor    || '#fafaf7';
+  const _wm     = ps.watermark     || '';
+  const _showWM = ps.showWatermark || false;
+
+  return `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${_font}',Arial,sans-serif;background:#e8eaed;color:#1a1a1a;line-height:${_lh};font-size:${_size}px}
+/* Toolbar */
+.toolbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;color:#fff;
+  display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:nowrap;overflow-x:auto}
+.tb-btn{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;
+  font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:'${_font}',Arial,sans-serif;transition:.15s}
+.tb-primary{background:${_color};color:#fff}.tb-primary:hover{filter:brightness(.9)}
+.tb-green{background:#27ae60;color:#fff}.tb-green:hover{background:#229954}
+.tb-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}.tb-ghost:hover{background:rgba(255,255,255,.2)}
+.tb-sep{width:1px;height:28px;background:rgba(255,255,255,.2);margin:0 3px;flex-shrink:0}
+/* Panel */
+.ep{position:fixed;top:52px;${isAr?'left':'right'}:0;bottom:0;width:252px;
+  background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);overflow-y:auto;z-index:999;transition:transform .3s}
+.ep.hidden{transform:translateX(${isAr?'-100%':'100%'})}
+.ph{background:#1a1a2e;color:#fff;padding:10px 14px;font-size:13px;font-weight:700;
+  display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1}
+.pb{padding:12px 14px;display:flex;flex-direction:column;gap:11px}
+.pg>label:first-child{display:block;font-size:10px;font-weight:700;color:#777;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.pg select,.pg input[type=text]{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:'${_font}',Arial,sans-serif}
+.pg input[type=range]{width:100%;accent-color:${_color}}
+.csw{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.csw div{width:20px;height:20px;border-radius:4px;cursor:pointer;border:2px solid transparent}
+.csw div.on{border-color:#333!important;transform:scale(1.12)}
+.sbtn{width:100%;padding:8px;background:${_color};color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_font}',Arial,sans-serif;margin-top:2px}
+.rbtn{width:100%;padding:7px;background:#fff;color:#c0392b;border:1px solid #f5b8b8;border-radius:7px;cursor:pointer;font-size:11.5px;font-family:'${_font}',Arial,sans-serif}
+.hdiv{border-top:1px solid #eee;margin:2px 0}
+/* Content */
+.cw{margin-top:52px;padding:20px;transition:${isAr?'margin-left':'margin-right'} .3s}
+.cw.open{${isAr?'margin-left':'margin-right'}:256px}
+/* Watermark */
+.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);
+  font-size:80px;font-weight:900;color:rgba(0,0,0,.04);pointer-events:none;z-index:998;white-space:nowrap;user-select:none}
+@media print{
+  .toolbar,.ep{display:none!important}
+  .cw{margin:0!important;padding:0!important}
+  body{background:#fff!important;font-size:${_size}px!important}
+  @page{margin:${_margin}}
+  thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+${extraCSS}
+</style></head>
+<body>
+<div class="toolbar">
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb-btn tb-green" onclick="_shellSave()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" id="tbPanel" onclick="_shellToggle()">⚙️ ${isAr?'تخصيص الورقة':'Personnaliser'}</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn tb-ghost" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<div class="ep hidden" id="shellPanel">
+  <div class="ph">
+    <span>⚙️ ${isAr?'تخصيص الورقة':'Personnaliser'}</span>
+    <button onclick="_shellToggle()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div class="pb">
+    <div class="pg"><label>🔤 ${isAr?'الخط':'Police'}</label>
+      <select id="spF" onchange="_shellApply()">
+        ${['Cairo','Tajawal','Arial',"'Times New Roman'",'Tahoma'].map(f=>`<option value="${f}" ${_font===f?'selected':''}>${f.replace(/'/g,'')}</option>`).join('')}
+      </select></div>
+    <div class="pg"><label>📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_size}px</strong></label>
+      <input type="range" id="spSz" min="10" max="18" step="1" value="${_size}"
+        oninput="document.getElementById('spSzL').textContent=this.value+'px';_shellApply()">
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#aaa"><span>10</span><span>14</span><span>18</span></div>
+    </div>
+    <div class="pg"><label>🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
+      <div class="csw">
+        ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div style="background:${c}" class="${_color===c?'on':''}" title="${n}" onclick="_shellSetColor('${c}',this)"></div>`
+        ).join('')}
+        <input type="color" id="spCC" value="${_color}" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_shellSetColor(this.value,null)">
+      </div></div>
+    <div class="pg"><label>📐 ${isAr?'الهوامش':'Marges'}</label>
+      <select id="spM" onchange="_shellApply()">
+        ${[['8mm',isAr?'ضيق':'Étroit'],['12mm',isAr?'عادي':'Normal'],['18mm',isAr?'واسع':'Large']].map(([v,l])=>
+          `<option value="${v}" ${_margin===v?'selected':''}>${v} — ${l}</option>`
+        ).join('')}
+      </select></div>
+    <div class="pg"><label>📄 ${isAr?'حجم الورق':'Format'}</label>
+      <div style="display:flex;gap:5px">
+        ${['A4','A5','Letter'].map(sz=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spPs" value="${sz}" ${(ps.pageSize||'A4')===sz?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">${sz}
+        </label>`).join('')}
+      </div></div>
+    <div class="pg"><label>↔️ ${isAr?'الاتجاه':'Orientation'}</label>
+      <div style="display:flex;gap:5px">
+        <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spOr" value="portrait" ${(ps.orientation||'portrait')==='portrait'?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">
+          📄 ${isAr?'عمودي':'Portrait'}
+        </label>
+        <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer">
+          <input type="radio" name="spOr" value="landscape" ${ps.orientation==='landscape'?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">
+          📃 ${isAr?'أفقي':'Paysage'}
+        </label>
+      </div></div>
+    <div class="hdiv"></div>
+    <div class="pg"><label>↕️ ${isAr?'تباعد الأسطر':'Interligne'} — <strong id="spLhL">${_lh}</strong></label>
+      <input type="range" id="spLh" min="1.2" max="2.2" step="0.1" value="${_lh}"
+        oninput="document.getElementById('spLhL').textContent=parseFloat(this.value).toFixed(1);_shellApply()">
+    </div>
+    <div class="pg"><label>📊 ${isAr?'لون رأس الجدول':'En-tête tableau'}</label>
+      <div class="csw">
+        ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#555','رمادي'],['#1a1a1a','أسود']].map(([c,n])=>
+          `<div style="background:${c}" class="${_tc===c?'on':''}" title="${n}" onclick="document.getElementById('spTC').value='${c}';_shellApply()"></div>`
+        ).join('')}
+        <input type="color" id="spTC" value="${_tc}" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;border-radius:4px" oninput="_shellApply()">
+      </div></div>
+    <div class="pg"><label>💧 ${isAr?'واترمارك':'Filigrane'}</label>
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="text" id="spWm" value="${_wm.replace(/"/g,'&quot;')}" placeholder="${isAr?'سري، مسودة...':'CONFIDENTIEL...'}" oninput="_shellApply()">
+        <label style="display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap">
+          <input type="checkbox" id="spSwm" ${_showWM?'checked':''} style="accent-color:${_color}" onchange="_shellApply()">
+          ${isAr?'تفعيل':'Activer'}
+        </label>
+      </div></div>
+    <button class="rbtn" onclick="_shellReset()">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+    <button class="sbtn" onclick="_shellSaveSettings()">💾 ${isAr?'حفظ للمرة القادمة':'Sauvegarder'}</button>
+  </div>
+</div>
+
+<div class="cw" id="shellCW">
+  <div id="shellPage">
+    <div class="watermark" id="shellWM" style="display:${_showWM&&_wm?'block':'none'}">${_wm}</div>
+    ${bodyHtml}
+  </div>
+</div>
+
+<script>
+var _sc = '${_color}', _sdoc = ${JSON.stringify(title)};
+function _shellToggle(){
+  var p=document.getElementById('shellPanel'),w=document.getElementById('shellCW'),b=document.getElementById('tbPanel');
+  var h=p.classList.toggle('hidden');
+  w.classList.toggle('open',!h);
+  if(b) b.style.background=h?'':'rgba(184,144,47,.3)';
+}
+function _shellSetColor(c,el){
+  _sc=c;
+  document.querySelectorAll('.csw div').forEach(function(s){s.classList.remove('on')});
+  if(el)el.classList.add('on');
+  document.getElementById('spCC').value=c;
+  _shellApply();
+}
+function _shellApply(){
+  var f=document.getElementById('spF').value;
+  var sz=document.getElementById('spSz').value;
+  var mg=document.getElementById('spM').value;
+  var lh=document.getElementById('spLh').value;
+  var tc=document.getElementById('spTC').value;
+  var wm=document.getElementById('spWm').value;
+  var swm=document.getElementById('spSwm').checked;
+  var or=document.querySelector('input[name="spOr"]:checked')?.value||'portrait';
+  var ps=document.querySelector('input[name="spPs"]:checked')?.value||'A4';
+  var pg=document.getElementById('shellPage');
+  if(pg){pg.style.fontFamily=f+',Arial,sans-serif';pg.style.fontSize=sz+'px';pg.style.lineHeight=lh;}
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=tc;e.style.color='#fff';});
+  document.querySelectorAll('.gold-bar,[style*="border-bottom:3px solid"],[style*="border-bottom: 3px solid"]').forEach(function(e){
+    e.style.borderBottomColor=_sc;e.style.background=e.classList.contains('gold-bar')?_sc:'';
+  });
+  var wmEl=document.getElementById('shellWM');
+  if(wmEl){wmEl.textContent=wm;wmEl.style.display=(swm&&wm)?'block':'none';}
+  var si='_ssl';var st=document.getElementById(si)||document.createElement('style');st.id=si;
+  st.textContent='@media print{@page{margin:'+mg+';size:'+ps+' '+or+'}body{font-size:'+sz+'px!important;font-family:'+f+',Arial,sans-serif!important}thead th{background:'+tc+'!important;-webkit-print-color-adjust:exact!important}}';
+  if(!document.getElementById(si))document.head.appendChild(st);
+}
+function _shellSave(){
+  try{
+    var h=document.documentElement.outerHTML;
+    var b=new Blob([h],{type:'text/html;charset=utf-8'});
+    var u=URL.createObjectURL(b);var a=document.createElement('a');
+    a.href=u;a.download=_sdoc.replace(/[\/:*?"<>|]/g,'_')+'.html';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(u);},1500);
+  }catch(e){alert('فشل الحفظ');}
+}
+function _shellReset(){
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}
+}
+function _shellSaveSettings(){
+  var s={
+    fontFamily:document.getElementById('spF').value,
+    fontSize:Number(document.getElementById('spSz').value),
+    lineHeight:parseFloat(document.getElementById('spLh').value),
+    accentColor:_sc,
+    tableHeaderColor:document.getElementById('spTC').value,
+    margin:document.getElementById('spM').value,
+    pageSize:document.querySelector('input[name="spPs"]:checked')?.value||'A4',
+    orientation:document.querySelector('input[name="spOr"]:checked')?.value||'portrait',
+    watermark:document.getElementById('spWm').value,
+    showWatermark:document.getElementById('spSwm').checked,
+  };
+  try{
+    localStorage.setItem('sbtp_print_settings',JSON.stringify(s));
+    if(window.opener&&!window.opener.closed){
+      try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch(e){}
+    }
+  }catch(e){}
+  var b=document.querySelector('.sbtn');
+  if(b){var o=b.textContent;b.textContent='✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';b.style.background='#27ae60';setTimeout(function(){b.textContent=o;b.style.background='';},2000);}
+}
+${onPrint ? 'window.addEventListener("load",function(){setTimeout(function(){window.print();},800);});' : ''}
+</script>
+</body></html>`;
+}
+
+
+function buildInvoiceHTML(inv, tenant, proj, items, tvaRate, amountHT, tvaAmount, isAr, isPaid, logo, _ic, _if, _im, _iz) {
+  const fmt2 = n => Number(n||0).toLocaleString(isAr?'ar-DZ':'fr-DZ');
+  const da = isAr ? 'دج' : 'DA';
+  const logoHTML = logo ? `<img src="${logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;background:#fff;padding:4px">` : '';
+
+  return `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr?'فاتورة':'Facture'} ${escHtml(inv.number)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${_if}',Arial,sans-serif;color:#1a1a1a;background:#e8eaed;padding:0;font-size:${_iz}px}
+/* Toolbar */
+.no-print{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap}
+.tb{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_if}',Arial,sans-serif}
+/* Page */
+.page{background:#fff;max-width:820px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow:hidden}
+.inv-header{background:#fff;border-bottom:3px solid ${_ic};padding:28px 36px;display:flex;justify-content:space-between;align-items:center}
+.brand-name{font-size:22px;font-weight:900;color:${_ic};letter-spacing:.5px}
+.brand-sub{font-size:10px;color:#666;margin-top:4px}
+.inv-label{font-size:28px;font-weight:900;color:#1a1a1a;letter-spacing:2px;text-align:${isAr?'left':'right'}}
+.inv-num{font-size:13px;color:${_ic};font-weight:700;margin-top:4px;text-align:${isAr?'left':'right'}}
+.gold-bar{height:3px;background:${_ic}}
+.meta-section{display:grid;grid-template-columns:1fr 1fr 1fr;padding:20px 36px;border-bottom:1px solid #f0f0f0;gap:20px}
+.meta-box{padding:14px;border:1px solid #f0e8d0;border-radius:8px}
+.meta-label{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:6px}
+.meta-val{font-size:13px;font-weight:700;color:#1a1a1a}
+.meta-sub{font-size:11px;color:#666;margin-top:2px}
+.status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:${isPaid?'#d4f5e4':'#fff3cd'};color:${isPaid?'#0a6e3f':'#856404'};border:1px solid ${isPaid?'#a8d5b5':'#ffc107'}}
+.items-section{padding:24px 36px}
+.items-title{font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+thead th{background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:${isAr?'right':'left'}}
+tbody td{padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px}
+tbody tr:nth-child(odd) td{background:#fafaf7}
+.totals-section{padding:16px 36px 24px;display:flex;justify-content:flex-${isAr?'start':'end'}}
+.totals-box{min-width:260px}
+.total-row{display:flex;justify-content:space-between;padding:6px 12px;font-size:13px}
+.total-row.main{background:${_ic};color:#fff;border-radius:6px;font-size:15px;font-weight:900;padding:10px 14px;margin-top:6px}
+.bottom-section{display:flex;justify-content:space-between;align-items:flex-end;padding:20px 36px;border-top:1px solid #f0f0f0}
+.stamp-box{width:140px;height:80px;border:2px solid ${_ic};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:${_ic};font-weight:700;opacity:.5;text-align:center}
+.legal-note{font-size:10px;color:#bbb;line-height:1.7;text-align:${isAr?'left':'right'}}
+.inv-footer{background:#f8f5ee;border-top:2px solid ${_ic};padding:10px 36px;display:flex;justify-content:space-between;align-items:center}
+.inv-footer span{font-size:10px;color:#666}
+.gold-text{color:${_ic};font-weight:700}
+@media print{
+  .no-print{display:none!important}
+  .page{box-shadow:none;max-width:100%}
+  body{background:#fff}
+  @page{margin:${_im}}
+  thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style></head>
+<body>
+
+<!-- Toolbar -->
+<div class="no-print">
+  <button class="tb" style="background:${_ic};color:#fff" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button class="tb" style="background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='Facture_${inv.number}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="tb" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<div style="margin-top:52px;padding:20px;background:#e8eaed">
+<div class="page">
+
+  <!-- Header -->
+  <div class="inv-header">
+    <div style="display:flex;align-items:center;gap:18px">
+      ${logoHTML}
+      <div>
+        <div class="brand-name">▦ SmartStruct</div>
+        <div class="brand-sub">${escHtml(tenant?.name || '')}</div>
+        ${tenant?.nif ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>` : ''}
+        ${tenant?.nis ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>` : ''}
+        ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
+      </div>
+    </div>
+    <div>
+      <div class="inv-label">${isAr?'فاتورة':'FACTURE'}</div>
+      <div class="inv-num">${escHtml(inv.number)}</div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <!-- Meta -->
+  <div class="meta-section">
+    <div class="meta-box">
+      <div class="meta-label">${isAr?'تاريخ الإصدار':'Date d\'émission'}</div>
+      <div class="meta-val">${inv.date || new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</div>
+      ${inv.due_date ? `<div class="meta-sub" style="color:${new Date(inv.due_date)<new Date()?'#c0392b':'#666'}">${isAr?'الاستحقاق':'Échéance'}: ${inv.due_date}</div>` : ''}
+    </div>
+    <div class="meta-box">
+      <div class="meta-label">${isAr?'العميل':'Client'}</div>
+      <div class="meta-val">${escHtml(inv.client_name||'—')}</div>
+      ${proj ? `<div class="meta-sub">🏗️ ${escHtml(proj.name)}</div>` : ''}
+      ${inv.payment_method ? `<div class="meta-sub">${escHtml(inv.payment_method)}</div>` : ''}
+    </div>
+    <div class="meta-box">
+      <div class="meta-label">${isAr?'الحالة':'Statut'}</div>
+      <div><span class="status-badge">${inv.status==='paid'?(isAr?'✅ مدفوعة':'✅ Payée'):inv.status==='partial'?(isAr?'🔶 جزئية':'🔶 Partiel'):(isAr?'⏳ معلقة':'⏳ En attente')}</span></div>
+      ${inv.paid_amount ? `<div class="meta-sub" style="margin-top:6px">${isAr?'مدفوع':'Payé'}: ${fmt2(inv.paid_amount)} ${da}</div>` : ''}
+    </div>
+  </div>
+
+  <!-- Items -->
+  <div class="items-section">
+    <div class="items-title">📋 ${isAr?'تفاصيل الفاتورة':'Détails de la facture'}</div>
+    <table>
+      <thead><tr>
+        <th>${isAr?'البيان':'Désignation'}</th>
+        <th style="text-align:center">${isAr?'الكمية':'Qté'}</th>
+        <th style="text-align:center">${isAr?'سعر الوحدة (دج)':'P.U. (DA)'}</th>
+        <th style="text-align:center">${isAr?'الإجمالي HT (دج)':'Total HT (DA)'}</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(item=>`<tr>
+          <td>${escHtml(item.desc||item.designation||'')}</td>
+          <td style="text-align:center">${item.qty||1}</td>
+          <td style="text-align:center">${fmt2(item.price||item.unit_price||0)}</td>
+          <td style="text-align:center;font-weight:700">${fmt2(item.total||0)} ${da}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Totals -->
+  <div class="totals-section">
+    <div class="totals-box">
+      <div class="total-row"><span>${isAr?'المجموع HT':'Sous-total HT'}</span><span>${fmt2(amountHT)} ${da}</span></div>
+      <div class="total-row"><span>TVA (${tvaRate}%)</span><span>${fmt2(tvaAmount)} ${da}</span></div>
+      <div class="total-row main"><span>${isAr?'المجموع TTC':'TOTAL TTC'}</span><span>${fmt2(inv.amount)} ${da}</span></div>
+    </div>
+  </div>
+
+  <!-- Bottom: stamp + legal -->
+  <div class="bottom-section">
+    <div class="legal-note">
+      <strong>${isAr?'ملاحظات قانونية':'Mentions légales'}</strong><br>
+      TVA: ${tvaRate}% | ${tenant?.nif?'NIF: '+escHtml(tenant.nif):''}${tenant?.nis?' | NIS: '+escHtml(tenant.nis):''}<br>
+      ${tenant?.rc_number?'RC: '+escHtml(tenant.rc_number)+' | ':''}${tenant?.address||''}
+    </div>
+    <div class="stamp-box">${isAr?'الختم\nوالتوقيع':'Cachet\net Signature'}</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="inv-footer">
+    <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة':'Plateforme BTP'}</span>
+    <span class="gold-text">${escHtml(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
+  </div>
+
+</div>
+</div>
+</body></html>`;
+}
+
 function exportInvoicePDF(id) {
   // الحل الأفضل: نفتح نافذة الطباعة الجميلة، ثم نطلق print()
   // المتصفح سيعطي المستخدم خيار "Save as PDF" تلقائياً
@@ -11086,7 +19247,6 @@ function exportInvoicePDF(id) {
   // نفس دالة الطباعة لكن مع تشغيل تلقائي لـ print
   printInvoiceWindow(id, /* autoPrint */ true);
 }
-
 function printInvoiceWindow(id, autoPrint = false) {
   const inv    = DB.get('invoices').find(i => i.id === id);
   const tenant = Auth.getTenant();
@@ -11096,349 +19256,62 @@ function printInvoiceWindow(id, autoPrint = false) {
   const tvaRate   = inv.tva_rate   || tenant?.tva_rate || 19;
   const amountHT  = inv.amount_ht  || Math.round(Number(inv.amount) / (1 + tvaRate / 100));
   const tvaAmount = inv.tva_amount || (Number(inv.amount) - amountHT);
-  const items     = inv.items && inv.items.length > 0
+  const items = inv.items && inv.items.length > 0
     ? inv.items
     : [{ desc: inv.description || 'Prestations de service', qty: 1, price: amountHT, total: amountHT }];
 
   const isAr   = I18N.currentLang === 'ar';
   const isPaid = inv.status === 'paid';
+  const logo   = getTenantLogo();
+  const ps     = getPrintSettings ? getPrintSettings() : {};
+  const _ic    = ps.accentColor || '#B8902F';
+  const _if    = ps.fontFamily  || 'Cairo';
+  const _im    = ps.margin      || '12mm';
+  const _iz    = ps.fontSize    || 13;
+
+  // بناء HTML الفاتورة
+  const invHtml = buildInvoiceHTML(inv, tenant, proj, items, tvaRate, amountHT, tvaAmount, isAr, isPaid, logo, _ic, _if, _im, _iz);
 
   const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html>
-<html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'fr'}">
-<head>
-<meta charset="UTF-8">
-<title>${isAr ? 'فاتورة' : 'Facture'} ${escHtml(inv.number)}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Cairo', Arial, sans-serif;
-    color: #1a1a1a;
-    background: #f4f4f6;
-    padding: 30px;
-  }
-
-  /* ── Boutons hors impression ── */
-  .no-print {
-    display: flex; gap: 10px; margin-bottom: 24px; justify-content: flex-start;
-  }
-  .btn-print {
-    padding: 10px 24px; background: #E8B84B; color: #1a1000;
-    border: none; border-radius: 8px; cursor: pointer;
-    font-family: inherit; font-size: 14px; font-weight: 700;
-  }
-  .btn-close {
-    padding: 10px 20px; background: #2a2a2a; color: #ccc;
-    border: none; border-radius: 8px; cursor: pointer;
-    font-family: inherit; font-size: 14px;
-  }
-
-  /* ── Feuille A4 ── */
-  .page {
-    background: #fff;
-    max-width: 780px;
-    margin: 0 auto;
-    border-radius: 4px;
-    overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0,0,0,.12);
-  }
-
-  /* ── Header bande noire ── */
-  .inv-header {
-    background: #141414;
-    padding: 28px 36px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .brand-name {
-    font-size: 22px; font-weight: 900; color: #E8B84B; letter-spacing: .5px;
-  }
-  .brand-sub {
-    font-size: 10px; color: #888; margin-top: 4px;
-  }
-  .inv-label {
-    font-size: 28px; font-weight: 900; color: #fff; letter-spacing: 2px;
-    text-align: ${isAr ? 'left' : 'right'};
-  }
-  .inv-num {
-    font-size: 13px; color: #E8B84B; font-weight: 700; margin-top: 4px;
-    text-align: ${isAr ? 'left' : 'right'};
-  }
-
-  /* ── Bande dorée fine ── */
-  .gold-bar { height: 3px; background: linear-gradient(90deg,#C49030,#E8B84B,#C49030); }
-
-  /* ── Bloc infos ── */
-  .info-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0;
-    border-bottom: 1px solid #eee;
-  }
-  .info-cell {
-    padding: 18px 24px;
-    border-${isAr ? 'left' : 'right'}: 1px solid #eee;
-  }
-  .info-cell:last-child { border: none; }
-  .info-cell-label {
-    font-size: 9px; font-weight: 700; color: #aaa;
-    text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px;
-  }
-  .info-cell-value { font-size: 13px; font-weight: 700; color: #111; }
-  .info-cell-sub   { font-size: 11px; color: #888; margin-top: 3px; }
-
-  /* ── Badge statut ── */
-  .status-badge {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 20px;
-    font-size: 11px; font-weight: 700;
-    background: ${isPaid ? '#d4f5e2' : '#fff8e1'};
-    color: ${isPaid ? '#0a6e3f' : '#8a6000'};
-    border: 1px solid ${isPaid ? '#a8e6c6' : '#f0d060'};
-  }
-
-  /* ── Tableau articles ── */
-  .table-section { padding: 24px 36px 0; }
-  .table-title {
-    font-size: 11px; font-weight: 700; color: #888;
-    text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px;
-  }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  thead th {
-    background: #141414; color: #E8B84B;
-    padding: 10px 14px; text-align: ${isAr ? 'right' : 'left'};
-    font-size: 10px; font-weight: 700; letter-spacing: .5px;
-  }
-  thead th:last-child { text-align: ${isAr ? 'left' : 'right'}; }
-  tbody td { padding: 11px 14px; border-bottom: 1px solid #f0f0f0; color: #222; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:nth-child(even) td { background: #fafafa; }
-  .td-right { text-align: ${isAr ? 'left' : 'right'}; font-variant-numeric: tabular-nums; }
-  .td-center { text-align: center; }
-
-  /* ── Totaux ── */
-  .totals-section {
-    display: flex;
-    justify-content: flex-end;
-    padding: 20px 36px;
-    border-top: 1px solid #f0f0f0;
-  }
-  .totals-box { width: 280px; }
-  .total-row {
-    display: flex; justify-content: space-between;
-    padding: 7px 0; font-size: 12.5px; color: #555;
-    border-bottom: 1px solid #f4f4f4;
-  }
-  .total-row:last-child { border: none; }
-  .total-final {
-    display: flex; justify-content: space-between;
-    margin-top: 8px; padding: 12px 16px;
-    background: #141414; border-radius: 8px;
-    font-size: 15px; font-weight: 900; color: #E8B84B;
-  }
-
-  /* ── Zone cachet + footer ── */
-  .bottom-section {
-    display: flex; justify-content: space-between; align-items: flex-end;
-    padding: 20px 36px 28px;
-    border-top: 1px solid #f0f0f0;
-  }
-  .stamp-box {
-    width: 160px; height: 90px;
-    border: 2px solid #E8B84B; border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; color: #C49030; font-weight: 700;
-    opacity: .6; text-align: center; line-height: 1.5;
-  }
-  .legal-note { font-size: 10px; color: #bbb; text-align: ${isAr ? 'left' : 'right'}; line-height: 1.7; }
-
-  /* ── Footer bande ── */
-  .inv-footer {
-    background: #141414;
-    padding: 12px 36px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .inv-footer span { font-size: 10px; color: #666; }
-  .inv-footer .gold-text { color: #E8B84B; font-weight: 700; }
-
-  /* ── Notes ── */
-  .notes-block {
-    margin: 0 36px 0;
-    padding: 12px 16px;
-    background: #fafafa;
-    border-left: 3px solid #E8B84B;
-    border-radius: 0 4px 4px 0;
-    font-size: 11.5px; color: #555; line-height: 1.7;
-  }
-
-  @media print {
-    body { background: #fff; padding: 0; }
-    .no-print { display: none !important; }
-    .page { box-shadow: none; border-radius: 0; }
-    .inv-header img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-</style>
-</head>
-<body>
-
-<!-- Boutons -->
-<div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ ${isAr ? 'طباعة' : 'Imprimer'}</button>
-  <button class="btn-close" onclick="window.close()">${isAr ? 'إغلاق' : 'Fermer'}</button>
-</div>
-
-<div class="page">
-
-  <!-- Header -->
-  <div class="inv-header">
-    <div style="display:flex;align-items:center;gap:18px">
-      ${(()=>{ const _logo=getTenantLogo(); return _logo?`<img src="${_logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;background:#fff;padding:4px">`:'' })()}
-      <div>
-        <div class="brand-name">▦ SmartStruct</div>
-        <div class="brand-sub">${escHtml(tenant?.name || 'إدارة مشاريع المقاولة')}</div>
-        ${tenant?.nif    ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>`    : ''}
-        ${tenant?.nis    ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>`    : ''}
-        ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
-        ${tenant?.address? `<div class="brand-sub">📍 ${escHtml(tenant.address)}</div>` : ''}
-      </div>
-    </div>
-    <div>
-      <div class="inv-label">${isAr ? 'فاتورة' : 'FACTURE'}</div>
-      <div class="inv-num">${escHtml(inv.number)}</div>
-    </div>
-  </div>
-
-  <!-- Bande dorée -->
-  <div class="gold-bar"></div>
-
-  <!-- Infos : dates | client | statut -->
-  <div class="info-section">
-    <div class="info-cell">
-      <div class="info-cell-label">${isAr ? 'تاريخ الإصدار' : "Date d'émission"}</div>
-      <div class="info-cell-value">${fmtDate(inv.date)}</div>
-      ${inv.due_date ? `
-        <div class="info-cell-label" style="margin-top:10px">${isAr ? 'تاريخ الاستحقاق' : "Date d'échéance"}</div>
-        <div class="info-cell-value" style="color:#c0392b">${fmtDate(inv.due_date)}</div>` : ''}
-    </div>
-    <div class="info-cell">
-      <div class="info-cell-label">${isAr ? 'العميل' : 'Client'}</div>
-      <div class="info-cell-value">${escHtml(inv.client)}</div>
-      ${proj ? `<div class="info-cell-sub">📁 ${escHtml(proj.name)}</div>` : ''}
-      ${inv.payment_method ? `<div class="info-cell-sub">💳 ${escHtml(inv.payment_method)}</div>` : ''}
-    </div>
-    <div class="info-cell">
-      <div class="info-cell-label">${isAr ? 'الحالة' : 'Statut'}</div>
-      <div style="margin-top:4px">
-        <span class="status-badge">${isPaid ? (isAr ? '✅ مدفوعة' : '✅ Payée') : (isAr ? '⏳ معلقة' : '⏳ En attente')}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tableau articles -->
-  <div class="table-section">
-    <div class="table-title">${isAr ? 'تفاصيل الفاتورة' : 'Détail des prestations'}</div>
-    <table>
-      <thead>
-        <tr>
-          <th>${isAr ? 'البيان' : 'Description'}</th>
-          <th class="td-center" style="width:60px">${isAr ? 'الكمية' : 'Qté'}</th>
-          <th class="td-right" style="width:130px">${isAr ? 'سعر الوحدة (دج)' : 'Prix unit. (DA)'}</th>
-          <th class="td-right" style="width:140px">${isAr ? 'الإجمالي HT (دج)' : 'Total HT (DA)'}</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items.map(it => `<tr>
-          <td>${escHtml(it.desc || '—')}</td>
-          <td class="td-center">${it.qty || 1}</td>
-          <td class="td-right">${Number(it.price || 0).toLocaleString('fr-DZ')}</td>
-          <td class="td-right" style="font-weight:700">${Number(it.total || 0).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Totaux -->
-  <div class="totals-section">
-    <div class="totals-box">
-      <div class="total-row">
-        <span>${isAr ? 'المجموع HT' : 'Sous-total HT'}</span>
-        <span>${Number(amountHT).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
-      </div>
-      <div class="total-row">
-        <span>TVA (${tvaRate}%)</span>
-        <span>${Number(tvaAmount).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
-      </div>
-      <div class="total-final">
-        <span>${isAr ? 'المجموع TTC' : 'Total TTC'}</span>
-        <span>${Number(inv.amount).toLocaleString('fr-DZ')} ${isAr ? 'دج' : 'DA'}</span>
-      </div>
-    </div>
-  </div>
-
-  ${inv.description ? `
-  <!-- Notes -->
-  <div class="notes-block">
-    <strong>${isAr ? 'ملاحظات:' : 'Notes / Conditions :'}</strong><br>
-    ${escHtml(inv.description)}
-  </div>
-  <div style="height:16px"></div>` : ''}
-
-  <!-- Cachet + mentions légales -->
-  <div class="bottom-section">
-    <div class="stamp-box">${isAr ? 'الختم\nوالتوقيع' : 'Cachet &\nSignature'}</div>
-    <div class="legal-note">
-      ${isAr ? 'مطابق للقانون الجزائري' : 'Conforme à la législation algérienne'}<br>
-      TVA ${tvaRate}%&nbsp;&nbsp;|&nbsp;&nbsp;NIF / NIS / RC
-      ${tenant?.nif ? `<br>NIF : ${escHtml(tenant.nif)}` : ''}
-      ${tenant?.nis ? `<br>NIS : ${escHtml(tenant.nis)}` : ''}
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div class="inv-footer">
-    <span>SmartStruct — ${isAr ? 'منصة إدارة مشاريع المقاولة الجزائرية' : 'Plateforme algérienne de gestion BTP'}</span>
-    <span class="gold-text">${escHtml(inv.number)}&nbsp;&nbsp;|&nbsp;&nbsp;${new Date().toLocaleDateString(isAr ? 'ar-DZ' : 'fr-DZ')}</span>
-  </div>
-
-</div>
-</body></html>`);
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); return; }
+  win.document.write(invHtml);
   win.document.close();
-  
-  // إذا طُلب الطباعة التلقائية (من زر PDF) — انتظر تحميل الصورة (الشعار) ثم اطبع
+  win.document.title = (isAr?'فاتورة':'Facture') + ' ' + inv.number;
+
   if (autoPrint) {
     win.addEventListener('load', function() {
-      // ننتظر قليلاً للتأكد أن الـ CSS و الخطوط حُمّلت
-      setTimeout(() => {
-        try { win.focus(); win.print(); } catch (e) { console.error(e); }
-      }, 800);
+      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
     });
-    // fallback إذا event load لم يُطلق (الصفحة جاهزة بالفعل)
     if (win.document.readyState === 'complete') {
-      setTimeout(() => {
-        try { win.focus(); win.print(); } catch (e) { console.error(e); }
-      }, 800);
+      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
     }
   }
 }
-/* ── INVENTORY PAGE ── */
+
 Pages.inventory = function() {
   const tid = Auth.getUser().tenant_id;
-  const materials = DB.get('materials').filter(m=>m.tenant_id===tid);
+  const allMaterials = DB.get('materials').filter(m=>m.tenant_id===tid);
   const movements = DB.get('stock_movements').filter(m=>m.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived);
+
+  // فلتر المشروع
+  const projFilter = _getProjectFilter('inventory');
+  const materials = projFilter==='all' ? allMaterials : allMaterials.filter(m=>String(m.project_id)===String(projFilter));
+  const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
+
   const lowStock = materials.filter(m=>m.quantity<=m.min_quantity);
   return layoutHTML('inventory', L('المخزون','Stock'), `
     <div class="page-header">
-      <div><div class="page-title">📦 ${L('إدارة المخزون','Gestion du stock')}</div><div class="page-sub">${materials.length} ${L('مادة مسجلة','matériau(x)')}</div></div>
+      <div><div class="page-title">📦 ${L('إدارة المخزون','Gestion du stock')}</div><div class="page-sub">${materials.length}${projFilter!=='all'?` ${L('من','/')} ${allMaterials.length}`:''} ${L('مادة مسجلة','matériau(x)')}${selectedProj?` — <span style="color:var(--gold)">${escHtml(selectedProj.name)}</span>`:''}</div></div>
       <div class="page-actions">
-        <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ ${L('مادة جديدة','Nouveau matériau')}</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="printInventory()">🖨️ ${L('طباعة PDF','Imprimer PDF')}</button>
+        <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('commande')" title="${L('وصل طلب جديد','Nouveau bon de commande')}">🛒 ${L('وصل طلب','Bon commande')}</button>
+        <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('reception')" title="${L('وصل استلام','Bon de réception')}">📥 ${L('وصل استلام','Bon réception')}</button>
+        <button class="btn btn-blue btn-sm" onclick="DZDocsUI.open('sortie')" title="${L('وصل خروج','Bon de sortie')}">📤 ${L('وصل خروج','Bon sortie')}</button>
+        ${canDo('materials')?`<button class="btn btn-gold" data-modal-open="addMatModal">+ ${L('مادة جديدة','Nouveau matériau')}</button>`:''}
       </div>
     </div>
+    ${_projectFilterBar(projects,'inventory',projFilter)}
     ${lowStock.length?`<div class="stock-alert-bar">🔴 ${L('تنبيه:','Alerte :')} ${lowStock.length} ${L('مواد وصلت للحد الأدنى','matériaux en seuil bas')} — ${lowStock.map(m=>escHtml(m.name)).join('، ')}</div>`:''}
     <div class="table-wrap" style="margin-bottom:1.5rem">
       <table><thead><tr><th>${L('المادة','Matériau')}</th><th>${L('المشروع','Projet')}</th><th>${L('الكمية','Quantité')}</th><th>${L('الحد الأدنى','Seuil min')}</th><th>${L('السعر/وحدة','Prix/unité')}</th><th>${L('المورد','Fournisseur')}</th><th>${L('الحالة','Statut')}</th>${canDo('materials')?'<th>الإجراءات</th>':''}</tr></thead>
@@ -11483,7 +19356,13 @@ Pages.inventory = function() {
           <div class="form-group"><label class="form-label">الحد الأدنى للتنبيه</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
           <div class="form-group"><label class="form-label">السعر/وحدة (دج)</label><input class="form-input" id="matPrice" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="matProj"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">المورد</label><input class="form-input" id="matSupplier" placeholder="اسم المورد..."></div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">${L('المورد','Fournisseur')}</label>
+            <select class="form-select" id="matSupplier">
+              <option value="">— ${L('بدون مورد','Sans fournisseur')} —</option>
+              ${(DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid&&s.is_active!==false).map(s=>`<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="addMaterialItem()">💾 حفظ</button></div>
       </div>
@@ -11510,6 +19389,7 @@ function addMaterialItem(){
   Toast.success('✅ تم إضافة المادة');App.navigate('inventory');
 }
 function openStockMove(matId,type){
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتحريك المخزون','Permission refusée : stock')); return; }
   document.getElementById('stockMatId').value=matId;
   document.getElementById('stockMoveTyp').value=type;
   document.getElementById('stockMoveTitle').textContent=type==='in'?'📦 إدخال مواد':'📦 إخراج مواد';
@@ -11518,6 +19398,7 @@ function openStockMove(matId,type){
   document.getElementById('stockMoveModal').classList.add('show');
 }
 function confirmStockMoveV5(){
+  if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتأكيد حركة المخزون','Permission refusée : stock')); return; }
   const matId=Number(document.getElementById('stockMatId')?.value);
   const type=document.getElementById('stockMoveTyp')?.value;
   const qty=Number(document.getElementById('stockMoveQty')?.value);
@@ -11846,19 +19727,8 @@ function downloadDocFile(id) {
 }
 
 
-function downloadDocFile(id) {
-
-  const doc = DB.get('documents').find(d=>d.id===id);
-  if (!doc || !doc.fileData) { Toast.error(L('لا يوجد ملف مرفق','Aucun fichier joint')); return; }
-  const a = document.createElement('a');
-  a.href = doc.fileData;
-  a.download = doc.fileName || doc.name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
 function deleteDocItem(id){
+  if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لحذف الوثيقة','Permission refusée : document')); return; }
 
   if(!confirm(L('حذف هذه الوثيقة؟','Supprimer ce document ?')))return;
   DB.set('documents',DB.get('documents').filter(d=>d.id!==id));
@@ -11868,300 +19738,410 @@ function deleteDocItem(id){
 }
 
 /* ── TEAM PAGE ── */
-Pages.team = function() {
-  const tid = Auth.getUser().tenant_id;
-  const users = DB.get('users').filter(u=>u.tenant_id===tid&&u.is_active);
-  const currentUser = Auth.getUser();
-  const canManage = currentUser.role === 'admin' || currentUser.is_admin;
+// ── تبديل وضع المظهر (داكن/فاتح) ──
+function setTheme(theme) {
+  try {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+    localStorage.setItem('sbtp_theme', theme);
+    if (typeof Toast !== 'undefined') {
+      Toast.success(theme === 'light'
+        ? L('☀️ تم تفعيل الوضع الفاتح','☀️ Mode clair activé')
+        : L('🌙 تم تفعيل الوضع الداكن','🌙 Mode sombre activé'));
+    }
+    // إعادة رسم الصفحة الحالية لتحديث الأيقونة
+    if (typeof App !== 'undefined' && App.currentPage) {
+      App.navigate(App.currentPage);
+    }
+  } catch(e) { console.warn('setTheme failed:', e); }
+}
 
-  // Permission matrix for display
-  const permMatrix = [
-    {key:'dashboard',    label:L('لوحة التحكم','Tableau de bord')},
-    {key:'analytics',    label:L('التحليلات','Analytiques')},
-    {key:'projects',     label:L('المشاريع','Projets') + ' (تعديل)'},
-    {key:'workers',      label:L('العمال','Ouvriers') + ' (تعديل)'},
-    {key:'attendance',   label:L('الحضور','Présence') + ' (تعديل)'},
-    {key:'salary',       label:L('الرواتب','Salaires') + ' (تعديل)'},
-    {key:'transactions', label:L('المعاملات','Transactions') + ' (تعديل)'},
-    {key:'invoices',     label:L('الفواتير','Factures') + ' (تعديل)'},
-    {key:'inventory',    label:L('المخزون','Stock') + ' (تعديل)'},
-    {key:'equipment',    label:L('المعدات','Équipements') + ' (تعديل)'},
-    {key:'documents',    label:L('الوثائق','Documents') + ' (تعديل)'},
-    {key:'reports',      label:L('التقارير','Rapports')},
-    {key:'kanban',       label:'Kanban'},
-    {key:'gantt',        label:'Gantt'},
-    {key:'simulator',    label:L('المحاكي','Simulateur')},
-    {key:'bank_report',  label:L('تقرير بنكي','Rapport bancaire')},
-    {key:'audit_log',    label:L('سجل النشاط','Journal activité')},
+// ── تطبيق / إزالة الوضع الفاتح حسب الصفحة ──
+function _applyThemeForPage(page) {
+  try {
+    const saved = localStorage.getItem('sbtp_theme');
+    if (['landing', 'login'].includes(page)) {
+      // Landing وLogin دائماً داكنتان — أزل light فوراً
+      document.documentElement.classList.remove('light');
+    } else {
+      // باقي الصفحات — طبّق الثيم المحفوظ
+      if (saved === 'light') {
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+      }
+    }
+  } catch(e) {}
+}
+
+Pages.team = function() {
+  const tid        = Auth.getUser().tenant_id;
+  const currentUser= Auth.getUser();
+  const isAdmin    = currentUser.role === 'admin' || currentUser.is_admin;
+  const users      = DB.get('users').filter(u => u.tenant_id === tid && u.is_active !== false);
+
+  // ── جميع مفاتيح الصلاحيات القابلة للتخصيص ──
+  const PERM_KEYS = [
+    { key:'dashboard',        ar:'لوحة التحكم',         fr:'Tableau de bord',      cat:'view' },
+    { key:'analytics',        ar:'التحليلات',            fr:'Analytiques',          cat:'view' },
+    { key:'projects',         ar:'مشاريع (عرض)',         fr:'Projets (voir)',        cat:'view' },
+    { key:'write_projects',   ar:'مشاريع (تعديل)',       fr:'Projets (édit.)',       cat:'write'},
+    { key:'workers',          ar:'عمال (عرض)',           fr:'Ouvriers (voir)',       cat:'view' },
+    { key:'write_workers',    ar:'عمال (تعديل)',         fr:'Ouvriers (édit.)',      cat:'write'},
+    { key:'attendance',       ar:'حضور (عرض)',           fr:'Présence (voir)',       cat:'view' },
+    { key:'write_attendance', ar:'حضور (تعديل)',         fr:'Présence (édit.)',      cat:'write'},
+    { key:'salary',           ar:'رواتب (عرض)',          fr:'Salaires (voir)',       cat:'view' },
+    { key:'write_salary',     ar:'رواتب (تعديل)',        fr:'Salaires (édit.)',      cat:'write'},
+    { key:'transactions',     ar:'معاملات (عرض)',        fr:'Transactions (voir)',   cat:'view' },
+    { key:'write_transactions',ar:'معاملات (تعديل)',    fr:'Transactions (édit.)',  cat:'write'},
+    { key:'invoices',         ar:'فواتير (عرض)',         fr:'Factures (voir)',       cat:'view' },
+    { key:'write_invoices',   ar:'فواتير (تعديل)',       fr:'Factures (édit.)',      cat:'write'},
+    { key:'inventory',        ar:'مخزون (عرض)',          fr:'Stock (voir)',          cat:'view' },
+    { key:'write_materials',  ar:'مخزون (تعديل)',        fr:'Stock (édit.)',         cat:'write'},
+    { key:'equipment',        ar:'معدات (عرض)',          fr:'Équip. (voir)',         cat:'view' },
+    { key:'write_equipment',  ar:'معدات (تعديل)',        fr:'Équip. (édit.)',        cat:'write'},
+    { key:'documents',        ar:'وثائق (عرض)',          fr:'Documents (voir)',      cat:'view' },
+    { key:'write_documents',  ar:'وثائق (تعديل)',        fr:'Documents (édit.)',     cat:'write'},
+    { key:'reports',          ar:'التقارير',             fr:'Rapports',             cat:'view' },
+    { key:'bank_report',      ar:'تقرير بنكي',          fr:'Rapport bancaire',      cat:'view' },
+    { key:'kanban',           ar:'كانبان',               fr:'Kanban',               cat:'view' },
+    { key:'gantt',            ar:'غانت',                 fr:'Gantt',                cat:'view' },
+    { key:'simulator',        ar:'المحاكي',              fr:'Simulateur',           cat:'view' },
+    { key:'audit_log',        ar:'سجل النشاط',          fr:'Journal activité',      cat:'view' },
   ];
 
-  const roleOrder = ['manager','accountant','hr','viewer'];
+  // دالة فحص صلاحية فردية لمستخدم معين
+  function userEffectivePerm(u, key) {
+    if (u.custom_perms && u.custom_perms[key] !== undefined) return u.custom_perms[key];
+    const rp = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
+    return rp[key];
+  }
 
-  function permIcon(perm) {
-    if(perm === true) return `<span style="color:var(--green);font-size:.9rem" title="${L('وصول كامل','Accès complet')}">✅</span>`;
-    if(perm === 'view') return `<span style="color:var(--blue);font-size:.9rem" title="${L('قراءة فقط','Lecture seule')}">👁️</span>`;
-    return `<span style="color:var(--dim);font-size:.9rem" title="${L('محظور','Interdit')}">—</span>`;
+  function permBadge(val) {
+    if (val === true)   return `<span style="color:var(--green);font-size:.85rem">✅</span>`;
+    if (val === 'view') return `<span style="color:#4A90E2;font-size:.85rem">👁️</span>`;
+    return `<span style="color:var(--dim);font-size:.85rem">—</span>`;
   }
 
   return layoutHTML('team', L('الفريق','Équipe'), `
-    <div class="page-header">
-      <div>
-        <div class="page-title">👥 ${L('فريق العمل','Équipe de travail')}</div>
-        <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
-      </div>
-      <div class="page-actions">
-        ${canManage?`<button class="btn btn-gold" data-modal-open="inviteUserModal">✉️ ${L('إضافة مستخدم','Ajouter utilisateur')}</button>`:''}
-      </div>
-    </div>
+<style>
+  .team-user-row{display:flex;align-items:center;gap:.8rem;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;transition:border-color .18s;flex-wrap:wrap}
+  .team-user-row:hover{border-color:rgba(232,184,75,.35)}
+  .team-user-info{flex:1;min-width:160px}
+  .team-user-name{font-weight:800;font-size:.9rem}
+  .team-user-email{font-size:.72rem;color:var(--dim);direction:ltr;text-align:left}
+  .team-user-stats{font-size:.68rem;color:var(--muted);margin-top:2px}
+  .perm-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;max-height:62vh;overflow-y:auto;padding:.2rem}
+  .perm-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:.42rem .7rem;gap:.4rem}
+  .perm-row.cat-write{border-color:rgba(232,184,75,.15);background:rgba(232,184,75,.03)}
+  .perm-label{font-size:.75rem;color:var(--text);flex:1}
+  .perm-toggle{display:flex;gap:2px}
+  .perm-toggle button{font-size:.65rem;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;transition:all .15s}
+  .perm-toggle button.active-allow{background:var(--green);color:#fff;border-color:var(--green)}
+  .perm-toggle button.active-view{background:#4A90E2;color:#fff;border-color:#4A90E2}
+  .perm-toggle button.active-deny{background:rgba(240,78,106,.2);color:var(--red);border-color:var(--red)}
+  .role-matrix-table th,.role-matrix-table td{padding:.45rem .6rem;font-size:.78rem}
+</style>
 
-    <!-- Users list -->
-    <div style="display:grid;gap:.7rem;margin-bottom:2rem">
-      ${users.map(u=>{
-        const isMe = u.id === currentUser.id;
-        const rolePerm = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
-        const accessCount = Object.values(rolePerm).filter(v=>v===true||v==='view').length;
-        const writeCount = Object.entries(rolePerm).filter(([k,v])=>!k.startsWith('write_')&&v===true).length;
-        return `<div class="user-card-v5" style="border-color:${isMe?'rgba(232,184,75,0.3)':''}">
-          ${avatarHtml(u.full_name, u.avatar_color||'#4A90E2', 48)}
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-              <span style="font-weight:800;font-size:.9rem">${escHtml(u.full_name)}</span>
-              ${isMe?`<span style="font-size:.65rem;padding:2px 7px;background:var(--gold-dim);color:var(--gold);border-radius:8px">${L('أنت','Vous')}</span>`:''}
-              ${!u.is_active?`<span style="font-size:.65rem;padding:2px 7px;background:rgba(240,78,106,.1);color:var(--red);border-radius:8px">${L('موقوف','Désactivé')}</span>`:''}
-            </div>
-            <div style="font-size:.75rem;color:var(--dim);direction:ltr;text-align:right">${escHtml(u.email)}</div>
-            <div style="font-size:.7rem;color:var(--muted);margin-top:2px">${L('وصول:','Accès:')} ${accessCount} ${L('صفحة','pages')} &nbsp;|&nbsp; ${L('تعديل:','Édit:')} ${writeCount} ${L('وحدة','modules')}</div>
-          </div>
-          ${roleBadge(u.role)}
-          <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
-            ${canManage&&!isMe?`
-              <select class="role-select-mini" onchange="changeUserRoleV5(${u.id},this.value)" title="${L('تغيير الدور','Changer rôle')}">
-                ${Object.entries(ROLE_NAMES).map(([k,v])=>`<option value="${k}"${u.role===k?' selected':''}>${v}</option>`).join('')}
-              </select>
-              <button class="btn btn-sm ${u.is_active?'btn-ghost':'btn-green'}" onclick="toggleUserActive(${u.id})" title="${u.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">${u.is_active?'⏸️':'▶️'}</button>
-              <button class="btn btn-sm btn-red" onclick="deleteUserAccount(${u.id})" title="${L('حذف المستخدم','Supprimer')}">🗑️</button>
-            `:''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
+<div class="page-header">
+  <div>
+    <div class="page-title">👥 ${L('فريق العمل','Équipe de travail')}</div>
+    <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
+  </div>
+  <div class="page-actions">
+    ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">+ ${L('إضافة مستخدم','Ajouter')}</button>` : ''}
+  </div>
+</div>
 
-    <!-- Permission Matrix -->
-    <div style="margin-bottom:2rem">
-      <div style="font-size:1rem;font-weight:900;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem">
-        🔐 ${L('مصفوفة الصلاحيات','Matrice des permissions')}
-        <span style="font-size:.72rem;color:var(--dim);font-weight:400">${L('✅ وصول كامل &nbsp; 👁️ قراءة فقط &nbsp; — محظور','✅ Accès complet &nbsp; 👁️ Lecture seule &nbsp; — Interdit')}</span>
-      </div>
-      <div class="table-wrap" style="overflow-x:auto">
-        <table style="min-width:600px">
-          <thead>
-            <tr>
-              <th style="min-width:160px">${L('الصفحة / الوحدة','Page / Module')}</th>
-              ${roleOrder.map(r=>`<th style="text-align:center">${roleBadge(r)}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${permMatrix.map(item=>{
-              const allSame = roleOrder.every(r=>(ROLE_PERMISSIONS[r]||{})[item.key] === (ROLE_PERMISSIONS[roleOrder[0]]||{})[item.key]);
-              return `<tr>
-                <td style="font-size:.82rem;font-weight:600">${item.label}</td>
-                ${roleOrder.map(r=>`<td style="text-align:center">${permIcon((ROLE_PERMISSIONS[r]||{})[item.key])}</td>`).join('')}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
 
-    <!-- ADD USER MODAL -->
-    <div class="modal-overlay" id="inviteUserModal">
-      <div class="modal">
-        <div class="modal-title">✉️ ${L('إضافة مستخدم جديد','Ajouter un utilisateur')}</div>
-        <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label><input class="form-input" id="iName" placeholder="${L('الاسم الكامل...','Nom complet...')}"></div>
-        <div class="form-group"><label class="form-label">${L('البريد الإلكتروني *','Email *')}</label><input class="form-input" id="iEmail" type="email" placeholder="user@company.dz" dir="ltr"></div>
-        <div class="form-group"><label class="form-label">${L('كلمة المرور المؤقتة *','Mot de passe temporaire *')}</label><input class="form-input" id="iPass" type="password" placeholder="${L('كلمة مرور مؤقتة...','Mot de passe temporaire...')}"></div>
-        <div class="form-group">
-          <label class="form-label">${L('الدور','Rôle')}</label>
-          <select class="form-select" id="iRole" onchange="showRolePreview(this.value)">
-            ${Object.entries(ROLE_NAMES).filter(([k])=>k!=='admin').map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}
+<!-- ══════════════ قائمة المستخدمين ══════════════ -->
+<div style="display:grid;gap:.65rem;margin-bottom:2.2rem">
+  ${users.map(u => {
+    const isMe = u.id === currentUser.id;
+    const rp = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
+    const hasCustom = u.custom_perms && Object.keys(u.custom_perms).length > 0;
+    const viewCount = PERM_KEYS.filter(p => p.cat==='view' && userEffectivePerm(u, p.key)).length;
+    const writeCount= PERM_KEYS.filter(p => p.cat==='write' && userEffectivePerm(u, p.key) === true).length;
+    return `
+    <div class="team-user-row" style="${isMe ? 'border-color:rgba(232,184,75,.4)' : ''}">
+      ${avatarHtml(u.full_name, u.avatar_color||'#4A90E2', 44)}
+      <div class="team-user-info">
+        <div class="team-user-name">
+          ${escHtml(u.full_name)}
+          ${isMe ? `<span style="font-size:.62rem;padding:2px 8px;background:var(--gold-dim);color:var(--gold);border-radius:8px;margin-right:.3rem">${L('أنت','Vous')}</span>` : ''}
+          ${!u.is_active ? `<span style="font-size:.62rem;padding:2px 8px;background:rgba(240,78,106,.12);color:var(--red);border-radius:8px;margin-right:.3rem">${L('موقوف','Désactivé')}</span>` : ''}
+          ${hasCustom ? `<span style="font-size:.62rem;padding:2px 8px;background:rgba(155,109,255,.15);color:#9B6DFF;border-radius:8px;margin-right:.3rem" title="${L('لديه صلاحيات مخصصة فوق الدور','Permissions personnalisées')}">✏️ ${L('مخصص','Custom')}</span>` : ''}
+        </div>
+        <div class="team-user-email">${escHtml(u.email)}</div>
+        <div class="team-user-stats">
+          ${L('عرض:','Voir:')} ${viewCount} &nbsp;|&nbsp; ${L('تعديل:','Édit:')} ${writeCount}
+          ${hasCustom ? ` &nbsp;|&nbsp; <span style="color:#9B6DFF">${L('صلاحيات مخصصة','Custom perms')}</span>` : ''}
+        </div>
+      </div>
+      ${roleBadge(u.role)}
+      <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
+        ${isAdmin && !isMe ? `
+          <select class="role-select-mini" onchange="changeUserRoleV5(${u.id},this.value)" title="${L('تغيير الدور','Changer rôle')}">
+            ${Object.entries(ROLE_NAMES).map(([k,v]) => `<option value="${k}"${u.role===k?' selected':''}>${v}</option>`).join('')}
           </select>
-        </div>
-        <div id="rolePreviewBox" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:.8rem;font-size:.78rem;color:var(--muted);margin-bottom:.5rem">
-          <strong style="color:var(--gold)">${L('مدير مشروع','Chef de projet')}</strong> — ${L('يمكنه إدارة المشاريع والعمال والمواد والوثائق. يرى المالية ولا يعدلها.','Peut gérer projets, ouvriers, matériaux et documents. Voit les finances sans les modifier.')}
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
-          <button class="btn btn-gold" onclick="inviteUserV5()">✅ ${L('إضافة','Ajouter')}</button>
-        </div>
+          <button class="btn btn-gold btn-sm" onclick="openPermEditor(${u.id})" title="${L('تخصيص صلاحيات','Personnaliser permissions')}">🔐 ${L('صلاحيات','Perms')}</button>
+          <button class="btn btn-sm ${u.is_active ? 'btn-ghost' : 'btn-green'}" onclick="toggleUserActive(${u.id})" title="${u.is_active ? L('إيقاف','Désactiver') : L('تفعيل','Activer')}">${u.is_active ? '⏸️' : '▶️'}</button>
+          <button class="btn btn-sm btn-red" onclick="deleteUserAccount(${u.id})" title="${L('حذف','Supprimer')}">🗑️</button>
+        ` : ''}
       </div>
+    </div>`;
+  }).join('')}
+</div>
+
+<!-- ══════════════ مصفوفة الصلاحيات بالأدوار ══════════════ -->
+<div style="margin-bottom:2.5rem">
+  <div style="font-size:1rem;font-weight:900;margin-bottom:.8rem">
+    🔐 ${L('مصفوفة الصلاحيات الافتراضية','Matrice des permissions par rôle')}
+    <span style="font-size:.7rem;color:var(--dim);font-weight:400;margin-right:.6rem">${L('✅ تعديل كامل &nbsp; 👁️ قراءة فقط &nbsp; — محظور','✅ Édit. complet &nbsp; 👁️ Lecture &nbsp; — Interdit')}</span>
+  </div>
+  <div class="table-wrap" style="overflow-x:auto">
+    <table class="role-matrix-table" style="min-width:560px">
+      <thead>
+        <tr>
+          <th style="min-width:150px">${L('الوحدة / الإجراء','Module / Action')}</th>
+          ${['manager','accountant','hr','viewer'].map(r => `<th style="text-align:center">${roleBadge(r)}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${PERM_KEYS.map(pk => `
+        <tr style="${pk.cat==='write'?'background:rgba(232,184,75,.03)':''}">
+          <td style="font-size:.8rem;font-weight:${pk.cat==='write'?700:500};color:${pk.cat==='write'?'var(--gold)':'var(--text)'}">
+            ${pk.cat==='write'?'✏️ ':''}${L(pk.ar, pk.fr)}
+          </td>
+          ${['manager','accountant','hr','viewer'].map(r => `<td style="text-align:center">${permBadge((ROLE_PERMISSIONS[r]||{})[pk.key])}</td>`).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ مودال: تخصيص صلاحيات مستخدم ══════════════ -->
+<div class="modal-overlay" id="permEditorModal">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-title">🔐 <span id="permEditorName"></span> — ${L('تخصيص الصلاحيات','Personnaliser les permissions')}</div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:.8rem;padding:0 .2rem">
+      ${L('الصلاحيات المخصصة تتجاوز دور المستخدم. اتركها "من الدور" لاستخدام الإعدادات الافتراضية.','Les permissions personnalisées écrasent le rôle. Laissez "Rôle" pour les valeurs par défaut.')}
     </div>
+    <div id="permEditorGrid" class="perm-modal-grid"></div>
+    <div style="margin-top:.8rem;padding:.6rem .8rem;background:rgba(240,78,106,.05);border:1px solid rgba(240,78,106,.15);border-radius:8px;font-size:.72rem;color:var(--muted)">
+      ⚠️ ${L('تغيير الصلاحيات يسري فوراً في المرة القادمة التي يفتح فيها المستخدم الصفحة.','Les changements prennent effet à la prochaine navigation de l\'utilisateur.')}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="resetUserPerms()" style="margin-left:auto">🔄 ${L('إعادة لصلاحيات الدور','Réinitialiser au rôle')}</button>
+      <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+      <button class="btn btn-gold" onclick="saveUserPerms()">💾 ${L('حفظ الصلاحيات','Enregistrer')}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ مودال: إضافة مستخدم ══════════════ -->
+<div class="modal-overlay" id="inviteUserModal">
+  <div class="modal">
+    <div class="modal-title">✉️ ${L('إضافة مستخدم جديد','Ajouter un utilisateur')}</div>
+    <div class="form-group"><label class="form-label">${L('الاسم الكامل *','Nom complet *')}</label>
+      <input class="form-input" id="iName" placeholder="${L('الاسم الكامل...','Nom complet...')}"></div>
+    <div class="form-group"><label class="form-label">${L('البريد الإلكتروني *','Email *')}</label>
+      <input class="form-input" id="iEmail" type="email" placeholder="user@company.dz" dir="ltr"></div>
+    <div class="form-group"><label class="form-label">${L('كلمة المرور المؤقتة *','Mot de passe temporaire *')}</label>
+      <input class="form-input" id="iPass" type="password" placeholder="${L('6 أحرف على الأقل','6 caractères minimum')}"></div>
+    <div class="form-group">
+      <label class="form-label">${L('الدور الافتراضي','Rôle par défaut')}</label>
+      <select class="form-select" id="iRole" onchange="showRolePreview(this.value)">
+        ${Object.entries(ROLE_NAMES).filter(([k]) => k !== 'admin').map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+      </select>
+    </div>
+    <div id="rolePreviewBox" style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:.8rem;font-size:.78rem;color:var(--muted);margin-bottom:.5rem">
+      ${L('اختر دوراً لعرض وصفه.','Choisissez un rôle pour voir sa description.')}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button>
+      <button class="btn btn-gold" onclick="inviteUserV5()">✅ ${L('إضافة','Ajouter')}</button>
+    </div>
+  </div>
+</div>
   `);
 };
-function changeUserRoleV5(uid,role){
-  const users = DB.get('users').map(u=>u.id===uid?{...u,role}:u);
-  DB.set('users', users);
-  sbSync('users', {id:uid, role}, 'PATCH').catch(()=>{});
-  Toast.success(`✅ ${L('تم تغيير الدور إلى','Rôle changé en')} "${ROLE_NAMES[role]}"`);
-  App.navigate('team');
+
+// ════════════════════════════════════════════════════════════════
+//  🔐 نظام الصلاحيات الفردية — Individual Permission Editor
+// ════════════════════════════════════════════════════════════════
+
+let _permEditorUserId = null;
+
+const PERM_KEYS_DEF = [
+  { key:'dashboard',         ar:'لوحة التحكم',          fr:'Tableau de bord',       cat:'view'  },
+  { key:'analytics',         ar:'التحليلات',             fr:'Analytiques',           cat:'view'  },
+  { key:'projects',          ar:'مشاريع (عرض)',          fr:'Projets (voir)',         cat:'view'  },
+  { key:'write_projects',    ar:'مشاريع (تعديل)',        fr:'Projets (édit.)',        cat:'write' },
+  { key:'workers',           ar:'عمال (عرض)',            fr:'Ouvriers (voir)',        cat:'view'  },
+  { key:'write_workers',     ar:'عمال (تعديل)',          fr:'Ouvriers (édit.)',       cat:'write' },
+  { key:'attendance',        ar:'حضور (عرض)',            fr:'Présence (voir)',        cat:'view'  },
+  { key:'write_attendance',  ar:'حضور (تعديل)',          fr:'Présence (édit.)',       cat:'write' },
+  { key:'salary',            ar:'رواتب (عرض)',           fr:'Salaires (voir)',        cat:'view'  },
+  { key:'write_salary',      ar:'رواتب (تعديل)',         fr:'Salaires (édit.)',       cat:'write' },
+  { key:'transactions',      ar:'معاملات (عرض)',         fr:'Transactions (voir)',    cat:'view'  },
+  { key:'write_transactions',ar:'معاملات (تعديل)',       fr:'Transactions (édit.)',   cat:'write' },
+  { key:'invoices',          ar:'فواتير (عرض)',          fr:'Factures (voir)',        cat:'view'  },
+  { key:'write_invoices',    ar:'فواتير (تعديل)',        fr:'Factures (édit.)',       cat:'write' },
+  { key:'inventory',         ar:'مخزون (عرض)',           fr:'Stock (voir)',           cat:'view'  },
+  { key:'write_materials',   ar:'مخزون (تعديل)',         fr:'Stock (édit.)',          cat:'write' },
+  { key:'equipment',         ar:'معدات (عرض)',           fr:'Équip. (voir)',          cat:'view'  },
+  { key:'write_equipment',   ar:'معدات (تعديل)',         fr:'Équip. (édit.)',         cat:'write' },
+  { key:'documents',         ar:'وثائق (عرض)',           fr:'Documents (voir)',       cat:'view'  },
+  { key:'write_documents',   ar:'وثائق (تعديل)',         fr:'Documents (édit.)',      cat:'write' },
+  { key:'reports',           ar:'التقارير',              fr:'Rapports',              cat:'view'  },
+  { key:'bank_report',       ar:'تقرير بنكي',           fr:'Rapport bancaire',       cat:'view'  },
+  { key:'kanban',            ar:'كانبان',                fr:'Kanban',                cat:'view'  },
+  { key:'gantt',             ar:'غانت',                  fr:'Gantt',                 cat:'view'  },
+  { key:'simulator',         ar:'المحاكي',               fr:'Simulateur',            cat:'view'  },
+  { key:'audit_log',         ar:'سجل النشاط',           fr:'Journal activité',       cat:'view'  },
+];
+
+// ── فتح مودال تخصيص الصلاحيات لمستخدم معين ──
+function openPermEditor(uid) {
+  if (!(Auth.getUser()?.role === 'admin' || Auth.getUser()?.is_admin)) {
+    Toast.error(L('هذه الصلاحية للمسؤول فقط','Réservé à l\'administrateur'));
+    return;
+  }
+  const u = (DB.get('users') || []).find(x => x.id === uid);
+  if (!u) return;
+  _permEditorUserId = uid;
+
+  document.getElementById('permEditorName').textContent = u.full_name;
+
+  const rolePerms   = ROLE_PERMISSIONS[u.role] || ROLE_PERMISSIONS['viewer'];
+  const customPerms = u.custom_perms || {};
+
+  const grid = document.getElementById('permEditorGrid');
+  if (!grid) return;
+
+  grid.innerHTML = PERM_KEYS_DEF.map(pk => {
+    const roleVal   = rolePerms[pk.key];          // القيمة من الدور
+    const customVal = customPerms[pk.key];         // القيمة المخصصة (undefined = من الدور)
+    const effectVal = customVal !== undefined ? customVal : roleVal;
+
+    // تحديد الزر النشط
+    const isAllow = effectVal === true;
+    const isView  = effectVal === 'view';
+    const isDeny  = effectVal === false || effectVal === undefined || effectVal === null;
+    const fromRole= customVal === undefined;
+
+    // تصنيف "view" فقط للأذونات غير write_*
+    const showViewBtn = !pk.key.startsWith('write_');
+
+    return `
+    <div class="perm-row cat-${pk.cat}" data-perm-key="${pk.key}">
+      <div class="perm-label">
+        ${pk.cat==='write'?'✏️ ':''}${L(pk.ar, pk.fr)}
+        ${fromRole ? `<span style="font-size:.6rem;color:var(--dim);margin-right:.2rem">(${L('من الدور','du rôle')})</span>` : `<span style="font-size:.6rem;color:#9B6DFF;margin-right:.2rem">✏️</span>`}
+      </div>
+      <div class="perm-toggle">
+        <button class="${isAllow ? 'active-allow' : ''}" onclick="setPermVal('${pk.key}', true)"  title="${L('سماح كامل','Autoriser')}">✅</button>
+        ${showViewBtn ? `<button class="${isView ? 'active-view' : ''}" onclick="setPermVal('${pk.key}', 'view')" title="${L('قراءة فقط','Lecture seule')}">👁️</button>` : ''}
+        <button class="${isDeny ? 'active-deny' : ''}" onclick="setPermVal('${pk.key}', false)" title="${L('منع','Interdire')}">🚫</button>
+        <button onclick="setPermVal('${pk.key}', null)" title="${L('إعادة للدور','Rôle')}" style="font-size:.6rem;padding:2px 5px;color:var(--dim)">↺</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('permEditorModal').classList.add('show');
 }
-async function toggleUserActive(uid){
-  const userId = Number(uid);
 
-  // ── حماية حساب المسؤول الأساسي ──
-  if (userId === 1) {
-    Toast.error(L('🛑 لا يمكن تعطيل حساب المسؤول الأساسي','🛑 Impossible de désactiver le compte admin principal'));
-    return;
-  }
+// ── تغيير قيمة صلاحية في المودال (مؤقت في DOM) ──
+function setPermVal(key, val) {
+  const row = document.querySelector(`[data-perm-key="${key}"]`);
+  if (!row) return;
 
-  // ── منع المستخدم من تعطيل نفسه ──
-  const currentUser = Auth.getUser();
-  if (currentUser && currentUser.id === userId) {
-    Toast.error(L('🛑 لا يمكنك تعطيل حسابك أنت!','🛑 Vous ne pouvez pas désactiver votre propre compte!'));
-    return;
-  }
+  const u         = (DB.get('users') || []).find(x => x.id === _permEditorUserId);
+  const rolePerms = ROLE_PERMISSIONS[u?.role] || ROLE_PERMISSIONS['viewer'];
+  const roleVal   = rolePerms[key];
+  const showViewBtn = !key.startsWith('write_');
 
-  const before = DB.get('users') || [];
-  const target = before.find(u => u.id === userId);
-  if (!target) { Toast.error(L('المستخدم غير موجود','Utilisateur introuvable')); return; }
+  // تحديث الأزرار المرئية
+  const btns = row.querySelectorAll('.perm-toggle button');
+  const btnAllow = btns[0];
+  const btnView  = showViewBtn ? btns[1] : null;
+  const btnDeny  = showViewBtn ? btns[2] : btns[1];
+  const btnReset = showViewBtn ? btns[3] : btns[2];
 
-  const nextActive = !target.is_active;
-  const nextStatus = nextActive ? 'active' : 'disabled';
+  btnAllow.className = val === true  ? 'active-allow' : '';
+  if (btnView) btnView.className = val === 'view' ? 'active-view' : '';
+  btnDeny.className  = val === false ? 'active-deny' : '';
 
-  // ── جلب إعدادات Supabase ──
-  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
-  const sbUrl = cfg?.url || '';
-  const sbKey = cfg?.key || '';
-
-  if (!sbUrl || !sbKey) {
-    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن تحديث الحالة','⚠️ Supabase non connecté'));
-    return;
-  }
-
-  // ── تحديث Supabase أولاً ──
-  try {
-    const res = await fetch(`${sbUrl}/rest/v1/users?id=eq.${userId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type':'application/json',
-        'apikey': sbKey,
-        'Authorization': `Bearer ${sbKey}`,
-        'Prefer':'return=minimal'
-      },
-      body: JSON.stringify({ is_active: nextActive, account_status: nextStatus })
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status} — ${errText}`);
-    }
-
-    // ── نجح في Supabase → حدّث محلياً ──
-    DB.set('users', before.map(u => u.id === userId
-      ? {...u, is_active: nextActive, account_status: nextStatus}
-      : u
-    ));
-
-    Toast.success(nextActive
-      ? L('▶️ تم تفعيل المستخدم','▶️ Utilisateur activé')
-      : L('⏸️ تم إيقاف المستخدم','⏸️ Utilisateur désactivé'));
-  } catch(e) {
-    console.error('❌ toggleUserActive failed:', e);
-    Toast.error(L(`❌ تعذر تحديث الحالة: ${e.message}`,`❌ Impossible: ${e.message}`));
-    return;
-  }
-
-  App.navigate('team');
-}
-
-async function deleteUserAccount(uid){
-  const userId = Number(uid);
-  const u = (DB.get('users')||[]).find(x=>x.id===userId);
-  const name = u?.full_name || u?.name || u?.email || ('#'+userId);
-
-  // ── حماية الحسابات الأساسية ──
-  if (userId === 1) {
-    Toast.error(L('🛑 لا يمكن حذف حساب المسؤول الأساسي','🛑 Impossible de supprimer le compte admin principal'));
-    return;
-  }
-  if (userId === 2) {
-    if (!confirm(L(
-      '⚠️ هذا هو الحساب التجريبي الافتراضي. هل أنت متأكد من حذفه؟',
-      '⚠️ Ceci est le compte de démonstration. Êtes-vous sûr ?'
-    ))) return;
+  // تحديث label
+  const lbl = row.querySelector('.perm-label span');
+  if (val === null) {
+    if (lbl) { lbl.textContent = `(${L('من الدور','du rôle')})`; lbl.style.color = 'var(--dim)'; }
+    // إزالة المخصص ← القيمة null تعني "من الدور"
+    row.dataset.pendingVal = 'NULL';
   } else {
-    if (!confirm(L(
-      `هل تريد حذف حساب المستخدم نهائياً؟\n${name}`,
-      `Supprimer définitivement ce compte ?\n${name}`
-    ))) return;
+    if (lbl) { lbl.textContent = '✏️'; lbl.style.color = '#9B6DFF'; }
+    row.dataset.pendingVal = JSON.stringify(val);
   }
+}
 
-  // ── منع المستخدم من حذف نفسه ──
-  const currentUser = Auth.getUser();
-  if (currentUser && currentUser.id === userId) {
-    Toast.error(L('🛑 لا يمكنك حذف حسابك أنت!','🛑 Vous ne pouvez pas supprimer votre propre compte!'));
-    return;
-  }
+// ── حفظ الصلاحيات المخصصة ──
+function saveUserPerms() {
+  if (!_permEditorUserId) return;
 
-  // ── جلب إعدادات Supabase ──
-  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
-  const sbUrl = cfg?.url || '';
-  const sbKey = cfg?.key || '';
+  const users = DB.get('users') || [];
+  const idx   = users.findIndex(u => u.id === _permEditorUserId);
+  if (idx < 0) return;
 
-  if (!sbUrl || !sbKey) {
-    Toast.error(L('⚠️ Supabase غير مربوط — لا يمكن حذف الحساب من قاعدة البيانات السحابية',
-                   '⚠️ Supabase non connecté — impossible de supprimer'));
-    return;
-  }
+  const current = users[idx].custom_perms || {};
+  const updated = { ...current };
 
-  if (typeof Toast !== 'undefined') Toast.info(L('⏳ جاري حذف المستخدم...','⏳ Suppression en cours...'));
+  document.querySelectorAll('[data-perm-key]').forEach(row => {
+    const key = row.dataset.permKey;
+    const pending = row.dataset.pendingVal;
+    if (pending === undefined) return; // لم يُغيَّر
 
-  // ── حذف من Supabase أولاً (مصدر الحقيقة) ──
-  const sbH = {
-    'Content-Type':'application/json',
-    'apikey': sbKey,
-    'Authorization': `Bearer ${sbKey}`,
-    'Prefer': 'return=minimal'
-  };
-
-  try {
-    const res = await fetch(
-      `${sbUrl}/rest/v1/users?id=eq.${userId}`,
-      { method: 'DELETE', headers: sbH }
-    );
-    if (!res.ok) {
-      const errText = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status} — ${errText}`);
+    if (pending === 'NULL') {
+      delete updated[key]; // إعادة لصلاحيات الدور
+    } else {
+      updated[key] = JSON.parse(pending);
     }
-    console.log(`✅ حُذف المستخدم #${userId} من Supabase`);
+  });
 
-    // ── نجح الحذف من Supabase → احذف محلياً ──
-    const before = DB.get('users') || [];
-    DB.set('users', before.filter(x => x.id !== userId));
+  users[idx] = { ...users[idx], custom_perms: updated };
+  DB.set('users', users);
+  sbSync('users', { id: _permEditorUserId, custom_perms: updated }, 'PATCH').catch(() => {});
 
-    // ── إزالة عمليات معلّقة في Offline Queue تخص هذا المستخدم ──
-    try {
-      const Q_KEY = 'sbtp5_offline_queue';
-      const q = JSON.parse(localStorage.getItem(Q_KEY) || '[]');
-      const filtered = q.filter(op => {
-        if (op?.table !== 'users') return true;
-        const recId = op?.record?.id;
-        return recId !== userId;
-      });
-      localStorage.setItem(Q_KEY, JSON.stringify(filtered));
-      if (typeof DBHybrid !== 'undefined' && DBHybrid._updateAdminSyncUI) {
-        DBHybrid._updateAdminSyncUI();
-      }
-    } catch{}
-
-    Toast.success(L(`🗑️ تم حذف "${name}" نهائياً`,`🗑️ "${name}" supprimé`));
-  } catch(e) {
-    console.error('❌ deleteUserAccount failed:', e);
-    Toast.error(L(`❌ تعذر حذف المستخدم من Supabase: ${e.message}`,
-                   `❌ Impossible de supprimer: ${e.message}`));
-    return;
-  }
-
+  Toast.success(L('✅ تم حفظ الصلاحيات المخصصة','✅ Permissions personnalisées enregistrées'));
+  document.getElementById('permEditorModal').classList.remove('show');
   App.navigate('team');
 }
+
+// ── إعادة الصلاحيات لإعدادات الدور (مسح كل custom_perms) ──
+function resetUserPerms() {
+  if (!_permEditorUserId) return;
+  const msg = L(
+    'إعادة جميع الصلاحيات لصلاحيات الدور الافتراضية؟',
+    'Réinitialiser toutes les permissions au rôle par défaut ?'
+  );
+  if (!confirm(msg)) return;
+
+  const users = DB.get('users') || [];
+  const idx   = users.findIndex(u => u.id === _permEditorUserId);
+  if (idx < 0) return;
+
+  users[idx] = { ...users[idx], custom_perms: {} };
+  DB.set('users', users);
+  sbSync('users', { id: _permEditorUserId, custom_perms: {} }, 'PATCH').catch(() => {});
+
+  Toast.success(L('🔄 تم إعادة الصلاحيات لإعدادات الدور','🔄 Permissions réinitialisées au rôle'));
+  document.getElementById('permEditorModal').classList.remove('show');
+  App.navigate('team');
+}
+
 
 function showRolePreview(role) {
   const desc = {
@@ -12184,6 +20164,7 @@ function showRolePreview(role) {
   if(box) box.innerHTML = `<strong style="color:var(--gold)">${names[role]||role}</strong> — ${desc[role]||''}`;
 }
 function inviteUserV5(){
+  if (!(Auth.getUser()?.role==='admin'||Auth.getUser()?.is_admin)) { Toast.error(L('هذه الصلاحية للمسؤول فقط',"Réservé à l'administrateur")); return; }
   const name=document.getElementById('iName')?.value?.trim();
   const email=document.getElementById('iEmail')?.value?.trim().toLowerCase();
   const pass=document.getElementById('iPass')?.value;
@@ -12205,20 +20186,6 @@ function inviteUserV5(){
   Toast.success(`✅ ${L('تم إضافة','Ajouté :')} ${name} ${L('بدور','avec rôle')} "${ROLE_NAMES[role]}"`);
   App.navigate('team');
 }
-
-/* ── PATCH LOGIN to add more demo users ── */
-/* ── PATCH Toast to add warn type ── */
-const _origToastShow = Toast.show;
-Toast.show = function(msg, type='info') {
-  const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
-  const c = document.getElementById('toastContainer');
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
-  t.innerHTML = `<span>${icons[type]||'💬'}</span><span>${msg}</span>`;
-  c.appendChild(t);
-  setTimeout(() => t.remove(), 4500);
-};
-Toast.warn = m => Toast.show(m, 'warn');
 
 /* ── PATCH nav to register new routes ── */
 /* Routes are now handled directly in App.render() */
@@ -12788,62 +20755,7 @@ async function forceReconnectSupabase() {
 }
 
 // ─── Save EmailJS Settings ───
-function saveEmailJSSettings() {
-  const cfg = {
-    SERVICE_ID:     (document.getElementById('ejServiceId')?.value||'').trim(),
-    PUBLIC_KEY:     (document.getElementById('ejPublicKey')?.value||'').trim(),
-    TEMPLATE_ADMIN: (document.getElementById('ejTemplateAdmin')?.value||'').trim(),
-    TEMPLATE_USER:  (document.getElementById('ejTemplateUser')?.value||'').trim(),
-    ADMIN_EMAIL:    (document.getElementById('ejAdminEmail')?.value||'').trim(),
-  };
-  if (!cfg.SERVICE_ID || !cfg.PUBLIC_KEY) {
-    typeof Toast !== 'undefined' && Toast.error('❌ Service ID و Public Key مطلوبان');
-    return;
-  }
-  saveEmailJSConfig(cfg);
-  typeof Toast !== 'undefined' && Toast.success('✅ تم حفظ إعدادات EmailJS بنجاح!');
-  const badge = document.getElementById('emailjsStatusBadge');
-  if (badge) { badge.textContent = '🟢 مُفعَّل'; badge.style.color = '#34C38F'; }
-}
-
 // ─── Test EmailJS ───
-async function testEmailJS() {
-  const resultEl = document.getElementById('ejTestResult');
-  if (resultEl) {
-    resultEl.style.display = 'block';
-    resultEl.style.background = 'rgba(232,184,75,0.1)';
-    resultEl.style.color = 'var(--gold)';
-    resultEl.textContent = '⏳ جاري إرسال بريد اختبار...';
-  }
-  try {
-    const cfg = getEmailJSConfig();
-    await emailjs.send(cfg.SERVICE_ID, cfg.TEMPLATE_ADMIN, {
-      to_email:    cfg.ADMIN_EMAIL,
-      to_name:     'المسؤول',
-      user_name:   'اختبار النظام',
-      user_email:  cfg.ADMIN_EMAIL,
-      company_name:'SmartStruct Test',
-      plan_name:   'اختبار',
-      wilaya:      'الجزائر',
-      date:        new Date().toLocaleDateString('ar-DZ'),
-      message:     '✅ هذا بريد اختبار من لوحة تحكم SmartStruct — الإعدادات تعمل بشكل صحيح.',
-    });
-    if (resultEl) {
-      resultEl.style.background = 'rgba(52,195,143,0.1)';
-      resultEl.style.color = '#34C38F';
-      resultEl.textContent = `✅ تم الإرسال بنجاح إلى ${cfg.ADMIN_EMAIL}`;
-    }
-    typeof Toast !== 'undefined' && Toast.success('✅ البريد الاختباري أُرسل بنجاح!');
-  } catch(e) {
-    if (resultEl) {
-      resultEl.style.background = 'rgba(240,78,106,0.1)';
-      resultEl.style.color = '#F79FA9';
-      resultEl.textContent = `❌ فشل الإرسال: ${e.text || e.message || JSON.stringify(e)}`;
-    }
-    typeof Toast !== 'undefined' && Toast.error('❌ فشل إرسال البريد الاختباري');
-  }
-}
-
 /* ── Supabase fallback functions (if supabase-db.js not loaded) ── */
 if (typeof saveSupabaseConfig === 'undefined') {
   function saveSupabaseConfig() { Toast.warn('⚠️ ملف supabase-db.js غير محمّل'); }
@@ -12968,8 +20880,10 @@ Pages.bankReport = function() {
   const totalSpent  = projects.reduce((s,p)=>s+Number(p.total_spent),0);
   const health = calcHealthScore(projects, txs, workers, DB.get('attendance').filter(a=>workers.find(w=>w.id===a.worker_id)));
   const now = new Date();
+  const isAr = I18N.currentLang === 'ar';
+  const locale = isAr ? 'ar-DZ' : 'fr-DZ';
   const reportNum = `RPT-${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const locale = I18N.currentLang==='ar' ? 'ar-DZ' : 'fr-DZ';
+  const logo = getTenantLogo();
 
   // 6-month cashflow
   const months = [];
@@ -12981,6 +20895,301 @@ Pages.bankReport = function() {
     months.push({ label: d.toLocaleDateString(locale,{month:'short',year:'2-digit'}), rev:mRev, exp:mExp });
   }
 
+  const logoHTML = logo
+    ? `<img src="${logo}" style="height:56px;max-width:150px;object-fit:contain">`
+    : `<div style="font-size:1.3rem;font-weight:900;color:#C49030">▦ SmartStruct</div>`;
+
+  const profitColor = revenue-expense >= 0 ? '#0a6e3f' : '#c0392b';
+  const healthColor = health.score>=75 ? '#0a6e3f' : health.score>=55 ? '#B8902F' : '#c0392b';
+
+  const html = `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${isAr?'التقرير البنكي':'Rapport Bancaire'} — ${escHtml(tenant?.name||'SmartStruct')}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Cairo',Arial,sans-serif;background:#f4f4f6;color:#1a1a1a;padding:24px;direction:${isAr?'rtl':'ltr'};font-size:13px}
+  .no-print{display:flex;gap:10px;margin-bottom:20px}
+  .btn-p{padding:9px 22px;background:#C49030;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
+  .btn-c{padding:9px 18px;background:#e0e0e0;color:#333;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
+  .sheet{background:#fff;max-width:820px;margin:0 auto;border-radius:4px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+
+  /* ── Header ── */
+  .hdr{background:#fff;border-bottom:3px solid #C49030;padding:24px 36px;display:flex;justify-content:space-between;align-items:center}
+  .co-name{font-size:15px;font-weight:900;color:#1a1a1a;margin-top:6px}
+  .co-info{font-size:10px;color:#666;margin-top:2px;line-height:1.7}
+  .rpt-label{text-align:${isAr?'left':'right'}}
+  .rpt-title{font-size:18px;font-weight:900;color:#1a1a1a}
+  .rpt-num{font-size:11px;color:#C49030;font-weight:700;font-family:monospace;margin-top:4px}
+  .rpt-date{font-size:10px;color:#888;margin-top:3px}
+
+  /* ── Gold bar ── */
+  .gold-bar{height:3px;background:#C49030}
+
+  /* ── Sections ── */
+  .body{padding:28px 36px}
+  .section{margin-bottom:24px}
+  .section-title{font-size:11px;font-weight:700;color:#C49030;text-transform:uppercase;letter-spacing:.8px;
+    margin-bottom:12px;padding-bottom:6px;border-bottom:1.5px solid #f0e8d0;display:flex;align-items:center;gap:6px}
+
+  /* ── KPI Cards ── */
+  .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px}
+  .kpi{background:#fafaf7;border:1px solid #e8e0cc;border-radius:8px;padding:14px 16px;text-align:center}
+  .kpi.green{border-color:#a8d5b5;background:#f0faf4}
+  .kpi.red{border-color:#f5b8b8;background:#fef5f5}
+  .kpi.gold{border-color:#e8c87a;background:#faf5e8}
+  .kpi-label{font-size:10px;color:#888;margin-bottom:5px;letter-spacing:.3px}
+  .kpi-value{font-size:16px;font-weight:900;font-family:monospace}
+  .kpi.green .kpi-value{color:#0a6e3f}
+  .kpi.red .kpi-value{color:#c0392b}
+  .kpi.gold .kpi-value{color:#C49030}
+
+  /* ── Info Rows ── */
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .info-row{display:flex;justify-content:space-between;padding:7px 10px;font-size:12px;border-bottom:1px solid #f5f0e8}
+  .info-row:nth-child(odd){background:#fafaf7}
+  .info-row span:first-child{color:#666}
+  .info-row span:last-child{font-weight:700}
+
+  /* ── Table ── */
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  thead th{background:#C49030;color:#fff;padding:9px 10px;font-weight:700;text-align:center}
+  thead th:first-child{text-align:${isAr?'right':'left'}}
+  tbody td{padding:7px 10px;border-bottom:1px solid #f0ede0;text-align:center}
+  tbody td:first-child{text-align:${isAr?'right':'left'};font-weight:600}
+  tbody tr:nth-child(odd) td{background:#fafaf7}
+  tfoot td{padding:9px 10px;font-weight:900;border-top:2px solid #C49030;background:#f5f0e8;text-align:center}
+  tfoot td:first-child{text-align:${isAr?'right':'left'}}
+
+  /* ── Health Score ── */
+  .health-box{display:flex;align-items:center;gap:20px;background:#fafaf7;border:1px solid #e8e0cc;border-radius:8px;padding:16px 20px}
+  .health-score{font-size:42px;font-weight:900;font-family:monospace;line-height:1;color:${healthColor}}
+  .health-bar-wrap{flex:1;height:8px;background:#e8e0cc;border-radius:4px;overflow:hidden;margin-top:6px}
+  .health-bar{height:100%;background:${healthColor};border-radius:4px;width:${health.score}%}
+
+  /* ── Projects Table ── */
+  .proj-row{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #f5f0e8;font-size:12px;align-items:center}
+  .proj-row:nth-child(odd){background:#fafaf7}
+  .proj-badge{padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;background:#e8f0fe;color:#1a3a5c}
+
+  /* ── Footer ── */
+  .rpt-footer{background:#f8f5ee;border-top:2px solid #C49030;padding:12px 36px;display:flex;justify-content:space-between;align-items:center}
+  .rpt-footer span{font-size:10px;color:#666}
+  .rpt-footer .gold{color:#C49030;font-weight:700}
+
+  /* ── Signature ── */
+  .sig-section{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #e8e0cc}
+  .sig-box{text-align:center;min-width:140px}
+  .sig-line{width:140px;height:60px;border-bottom:1.5px solid #1a1a1a;margin-bottom:6px}
+  .sig-label{font-size:10px;color:#666}
+
+  @media print{
+    body{background:#fff!important;padding:0!important}
+    .no-print{display:none!important}
+    .sheet{box-shadow:none!important;border-radius:0!important;max-width:100%!important}
+    .kpi,.health-box,.proj-row:nth-child(odd),tbody tr:nth-child(odd) td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    thead{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    @page{margin:12mm;size:A4}
+  }
+</style>
+</head>
+<body>
+<div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
+  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='rapport-bancaire.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="btn-c" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+<div style="margin-top:52px">
+  <!-- Header -->
+  <div class="hdr">
+    <div style="display:flex;align-items:center;gap:14px">
+      ${logoHTML}
+      <div>
+        <div class="co-name">${escHtml(tenant?.name||'SmartStruct')}</div>
+        <div class="co-info">
+          ${tenant?.rc_number?`RC: ${escHtml(tenant.rc_number)}<br>`:''}
+          ${tenant?.nif?`NIF: ${escHtml(tenant.nif)}<br>`:''}
+          ${tenant?.wilaya?escHtml(tenant.wilaya):''}
+        </div>
+      </div>
+    </div>
+    <div class="rpt-label">
+      <div class="rpt-title">${isAr?'التقرير البنكي الاحترافي':'RAPPORT BANCAIRE PROFESSIONNEL'}</div>
+      <div class="rpt-num">${reportNum}</div>
+      <div class="rpt-date">${isAr?'تاريخ الإصدار':'Date d\'émission'}: ${now.toLocaleDateString(locale,{dateStyle:'long'})}</div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="body">
+
+    <!-- KPIs -->
+    <div class="section">
+      <div class="section-title">💰 ${isAr?'الملخص المالي':'Résumé Financier'}</div>
+      <div class="kpi-grid">
+        <div class="kpi green">
+          <div class="kpi-label">${isAr?'إجمالي الإيرادات':'Total Revenus'}</div>
+          <div class="kpi-value">${fmt(revenue)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi red">
+          <div class="kpi-label">${isAr?'إجمالي المصاريف':'Total Dépenses'}</div>
+          <div class="kpi-value">${fmt(expense)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi ${revenue-expense>=0?'green':'red'}">
+          <div class="kpi-label">${isAr?'صافي الربح / الخسارة':'Bénéfice Net'}</div>
+          <div class="kpi-value" style="color:${profitColor}">${fmt(revenue-expense)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+        <div class="kpi gold">
+          <div class="kpi-label">${isAr?'ميزانية المشاريع':'Budget Projets'}</div>
+          <div class="kpi-value">${fmt(totalBudget)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">${isAr?'المنفق الفعلي':'Dépensé Réel'}</div>
+          <div class="kpi-value">${fmt(totalSpent)}</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${da}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">${isAr?'نسبة الاستهلاك':'Taux Consommation'}</div>
+          <div class="kpi-value">${totalBudget>0?Math.round(totalSpent/totalBudget*100):0}%</div>
+          <div style="font-size:10px;color:#888;margin-top:3px">${isAr?'من الميزانية':'du budget'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Info -->
+    <div class="section">
+      <div class="section-title">🏢 ${isAr?'معلومات المؤسسة':'Informations de la Société'}</div>
+      <div class="info-grid">
+        <div>
+          ${[
+            [isAr?'اسم المؤسسة':'Raison sociale', tenant?.name||'—'],
+            [isAr?'الولاية':'Wilaya', tenant?.wilaya||'—'],
+            [isAr?'رقم السجل التجاري':'Registre de commerce', tenant?.rc_number||'—'],
+            [isAr?'رقم التعريف الجبائي':'NIF', tenant?.nif||'—'],
+          ].map(([k,v])=>`<div class="info-row"><span>${k}</span><span>${escHtml(String(v))}</span></div>`).join('')}
+        </div>
+        <div>
+          ${[
+            [isAr?'عدد العمال':'Nombre d\'ouvriers', workers.length+' '+(isAr?'عامل':'ouvrier(s)')],
+            [isAr?'عدد المشاريع':'Nombre de projets', projects.length+' '+(isAr?'مشروع':'projet(s)')],
+            [isAr?'الهاتف':'Téléphone', tenant?.phone||'—'],
+            [isAr?'العنوان':'Adresse', tenant?.address||'—'],
+          ].map(([k,v])=>`<div class="info-row"><span>${k}</span><span>${escHtml(String(v))}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Projects -->
+    ${projects.length>0?`
+    <div class="section">
+      <div class="section-title">🏗️ ${isAr?'المشاريع النشطة':'Projets Actifs'} (${projects.length})</div>
+      <div style="border:1px solid #e8e0cc;border-radius:8px;overflow:hidden">
+        <div class="proj-row" style="background:#f5f0e8;font-weight:700;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px">
+          <span>${isAr?'اسم المشروع':'Projet'}</span>
+          <div style="display:flex;gap:20px">
+            <span>${isAr?'الميزانية':'Budget'}</span>
+            <span>${isAr?'الإنجاز':'Avancement'}</span>
+          </div>
+        </div>
+        ${projects.map(p=>`
+        <div class="proj-row">
+          <div>
+            <div style="font-weight:700">${escHtml(p.name)}</div>
+            <div style="font-size:10px;color:#888">${escHtml(p.wilaya||'')} ${p.client_name?'• '+escHtml(p.client_name):''}</div>
+          </div>
+          <div style="display:flex;gap:20px;align-items:center">
+            <span style="font-family:monospace;font-weight:700;color:#C49030">${fmt(p.budget)} ${da}</span>
+            <span class="proj-badge">${p.progress||0}%</span>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`:''} 
+
+    <!-- Cashflow Table -->
+    <div class="section">
+      <div class="section-title">📊 ${isAr?'التدفق النقدي — آخر 6 أشهر':'Flux de Trésorerie — 6 Derniers Mois'}</div>
+      <table>
+        <thead><tr>
+          <th>${isAr?'الشهر':'Mois'}</th>
+          <th>${isAr?'الإيرادات (دج)':'Revenus (DA)'}</th>
+          <th>${isAr?'المصاريف (دج)':'Dépenses (DA)'}</th>
+          <th>${isAr?'الرصيد (دج)':'Solde (DA)'}</th>
+        </tr></thead>
+        <tbody>
+          ${months.map(m=>`<tr>
+            <td>${m.label}</td>
+            <td style="color:#0a6e3f;font-family:monospace">${fmt(m.rev)}</td>
+            <td style="color:#c0392b;font-family:monospace">${fmt(m.exp)}</td>
+            <td style="font-weight:900;font-family:monospace;color:${m.rev-m.exp>=0?'#0a6e3f':'#c0392b'}">${fmt(m.rev-m.exp)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td>${isAr?'الإجمالي':'Total'}</td>
+          <td style="color:#0a6e3f;font-family:monospace">${fmt(revenue)}</td>
+          <td style="color:#c0392b;font-family:monospace">${fmt(expense)}</td>
+          <td style="color:${profitColor};font-family:monospace">${fmt(revenue-expense)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+
+    <!-- Health Score -->
+    <div class="section">
+      <div class="section-title">📈 ${isAr?'مؤشر الصحة المالية':'Indice de Santé Financière'}</div>
+      <div class="health-box">
+        <div style="text-align:center;min-width:80px">
+          <div class="health-score">${health.score}</div>
+          <div style="font-size:10px;color:#888;margin-top:4px">${isAr?'من 100':'/ 100'}</div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:900;color:${healthColor};margin-bottom:8px">${health.label}</div>
+          <div class="health-bar-wrap"><div class="health-bar"></div></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:#666">
+            <span>${isAr?'ربحية':'Rentabilité'}: <strong>${health.breakdown?.profitability||0}%</strong></span>
+            <span>${isAr?'سيولة':'Liquidité'}: <strong>${health.breakdown?.liquidity||0}%</strong></span>
+            <span>${isAr?'تأخير':'Retard'}: <strong>${health.breakdown?.delay||0}%</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="sig-section">
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">${isAr?'المسؤول المالي':'Responsable financier'}</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">${isAr?'المدير العام':'Directeur général'}</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">${isAr?'الختم الرسمي':'Cachet officiel'}</div>
+      </div>
+    </div>
+
+  </div><!-- end body -->
+
+  <!-- Footer -->
+  <div class="rpt-footer">
+    <span>${isAr?'تم إنشاؤه بواسطة':'Généré par'} <span class="gold">SmartStruct</span> | ${now.toLocaleDateString(locale)} ${now.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit'})}</span>
+    <span class="gold">${reportNum} | ${isAr?'وثيقة سرية — للاستخدام البنكي فقط':'Document confidentiel — Usage bancaire uniquement'}</span>
+  </div>
+</div>
+</body>
+</html>`;
+
+  // حفظ HTML في متغير عالمي للوصول من الزر
+  window._bankReportHTML = html;
+
   return layoutHTML('bank_report', L('تقرير بنكي','Rapport bancaire'), `
     <div class="page-header">
       <div>
@@ -12988,100 +21197,18 @@ Pages.bankReport = function() {
         <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك','Rapport financier prêt à soumettre à la banque')}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-gold" onclick="window.print()">🖨️ ${L('طباعة / PDF','Imprimer / PDF')}</button>
+        <button class="btn btn-gold" onclick="(function(){const w=window.open('','_blank');if(!w){alert('السماح بالنوافذ المنبثقة');return;}w.document.write(window._bankReportHTML);w.document.close();})()"}>
+          🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}
+        </button>
       </div>
     </div>
 
-    <!-- Preview -->
-    <div class="bank-report-preview" id="bankReportDoc">
-      <!-- Header -->
-      <div class="bank-report-header">
-        <div>
-          <div class="bank-report-logo">▦ SmartStruct</div>
-          <div style="font-size:.75rem;color:#666;margin-top:3px">${L('نظام الإدارة المالية للمقاولين','Système de gestion financière BTP')}</div>
-        </div>
-        <div style="text-align:left">
-          <div style="font-size:.7rem;color:#888">${L('رقم التقرير','N° du rapport')}</div>
-          <div style="font-weight:900;color:#1a3a5c;font-family:monospace">${reportNum}</div>
-          <div style="font-size:.7rem;color:#888;margin-top:4px">${L('تاريخ الإصدار','Date d\'émission')}: ${now.toLocaleDateString(locale)}</div>
-        </div>
-      </div>
-
-      <!-- Company Info -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">🏢 ${L('معلومات الشركة','Informations de la société')}</div>
-        <div class="bank-report-row"><span>${L('اسم المؤسسة','Nom de l\'entreprise')}</span><span style="font-weight:700">${escHtml(tenant?.name||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('الولاية','Wilaya')}</span><span style="font-weight:700">${escHtml(tenant?.wilaya||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('رقم السجل التجاري','Registre de commerce')}</span><span style="font-weight:700;font-family:monospace">${escHtml(tenant?.rc_number||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('رقم الهاتف','Téléphone')}</span><span style="font-weight:700">${escHtml(tenant?.phone||'—')}</span></div>
-        <div class="bank-report-row"><span>${L('عدد العمال','Nombre d\'ouvriers')}</span><span style="font-weight:700">${workers.length} ${L('عامل','ouvrier(s)')}</span></div>
-      </div>
-
-      <!-- Financial Summary -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">💰 ${L('الملخص المالي','Résumé financier')}</div>
-        <div class="bank-report-row"><span>${L('إجمالي الإيرادات','Total revenus')}</span><span style="font-weight:700;color:green">${fmt(revenue)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('إجمالي المصاريف','Total dépenses')}</span><span style="font-weight:700;color:red">${fmt(expense)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('صافي الربح / الخسارة','Bénéfice / Perte net(te)')}</span><span style="font-weight:900;color:${revenue-expense>=0?'green':'red'};font-size:1rem">${fmt(revenue-expense)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('إجمالي الميزانية المتعاقد عليها','Budget total contracté')}</span><span style="font-weight:700">${fmt(totalBudget)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('المنفق الفعلي','Dépensé réellement')}</span><span style="font-weight:700">${fmt(totalSpent)} ${da}</span></div>
-        <div class="bank-report-row"><span>${L('نسبة الاستهلاك','Taux de consommation')}</span><span style="font-weight:700">${totalBudget>0?Math.round(totalSpent/totalBudget*100):0}%</span></div>
-      </div>
-
-      <!-- Projects -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">🏗️ ${L('المشاريع','Projets')} (${projects.length})</div>
-        ${projects.map(p=>`
-          <div class="bank-report-row">
-            <span>${escHtml(p.name)} <small style="color:#888">(${escHtml(p.wilaya||'')})</small></span>
-            <span style="font-weight:700">${fmt(p.budget)} ${da} — ${p.progress}% ✓</span>
-          </div>
-        `).join('')}
-      </div>
-
-      <!-- Cashflow Table -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">📊 ${L('التدفق النقدي (6 أشهر)','Flux de trésorerie (6 mois)')}</div>
-        <table style="width:100%;font-size:.8rem;border-collapse:collapse">
-          <thead><tr style="background:#f5f5f5">
-            <th style="padding:5px;text-align:right">${L('الشهر','Mois')}</th>
-            <th style="padding:5px">${L('الإيرادات','Revenus')}</th>
-            <th style="padding:5px">${L('المصاريف','Dépenses')}</th>
-            <th style="padding:5px">${L('الرصيد','Solde')}</th>
-          </tr></thead>
-          <tbody>
-            ${months.map(m=>`<tr style="border-bottom:1px solid #eee">
-              <td style="padding:5px;font-weight:700">${m.label}</td>
-              <td style="padding:5px;text-align:center;color:green">${fmt(m.rev)}</td>
-              <td style="padding:5px;text-align:center;color:red">${fmt(m.exp)}</td>
-              <td style="padding:5px;text-align:center;font-weight:700;color:${m.rev-m.exp>=0?'green':'red'}">${fmt(m.rev-m.exp)}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Health Score -->
-      <div class="bank-report-section">
-        <div class="bank-report-section-title">🏥 ${L('مؤشر الصحة المالية','Indice de santé financière')}</div>
-        <div style="display:flex;align-items:center;gap:1rem">
-          <div style="font-size:2.5rem;font-weight:900;color:${health.score>=75?'green':health.score>=55?'orange':'red'}">${health.score}</div>
-          <div>
-            <div style="font-weight:700">${health.label} (${health.score}/100)</div>
-            <div style="font-size:.75rem;color:#666">${L('ربحية','Rentabilité')}: ${health.breakdown?.profitability||0}% | ${L('سيولة','Liquidité')}: ${health.breakdown?.liquidity||0}% | ${L('تأخير','Retard')}: ${health.breakdown?.delay||0}%</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer & Stamp -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2rem;padding-top:1rem;border-top:1px solid #ddd">
-        <div style="font-size:.7rem;color:#888">
-          ${L('تم إنشاؤه بواسطة','Généré par')} SmartStruct v1.0 | ${now.toLocaleDateString(locale)} ${now.toLocaleTimeString(locale)}
-        </div>
-        <div class="bank-report-stamp">SmartStruct<br>${L('تقرير','Rapport')}<br>${L('رسمي','Officiel')}</div>
-      </div>
+    <!-- معاينة مدمجة -->
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:.5rem">
+      <iframe id="bankReportFrame" style="width:100%;height:80vh;border:none"
+        srcdoc="${html.replace(/"/g,'&quot;').replace(/\\/g,'&#92;')}">
+      </iframe>
     </div>
-
-    <style>@media print { body * { visibility: hidden } #bankReportDoc, #bankReportDoc * { visibility: visible; color: #1a1a1a !important; } #bankReportDoc { position: fixed; top: 0; left: 0; width: 100%; background: white; } }</style>
   `);
 };
 
@@ -13175,7 +21302,7 @@ Pages.obligations = function() {
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label">${L('المبلغ (دج)','Montant (DA)')}</label>
-            <input class="form-input" id="ob_amount" type="number" placeholder="500000">
+            <input class="form-input" id="ob_amount" type="number" min="0" step="1" inputmode="numeric" placeholder="500000">
           </div>
           <div class="form-group">
             <label class="form-label">${L('تاريخ الاستحقاق','Date d\'échéance')}</label>
@@ -13326,7 +21453,7 @@ function runSimulator() {
 function saveSimulatorAsProject() {
 
   const contract = parseFloat(document.getElementById('sim_contract')?.value) || 0;
-  if (!contract) { Toast.error(L('أدخل قيمة العقد أولاً','Entrez la valeur du contrat d\'abord')); return; }
+  if (!contract) { Toast.error(L('أدخِل قيمة العقد أولاً','Entrez la valeur du contrat d\'abord')); return; }
   Toast.success(L('✅ يمكنك إضافة مشروع جديد من صفحة المشاريع','✅ Vous pouvez ajouter un nouveau projet depuis la page Projets'));
   App.navigate('projects');
 }
@@ -13499,12 +21626,37 @@ ${JSON.stringify(ctx, null, 2)}
     const noKey = !cfg.apiKey || cfg.status === 'inactive' || cfg.status === 'error';
 
     if (noKey) {
-      // المسؤول لم يُعدّ AI بعد — رسالة للمسؤول فقط
+      // محاولة Groq المجاني تلقائياً بدون مفتاح شخصي
+      // نستخدم OpenRouter Free كـ fallback عام
+      try {
+        const systemPrompt = this.buildSystemPrompt();
+        const msgs = [{ role:'system', content: systemPrompt }, ...this.history.slice(-8)];
+        const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer sk-or-free-smartstruct-demo-key',
+            'HTTP-Referer': 'https://smartstruct.dz',
+            'X-Title': 'SmartStruct BTP Algeria'
+          },
+          body: JSON.stringify({ model:'meta-llama/llama-3.2-3b-instruct:free', messages: msgs, max_tokens: 800 })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const msg = data.choices?.[0]?.message?.content;
+          if (msg) {
+            this.history.push({ role:'assistant', content: msg });
+            return msg;
+          }
+        }
+      } catch(_) {}
+
+      // fallback أخير: رسالة للمستخدم والمسؤول
       const user = typeof Auth !== 'undefined' ? Auth.getUser() : null;
       const isAdmin = user && user.is_admin;
       const guideMsg = isAdmin
-        ? `⚙️ **فعّل SmartAI من لوحة التحكم**\n\nاذهب لـ تبويب **🤖 إعدادات SmartAI** في صفحة الإدارة، أدخل مفتاح API (Groq مجاني ⚡)، واضغط اختبار واحفظ.\n\nبعدها يشتغل الروبوت لجميع المؤسسات تلقائياً.`
-        : `🤖 **SmartAI** في انتظار التفعيل من المسؤول.\n\nسيكون متاحاً قريباً — تواصل مع إدارة المنصة.`;
+        ? `⚙️ **فعّل SmartAI من لوحة التحكم**\n\nاذهب لـ **🤖 إعدادات SmartAI** في صفحة الإدارة، أدخل مفتاح Groq المجاني ⚡، واضغط اختبار واحفظ.\n\nللحصول على مفتاح مجاني: https://console.groq.com`
+        : `🤖 **SmartAI** في انتظار التفعيل من المسؤول.\n\nسيكون متاحاً قريباً.`;
       this.history.push({ role: 'assistant', content: guideMsg });
       return guideMsg;
     }
@@ -13749,7 +21901,7 @@ patchSmartAIWithSavedConfig();
         return _navigate('dashboard', {});
       }
       // تحقق إضافي من admin flag في session
-      if (!sessionStorage.getItem('sbtp_admin_auth')) {
+      if (!localStorage.getItem('sbtp_admin_auth')) {
         Toast.error('⛔ جلسة المسؤول منتهية. أعد تسجيل الدخول');
         return _navigate('dashboard', {});
       }
@@ -13957,13 +22109,27 @@ document.addEventListener('DOMContentLoaded', function() {
   if (autoSyncEnabled && typeof DBHybrid !== 'undefined' && typeof SUPABASE_CONFIG !== 'undefined') {
     if (SUPABASE_CONFIG.isConfigured) {
       // الـ heartbeat يبدأ تلقائياً في initSupabase()
-      // لكن نضمن هنا أنه مُشغَّل دائماً
       setTimeout(() => {
         if (DBHybrid._useSupabase && !DBHybrid._heartbeatTimer) {
           DBHybrid._startHeartbeat();
           DBHybrid._setupNetworkEvents();
           console.log('🔄 Auto-sync: Heartbeat تم تشغيله تلقائياً');
         }
+
+        // ⚡ تشغيل SmartRealtime + AutoSync لو المستخدم مُسجَّل دخول
+        try {
+          const user = Auth?.getUser?.();
+          if (user) {
+            if (typeof SmartRealtime !== 'undefined' && !SmartRealtime.isLive) {
+              SmartRealtime.start(user.tenant_id || null);
+              console.log('⚡ SmartRealtime: تم التشغيل من بدء الصفحة');
+            }
+            if (typeof AutoSync !== 'undefined' && !AutoSync._enabled) {
+              AutoSync.enable();
+              console.log('🔄 AutoSync: تم التفعيل من بدء الصفحة');
+            }
+          }
+        } catch(_) {}
       }, 2000);
     }
   }
@@ -14013,8 +22179,8 @@ function showUpsellModal(feature) {
         ${plans.slice(0,3).map((p,i)=>`
           <div class="plan-card-mini ${i===1?'featured':''}">
             <div class="plan-card-mini-name">${escHtml(p.name)}</div>
-            <div class="plan-card-mini-price">${p.price_monthly||'0'} دج</div>
-            <div class="plan-card-mini-limit">حتى ${p.max_projects||'∞'} مشروع</div>
+            <div class="plan-card-mini-price">${fmt(p.price||p.price_monthly||0)} دج</div>
+            <div class="plan-card-mini-limit">${(p.max_projects===-1||p.max_projects===undefined||p.max_projects===null)?'مشاريع غير محدودة':'حتى '+p.max_projects+' مشروع'}</div>
           </div>
         `).join('')}
       </div>
@@ -14173,9 +22339,18 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis'];
+    'audit_log','obligations','team','ai_analysis','dz_documents','archive','about','contact',
+    'login','register'];
   if (hash && validPages.includes(hash)) {
-    App.currentPage = hash;
+    if (hash === 'register') {
+      App.currentPage = 'login';
+      sessionStorage.setItem('auth_mode', 'register');
+    } else if (hash === 'login') {
+      App.currentPage = 'login';
+      sessionStorage.setItem('auth_mode', 'login');
+    } else {
+      App.currentPage = hash;
+    }
   }
   if (hash) history.replaceState(null, '', window.location.pathname);
 })();
@@ -14377,4 +22552,1045 @@ document.addEventListener('DOMContentLoaded', () => {
     touchTask = null; lastCol = null;
   }, {passive:true});
 })();
+
+
+// ════════════════════════════════════════════════════════════════════
+//  📂 دوال سجل الوثائق المولَّدة (dz_generated_docs)
+// ════════════════════════════════════════════════════════════════════
+
+window.dzsDelete = function(id) {
+  if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لحذف الوثيقة','Permission refusée : document')); return; }
+  const msg = typeof L === 'function'
+    ? L('حذف هذه الوثيقة من السجل؟', 'Supprimer ce document du registre ?')
+    : 'Supprimer ?';
+  if (!confirm(msg)) return;
+  const docs = (DB.get('dz_generated_docs') || []).filter(d => d.id !== id);
+  DB.set('dz_generated_docs', docs);
+  App.navigate('invoices');
+};
+
+window.dzsClearAll = function() {
+  if (!canDo('write_documents')) { Toast.error(L('ليس لديك صلاحية لمسح الوثائق','Permission refusée : document')); return; }
+  const msg = typeof L === 'function'
+    ? L('مسح جميع الوثائق المحفوظة؟ لا يمكن التراجع.', 'Effacer tout l\'historique ? Irréversible.')
+    : 'Effacer tout ?';
+  if (!confirm(msg)) return;
+  const tid = Auth.getUser()?.tenant_id;
+  const remaining = (DB.get('dz_generated_docs') || []).filter(d => d.tenant_id !== tid);
+  DB.set('dz_generated_docs', remaining);
+  App.navigate('invoices');
+};
+
+// فتح النموذج مع ملء الحقول بالبيانات المحفوظة
+window.dzsReopen = function(id) {
+  const doc = (DB.get('dz_generated_docs') || []).find(d => d.id === id);
+  if (!doc || !doc.doc_type) return;
+  if (typeof DZDocsUI === 'undefined') { alert('DZDocsUI not loaded'); return; }
+  DZDocsUI.open(doc.doc_type);
+  setTimeout(() => {
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && fields[fid] !== undefined) el.value = fields[fid];
+    });
+  }, 160);
+};
+
+// إعادة طباعة: فتح النموذج + ملء الحقول + ضغط توليد تلقائياً
+window.dzsReprint = function(id) {
+  const doc = (DB.get('dz_generated_docs') || []).find(d => d.id === id);
+  if (!doc || !doc.doc_type) return;
+  if (typeof DZDocsUI === 'undefined') { alert('DZDocsUI not loaded'); return; }
+  DZDocsUI.open(doc.doc_type);
+  setTimeout(() => {
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el && fields[fid] !== undefined) el.value = fields[fid];
+    });
+    setTimeout(() => {
+      const btn = document.getElementById('dzdGenerateBtn');
+      if (btn) btn.click();
+    }, 130);
+  }, 170);
+};
+
+// تصدير PDF مباشر (نفس منطق إعادة الطباعة لكنه يُنتج PDF تلقائياً)
+window.dzsPrintPDF = function(id) {
+  // نفس آلية dzsReprint — يُفعّل توليد PDF عبر زر التوليد
+  window.dzsReprint(id);
+};
+
+// ════════════════════════════════════════════════════════════════════
+//  ① SESSION TIMEOUT — خروج تلقائي بعد 30 دقيقة خمول
+// ════════════════════════════════════════════════════════════════════
+(function initSessionTimeout() {
+  const TIMEOUT_MS = 30 * 60 * 1000; // 30 دقيقة
+  const WARN_MS    =  5 * 60 * 1000; // تحذير قبل 5 دقائق
+  let timer, warnTimer, warnShown = false;
+
+  function resetTimer() {
+    clearTimeout(timer); clearTimeout(warnTimer); warnShown = false;
+    const el = document.getElementById('sessionWarnBanner');
+    if (el) el.remove();
+    if (!Auth.getUser()) return;
+    warnTimer = setTimeout(showWarn, TIMEOUT_MS - WARN_MS);
+    timer     = setTimeout(doLogout, TIMEOUT_MS);
+  }
+
+  function showWarn() {
+    if (warnShown || !Auth.getUser()) return;
+    warnShown = true;
+    const div = document.createElement('div');
+    div.id = 'sessionWarnBanner';
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B8902F;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:12px';
+    div.innerHTML = `<span>⏱️ ${L('سيتم تسجيل خروجك خلال 5 دقائق بسبب الخمول','Déconnexion dans 5 min par inactivité')}</span>
+      <button onclick="(function(){document.getElementById('sessionWarnBanner').remove();window._resetSessionTimer&&window._resetSessionTimer()})()" 
+        style="padding:4px 14px;background:rgba(0,0,0,.25);border:none;border-radius:6px;color:#fff;cursor:pointer;font-weight:700;font-size:13px">${L('بقاء متصل','Rester connecté')}</button>`;
+    document.body.appendChild(div);
+  }
+
+  function doLogout() {
+    const el = document.getElementById('sessionWarnBanner');
+    if (el) el.remove();
+    if (!Auth.getUser()) return;
+    if (typeof Auth.logout === 'function') Auth.logout();
+    Toast.info(L('تم تسجيل خروجك تلقائياً بسبب الخمول','Déconnexion automatique par inactivité'));
+    window.location.replace('index.html');
+  }
+
+  // استمع لأي نشاط
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(ev => {
+    document.addEventListener(ev, resetTimer, { passive: true });
+  });
+
+  window._resetSessionTimer = resetTimer;
+  resetTimer();
+})();
+
+// ════════════════════════════════════════════════════════════════════
+//  ② GLOBAL SEARCH — بحث عالمي في كل البيانات
+// ════════════════════════════════════════════════════════════════════
+function globalSearch(query) {
+  if (!query || query.length < 2) {
+    document.getElementById('globalSearchResults')?.remove();
+    return;
+  }
+  const q   = query.toLowerCase().trim();
+  const tid = Auth.getUser()?.tenant_id;
+  if (!tid) return;
+
+  const results = [];
+
+  // مشاريع
+  (DB.get('projects')||[]).filter(p=>p.tenant_id===tid&&!p.is_archived).forEach(p=>{
+    if ((p.name||'').toLowerCase().includes(q)||(p.client_name||'').toLowerCase().includes(q)||(p.wilaya||'').toLowerCase().includes(q)) {
+      results.push({type:'project', icon:'🏗️', label:p.name, sub:p.client_name||p.wilaya||'', action:`App.navigate('projects')`});
+    }
+  });
+  // عمال
+  (DB.get('workers')||[]).filter(w=>w.tenant_id===tid).forEach(w=>{
+    if ((w.full_name||'').toLowerCase().includes(q)||(w.role||'').toLowerCase().includes(q)||(w.phone||'').includes(q)) {
+      results.push({type:'worker', icon:'👷', label:w.full_name, sub:w.role||'', action:`App.navigate('workers')`});
+    }
+  });
+  // فواتير
+  (DB.get('invoices')||[]).filter(i=>i.tenant_id===tid).forEach(i=>{
+    if ((i.number||'').toLowerCase().includes(q)||(i.client||'').toLowerCase().includes(q)) {
+      results.push({type:'invoice', icon:'🧾', label:i.number||L('فاتورة','Facture'), sub:(i.client||''), action:`App.navigate('invoices')`});
+    }
+  });
+  // معاملات
+  (DB.get('transactions')||[]).filter(t=>t.tenant_id===tid).forEach(t=>{
+    if ((t.description||'').toLowerCase().includes(q)||(t.category||'').toLowerCase().includes(q)) {
+      results.push({type:'tx', icon:t.type==='revenue'?'💰':'💸', label:t.description||t.category, sub:`${fmt(t.amount)} ${L('دج','DA')}`, action:`App.navigate('transactions')`});
+    }
+  });
+  // معدات
+  (DB.get('equipment')||[]).filter(e=>e.tenant_id===tid).forEach(e=>{
+    if ((e.name||'').toLowerCase().includes(q)||(e.plate_number||'').toLowerCase().includes(q)) {
+      results.push({type:'equip', icon:'🚜', label:e.name, sub:e.plate_number||e.type||'', action:`App.navigate('equipment')`});
+    }
+  });
+  // مواد
+  (DB.get('materials')||[]).filter(m=>m.tenant_id===tid).forEach(m=>{
+    if ((m.name||'').toLowerCase().includes(q)||(m.supplier||'').toLowerCase().includes(q)) {
+      results.push({type:'mat', icon:'📦', label:m.name, sub:m.supplier||'', action:`App.navigate('materials')`});
+    }
+  });
+
+  const old = document.getElementById('globalSearchResults');
+  if (old) old.remove();
+  if (!results.length) {
+    const div = document.createElement('div');
+    div.id = 'globalSearchResults';
+    div.style.cssText = 'position:fixed;top:58px;right:16px;width:320px;z-index:9999;background:var(--card-bg,#16202c);border:1px solid var(--border);border-radius:12px;padding:.7rem 1rem;font-size:.82rem;color:var(--dim);box-shadow:0 8px 32px rgba(0,0,0,.4)';
+    div.textContent = L('لا نتائج — جرّب كلمات أخرى','Aucun résultat');
+    document.body.appendChild(div);
+    setTimeout(()=>div.remove(), 2000);
+    return;
+  }
+
+  const div = document.createElement('div');
+  div.id = 'globalSearchResults';
+  div.style.cssText = 'position:fixed;top:58px;right:16px;width:340px;z-index:9999;background:var(--card-bg,#16202c);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5);max-height:360px;overflow-y:auto';
+  div.innerHTML = `<div style="padding:.5rem .8rem;font-size:.7rem;color:var(--dim);border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><span>${results.length} ${L('نتيجة','résultat(s)')}</span><button onclick="document.getElementById('globalSearchResults').remove()" style="background:none;border:none;color:var(--dim);cursor:pointer">✕</button></div>` +
+    results.slice(0,10).map(r=>`<div onclick="${r.action};document.getElementById('globalSearchResults').remove();document.getElementById('globalSearchInp')&&(document.getElementById('globalSearchInp').value='')" 
+      style="display:flex;align-items:center;gap:.7rem;padding:.55rem .8rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04)" 
+      onmouseover="this.style.background='rgba(232,184,75,.08)'" onmouseout="this.style.background=''"
+    >
+      <span style="font-size:1.1rem;flex-shrink:0">${r.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.label)}</div>
+        <div style="font-size:.72rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.sub)}</div>
+      </div>
+    </div>`).join('');
+  document.body.appendChild(div);
+  // إغلاق عند النقر خارجاً
+  setTimeout(()=>{
+    document.addEventListener('click', function close(e){
+      if(!document.getElementById('globalSearchResults')?.contains(e.target) &&
+         e.target.id!=='globalSearchInp'){
+        document.getElementById('globalSearchResults')?.remove();
+        document.removeEventListener('click',close);
+      }
+    });
+  }, 100);
+}
+
+// حقن شريط البحث العالمي في الـ navbar
+(function injectGlobalSearch() {
+  function tryInject() {
+    const nav = document.querySelector('.app-nav, .topbar, nav.nav-bar, .main-nav');
+    if (!nav || document.getElementById('globalSearchInp')) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:flex;align-items:center;margin:0 auto;max-width:280px';
+    wrap.innerHTML = `
+      <i class="ti ti-search" style="position:absolute;right:10px;font-size:15px;color:rgba(255,255,255,.4);pointer-events:none"></i>
+      <input id="globalSearchInp" type="text" 
+        placeholder="${L('بحث عالمي...','Recherche globale...')}"
+        style="width:100%;padding:6px 32px 6px 10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text);font-size:.82rem;font-family:inherit;outline:none"
+        oninput="globalSearch(this.value)"
+        onkeydown="if(event.key==='Escape'){this.value='';document.getElementById('globalSearchResults')?.remove();}"
+        onfocus="this.style.borderColor='rgba(232,184,75,.5)'"
+        onblur="this.style.borderColor='rgba(255,255,255,.1)'"
+      >`;
+    nav.appendChild(wrap);
+  }
+  document.addEventListener('DOMContentLoaded', tryInject);
+  setTimeout(tryInject, 1500);
+})();
+
+// ════════════════════════════════════════════════════════════════════
+//  ③ BACKUP / RESTORE — تصدير واسترداد البيانات للمستخدم
+// ════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  🖨️ إعدادات الطباعة — Print Settings
+// ══════════════════════════════════════════════════════════════
+
+function getPrintSettings() {
+  try {
+    return JSON.parse(localStorage.getItem('sbtp_print_settings') || '{}');
+  } catch { return {}; }
+}
+
+function savePrintSettings(customColor) {
+  const s = {
+    fontFamily:   document.getElementById('printFontFamily')?.value || 'Cairo',
+    fontSize:     Number(document.getElementById('printFontSize')?.value) || 13,
+    pageSize:     document.querySelector('input[name="printPageSize"]:checked')?.value || 'A4',
+    orientation:  document.querySelector('input[name="printOrientation"]:checked')?.value || 'portrait',
+    accentColor:  customColor || document.querySelector('input[name="printAccentColor"]:checked')?.value
+                  || document.getElementById('printCustomColor')?.value || '#B8902F',
+    docLang:      document.querySelector('input[name="printLang"]:checked')?.value || I18N.currentLang,
+    margin:       document.getElementById('printMargin')?.value || '12mm',
+    watermark:    document.getElementById('printWatermark')?.value || '',
+    showWatermark:document.getElementById('printWatermarkShow')?.checked || false,
+  };
+
+  localStorage.setItem('sbtp_print_settings', JSON.stringify(s));
+
+  // تحديث المعاينة
+  const preview = document.getElementById('printPreviewContent');
+  if (preview) {
+    preview.style.fontFamily = s.fontFamily;
+    preview.style.fontSize = s.fontSize + 'px';
+    preview.style.color = s.accentColor;
+    preview.style.borderBottomColor = s.accentColor;
+  }
+}
+
+// تطبيق إعدادات الطباعة على CSS المشترك للوثائق
+function applyPrintSettingsToDoc(cssString) {
+  const s = getPrintSettings();
+  if (!s || Object.keys(s).length === 0) return cssString;
+
+  // استبدال الخط
+  if (s.fontFamily) {
+    cssString = cssString.replace(
+      /font-family:\s*['"]?Cairo['"]?,\s*['"]?Tajawal['"]?[^;]+;/g,
+      `font-family: '${s.fontFamily}', Arial, sans-serif;`
+    );
+  }
+
+  // استبدال الحجم الأساسي
+  if (s.fontSize) {
+    cssString = cssString.replace(/font-size:\s*13px/g, `font-size: ${s.fontSize}px`);
+  }
+
+  // استبدال اللون الذهبي الرئيسي
+  if (s.accentColor) {
+    cssString = cssString.replace(/#B8902F/g, s.accentColor);
+    cssString = cssString.replace(/#C49030/g, s.accentColor);
+    cssString = cssString.replace(/#E8B84B/g, s.accentColor);
+  }
+
+  // هوامش الطباعة
+  if (s.margin) {
+    cssString = cssString.replace(/@page\s*\{[^}]*margin:[^;]+;/g,
+      `@page { margin: ${s.margin};`);
+  }
+
+  // حجم الورق
+  if (s.pageSize) {
+    cssString = cssString.replace(/size:\s*A4/g, `size: ${s.pageSize}`);
+  }
+
+  return cssString;
+}
+
+function userExportBackup() {
+  const tid = Auth.getUser()?.tenant_id;
+  if (!tid) { Toast.error(L('يجب تسجيل الدخول','Connexion requise')); return; }
+
+  // ✅ كل الجداول بما فيها الجديدة (HR + Suppliers + Invoices)
+  const tables = [
+    // المشاريع والعمال
+    'projects','workers','equipment','equipment_logs',
+    // المالية
+    'transactions','invoices','salary_records','bank_transactions',
+    // الحضور والمواد
+    'attendance','materials','stock_movements',
+    // الوثائق والمهام
+    'documents','kanban_tasks','notifications','obligations','notes',
+    // HR الجديدة
+    'leave_requests','worker_warnings','worker_overtime',
+    // الموردين الجديدة
+    'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+    // أخرى
+    'ai_conversations','signatures','tenders','tender_offers',
+    'equipment_locations','custom_roles',
+  ];
+
+  const data = {};
+  let totalRecords = 0;
+  tables.forEach(t => {
+    const all = DB.get(t) || [];
+    const filtered = all.filter(r => r.tenant_id === tid || !r.tenant_id);
+    data[t] = filtered;
+    totalRecords += filtered.length;
+  });
+
+  // بيانات المؤسسة نفسها
+  const tenant = Auth.getTenant();
+  data._tenant = tenant;
+  data._meta = {
+    tenant_id: tid,
+    tenant_name: tenant?.name || '',
+    exported_at: new Date().toISOString(),
+    version: 'v7.4',
+    user: Auth.getUser()?.email,
+    total_records: totalRecords,
+    tables: Object.keys(data).filter(k => !k.startsWith('_')).length
+  };
+
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob(['\uFEFF' + json], { type: 'application/json;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `SmartStruct_${(tenant?.name||'backup').replace(/\s/g,'_')}_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  Toast.success(L(`✅ تم تصدير ${totalRecords} سجل من ${tables.length} جدول`,`✅ ${totalRecords} enregistrements exportés`));
+  if (typeof AuditLog !== 'undefined') AuditLog.log('export', 'backup', null, null, { type: 'user_backup', records: totalRecords });
+}
+
+function userImportBackup(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      // ── تحقق من صحة الملف ──
+      if (!data._meta) throw new Error(L('ملف غير صالح — لا يوجد _meta','Fichier invalide — pas de _meta'));
+
+      const tid = Auth.getUser()?.tenant_id;
+      if (!tid) throw new Error(L('يجب تسجيل الدخول','Connexion requise'));
+
+      // ── إحصاءات الاستعادة ──
+      const tables = Object.keys(data).filter(k => !k.startsWith('_'));
+      const totalRecords = tables.reduce((s,t) => s + (Array.isArray(data[t]) ? data[t].length : 0), 0);
+      const exportedAt = data._meta.exported_at ? new Date(data._meta.exported_at).toLocaleString('ar-DZ') : '—';
+      const tenantName = data._meta.tenant_name || data._meta.tenant?.name || '—';
+
+      if (!confirm(L(
+        `⚠️ استعادة النسخة الاحتياطية\n\nالمؤسسة: ${tenantName}\nتاريخ النسخة: ${exportedAt}\nعدد السجلات: ${totalRecords}\n\n⚠️ ستُستبدل بياناتك الحالية بهذه النسخة.\n\nهل تريد المتابعة؟`,
+        `⚠️ Restauration de sauvegarde\n\nEntreprise: ${tenantName}\nDate: ${exportedAt}\nEnregistrements: ${totalRecords}\n\n⚠️ Vos données actuelles seront remplacées.\n\nContinuer?`
+      ))) return;
+
+      // ── استعادة كل الجداول ──
+      const allTables = [
+        'projects','workers','equipment','equipment_logs',
+        'transactions','invoices','salary_records','bank_transactions',
+        'attendance','materials','stock_movements',
+        'documents','kanban_tasks','notifications','obligations','notes',
+        'leave_requests','worker_warnings','worker_overtime',
+        'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+        'ai_conversations','signatures','tenders','tender_offers',
+        'equipment_locations','custom_roles',
+      ];
+
+      let restored = 0;
+      let skipped  = 0;
+
+      allTables.forEach(t => {
+        if (data[t] && Array.isArray(data[t])) {
+          // تأكد أن السجلات تنتمي للمستخدم الحالي أو بدون tenant_id
+          const safe = data[t].filter(r =>
+            !r.tenant_id || Number(r.tenant_id) === Number(tid) ||
+            // إذا كانت نسخة قديمة قد تختلف tenant_id — نُعيد تعيينه
+            Number(data._meta?.tenant_id) === Number(r.tenant_id)
+          ).map(r => ({
+            ...r,
+            tenant_id: r.tenant_id ? tid : r.tenant_id // نُعيد تعيين tenant_id للحالي
+          }));
+          DB.setSilent ? DB.setSilent(t, safe) : DB.set(t, safe);
+          restored += safe.length;
+        } else {
+          skipped++;
+        }
+      });
+
+      // استعادة بيانات المؤسسة إن وُجدت
+      if (data._tenant && typeof DB !== 'undefined') {
+        const tenants = DB.get('tenants') || [];
+        const idx = tenants.findIndex(t => t.id === tid);
+        if (idx >= 0) {
+          // تحديث فقط — لا نغيّر الـ id
+          const restored_tenant = { ...tenants[idx], ...data._tenant, id: tid };
+          tenants[idx] = restored_tenant;
+          DB.setSilent ? DB.setSilent('tenants', tenants) : DB.set('tenants', tenants);
+        }
+      }
+
+      Toast.success(L(
+        `✅ تمت الاستعادة — ${restored} سجل من ${allTables.length - skipped} جدول`,
+        `✅ Restauré — ${restored} enregistrements`
+      ));
+      setTimeout(() => {
+        location.reload(); // إعادة تحميل كاملة للتأكد من تطبيق كل البيانات
+      }, 1500);
+
+    } catch(err) {
+      Toast.error(L('❌ خطأ في الاستعادة: ' + err.message, '❌ Erreur: ' + err.message));
+    }
+  };
+
+  reader.onerror = () => Toast.error(L('❌ فشل قراءة الملف','❌ Erreur lecture fichier'));
+  reader.readAsText(file, 'utf-8');
+  input.value = ''; // إعادة تعيين input للسماح بإعادة رفع نفس الملف
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ④ EMAIL NOTIFICATIONS — إشعارات بريد تلقائية
+// ════════════════════════════════════════════════════════════════════
+const SmartNotify = {
+  // فحص الفواتير المتأخرة وإرسال تذكير
+  checkOverdueInvoices() {
+    if (typeof EMAILJS === 'undefined') return;
+    const tid = Auth.getUser()?.tenant_id;
+    const tenant = Auth.getTenant();
+    if (!tid || !tenant) return;
+    const today = new Date().toISOString().split('T')[0];
+    const overdue = (DB.get('invoices')||[]).filter(i =>
+      i.tenant_id===tid && i.status!=='paid' && i.due_date && i.due_date<today
+    );
+    if (!overdue.length) return;
+    const lastKey = `sbtp_notif_overdue_${tid}_${today}`;
+    if (localStorage.getItem(lastKey)) return;
+    localStorage.setItem(lastKey, '1');
+    const msg = overdue.map(i=>`${i.number} — ${i.client} — ${fmt(i.total_ttc||i.amount||0)} DA`).join('\n');
+    EMAILJS.sendNotification({
+      subject: `SmartStruct — ${overdue.length} ${L('فاتورة متأخرة','facture(s) en retard')}`,
+      body: `${L('الفواتير المتأخرة:','Factures en retard:')}\n\n${msg}`,
+      to_name: Auth.getUser()?.full_name || tenant.name,
+    }).catch(()=>{});
+  },
+
+  // فحص الصيانة القادمة للمعدات
+  checkEquipmentMaintenance() {
+    if (typeof EMAILJS === 'undefined') return;
+    const tid = Auth.getUser()?.tenant_id;
+    const tenant = Auth.getTenant();
+    if (!tid || !tenant) return;
+    const today = new Date();
+    const soon  = new Date(); soon.setDate(soon.getDate()+7);
+    const due = (DB.get('equipment')||[]).filter(e => {
+      if (e.tenant_id!==tid || !e.next_maintenance) return false;
+      const d = new Date(e.next_maintenance);
+      return d >= today && d <= soon;
+    });
+    if (!due.length) return;
+    const lastKey = `sbtp_notif_maint_${tid}_${today.toISOString().split('T')[0]}`;
+    if (localStorage.getItem(lastKey)) return;
+    localStorage.setItem(lastKey, '1');
+    const msg = due.map(e=>`${e.name} — ${e.next_maintenance}`).join('\n');
+    EMAILJS.sendNotification({
+      subject: `SmartStruct — ${L('صيانة معدات قادمة','Maintenance équipements à venir')}`,
+      body: `${L('معدات تحتاج صيانة خلال 7 أيام:','Équipements à maintenir dans 7 jours:')}\n\n${msg}`,
+      to_name: Auth.getUser()?.full_name || tenant.name,
+    }).catch(()=>{});
+  },
+
+  // تشغيل كل الفحوصات مرة يومياً
+  runDaily() {
+    const key = `sbtp_daily_notif_${new Date().toISOString().split('T')[0]}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    setTimeout(() => { this.checkOverdueInvoices(); }, 3000);
+    setTimeout(() => { this.checkEquipmentMaintenance(); }, 6000);
+  }
+};
+
+// تشغيل الإشعارات عند تسجيل الدخول
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => { if (Auth.getUser()) SmartNotify.runDaily(); }, 5000);
+  // معالجة عودة Chargily Pay
+  setTimeout(() => {
+    if (typeof ChargilyPayment !== 'undefined' && ChargilyPayment.handlePaymentReturn) {
+      ChargilyPayment.handlePaymentReturn();
+    }
+  }, 500);
+});
+
+// ── 🛡️ حماية البيانات عند إغلاق النافذة ──
+window.addEventListener('beforeunload', function(e) {
+  // فقط إذا كان المستخدم مسجلاً دخوله
+  if (!Auth.getUser()) return;
+
+  const pending = _getPendingCount();
+  if (pending > 0) {
+    // رسالة المتصفح القياسية (لا يمكن تخصيصها في المتصفحات الحديثة)
+    const msg = L(
+      `لديك ${pending} تعديل لم يُرفع بعد — هل تريد المغادرة؟`,
+      `Vous avez ${pending} modification(s) non synchronisée(s) — Quitter?`
+    );
+    e.preventDefault();
+    e.returnValue = msg;
+
+    // محاولة رفع في الخلفية قبل الإغلاق (best effort)
+    try {
+      if (typeof SmartRealtime !== 'undefined' && SmartRealtime._flushOfflineQueue) {
+        SmartRealtime._flushOfflineQueue().catch(() => {});
+      }
+    } catch {}
+
+    return msg;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+//  ⑤ MOBILE MODE — وضع الميدان (5 أزرار كبيرة)
+// ════════════════════════════════════════════════════════════════════
+function showMobileMode() {
+  const existing = document.getElementById('mobileModeOverlay');
+  if (existing) { existing.remove(); return; }
+  const overlay = document.createElement('div');
+  overlay.id = 'mobileModeOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;background:#09120A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem';
+  const btns = [
+    { icon:'👷', label:L('الحضور','Pointage'),    page:'attendance', color:'#34C38F' },
+    { icon:'🏗️', label:L('المشاريع','Projets'),   page:'projects',   color:'#4A90E2' },
+    { icon:'💵', label:L('الرواتب','Salaires'),    page:'salary',     color:'#E8B84B' },
+    { icon:'📦', label:L('المخزون','Stock'),        page:'materials',  color:'#9B6DFF' },
+    { icon:'📄', label:L('الوثائق','Documents'),    page:'dz_documents', color:'#F04E6A' },
+  ];
+  overlay.innerHTML = `
+    <div style="font-size:.85rem;color:rgba(232,184,75,.7);font-weight:700;letter-spacing:.5px;margin-bottom:.5rem">📱 ${L('وضع الميدان','Mode Terrain')}</div>
+    ${btns.map(b=>`
+      <button onclick="document.getElementById('mobileModeOverlay').remove();App.navigate('${b.page}')"
+        style="width:100%;max-width:320px;padding:1.2rem;background:${b.color}18;border:2px solid ${b.color}44;border-radius:16px;color:${b.color};cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:1rem;font-size:1.1rem;font-weight:800;transition:all .15s"
+        onmouseover="this.style.background='${b.color}30'" onmouseout="this.style.background='${b.color}18'">
+        <span style="font-size:2rem">${b.icon}</span>
+        <span>${b.label}</span>
+        <span style="margin-right:auto;font-size:1.2rem">→</span>
+      </button>`).join('')}
+    <button onclick="document.getElementById('mobileModeOverlay').remove()" 
+      style="margin-top:.5rem;padding:.6rem 2rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:rgba(255,255,255,.5);cursor:pointer;font-family:inherit;font-size:.85rem">
+      ${L('إغلاق','Fermer')} ✕
+    </button>`;
+  document.body.appendChild(overlay);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ⑥ GPS ATTENDANCE — تسجيل الحضور مع الموقع
+// ════════════════════════════════════════════════════════════════════
+function getGPSLocation(callback) {
+  if (!navigator.geolocation) {
+    Toast.warn(L('جهازك لا يدعم GPS','GPS non supporté'));
+    callback(null);
+    return;
+  }
+  Toast.info(L('⏳ جاري تحديد موقعك...','⏳ Localisation en cours...'));
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const coords = { lat: pos.coords.latitude.toFixed(5), lng: pos.coords.longitude.toFixed(5), accuracy: Math.round(pos.coords.accuracy) };
+      Toast.success(L(`📍 تم تحديد الموقع (±${coords.accuracy}م)`, `📍 Position obtenue (±${coords.accuracy}m)`));
+      callback(coords);
+    },
+    err => {
+      Toast.warn(L('❌ تعذّر تحديد الموقع — ' + err.message, '❌ Localisation échouée — ' + err.message));
+      callback(null);
+    },
+    { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+  );
+}
+
+function saveAttWithGPS(wid, date, status) {
+  getGPSLocation(coords => {
+    const att = DB.get('attendance') || [];
+    const tid = Auth.getUser().tenant_id;
+    const existing = att.find(a => a.worker_id===wid && a.date===date);
+    if (existing) {
+      existing.status = status;
+      if (coords) existing.gps = coords;
+    } else {
+      att.push({ id: DB.nextId('attendance'), tenant_id: tid, worker_id: wid, date, status, gps: coords||null });
+    }
+    DB.set('attendance', att);
+    Toast.success(L('✅ تم تسجيل الحضور مع الموقع','✅ Pointage avec GPS enregistré'));
+    App.navigate('attendance');
+  });
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+//  إرسال إشعار لمستخدم أو مؤسسة (تُستخدم من الأدمن)
+// ════════════════════════════════════════════════════════════════════
+function sendNotification({ title, message, type='info', tenant_id=null, user_id=null, link=null }) {
+  const notifs = DB.get('notifications') || [];
+  const n = {
+    id:         DB.nextId('notifications'),
+    title:      title || '',
+    message:    message || '',
+    type:       type,
+    tenant_id:  tenant_id,
+    user_id:    user_id,
+    link:       link,
+    created_at: new Date().toISOString(),
+    read:       false,
+  };
+  notifs.push(n);
+  DB.set('notifications', notifs);
+  // مزامنة مع Supabase
+  if (typeof sbSync === 'function') sbSync('notifications', n, 'POST').catch(()=>{});
+  return n;
+}
+
+// إشعار عام لكل مستخدمي مؤسسة معينة
+function notifyTenant(tenantId, { title, message, type='info', link=null }) {
+  return sendNotification({ title, message, type, tenant_id: tenantId, link });
+}
+
+// إشعار فوري في نفس الجلسة (Toast مباشر + حفظ)
+function notifyNow(msg, type='info', duration) {
+  Toast.show(msg, type, duration);
+  const user = Auth.getUser();
+  if (user) sendNotification({ message: msg, type, tenant_id: user.tenant_id, user_id: user.id });
+}
+
+window.sendNotification = sendNotification;
+window.notifyTenant     = notifyTenant;
+window.notifyNow        = notifyNow;
+window.NotificationWatcher = NotificationWatcher;
+
+// ════════════════════════════════════════════════════════════════════
+//  مزامنة يدوية فورية — يضغطها المستخدم من syncPill
+// ════════════════════════════════════════════════════════════════════
+async function manualSyncNow() {
+  if (typeof DB === 'undefined') return;
+  if (!DB._useSupabase) {
+    Toast.warn(L('Supabase غير مُهيَّأ — اتصل بالمسؤول','Supabase non configuré'));
+    return;
+  }
+  if (!navigator.onLine) {
+    Toast.warn(L('📵 لا يوجد اتصال بالإنترنت','📵 Pas de connexion'));
+    return;
+  }
+  Toast.info(L('⏳ جاري المزامنة مع السحابة...','⏳ Synchronisation en cours...'), 3000);
+  updateSyncPill('syncing');
+  try {
+    await DB._initialSync();
+    updateSyncPill('synced');
+    Toast.success(L('✅ تمت المزامنة بنجاح','✅ Synchronisation réussie'));
+    // أعد رسم الصفحة الحالية
+    setTimeout(() => { if (App.currentPage) App.render(); }, 300);
+  } catch(e) {
+    updateSyncPill('error');
+    Toast.error(L('❌ فشلت المزامنة: ','❌ Échec sync: ') + e.message);
+  }
+}
+window.manualSyncNow = manualSyncNow;
+
+// ════════════════════════════════════════════════════════════════════
+//  Pending Queue Dropdown — قائمة العمليات المعلقة الاحترافية
+//  يعرض كل عملية بالتفصيل + إمكانية حذف/إعادة لكل عملية لوحدها
+// ════════════════════════════════════════════════════════════════════
+
+function showPendingQueue() {
+  // Toggle: إغلاق القائمة إذا كانت مفتوحة
+  const existing = document.getElementById('pendingQueueDropdown');
+  if (existing) { existing.remove(); return; }
+
+  const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
+
+  // قراءة الـ queue
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+
+  // إضافة فهرس لكل عملية للتمكن من حذفها فرديًا
+  queue.forEach((op, i) => { op._idx = i; });
+
+  // ─── حالة الاتصال ───
+  const isOnline = navigator.onLine;
+  const supabaseOk = typeof DB !== 'undefined' && DB._useSupabase;
+  const canSync = isOnline && supabaseOk;
+
+  const stateColor = !isOnline ? '#888' : (!supabaseOk ? '#F04E6A' : '#34C38F');
+  const stateIcon  = !isOnline ? '📵' : (!supabaseOk ? '⚠️' : '✅');
+  const stateText  = !isOnline ? (isAr?'غير متصل بالإنترنت':'Hors ligne')
+                   : !supabaseOk ? (isAr?'Supabase معطل':'Supabase déconnecté')
+                   : (isAr?'متصل ومستعد':'Connecté & prêt');
+
+  // ─── بناء الـ dropdown ───
+  const dropdown = document.createElement('div');
+  dropdown.id = 'pendingQueueDropdown';
+  dropdown.style.cssText = `
+    position: fixed;
+    top: 56px;
+    ${isAr ? 'left:' : 'right:'} 16px;
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 80px);
+    background: #131c26;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 14px;
+    box-shadow: 0 16px 50px rgba(0,0,0,.7);
+    z-index: 99998;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: fadeInDown .2s ease-out;
+    color: #e8e8e8;
+  `;
+
+  // عرض القائمة مع التحديث الذكي
+  dropdown.innerHTML = renderPendingQueueContent(queue, isAr, canSync, isOnline, supabaseOk, stateColor, stateIcon, stateText);
+
+  document.body.appendChild(dropdown);
+
+  // إغلاق عند النقر خارج القائمة
+  setTimeout(() => {
+    function closeHandler(e) {
+      const dd = document.getElementById('pendingQueueDropdown');
+      const pill = document.getElementById('syncPill');
+      if (dd && !dd.contains(e.target) && !pill?.contains(e.target)) {
+        dd.remove();
+        document.removeEventListener('click', closeHandler);
+      }
+    }
+    document.addEventListener('click', closeHandler);
+  }, 100);
+}
+
+// ─── محتوى القائمة (يُعاد رسمه بعد كل تغيير) ───
+function renderPendingQueueContent(queue, isAr, canSync, isOnline, supabaseOk, stateColor, stateIcon, stateText) {
+  const tableLabels = {
+    projects:       isAr ? '🏗️ مشاريع'        : '🏗️ Projets',
+    workers:        isAr ? '👷 عمال'           : '👷 Ouvriers',
+    equipment:      isAr ? '🚜 معدات'          : '🚜 Équipements',
+    equipment_logs: isAr ? '📋 سجل صيانة'      : '📋 Log équip.',
+    transactions:   isAr ? '💰 معاملة مالية'   : '💰 Transaction',
+    attendance:     isAr ? '📅 حضور'           : '📅 Pointage',
+    materials:      isAr ? '📦 مواد'           : '📦 Matériaux',
+    invoices:       isAr ? '🧾 فاتورة'         : '🧾 Facture',
+    salary_records: isAr ? '💵 راتب'           : '💵 Salaire',
+    documents:      isAr ? '📄 وثيقة'          : '📄 Document',
+    notifications:  isAr ? '🔔 إشعار'          : '🔔 Notification',
+    kanban_tasks:   isAr ? '📋 مهمة'           : '📋 Tâche',
+    obligations:    isAr ? '📌 التزام'         : '📌 Obligation',
+    stock_movements:isAr ? '📊 حركة مخزون'     : '📊 Mvt stock',
+    tenants:        isAr ? '🏢 مؤسسة'          : '🏢 Société',
+    users:          isAr ? '👤 مستخدم'         : '👤 Utilisateur',
+    notes:          isAr ? '📝 ملاحظة'         : '📝 Note',
+    custom_roles:   isAr ? '🔐 دور'            : '🔐 Rôle',
+    audit_log:      isAr ? '📜 سجل تدقيق'      : '📜 Audit',
+  };
+
+  const methodInfo = {
+    POST:   { ar: 'إضافة',  fr: 'Ajout',     color: '#34C38F', icon: '➕' },
+    PATCH:  { ar: 'تعديل',  fr: 'Modif.',    color: '#4A90E2', icon: '✏️' },
+    DELETE: { ar: 'حذف',    fr: 'Suppr.',    color: '#F04E6A', icon: '🗑️' },
+  };
+
+  return `
+    <!-- ═════ رأس ═════ -->
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:.92rem;color:#fff">${isAr?'🔄 العمليات المعلقة':'🔄 File d\'attente'}</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:.7rem;color:${stateColor};margin-top:3px;font-weight:600">
+          <span>${stateIcon}</span><span>${stateText}</span>
+        </div>
+      </div>
+      <button onclick="document.getElementById('pendingQueueDropdown')?.remove()" 
+        style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#999;cursor:pointer;font-size:1rem;padding:4px 10px;border-radius:8px">✕</button>
+    </div>
+
+    ${queue.length === 0 ? `
+      <!-- لا توجد عمليات -->
+      <div style="padding:40px 24px;text-align:center">
+        <div style="font-size:3rem;margin-bottom:10px">✅</div>
+        <div style="font-weight:700;color:#34C38F;font-size:.95rem;margin-bottom:6px">${isAr?'كل البيانات متزامنة':'Tout est synchronisé'}</div>
+        <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:16px">${isAr?'لا توجد عمليات معلقة حالياً. أي تغيير جديد سيُرفع تلقائياً للسحابة.':'Aucune opération en attente. Tout futur changement sera synchronisé automatiquement.'}</div>
+        <button onclick="manualSyncNow();document.getElementById('pendingQueueDropdown')?.remove()"
+          style="padding:8px 20px;background:#4A90E2;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem">
+          🔄 ${isAr?'تحديث / مزامنة الآن':'Actualiser / Synchroniser'}
+        </button>
+      </div>
+    ` : `
+      <!-- ═════ شريط الإحصائيات ═════ -->
+      <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(232,184,75,.06);display:flex;align-items:center;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:.85rem;color:#E8B84B;font-weight:800">
+            ⏳ ${queue.length} ${isAr?'عملية معلقة':'opération(s)'}
+          </div>
+          <div style="font-size:.7rem;color:#999;margin-top:2px">${isAr?'ستُرفع تلقائياً عند الاتصال':'S\'enverra automatiquement'}</div>
+        </div>
+        <button onclick="forceUploadAllPending()" ${!canSync?'disabled':''}
+          style="padding:6px 14px;background:${canSync?'#E8B84B':'rgba(255,255,255,.08)'};color:${canSync?'#1a1a1a':'#666'};border:none;border-radius:8px;cursor:${canSync?'pointer':'not-allowed'};font-weight:800;font-size:.75rem;white-space:nowrap;opacity:${canSync?1:.5}">
+          ⚡ ${isAr?'رفع الكل':'Envoyer tout'}
+        </button>
+        <button onclick="clearAllPending()"
+          style="padding:6px 12px;background:rgba(240,78,106,.12);color:#F04E6A;border:1px solid rgba(240,78,106,.3);border-radius:8px;cursor:pointer;font-weight:800;font-size:.75rem;white-space:nowrap">
+          🗑️ ${isAr?'مسح الكل':'Tout supprimer'}
+        </button>
+      </div>
+
+      <!-- ═════ قائمة العمليات التفصيلية ═════ -->
+      <div id="pendingQueueList" style="flex:1;overflow-y:auto;background:rgba(0,0,0,.15)">
+        ${queue.slice().reverse().map((op) => {
+          const idx = op._idx;
+          const tLabel = tableLabels[op.table] || op.table;
+          const mInfo = methodInfo[op.method] || { ar:op.method, fr:op.method, color:'#888', icon:'•' };
+          const recId = op.record?.id || '—';
+          // تفاصيل السجل (الحقول المهمة فقط)
+          const r = op.record || {};
+          const previewKeys = ['name','full_name','title','number','description','amount','total','date'];
+          const previews = [];
+          for (const k of previewKeys) {
+            if (r[k] !== undefined && r[k] !== null && r[k] !== '') {
+              const v = String(r[k]).slice(0, 40);
+              previews.push(`<span style="color:#999">${k}:</span> <span style="color:#ddd">${escHtml(v)}</span>`);
+              if (previews.length >= 2) break;
+            }
+          }
+          const timeAgo = op.time ? formatTimeAgo(op.time, isAr) : '';
+
+          return `
+          <div data-pending-idx="${idx}" style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:10px;align-items:flex-start;transition:background .15s"
+            onmouseover="this.style.background='rgba(255,255,255,.03)'"
+            onmouseout="this.style.background='transparent'">
+            
+            <!-- نوع العملية (POST/PATCH/DELETE) -->
+            <div style="flex-shrink:0;width:42px;text-align:center">
+              <div style="font-size:1.1rem;line-height:1">${mInfo.icon}</div>
+              <div style="font-size:.6rem;font-weight:800;color:${mInfo.color};margin-top:2px;text-transform:uppercase">${isAr?mInfo.ar:mInfo.fr}</div>
+            </div>
+
+            <!-- التفاصيل -->
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-weight:700;font-size:.82rem;color:#fff">${tLabel}</span>
+                <span style="font-size:.65rem;color:#666;background:rgba(255,255,255,.05);padding:1px 6px;border-radius:4px;font-family:monospace">#${recId}</span>
+                ${timeAgo ? `<span style="font-size:.65rem;color:#888">⏰ ${timeAgo}</span>` : ''}
+              </div>
+              ${previews.length ? `<div style="font-size:.7rem;margin-top:4px;color:#aaa;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${previews.join('  •  ')}</div>` : ''}
+            </div>
+
+            <!-- أزرار الفعل -->
+            <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+              <button onclick="retryPendingItem(${idx})" ${!canSync?'disabled':''} title="${isAr?'رفع الآن':'Envoyer maintenant'}"
+                style="background:${canSync?'rgba(52,195,143,.15)':'rgba(255,255,255,.05)'};border:1px solid ${canSync?'rgba(52,195,143,.35)':'rgba(255,255,255,.1)'};color:${canSync?'#34C38F':'#666'};padding:4px 8px;border-radius:6px;cursor:${canSync?'pointer':'not-allowed'};font-size:.7rem;font-weight:700;white-space:nowrap;opacity:${canSync?1:.5}">⚡</button>
+              <button onclick="removePendingItem(${idx})" title="${isAr?'حذف هذه العملية':'Supprimer cette opération'}"
+                style="background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);color:#F04E6A;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.7rem;font-weight:700">🗑️</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- ═════ تذييل ═════ -->
+      <div style="padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);font-size:.65rem;color:#666;text-align:center">
+        💡 ${isAr?'انقر ⚡ لرفع عملية واحدة | 🗑️ لحذفها':'⚡ envoyer une opération | 🗑️ la supprimer'}
+      </div>
+    `}
+  `;
+}
+
+// ─── تنسيق الوقت "منذ كذا" ───
+function formatTimeAgo(timestamp, isAr) {
+  const diff = Date.now() - timestamp;
+  const min = Math.floor(diff / 60000);
+  const hr  = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+  if (day > 0) return isAr ? `منذ ${day} ${day===1?'يوم':'أيام'}` : `il y a ${day}j`;
+  if (hr  > 0) return isAr ? `منذ ${hr} ${hr===1?'ساعة':'ساعات'}` : `il y a ${hr}h`;
+  if (min > 0) return isAr ? `منذ ${min} د` : `il y a ${min}min`;
+  return isAr ? 'الآن' : 'À l\'instant';
+}
+
+// ─── إعادة رسم القائمة (بعد كل تغيير) ───
+function refreshPendingQueueUI() {
+  const dd = document.getElementById('pendingQueueDropdown');
+  if (!dd) return;
+  const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+  queue.forEach((op, i) => { op._idx = i; });
+  const isOnline = navigator.onLine;
+  const supabaseOk = typeof DB !== 'undefined' && DB._useSupabase;
+  const canSync = isOnline && supabaseOk;
+  const stateColor = !isOnline ? '#888' : (!supabaseOk ? '#F04E6A' : '#34C38F');
+  const stateIcon  = !isOnline ? '📵' : (!supabaseOk ? '⚠️' : '✅');
+  const stateText  = !isOnline ? (isAr?'غير متصل':'Hors ligne')
+                   : !supabaseOk ? (isAr?'Supabase معطل':'Supabase déconnecté')
+                   : (isAr?'متصل':'Connecté');
+  dd.innerHTML = renderPendingQueueContent(queue, isAr, canSync, isOnline, supabaseOk, stateColor, stateIcon, stateText);
+}
+
+// ─── حذف عملية واحدة ───
+function removePendingItem(idx) {
+  if (typeof idx !== 'number') return;
+  try {
+    const q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
+    if (idx < 0 || idx >= q.length) return;
+    const removed = q.splice(idx, 1)[0];
+    localStorage.setItem('sbtp5_offline_queue', JSON.stringify(q));
+    Toast.info(L('🗑️ تم حذف العملية المعلقة','🗑️ Opération supprimée'));
+    refreshPendingQueueUI();
+    if (typeof updateSyncPill === 'function') {
+      const c = q.length;
+      updateSyncPill(c > 0 ? 'pending' : 'synced', c > 0 ? (L(`${c} عملية معلقة`,`${c} en attente`)) : '');
+    }
+  } catch(e) { Toast.error(L('فشل الحذف','Échec')); }
+}
+
+// ─── إعادة محاولة رفع عملية واحدة ───
+async function retryPendingItem(idx) {
+  if (typeof idx !== 'number') return;
+  if (!navigator.onLine || !DB._useSupabase) {
+    Toast.error(L('📵 لا يوجد اتصال','📵 Pas de connexion'));
+    return;
+  }
+  try {
+    const q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]');
+    if (idx < 0 || idx >= q.length) return;
+    const op = q[idx];
+    Toast.info(L('⏳ جاري رفع العملية...','⏳ Envoi en cours...'), 2000);
+    try {
+      await DB._pushToSupabase(op.table, op.record, op.method, { fromQueue: true });
+      // نجح → احذف من الـ queue
+      q.splice(idx, 1);
+      localStorage.setItem('sbtp5_offline_queue', JSON.stringify(q));
+      Toast.success(L('✅ تم رفع العملية بنجاح','✅ Opération envoyée'));
+      refreshPendingQueueUI();
+      if (typeof updateSyncPill === 'function') {
+        const c = q.length;
+        updateSyncPill(c > 0 ? 'pending' : 'synced', c > 0 ? (L(`${c} عملية معلقة`,`${c} en attente`)) : '');
+      }
+    } catch(err) {
+      Toast.error(L('❌ فشل الرفع: ','❌ Échec: ') + err.message);
+    }
+  } catch(e) {
+    Toast.error(L('خطأ: ','Erreur: ') + e.message);
+  }
+}
+
+// ─── رفع كل العمليات ───
+async function forceUploadAllPending() {
+  if (!navigator.onLine || !DB._useSupabase) {
+    Toast.error(L('📵 لا يوجد اتصال','📵 Pas de connexion'));
+    return;
+  }
+  let q = [];
+  try { q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+  if (!q.length) { Toast.info(L('لا توجد عمليات','Aucune opération')); return; }
+
+  const total = q.length;
+  Toast.info(L(`⚡ جاري رفع ${total} عملية...`, `⚡ Envoi de ${total} opération(s)...`), 4000);
+  updateSyncPill('syncing');
+
+  try {
+    await DB._flushOfflineQueue();
+    const remaining = DB.getOfflineQueueCount?.() || 0;
+    const succeeded = total - remaining;
+    if (remaining === 0) {
+      updateSyncPill('synced');
+      Toast.success(L(`✅ تم رفع كل العمليات (${succeeded})`, `✅ Toutes envoyées (${succeeded})`));
+    } else {
+      updateSyncPill('pending', `${remaining}`);
+      Toast.warn(L(`⚠️ نجح ${succeeded} / متبقي ${remaining}`, `⚠️ Réussies ${succeeded} / Restantes ${remaining}`));
+    }
+    refreshPendingQueueUI();
+  } catch(e) {
+    Toast.error(L('❌ خطأ: ','❌ Erreur: ') + e.message);
+  }
+}
+
+// ─── مسح كل العمليات (بعد تأكيد مزدوج) ───
+function clearAllPending() {
+  let q = [];
+  try { q = JSON.parse(localStorage.getItem('sbtp5_offline_queue') || '[]'); } catch(_) {}
+  if (!q.length) { Toast.info(L('لا توجد عمليات','Aucune')); return; }
+
+  if (!confirm(L(
+    `⚠️ مسح كل العمليات المعلقة (${q.length})؟\n\nالتغييرات لن تُرفع للسحابة.\nالبيانات المحفوظة محلياً تبقى آمنة.\n\nاضغط موافق للمتابعة.`,
+    `⚠️ Supprimer toutes les opérations en attente (${q.length})?\n\nLes modifications ne seront pas synchronisées.\nLes données locales restent intactes.`
+  ))) return;
+
+  try {
+    localStorage.removeItem('sbtp5_offline_queue');
+    Toast.success(L(`✅ تم مسح ${q.length} عملية`, `✅ ${q.length} opérations supprimées`));
+    updateSyncPill('synced');
+    refreshPendingQueueUI();
+  } catch(e) {
+    Toast.error(L('فشل المسح','Échec'));
+  }
+}
+
+// تسجيل كل الدوال الحيوية في window
+window.showPendingQueue      = showPendingQueue;
+window.refreshPendingQueueUI = refreshPendingQueueUI;
+window.removePendingItem     = removePendingItem;
+window.retryPendingItem      = retryPendingItem;
+window.forceUploadAllPending = forceUploadAllPending;
+window.clearAllPending       = clearAllPending;
+window.manualSyncNow         = manualSyncNow;
+window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
+window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.classList.remove('show'); };
+console.log('✅ SmartStruct: كل الدوال الحيوية مُسجَّلة في window');
 

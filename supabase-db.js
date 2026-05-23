@@ -95,21 +95,22 @@ const SUPABASE_CONFIG = {
 ══════════════════════════════════════════════════════ */
 const _SB_SCHEMA_INTERNAL = {
   plans:          ['id','slug','name','price_monthly','price','max_projects','max_workers','max_equipment','max_emails','created_at'],
-  tenants:        ['id','name','plan_id','wilaya','address','phone','email','nif','nis','rc_number','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
-  users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login','created_at','updated_at'],
-  projects:       ['id','tenant_id','name','project_type','wilaya','client_name','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at','updated_at'],
-  workers:        ['id','tenant_id','project_id','full_name','role','phone','national_id','daily_salary','monthly_base','contract_type','hire_date','color','avatar_color','is_active','created_at'],
-  equipment:      ['id','tenant_id','project_id','name','model','plate_number','icon','status','purchase_price','notes','created_at'],
+  tenants:        ['id','name','name_fr','plan_id','wilaya','address','phone','email','nif','nis','rc_number','article_imp','rib','tva_rate','subscription_status','trial_start','trial_end','is_active','logo_url','stamp_url','bank_account','bank_name','created_at','updated_at'],
+  users:          ['id','tenant_id','full_name','email','password','role','is_admin','is_active','account_status','avatar_color','last_login','gdrive_connected','created_at','updated_at'],
+  projects:       ['id','tenant_id','name','project_type','wilaya','client_name','client_name_fr','phone','budget','total_spent','progress','status','color','phase','description','start_date','end_date','is_archived','created_at','updated_at'],
+  workers:        ['id','tenant_id','project_id','full_name','full_name_fr','role','phone','national_id','cnas_number','daily_salary','monthly_base','contract_type','hire_date','color','avatar_color','marital_status','children_count','spouse_works','is_handicap','is_active','created_at'],
+  equipment:      ['id','tenant_id','project_id','name','model','type','serial','plate_number','icon','status','purchase_price','purchase_date','next_maintenance','insurance_expiry','notes','created_at'],
+  equipment_logs: ['id','tenant_id','equipment_id','type','date','cost','note','vendor','next_maintenance','created_at'],
   transactions:   ['id','tenant_id','project_id','worker_id','type','category','amount','description','date','payment_method','supplier','created_at'],
-  attendance:     ['id','tenant_id','worker_id','project_id','date','status','hours','note','created_at'],
+  attendance:     ['id','tenant_id','worker_id','project_id','date','status','hours','note','gps','created_at'],
   materials:      ['id','tenant_id','project_id','name','unit','quantity','min_quantity','unit_price','supplier','created_at'],
   invoices:       ['id','tenant_id','project_id','number','client','amount','amount_ht','tva_amount','tva_rate','date','due_date','status','paid_date','description','payment_method','created_at'],
   salary_records: ['id','tenant_id','worker_id','month_key','amount','paid_date','created_at'],
   kanban_tasks:   ['id','tenant_id','project_id','title','priority','assignee_id','due_date','col','created_at'],
-  documents:      ['id','tenant_id','project_id','name','category','type','url','size','date','uploader_id','created_at'],
+  documents:      ['id','tenant_id','project_id','worker_id','name','category','type','url','size','date','uploader_id','meta_data','doc_kind','doc_number','created_at'],
   obligations:    ['id','tenant_id','title','amount','due','created_at'],
   notes:          ['id','tenant_id','project_id','user_id','text','date','created_at'],
-  notifications:  ['id','tenant_id','user_id','type','title','body','date','read','status','created_at'],
+  notifications:  ['id','tenant_id','user_id','type','title','body','message','link','action_url','date','read','status','created_at'],
   global_settings:['key','value','updated_at'],
   stock_movements:['id','tenant_id','material_id','type','quantity','date','note','created_at'],
   audit_log:           ['id','tenant_id','user_id','user_email','action','table_name','record_id','before_data','after_data','ip_address','user_agent','created_at'],
@@ -127,6 +128,8 @@ const _SB_DATE_FIELDS_INTERNAL = {
   projects:       ['start_date','end_date'],
   tenants:        ['trial_start','trial_end'],
   workers:        ['hire_date'],
+  equipment:      ['purchase_date','next_maintenance','insurance_expiry'],
+  equipment_logs: ['date','next_maintenance'],
   transactions:   ['date'],
   attendance:     ['date'],
   invoices:       ['date','due_date','paid_date'],
@@ -145,8 +148,9 @@ const _SB_NUM_FIELDS_INTERNAL = {
   plans:          ['price_monthly','price','max_projects','max_workers','max_equipment','max_emails'],
   tenants:        ['tva_rate'],
   projects:       ['budget','total_spent','progress'],
-  workers:        ['daily_salary','monthly_base'],
+  workers:        ['daily_salary','monthly_base','children_count','spouse_works','is_handicap'],
   equipment:      ['purchase_price'],
+  equipment_logs: ['cost'],
   transactions:   ['amount'],
   materials:      ['quantity','min_quantity','unit_price'],
   invoices:       ['amount','amount_ht','tva_amount','tva_rate'],
@@ -162,7 +166,7 @@ const _SB_NUM_FIELDS_INTERNAL = {
 
 // IDs الاختيارية (تقبل null) — لا تشمل id (المفتاح الأساسي)
 const _NULLABLE_IDS_INTERNAL = new Set([
-  'project_id','worker_id','material_id','user_id',
+  'project_id','worker_id','material_id','user_id','equipment_id','document_id','tender_id',
   'plan_id','uploader_id','assignee_id','tenant_id'
 ]);
 
@@ -290,12 +294,13 @@ const SupabaseClient = {
 
   // SELECT
   async select(table, filters = {}, opts = {}) {
-    let params = 'order=id.asc';
+    // global_settings مفتاحها 'key' وليس 'id'
+    const pkCol = (table === 'global_settings') ? 'key' : 'id';
+    let params = `order=${pkCol}.asc`;
     for (const [k, v] of Object.entries(filters)) {
       if (v !== undefined && v !== null)
         params += `&${k}=eq.${encodeURIComponent(v)}`;
     }
-    if (opts.order) params += `&order=${opts.order}`;
     if (opts.limit) params += `&limit=${opts.limit}`;
     return this._request('GET', table, null, params);
   },
@@ -308,20 +313,117 @@ const SupabaseClient = {
   },
 
   // UPSERT (merge-duplicates)
-  async upsert(table, data) {
+  // ✅ كاش للأعمدة المفقودة في Supabase (يُكتشف تلقائياً من رسائل الخطأ)
+  _missingColumns: {}, // { 'tenants': Set('name_fr'), 'users': Set('gdrive_connected') }
+
+  _stripMissingColumns(table, data) {
+    const missing = this._missingColumns[table];
+    if (!missing || !missing.size) return data;
+    if (Array.isArray(data)) {
+      return data.map(r => {
+        const c = { ...r };
+        missing.forEach(col => delete c[col]);
+        return c;
+      });
+    }
+    const c = { ...data };
+    missing.forEach(col => delete c[col]);
+    return c;
+  },
+
+  _detectMissingColumn(errorText, table) {
+    // PGRST204: "Could not find the 'XYZ' column of 'table' in the schema cache"
+    const m = errorText.match(/Could not find the '([^']+)' column/i);
+    if (m) {
+      if (!this._missingColumns[table]) this._missingColumns[table] = new Set();
+      this._missingColumns[table].add(m[1]);
+      console.warn(`🧹 ${table}: عمود مفقود "${m[1]}" — سيُحذف من العمليات التالية`);
+      return m[1];
+    }
+    return null;
+  },
+
+  async upsert(table, data, _retryCount = 0) {
     const url = `${this._url}/rest/v1/${table}`;
+    let cleanData = this._stripMissingColumns(table, data);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this._timeout);
     try {
       const resp = await fetch(url, {
         method: 'POST',
         headers: this.headers({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
-        body: JSON.stringify(data),
+        body: JSON.stringify(cleanData),
         signal: controller.signal
       });
       const text = await resp.text();
-      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      if (!resp.ok) {
+        // ① عمود مفقود → أعد المحاولة بدونه
+        const missingCol = this._detectMissingColumn(text, table);
+        if (missingCol && _retryCount < 5) {
+          clearTimeout(timer);
+          return this.upsert(table, data, _retryCount + 1);
+        }
+        // ② FK violation (23503) → احذف الـ FK المُخلّ وأعد المحاولة
+        if (text.includes('23503') && _retryCount < 6) {
+          const fk = this._detectFKColumn(text);
+          if (fk) {
+            clearTimeout(timer);
+            const fixed = Array.isArray(data)
+              ? data.map(r => ({ ...r, [fk]: null }))
+              : { ...data, [fk]: null };
+            return this.upsert(table, fixed, _retryCount + 1);
+          }
+        }
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
       return text ? JSON.parse(text) : [];
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
+  // يكتشف عمود الـ Foreign Key المُخلّ من رسالة الخطأ
+  _detectFKColumn(errorText) {
+    // مثال: "violates foreign key constraint \"transactions_worker_id_fkey\""
+    // نريد استخراج "worker_id"
+    const m = errorText.match(/_([a-z]+_id)_fkey/i);
+    return m ? m[1] : null;
+  },
+
+  // ⚡ BATCH UPSERT — رفع مجموعة سجلات في طلب HTTP واحد (أسرع بكثير)
+  async batchUpsert(table, records, _retryCount = 0) {
+    if (!records || !records.length) return [];
+    const url = `${this._url}/rest/v1/${table}?on_conflict=id`;
+    const cleanRecords = this._stripMissingColumns(table, records);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this._timeout * 2);
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: this.headers({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(cleanRecords),
+        signal: controller.signal
+      });
+      const text = await resp.text();
+      if (!resp.ok) {
+        // ① عمود مفقود → أعد المحاولة
+        const missingCol = this._detectMissingColumn(text, table);
+        if (missingCol && _retryCount < 5) {
+          clearTimeout(timer);
+          return this.batchUpsert(table, records, _retryCount + 1);
+        }
+        // ② FK violation → احذف الـ FK المُخلّ وأعد المحاولة
+        if (text.includes('23503') && _retryCount < 6) {
+          const fk = this._detectFKColumn(text);
+          if (fk) {
+            clearTimeout(timer);
+            const fixed = records.map(r => ({ ...r, [fk]: null }));
+            return this.batchUpsert(table, fixed, _retryCount + 1);
+          }
+        }
+        throw new Error(`batchUpsert ${table}: ${text || resp.status}`);
+      }
+      return [];
     } finally {
       clearTimeout(timer);
     }
@@ -375,20 +477,18 @@ const SupabaseClient = {
     if (!this._url || !this._key) return false;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
+      const timer = setTimeout(() => controller.abort(), 8000);
       const resp = await fetch(
         `${this._url}/rest/v1/plans?select=id&limit=1`,
         { headers: this.headers(), signal: controller.signal }
       );
       clearTimeout(timer);
-      if (resp.status === 401 || resp.status === 403) {
-        console.warn('🔑 Supabase: خطأ في المصادقة (Key منتهي أو غير صحيح)');
-        return false;
-      }
+      // 502/503 = مشكلة مؤقتة في Supabase — نعتبره "متصل" لتجنب تكرار إعادة الاتصال
+      if (resp.status === 502 || resp.status === 503) return true;
+      if (resp.status === 401 || resp.status === 403) return false;
       return resp.ok;
     } catch (e) {
-      const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError';
-      if (isTimeout) console.warn('⏱️ Supabase: انتهت مهلة الاتصال');
+      // CORS أو شبكة منقطعة → false بهدوء
       return false;
     }
   }
@@ -415,7 +515,7 @@ const DBHybrid = {
   _heartbeatTimer: null,
   _reconnectTimer: null,
   _reconnectAttempts: 0,
-  _heartbeatInterval: 30000,       // ping كل 30 ثانية
+  _heartbeatInterval: 60000,       // ping كل 60 ثانية (تقليل ضغط الشبكة)
   _reconnectBaseDelay: 5000,       // 5 ثوانٍ أول محاولة
   _reconnectMaxDelay: 120000,      // أقصى دقيقتين
   _networkEventsSetup: false,
@@ -614,52 +714,54 @@ const DBHybrid = {
     this._cancelReconnect();
     this._updateConnectionBadge(true);
 
-    // مزامنة الـ offline queue أولاً (البيانات المحفوظة أثناء الانقطاع)
+    // ① مزامنة الـ offline queue (البيانات المحفوظة أثناء الانقطاع)
     setTimeout(() => this._flushOfflineQueue().catch(() => {}), 800);
-    setTimeout(() => syncToSupabase().catch(() => {}), 2000);
 
-    // ⚡ إعادة تشغيل Realtime
+    // ② مزامنة كاملة من السحابة (تسحب كل جداول المؤسسة، ليس فقط tenants/users)
+    setTimeout(async () => {
+      try {
+        await this._initialSync();
+      } catch(e) {
+        console.warn('⚠️ فشل _initialSync عند استعادة الاتصال:', e.message);
+      }
+    }, 1500);
+
+    // ③ إعادة تشغيل Realtime
     setTimeout(() => {
       const user = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
       const tid  = user && user.tenant_id ? user.tenant_id : null;
       SmartRealtime.restart(tid);
     }, 3000);
 
-    // جلب AI config من Supabase
-    setTimeout(async () => {
-      try {
-        const rows = await this._sb.select('global_settings', { key: 'global_ai_config' });
-        if (rows.length && rows[0].value) {
-          const cfg = typeof rows[0].value === 'string'
-            ? JSON.parse(rows[0].value) : rows[0].value;
-          if (cfg.apiKey) {
-            localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
-          }
-        }
-      } catch (_) {}
-
-      // جلب المستخدمين والمؤسسات الجديدة
-      try {
-        await this._pullRemoteTable('tenants', 'sbtp5_tenants');
-        await this._pullRemoteTable('users',   'sbtp5_users');
-        await this._pullRemoteTable('notifications','sbtp5_notifications');
-} catch (_) {}
-    }, 1500);
-
     if (typeof Toast !== 'undefined')
-      Toast.success('✅ عاد الاتصال بـ Supabase — جاري مزامنة البيانات...');
+      Toast.success('✅ عاد الاتصال بـ Supabase — جارٍ مزامنة البيانات...');
     this._emitSyncEvent('syncing');
   },
 
-  /** سحب جدول من Supabase ودمجه مع المحلي */
+  /** سحب جدول من Supabase مع احترام blacklist المحذوفات */
   async _pullRemoteTable(table, lsKey) {
-    const remote = await this._sb.select(table).catch(() => []);
-    if (!remote.length) return;
+    const remote = await this._sb.select(table).catch(() => null);
+    if (!remote || !Array.isArray(remote)) return;
     try {
-      const local  = JSON.parse(localStorage.getItem(lsKey) || '[]');
-      const merged = [...remote];
-      local.forEach(l => { if (!merged.find(r => r.id === l.id)) merged.push(l); });
-      localStorage.setItem(lsKey, JSON.stringify(merged));
+      // ✅ احترم blacklist المؤسسات المحذوفة محلياً
+      let filtered = remote;
+      if (table === 'tenants' || table === 'users') {
+        try {
+          const deletedIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+          if (deletedIds.length) {
+            if (table === 'tenants') {
+              filtered = remote.filter(r => !deletedIds.includes(Number(r.id)));
+            } else if (table === 'users') {
+              filtered = remote.filter(r => !deletedIds.includes(Number(r.tenant_id)));
+            }
+            const removed = remote.length - filtered.length;
+            if (removed > 0) {
+              console.log(`🛡️ _pullRemoteTable[${table}]: تجاهل ${removed} سجل محذوف محلياً`);
+            }
+          }
+        } catch(_) {}
+      }
+      localStorage.setItem(lsKey, JSON.stringify(filtered));
     } catch (_) {}
   },
 
@@ -691,11 +793,16 @@ const DBHybrid = {
     try { localStorage.setItem('sbtp5_' + key, JSON.stringify(val)); }
     catch (_) {}
 
-    // 2. إذا Supabase مُفعّل (حتى لو offline) → سجّل التغييرات للرفع الفوري أو للـ Offline Queue
+    // 2. إذا Supabase مُفعّل → رفع فوري أو حفظ في queue
     if (SUPABASE_CONFIG.isConfigured) {
-      // أطلق حدث "syncing" لتحديث الـ pill في الـ topbar
       this._emitSyncEvent('syncing');
       this._smartSync(key, val, prev);
+
+      // ✅ إذا كان Supabase متصلاً → شغّل queue بعد 500ms مباشرة
+      if (this._useSupabase && navigator.onLine) {
+        clearTimeout(this._syncTimer);
+        this._syncTimer = setTimeout(() => this._processSyncQueue(), 500);
+      }
     }
   },
 
@@ -724,10 +831,15 @@ const DBHybrid = {
    */
   _smartSync(key, newVal, prevVal) {
     const SYNCABLE = new Set([
-      'plans','tenants','users','projects','workers','equipment',
+      'plans','tenants','users','projects','workers','equipment','equipment_logs',
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
-      'notifications','global_settings','admin_notifications','stock_movements'
+      'notifications','global_settings','admin_notifications','stock_movements',
+      'custom_roles','equipment_locations','tenders','tender_offers',
+      'bank_transactions','signatures','ai_conversations',
+      'leave_requests','worker_warnings','worker_overtime',
+      'supplier_prices','supplier_obligations','supplier_purchases',
+      'suppliers','subscription_invoices'
     ]);
     if (!SYNCABLE.has(key)) return;
     if (!Array.isArray(newVal) || !Array.isArray(prevVal)) {
@@ -745,21 +857,27 @@ const DBHybrid = {
     // INSERT: موجود في الجديد وغير موجود في القديم
     for (const [id, rec] of newMap) {
       if (!prevMap.has(id)) {
-        this._pushToSupabase(key, rec, 'POST');
-        changed = true;
+        if (!this._isDuplicate(key, rec, 'POST')) {
+          this._pushToSupabase(key, rec, 'POST');
+          changed = true;
+        }
         continue;
       }
       // UPDATE: موجود في الاثنين لكن تغيّر
       const prevRec = prevMap.get(id);
       if (JSON.stringify(rec) !== JSON.stringify(prevRec)) {
-        this._pushToSupabase(key, rec, 'PATCH');
-        changed = true;
+        if (!this._isDuplicate(key, rec, 'PATCH')) {
+          this._pushToSupabase(key, rec, 'PATCH');
+          changed = true;
+        }
       }
     }
 
     // DELETE: موجود في القديم وغير موجود في الجديد
     for (const [id] of prevMap) {
       if (!newMap.has(id)) {
+        // ✅ سجّل الحذف فوراً لمنع إعادة السجل عند المزامنة
+        this._markAsDeleted(key, id);
         this._pushToSupabase(key, { id }, 'DELETE');
         changed = true;
       }
@@ -801,49 +919,58 @@ if (!navigator.onLine || !this._useSupabase) {
 
     try {
       if (method === 'POST') {
-        const body = { ...clean };
+        // ✅ احذف الأعمدة المعروف غيابها من Supabase
+        const cleanForPost = this._sb._stripMissingColumns
+          ? this._sb._stripMissingColumns(table, clean)
+          : clean;
+        const body = { ...cleanForPost };
         const oldId = record && record.id;
-        // افتراضياً نحذف id لأن Supabase يولده، لكن لبعض الجداول (مثل notifications) نُبقيه لتوحيد السجلات بين الأجهزة
         if (!_KEEP_ID_TABLES.has(table)) delete body.id;
 
         let postUrl = baseUrl;
-        let postHeaders = headers;
-        if (_KEEP_ID_TABLES.has(table) && record && record.id) {
-          postUrl += '?on_conflict=id';
-          postHeaders = { ...headers, 'Prefer': 'resolution=merge-duplicates,return=representation' };
-        }
+        let postHeaders = { ...headers };
+        postUrl += '?on_conflict=id';
+        postHeaders['Prefer'] = 'resolution=merge-duplicates,return=minimal';
 
         const res = await fetch(postUrl, { method: 'POST', headers: postHeaders, body: JSON.stringify(body) });
+        const resText = await res.text();
+
         if (!res.ok) {
-          // إذا فشل POST بسبب تكرار → حاول PATCH، وإن فشل خزّن بالـ queue (فقط إذا ليست من queue)
+          // ✅ اكتشف العمود المفقود وأعد المحاولة
+          if (this._sb._detectMissingColumn) {
+            const missingCol = this._sb._detectMissingColumn(resText, table);
+            if (missingCol) {
+              return this._pushToSupabase(table, record, method, opts);
+            }
+          }
+
+          console.warn(`⚠️ POST ${table}:`, resText);
           if (record && record.id) {
-            await this._pushToSupabase(table, record, 'PATCH', opts);
+            await this._pushToSupabase(table, record, 'PATCH', opts).catch(() => {
+              if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
+            });
           } else {
             if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
-            this._updateAdminSyncUI();
-            if (opts.fromQueue) throw new Error('POST failed while flushing queue');
+            if (opts.fromQueue) throw new Error(`POST failed: ${resText}`);
           }
           return;
         }
 
-        console.log(`✅ AutoSync [POST ${table}]`);
         this._emitSyncEvent('synced');
-        // ✅ مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase (لتجنب التكرار)
-        if (!_KEEP_ID_TABLES.has(table) && oldId) {
+        this._markUploaded(table, record); // ✅ منع الرفع المزدوج
+
+        // مزامنة الـ ID المحلي مع الـ ID الجديد من Supabase
+        if (!_KEEP_ID_TABLES.has(table) && oldId && resText) {
           try {
-            const respText = await res.text();
-            if (respText) {
-              const respData = JSON.parse(respText);
-              const newId = Array.isArray(respData) ? respData[0]?.id : respData?.id;
-              if (newId && newId !== oldId) {
-                const lsKey = 'sbtp5_' + table;
-                const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
-                const idx = local.findIndex(r => r.id === oldId);
-                if (idx >= 0) {
-                  local[idx] = { ...local[idx], id: newId };
-                  localStorage.setItem(lsKey, JSON.stringify(local));
-                  console.log(`🔄 ID re-sync ${table}: ${oldId} → ${newId}`);
-                }
+            const respData = JSON.parse(resText);
+            const newId = Array.isArray(respData) ? respData[0]?.id : respData?.id;
+            if (newId && newId !== oldId) {
+              const lsKey = 'sbtp5_' + table;
+              const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
+              const idx = local.findIndex(r => r.id === oldId);
+              if (idx >= 0) {
+                local[idx] = { ...local[idx], id: newId };
+                localStorage.setItem(lsKey, JSON.stringify(local));
               }
             }
           } catch(_) {}
@@ -855,23 +982,61 @@ if (!navigator.onLine || !this._useSupabase) {
       if (method === 'PATCH') {
         if (!record || !record.id) return;
 
-        const res = await fetch(`${baseUrl}?id=eq.${record.id}`, {
+        // ✅ احذف الأعمدة المعروف غيابها من Supabase
+        const cleanForPatch = this._sb._stripMissingColumns
+          ? this._sb._stripMissingColumns(table, clean)
+          : clean;
+
+        const patchRes = await fetch(`${baseUrl}?id=eq.${record.id}`, {
           method: 'PATCH',
           headers,
-          body: JSON.stringify(clean)
+          body: JSON.stringify(cleanForPatch)
         });
 
-        if (!res.ok) {
-          console.warn(`⚠️ AutoSync [PATCH ${table} #${record.id}]:`, await res.text().catch(() => ''));
-          this._emitSyncEvent('error');
-          if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
-          this._updateAdminSyncUI();
-          if (opts.fromQueue) throw new Error('PATCH failed while flushing queue');
-          return;
+        if (!patchRes.ok) {
+          const errText = await patchRes.text().catch(() => '');
+
+          // ✅ اكتشف الأعمدة المفقودة
+          if (this._sb._detectMissingColumn) {
+            const missingCol = this._sb._detectMissingColumn(errText, table);
+            if (missingCol) {
+              // أعد المحاولة بدون العمود المفقود
+              return this._pushToSupabase(table, record, method, opts);
+            }
+          }
+
+          console.warn(`⚠️ PATCH ${table} #${record.id}: ${errText}`);
+
+          // إذا فشل PATCH (السجل غير موجود) → حاول UPSERT
+          const upsertBody = this._sb._stripMissingColumns
+            ? this._sb._stripMissingColumns(table, { ...clean })
+            : { ...clean };
+          const upsertRes = await fetch(`${baseUrl}?on_conflict=id`, {
+            method: 'POST',
+            headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(upsertBody)
+          });
+
+          if (!upsertRes.ok) {
+            const upsertErr = await upsertRes.text().catch(() => '');
+
+            if (this._sb._detectMissingColumn) {
+              const mc = this._sb._detectMissingColumn(upsertErr, table);
+              if (mc) {
+                return this._pushToSupabase(table, record, method, opts);
+              }
+            }
+
+            this._emitSyncEvent('error');
+            if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
+            this._updateAdminSyncUI();
+            if (opts.fromQueue) throw new Error(`PATCH+UPSERT failed: ${upsertErr}`);
+            return;
+          }
         }
 
-        console.log(`✅ AutoSync [PATCH ${table} #${record.id}]`);
         this._emitSyncEvent('synced');
+        this._markUploaded(table, record); // ✅ منع الرفع المزدوج
         this._updateAdminSyncUI();
         return;
       }
@@ -882,14 +1047,21 @@ if (!navigator.onLine || !this._useSupabase) {
         const res = await fetch(`${baseUrl}?id=eq.${record.id}`, { method: 'DELETE', headers });
 
         if (!res.ok) {
-          console.warn(`⚠️ AutoSync [DELETE ${table} #${record.id}]:`, await res.text().catch(() => ''));
+          // 404 أو 400 = السجل غير موجود في Supabase أصلاً → نعتبره محذوفاً بنجاح
+          if (res.status === 404 || res.status === 400) {
+            this._markAsDeleted(table, record.id);
+            this._emitSyncEvent('synced');
+            this._updateAdminSyncUI();
+            return;
+          }
           if (!opts.fromQueue) this._saveToOfflineQueue(table, record, method);
           this._updateAdminSyncUI();
           if (opts.fromQueue) throw new Error('DELETE failed while flushing queue');
           return;
         }
 
-        console.log(`✅ AutoSync [DELETE ${table} #${record.id}]`);
+        // ✅ سجّل الحذف الناجح لمنع إعادة السجل عند المزامنة التالية
+        this._markAsDeleted(table, record.id);
         this._emitSyncEvent('synced');
         this._updateAdminSyncUI();
         return;
@@ -902,9 +1074,130 @@ if (!navigator.onLine || !this._useSupabase) {
     }
   },
 
+  /** يكتشف ويُزيل السجلات المحلية التي tenant_id غير موجود في tenants */
+  _cleanOrphanedLocalData() {
+    try {
+      const tenants = this.get('tenants') || [];
+      if (!tenants.length) return; // لم تُحمَّل البيانات بعد
+
+      const validTids = new Set(tenants.map(t => Number(t.id)));
+      const deletedTids = new Set(
+        JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
+      );
+
+      const tablesToClean = [
+        'projects','workers','equipment','equipment_logs','transactions','attendance',
+        'materials','stock_movements','invoices','salary_records','kanban_tasks',
+        'documents','obligations','notes','notifications','users',
+        'leave_requests','worker_warnings','worker_overtime',
+        'supplier_purchases','supplier_prices','supplier_obligations',
+        'suppliers','subscription_invoices'
+      ];
+
+      let totalRemoved = 0;
+      for (const t of tablesToClean) {
+        try {
+          const arr = this.get(t);
+          if (!Array.isArray(arr) || !arr.length) continue;
+
+          const cleaned = arr.filter(r => {
+            if (!r.tenant_id) return true; // بدون tenant = احتفظ
+            const tid = Number(r.tenant_id);
+            // احذف إذا: tenant محذوف أو غير موجود في validTids
+            if (deletedTids.has(tid)) return false;
+            if (!validTids.has(tid)) return false;
+            return true;
+          });
+
+          if (cleaned.length < arr.length) {
+            const removed = arr.length - cleaned.length;
+            totalRemoved += removed;
+            localStorage.setItem('sbtp5_' + t, JSON.stringify(cleaned));
+          }
+        } catch(_) {}
+      }
+
+      if (totalRemoved > 0) {
+        console.log(`🧹 نُظِّف ${totalRemoved} سجل يتيم من localStorage`);
+      }
+    } catch(_) {}
+  },
+
   nextId(key) {
-    const items = this.get(key);
-    return items.length ? Math.max(...items.map(i => i.id || 0)) + 1 : 1;
+    const items = this.get(key) || [];
+    if (!items.length) return Date.now();
+    const maxId = Math.max(...items.map(i => Number(i.id)||0));
+    if (maxId > 2_000_000_000) return Date.now();
+    return maxId + 1;
+  },
+
+
+  // ══════════════════════════════════════════════════════
+  // نظام منع الرفع المزدوج — يحتفظ بـ hash آخر سجل مرفوع
+  // ══════════════════════════════════════════════════════
+  _uploadedHashes: {}, // { 'table:id': 'hash' }
+
+  _hashRecord(record) {
+    // hash بسيط وسريع من JSON
+    const s = JSON.stringify(record);
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) - h) + s.charCodeAt(i);
+      h |= 0;
+    }
+    return String(h);
+  },
+
+  _isDuplicate(table, record, method) {
+    if (method === 'DELETE') return false; // DELETE دائماً مسموح
+    const key = table + ':' + record.id;
+    const hash = this._hashRecord(record);
+    if (this._uploadedHashes[key] === hash) return true; // مرفوع بالفعل
+    return false;
+  },
+
+  _markUploaded(table, record) {
+    if (!record || !record.id) return;
+    const key = table + ':' + record.id;
+    this._uploadedHashes[key] = this._hashRecord(record);
+  },
+
+  // ══════════════════════════════════════════════════════
+  // نظام تتبع السجلات المحذوفة — يمنع إعادتها عند المزامنة
+  // ══════════════════════════════════════════════════════
+  _DELETED_CACHE_KEY: 'sbtp5_deleted_records',
+
+  /** تسجيل سجل كمحذوف (يُحفظ 48 ساعة) */
+  _markAsDeleted(table, id) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(this._DELETED_CACHE_KEY) || '{}');
+      if (!cache[table]) cache[table] = {};
+      cache[table][String(id)] = Date.now();
+      // تنظيف السجلات القديمة (أكثر من 48 ساعة)
+      const cutoff = Date.now() - 48 * 3600 * 1000;
+      Object.keys(cache).forEach(t => {
+        Object.keys(cache[t]).forEach(i => {
+          if (cache[t][i] < cutoff) delete cache[t][i];
+        });
+      });
+      localStorage.setItem(this._DELETED_CACHE_KEY, JSON.stringify(cache));
+    } catch(_) {}
+  },
+
+  /** هل سبق حذف هذا السجل؟ */
+  _isDeleted(table, id) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(this._DELETED_CACHE_KEY) || '{}');
+      return !!(cache[table] && cache[table][String(id)]);
+    } catch { return false; }
+  },
+
+  /** الحصول على كل IDs المحذوفة لجدول معين */
+  _getDeletedIds(table) {
+    try {
+      const cache = JSON.parse(localStorage.getItem(this._DELETED_CACHE_KEY) || '{}');
+      return new Set(Object.keys(cache[table] || {}));
+    } catch { return new Set(); }
   },
 
   /* ─────────────────────────────────────────────────────
@@ -1010,42 +1303,112 @@ if (!navigator.onLine || !this._useSupabase) {
 
   /** حفظ عملية في قائمة الانتظار الدائمة (localStorage) */
   _saveToOfflineQueue(table, record, method) {
-    // أي عملية تنتظر الرفع تعني أن هناك رفع/مزامنة مطلوبة قبل الخروج
+    // ✅ لا نضع عمليات للمؤسسات المحذوفة في الـ queue
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+      if (deletedIds.length && record) {
+        const tenantId = record.tenant_id || (table === 'tenants' ? record.id : null);
+        if (tenantId && deletedIds.includes(Number(tenantId))) {
+          console.log(`🛡️ saveToOfflineQueue: تجاهل ${method} على ${table} للمؤسسة المحذوفة`);
+          return;
+        }
+      }
+    } catch(_) {}
+
     this._markUploadRequired();
     try {
       const q = JSON.parse(localStorage.getItem(this._OFFLINE_QUEUE_KEY) || '[]');
       q.push({ table, record, method, time: Date.now() });
-      // احتفظ بأحدث 500 عملية فقط
       if (q.length > 500) q.splice(0, q.length - 500);
       localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
       this._updateAdminSyncUI();
     } catch {}
   },
 
-  /** رفع كل العمليات المؤجلة عند عودة الاتصال */
+  /** رفع كل العمليات المؤجلة — متوازٍ لأقصى سرعة */
   async _flushOfflineQueue() {
     let q;
-    try {
-      q = JSON.parse(localStorage.getItem(this._OFFLINE_QUEUE_KEY) || '[]');
-    } catch { return; }
+    try { q = JSON.parse(localStorage.getItem(this._OFFLINE_QUEUE_KEY) || '[]'); }
+    catch { return; }
     if (!q.length) return;
 
-    console.log(`⏫ Flushing ${q.length} offline operations to Supabase...`);
+    // تصفية عمليات المؤسسات المحذوفة + السجلات المحذوفة
+    try {
+      const deleted = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number);
+      q = q.filter(op => {
+        // استبعاد عمليات مؤسسات محذوفة
+        const tid = op.record?.tenant_id || (op.table==='tenants' ? op.record?.id : null);
+        if (tid && deleted.includes(Number(tid))) return false;
+        // استبعاد POST/PATCH لسجلات تم حذفها لاحقاً
+        if (op.method !== 'DELETE' && op.record?.id) {
+          if (this._isDeleted(op.table, op.record.id)) return false;
+        }
+        return true;
+      });
+      localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(q));
+    } catch(_) {}
+    if (!q.length) return;
+
+    console.log(`⚡ Flushing ${q.length} ops in parallel batches...`);
+
+    // ── تجميع العمليات المتشابهة: نفس الجدول + نفس الطريقة → batch ──
+    const groups = {};
+    q.forEach((op, i) => {
+      const key = `${op.table}::${op.method}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ ...op, _idx: i });
+    });
+
     const failed = [];
-    for (const op of q) {
-      try {
-        await this._pushToSupabase(op.table, op.record, op.method, { fromQueue: true });
-      } catch {
-        failed.push(op);
-      }
+    const BATCH_SIZE = 5; // عدد الطلبات المتوازية في آن واحد
+
+    // رفع كل مجموعة بـ batch UPSERT (أسرع بكثير من طلب لكل سجل)
+    const groupEntries = Object.entries(groups);
+
+    for (let b = 0; b < groupEntries.length; b += BATCH_SIZE) {
+      const batch = groupEntries.slice(b, b + BATCH_SIZE);
+      await Promise.all(batch.map(async ([key, ops]) => {
+        const [table, method] = key.split('::');
+        try {
+          if (method === 'DELETE') {
+            // حذف متوازٍ
+            await Promise.all(ops.map(op =>
+              this._pushToSupabase(op.table, op.record, 'DELETE', { fromQueue: true }).catch(() => {
+                failed.push(op);
+              })
+            ));
+          } else {
+            // POST / PATCH → batch upsert
+            const records = ops.map(op => _cleanForSupabase_INTERNAL(op.table, op.record)).filter(Boolean);
+            if (records.length > 0) {
+              try {
+                // محاولة batch upsert (أسرع)
+                await this._sb.batchUpsert(table, records);
+              } catch(_batchErr) {
+                // fallback: رفع فردي إذا فشل الـ batch
+                await Promise.all(ops.map(op =>
+                  this._pushToSupabase(op.table, op.record, op.method, { fromQueue: true }).catch(() => {
+                    failed.push(op);
+                  })
+                ));
+              }
+            }
+          }
+        } catch(e) {
+          ops.forEach(op => failed.push(op));
+        }
+      }));
     }
-    // احتفظ بالفاشلة فقط
+
     localStorage.setItem(this._OFFLINE_QUEUE_KEY, JSON.stringify(failed));
     this._updateAdminSyncUI();
-    if (failed.length === 0) {
-      console.log('✅ Offline queue flushed successfully');
-      if (typeof Toast !== 'undefined')
-        Toast.success(`✅ تمت مزامنة ${q.length} عملية محفوظة مع Supabase`);
+    const done = q.length - failed.length;
+    console.log(`✅ flush done: ${done} succeeded, ${failed.length} failed`);
+    if (typeof Toast !== 'undefined' && done > 0) {
+      if (failed.length === 0)
+        Toast.success(`✅ ${done} ${done===1?'عملية رُفعت':'عملية رُفعت'} بنجاح`);
+      else
+        Toast.warn(`⚠️ نجح ${done} / فشل ${failed.length}`);
     }
   },
 
@@ -1054,62 +1417,163 @@ if (!navigator.onLine || !this._useSupabase) {
   ───────────────────────────────────────────────────── */
   _queueSync(key, val) {
     const SYNCABLE = new Set([
-      'plans','tenants','users','projects','workers','equipment',
+      'plans','tenants','users','projects','workers','equipment','equipment_logs',
       'transactions','attendance','materials','invoices','salary_records',
       'kanban_tasks','documents','obligations','notes',
-      'notifications','global_settings','admin_notifications','stock_movements'
+      'notifications','global_settings','admin_notifications','stock_movements',
+      'custom_roles','equipment_locations','tenders','tender_offers',
+      'bank_transactions','signatures','ai_conversations',
+      'leave_requests','worker_warnings','worker_overtime',
+      'supplier_prices','supplier_obligations','supplier_purchases',
+      'suppliers','subscription_invoices'
     ]);
     if (!SYNCABLE.has(key)) return;
 
-    // أزل مزامنة قديمة لنفس الجدول
+    // ✅ تجنب إضافة نفس البيانات مرتين للـ queue
+    const existing = this._syncQueue.find(q => q.key === key);
+    if (existing && JSON.stringify(existing.val) === JSON.stringify(val)) return;
+
+    // أزل مزامنة قديمة لنفس الجدول وأضف الجديدة
     this._syncQueue = this._syncQueue.filter(q => q.key !== key);
     this._syncQueue.push({ key, val, time: Date.now() });
 
     if (!this._syncing) {
       clearTimeout(this._syncTimer);
-      this._syncTimer = setTimeout(() => this._processSyncQueue(), 2000);
+      this._syncTimer = setTimeout(() => this._processSyncQueue(), 500);
     }
   },
 
   async _processSyncQueue() {
-    if (this._syncing || !this._syncQueue.length || !this._useSupabase) return;
+    if (this._syncing || !this._syncQueue.length || !this._useSupabase) {
+      // إذا كان Supabase غير جاهز → أعِد المحاولة بعد 3 ثوانٍ
+      if (this._syncQueue.length && !this._useSupabase) {
+        clearTimeout(this._syncTimer);
+        this._syncTimer = setTimeout(() => this._processSyncQueue(), 3000);
+      }
+      return;
+    }
     this._syncing = true;
+    this._emitSyncEvent('syncing');
 
     const ORDER = [
-      'plans','tenants','users','workers','projects',
-      'materials','equipment','attendance','transactions',
-      'invoices','salary_records','kanban_tasks','documents',
-      'obligations','notes','notifications','global_settings',
-      'admin_notifications','stock_movements'
+      'plans','tenants','users',
+      'projects','workers','equipment','materials',
+      'equipment_logs','attendance','transactions',
+      'invoices','salary_records','kanban_tasks',
+      'documents','obligations','notes','stock_movements',
+      'notifications','admin_notifications','global_settings',
+      'audit_log','custom_roles','equipment_locations',
+      'tenders','tender_offers','bank_transactions','signatures','ai_conversations'
     ];
 
     const queue = [...this._syncQueue];
     this._syncQueue = [];
-    queue.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
+    queue.sort((a, b) => {
+      const ai = ORDER.indexOf(a.key), bi = ORDER.indexOf(b.key);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
 
+    let allOk = true;
     try {
       for (const { key, val } of queue) {
-        if (Array.isArray(val) && val.length)
-          await this._syncTableToSupabase(key, val);
+        if (Array.isArray(val) && val.length) {
+          const result = await this._syncTableToSupabase(key, val).catch(e => {
+            console.warn(`⚠️ sync ${key}:`, e.message);
+            allOk = false;
+            return { ok: 0, failed: 1 };
+          });
+          if (result?.failed > 0) allOk = false;
+        }
       }
-    } catch (e) {
-      console.warn('⚠️ مزامنة فشلت:', e.message);
-      // أعد الفاشلة للقائمة
-      this._syncQueue = [...queue, ...this._syncQueue];
     } finally {
       this._syncing = false;
+    }
+
+    if (allOk) {
+      this._emitSyncEvent('synced');
+      // ✅ بعد رفع الـ queue → flush الـ offline queue إن وُجدت
+      const offlineCnt = this.getOfflineQueueCount();
+      if (offlineCnt > 0) {
+        setTimeout(() => this._flushOfflineQueue().catch(() => {}), 300);
+      }
+    } else {
+      // بعض العمليات فشلت → أعِد المحاولة بعد 5 ثوانٍ
+      this._emitSyncEvent('error');
+      clearTimeout(this._syncRetry);
+      this._syncRetry = setTimeout(() => {
+        if (this._useSupabase && navigator.onLine) {
+          this._flushOfflineQueue().catch(() => {});
+        }
+      }, 5000);
     }
   },
 
   async _syncTableToSupabase(table, records) {
-    if (!Array.isArray(records) || !records.length) return;
-    for (const record of records) {
-      const pk = table === 'global_settings' ? record.key : record.id;
-      if (!pk) continue;
-      const clean = _cleanForSupabase_INTERNAL(table, record);
-      await this._sb.upsert(table, clean).catch(e =>
-        console.warn(`⚠️ upsert ${table} [${pk}]:`, e.message)
-      );
+    if (!Array.isArray(records) || !records.length) return { ok: 0, failed: 0 };
+
+    // ✅ audit_log لا يُرفع أبداً من العميل (IDs كبيرة + read-only)
+    if (table === 'audit_log') return { ok: 0, failed: 0 };
+
+    // ✅ فلترة المؤسسات والبيانات المحذوفة - لا تُرفع أبداً
+    const deletedTenantIds = new Set(
+      JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
+    );
+    const deletedIds = this._getDeletedIds(table);
+
+    // جلب كل tenant IDs الموجودة في Supabase من localStorage
+    const validTenantIds = new Set(
+      (this.get('tenants') || []).map(t => Number(t.id))
+    );
+
+    // تنظيف السجلات
+    const cleaned = records
+      .filter(r => (table === 'global_settings' ? r.key : r.id))
+      // ✅ استبعاد المؤسسات المحذوفة
+      .filter(r => {
+        if (table === 'tenants') return !deletedTenantIds.has(Number(r.id));
+        if (r.tenant_id) return !deletedTenantIds.has(Number(r.tenant_id));
+        return true;
+      })
+      // ✅ استبعاد السجلات التي تم حذفها مسبقاً
+      .filter(r => !deletedIds.has(String(r.id)))
+      // ✅ استبعاد أي سجل يُشير لـ tenant غير موجود (يمنع FK violation)
+      .filter(r => {
+        if (!r.tenant_id) return true; // لا FK = مقبول
+        if (table === 'tenants') return true; // tenants نفسها لا تحتاج فحص
+        if (validTenantIds.size === 0) return true; // إذا لم نعرف التinants بعد = اسمح
+        return validTenantIds.has(Number(r.tenant_id));
+      })
+      .map(r => _cleanForSupabase_INTERNAL(table, r))
+      .filter(Boolean);
+
+    if (!cleaned.length) return { ok: 0, failed: 0 };
+
+    // ── محاولة batch upsert (طلب واحد لكل الجدول) ──
+    try {
+      await this._sb.batchUpsert(table, cleaned);
+      return { ok: cleaned.length, failed: 0 };
+    } catch(batchErr) {
+      // fallback: إذا فشل الـ batch → رفع متوازٍ
+      const CONCURRENCY = 5;
+      let ok = 0, failCount = 0;
+      const errors = [];
+      for (let i = 0; i < cleaned.length; i += CONCURRENCY) {
+        const slice = cleaned.slice(i, i + CONCURRENCY);
+        await Promise.all(slice.map(async rec => {
+          try {
+            await this._sb.upsert(table, rec);
+            ok++;
+          } catch(e) {
+            failCount++;
+            errors.push(e.message);
+          }
+        }));
+      }
+      // اطبع خطأ واحداً ملخصاً بدل مئات الأسطر
+      if (failCount > 0) {
+        console.warn(`⚠️ ${table}: نجح ${ok}، فشل ${failCount} — ${errors[0]?.slice(0,120) || ''}`);
+      }
+      return { ok, failed: failCount };
     }
   },
 
@@ -1117,44 +1581,215 @@ if (!navigator.onLine || !this._useSupabase) {
      مزامنة أولية (عند أول اتصال ناجح)
   ───────────────────────────────────────────────────── */
   async _initialSync() {
-    const tables = [
-      'plans','tenants','users','workers','projects',
-      'materials','equipment','attendance','transactions'
-    ];
-    // رفع المحلي
-    for (const t of tables) {
-      const local = this.get(t);
-      if (local.length)
-        await this._syncTableToSupabase(t, local).catch(() => {});
-    }
-    // سحب البعيد
+    const user = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
+    const tid  = user?.tenant_id;
+    const isAdmin = user?.is_admin;
+
+    // ✅ تنظيف البيانات اليتيمة من localStorage قبل المزامنة
+    this._cleanOrphanedLocalData();
+
+    // ✅ تنظيف السجلات المحلية ذات IDs تجاوزت حد INTEGER (من Supabase BigSerial)
+    // هذه السجلات تسبب "out of range for type integer" عند POST
     try {
-      await this._pullRemoteTable('tenants', 'sbtp5_tenants');
-        await this._pullRemoteTable('users',   'sbtp5_users');
-        await this._pullRemoteTable('notifications','sbtp5_notifications');
-const aiRows = await this._sb.select('global_settings', { key: 'global_ai_config' }).catch(() => []);
-      if (aiRows.length && aiRows[0].value) {
-        const cfg = typeof aiRows[0].value === 'string'
-          ? JSON.parse(aiRows[0].value) : aiRows[0].value;
-        if (cfg.apiKey) {
-          localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
-          console.log('✅ AI config مُحمَّل من Supabase');
+      const tablesToCheck = ['documents','notifications','audit_log','kanban_tasks'];
+      tablesToCheck.forEach(t => {
+        const items = this.get(t) || [];
+        const cleaned = items.filter(r => {
+          const id = Number(r.id||0);
+          return id <= 2_147_483_647; // max INT4
+        });
+        if (cleaned.length < items.length) {
+          this.setSilent ? this.setSilent(t, cleaned) : this.set(t, cleaned);
+          console.warn(`🧹 ${t}: حُذف ${items.length-cleaned.length} سجل بـ ID فائق الحجم`);
+        }
+      });
+    } catch(e) {}
+
+    // الجداول التي تحتوي tenant_id (تُسحب مفلترة للمستخدم العادي)
+    const tenantTables = [
+      // ① الجداول المستقلة أولاً (لا FK إلى جداول أخرى)
+      'projects','workers','equipment',
+      // ② الجداول التي تعتمد على workers و projects
+      'equipment_logs','transactions','attendance','materials','stock_movements',
+      'invoices','salary_records','kanban_tasks','documents',
+      'obligations','notes','notifications','audit_log',
+      'custom_roles','equipment_locations','tenders','bank_transactions',
+      'signatures','ai_conversations',
+      // ③ جداول الموارد البشرية
+      'leave_requests','worker_warnings','worker_overtime',
+      // ④ جداول الموردين
+      'supplier_purchases','supplier_prices','supplier_obligations','suppliers',
+      // ⑤ فواتير الاشتراك
+      'subscription_invoices'
+    ];
+    // الجداول العامة (تُسحب كاملاً للجميع)
+    const globalTables = ['plans','tenants','users'];
+
+    // ═══ ① السحب من Supabase أولاً ═══
+    console.log('🔽 سحب البيانات من Supabase...');
+    try {
+      // الجداول العامة
+      for (const t of globalTables) {
+        try {
+          const remote = await this._sb.select(t);
+          if (Array.isArray(remote) && remote.length) {
+            // احترم blacklist للمحذوفات محلياً
+            let filtered = remote;
+            if (t === 'tenants' || t === 'users') {
+              try {
+                const deletedIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+                if (deletedIds.length) {
+                  filtered = remote.filter(r =>
+                    t === 'tenants'
+                      ? !deletedIds.includes(Number(r.id))
+                      : !deletedIds.includes(Number(r.tenant_id))
+                  );
+                }
+              } catch(_) {}
+            }
+            // دمج ذكي: لا نُلغي السجلات المحلية الجديدة غير المرفوعة بعد
+            const local = this.get(t) || [];
+            const remoteIds = new Set(filtered.map(r => Number(r.id)));
+            const deletedCache = this._getDeletedIds(t);
+            const localOnly = local.filter(r =>
+              !remoteIds.has(Number(r.id)) &&
+              !deletedCache.has(String(r.id)) // ✅ لا نُعيد المحذوفة
+            );
+            // ✅ remote هو المصدر الحقيقي — ما ليس فيه ومحذوف محلياً لا يُضاف
+            const merged = [...filtered, ...localOnly];
+            localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
+            console.log(`  ✅ ${t}: ${filtered.length} من السحابة + ${localOnly.length} محلي`);
+          }
+        } catch(e) {
+          console.warn(`  ⚠️ ${t}:`, e.message);
         }
       }
 
-      const notifs = await this._sb.select('notifications').catch(() => []);
-      if (notifs.length) {
-        const local = this.get('admin_notifications') || [];
-        const merged = [...notifs];
-        local.forEach(l => { if (!merged.find(r => r.id === l.id)) merged.push(l); });
-        localStorage.setItem('sbtp5_admin_notifications',
-          JSON.stringify(merged.sort((a, b) =>
-            new Date(b.date || 0) - new Date(a.date || 0)
-          ))
-        );
+      // الجداول الخاصة بالمؤسسة
+      if (tid || isAdmin) {
+        for (const t of tenantTables) {
+          try {
+            // المستخدم العادي: يسحب فقط بيانات مؤسسته
+            // الأدمن: يسحب كل شيء
+            const filters = isAdmin ? {} : { tenant_id: tid };
+            const remote = await this._sb.select(t, filters);
+            if (Array.isArray(remote)) {
+              // ✅ فلترة المؤسسات المحذوفة من البيانات المسحوبة
+              const deletedTids = new Set(
+                JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]').map(Number)
+              );
+              const filteredRemote = deletedTids.size ? remote.filter(r => {
+                if (t === 'tenants') return !deletedTids.has(Number(r.id));
+                return !r.tenant_id || !deletedTids.has(Number(r.tenant_id));
+              }) : remote;
+
+              const deletedIds = this._getDeletedIds(t);
+
+              // دمج مع المحلي (المحلي الذي ليس له id في البعيد = جديد لم يُرفع)
+              const local = this.get(t) || [];
+              const remoteIds = new Set(filteredRemote.map(r => Number(r.id)));
+              const localUnsynced = local.filter(r =>
+                !remoteIds.has(Number(r.id)) &&
+                (isAdmin || Number(r.tenant_id) === Number(tid)) &&
+                // ✅ استبعاد المحذوفة من المحلي
+                (t !== 'tenants' || !deletedTids.has(Number(r.id))) &&
+                (!r.tenant_id || !deletedTids.has(Number(r.tenant_id))) &&
+                // ✅ استبعاد أي سجل تم حذفه مسبقاً من Supabase
+                !deletedIds.has(String(r.id))
+              );
+              // ✅ Supabase هو المصدر الحقيقي — remote يحكم
+              const merged = [...filteredRemote, ...localUnsynced];
+              localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
+              if (remote.length || localUnsynced.length) {
+                console.log(`  ✅ ${t}: ${remote.length} من السحابة + ${localUnsynced.length} محلي غير مُرفَع`);
+              }
+            }
+          } catch(e) {
+            console.warn(`  ⚠️ ${t}:`, e.message);
+          }
+        }
+      }
+
+      // إعدادات AI
+      const aiRows = await this._sb.select('global_settings', { key: 'global_ai_config' }).catch(() => []);
+      if (aiRows.length && aiRows[0].value) {
+        const cfg = typeof aiRows[0].value === 'string' ? JSON.parse(aiRows[0].value) : aiRows[0].value;
+        if (cfg.apiKey) {
+          localStorage.setItem('sbtp5_global_ai_config', JSON.stringify(cfg));
+          console.log('  ✅ AI config مُحمَّل');
+        }
+      }
+
+      // إعدادات Google Drive المركزية
+      const gdRows = await this._sb.select('global_settings', { key: 'global_gdrive_config' }).catch(() => []);
+      if (gdRows.length && gdRows[0].value) {
+        const cfg = typeof gdRows[0].value === 'string' ? JSON.parse(gdRows[0].value) : gdRows[0].value;
+        localStorage.setItem('sbtp5_global_gdrive_config', JSON.stringify(cfg));
+        console.log('  ✅ Google Drive config مُحمَّل');
       }
     } catch (e) {
       console.warn('⚠️ فشل سحب البيانات من Supabase:', e.message);
+    }
+
+    // ═══ ② رفع الـ Offline Queue أولاً (العمليات المحفوظة أثناء الانقطاع) ═══
+    const queueCount = this.getOfflineQueueCount();
+    if (queueCount > 0) {
+      console.log(`⚡ رفع ${queueCount} عملية معلقة من الـ queue...`);
+      try {
+        await this._flushOfflineQueue();
+        console.log('✅ queue فُرِّغت بنجاح');
+      } catch(e) {
+        console.warn('⚠️ فشل رفع queue:', e.message);
+      }
+    }
+
+    // ═══ ③ دفع السجلات المحلية الجديدة (التي لم تُرفع بعد) ═══
+    console.log('🔼 رفع السجلات المحلية الجديدة...');
+
+    // ✅ الأدمن: يرفع فقط tenants وusers (الجداول العامة)
+    // المستخدم العادي: يرفع فقط بياناته (tenant_id = مؤسسته)
+    const priorityTables = isAdmin
+      ? ['tenants', 'users']  // الأدمن: فقط الجداول العامة
+      : ['projects','workers','equipment'];
+
+    const dependentTables = isAdmin
+      ? []  // الأدمن لا يرفع بيانات تشغيلية
+      : [...tenantTables].filter(t => t !== 'audit_log');
+
+    const orderedTables = [...priorityTables, ...dependentTables];
+
+    for (const t of orderedTables) {
+      try {
+        const allLocal = this.get(t) || [];
+        if (!allLocal.length) continue;
+
+        // ✅ فلترة: المستخدم العادي يرفع فقط بيانات مؤسسته
+        const local = (!isAdmin && tid)
+          ? allLocal.filter(r => !r.tenant_id || Number(r.tenant_id) === Number(tid))
+          : allLocal;
+
+        if (!local.length) continue;
+        await this._syncTableToSupabase(t, local).catch(() => {});
+      } catch(_) {}
+    }
+    console.log('✅ المزامنة الأولية انتهت');
+
+    // إطلاق event لتحديث الواجهة
+    document.dispatchEvent(new CustomEvent('smartsync', { detail: { state: 'synced', detail: 'initial' } }));
+
+    // ═══ ④ تشغيل auto-flush دوري كل 30 ثانية ═══
+    if (!this._autoFlushInterval) {
+      this._autoFlushInterval = setInterval(async () => {
+        if (!this._useSupabase || !navigator.onLine) return;
+        const cnt = this.getOfflineQueueCount();
+        if (cnt === 0) return;
+        console.log(`⚡ Auto-flush: ${cnt} عملية معلقة...`);
+        try {
+          await this._flushOfflineQueue();
+          // إذا نجح → حدّث الـ pill صامتاً بدون toast
+          document.dispatchEvent(new CustomEvent('smartsync', { detail: { state: 'synced' } }));
+        } catch(_) {}
+      }, 30000); // كل 30 ثانية
     }
   },
 
@@ -1490,8 +2125,8 @@ const SmartRealtime = (() => {
   const WATCHED_TABLES = [
     'projects','workers','transactions','attendance',
     'kanban_tasks','invoices','materials','salary_records',
-    'equipment','notifications','obligations','notes',
-    'stock_movements','documents'
+    'equipment','equipment_logs','notifications','obligations',
+    'notes','stock_movements','documents'
   ];
 
   const RECONNECT_DELAY  = 5000;   // 5 ث أول محاولة
@@ -1509,6 +2144,12 @@ const SmartRealtime = (() => {
   let _joinedTopics = new Set();
   let _notifQueue   = [];           // إشعارات مؤجلة
   let _reconnDelay  = RECONNECT_DELAY;
+  // متغيرات WebSocket / polling fallback
+  let _pollActive     = false;
+  let _pollTimer      = null;
+  let _connectTimeout = null;
+  let _wsAttempts     = 0;
+  const MAX_WS_ATTEMPTS = 3;         // بعد 3 محاولات فاشلة → polling دائم
 
   /* ─── مؤشر الحالة في الواجهة ───────────────── */
   function _setBadge(state) {
@@ -1534,12 +2175,9 @@ const SmartRealtime = (() => {
 
   /* ─── بناء URL الـ WebSocket ────────────────── */
   function _wsUrl() {
-    const url = (SUPABASE_CONFIG.url || '').replace(/\/$/, '');
-    const key  = SUPABASE_CONFIG.anonKey || '';
-    if (!url || !key) return null;
-    // Supabase Realtime endpoint
-    const wsBase = url.replace('https://', 'wss://').replace('http://', 'ws://');
-    return `${wsBase}/realtime/v1/websocket?apikey=${key}&vsn=1.0.0`;
+    // ملاحظة: Supabase 2025 ألغى anon key واستبدله بـ publishable key
+    // publishable key لا يعمل مع WebSocket → نستخدم polling fallback فقط
+    return null; // تعطيل WebSocket - polling يعوّض عنه
   }
 
   /* ─── إرسال رسالة Phoenix ───────────────────── */
@@ -1575,6 +2213,19 @@ const SmartRealtime = (() => {
 
   /* ─── معالجة حدث Postgres ──────────────────── */
   function _handlePostgresChange(table, eventType, newRecord, oldRecord) {
+    // ✅ تجاهل INSERT/UPDATE للمؤسسات المحذوفة محلياً (blacklist)
+    if (eventType !== 'DELETE') {
+      try {
+        const deletedTenantIds = JSON.parse(localStorage.getItem('sbtp_deleted_tenant_ids') || '[]');
+        if (deletedTenantIds.length) {
+          const recTenantId = newRecord.tenant_id || (table === 'tenants' ? newRecord.id : null);
+          if (recTenantId && deletedTenantIds.includes(Number(recTenantId))) {
+            console.log(`⚡ Realtime: تجاهل ${eventType} على ${table} — tenant محذوف محلياً`);
+            return;
+          }
+        }
+      } catch(_) {}
+    }
     // 1. تحديث localStorage فوراً
     try {
       const lsKey   = `sbtp5_${table}`;
@@ -1700,29 +2351,43 @@ const SmartRealtime = (() => {
       if (_running) return;
       _running  = true;
       _tenantId = tenantId || null;
-      _connect();
+
+      // Supabase 2025: polling mode مباشرة
+      _startPollingFallback();
+      console.log('⚡ Realtime: polling mode نشط');
     },
 
     /** إيقاف الاتصال */
     stop() {
       _running = false;
+      _wsAttempts = 0;
       clearTimeout(_reconnTimer);
+      clearTimeout(_connectTimeout);
       clearInterval(_pingTimer);
       clearTimeout(_renderTimer);
+      _stopPollingFallback();
       if (_ws) {
         try { _ws.close(1000, 'logout'); } catch {}
         _ws = null;
       }
       _joinedTopics.clear();
       this.isLive = false;
-      _setBadge('offline');
+      // لا نُغيّر البادج هنا — restart() سيُعيّنه مباشرة
     },
 
     /** إعادة تشغيل بعد تغيير tenant */
     restart(tenantId) {
-      this.stop();
+      // ✅ لا نُوقف البادج — نُعيد التشغيل مباشرة
       _running = false;
-      setTimeout(() => this.start(tenantId), 500);
+      _wsAttempts = 0;
+      clearTimeout(_reconnTimer);
+      clearTimeout(_connectTimeout);
+      clearInterval(_pingTimer);
+      _stopPollingFallback();
+      if (_ws) { try { _ws.close(); } catch {} _ws = null; }
+      _joinedTopics.clear();
+      _running = false;
+      setTimeout(() => this.start(tenantId), 300);
     }
   };
 
@@ -1732,68 +2397,162 @@ const SmartRealtime = (() => {
 
     const wsUrl = _wsUrl();
     if (!wsUrl) {
-      console.warn('⚡ Realtime: Supabase غير مُهيَّأ، لن يعمل Realtime');
-      _setBadge('offline');
+      // WebSocket معطَّل → polling يتولى الأمر (لا تُغيّر البادج)
+      return;
+    }
+
+    // ✅ إذا فشلنا أكثر من MAX_WS_ATTEMPTS → بقاء على polling
+    if (_wsAttempts >= MAX_WS_ATTEMPTS) {
+      _startPollingFallback();
       return;
     }
 
     _setBadge('connecting');
     _joinedTopics.clear();
 
+    // timeout 8 ثوانٍ للاتصال الأولي
+    clearTimeout(_connectTimeout);
+    _connectTimeout = setTimeout(() => {
+      if (_ws && _ws.readyState === WebSocket.CONNECTING) {
+        try { _ws.close(); } catch {}
+        _ws = null;
+        _wsAttempts++;
+        if (_wsAttempts >= MAX_WS_ATTEMPTS) {
+          console.warn(`⚡ Realtime: ${MAX_WS_ATTEMPTS} محاولات WebSocket فشلت → polling fallback دائم`);
+          _startPollingFallback();
+        } else {
+          _scheduleReconnect();
+        }
+      }
+    }, 8000);
+
     try {
       _ws = new WebSocket(wsUrl);
     } catch(e) {
-      console.warn('⚡ Realtime: فشل إنشاء WebSocket:', e.message);
+      clearTimeout(_connectTimeout);
+      _wsAttempts++;
       _scheduleReconnect();
       return;
     }
 
     _ws.onopen = () => {
-      console.log('⚡ Realtime: WebSocket متصل ✅');
+      clearTimeout(_connectTimeout);
+      _wsAttempts = 0; // ✅ إعادة تعيين عند النجاح
       SmartRealtime.isLive = true;
       _reconnDelay = RECONNECT_DELAY;
       _setBadge('live');
+      _stopPollingFallback();
+      console.log('⚡ Realtime: WebSocket متصل ✅');
 
-      // Ping دوري لإبقاء الاتصال حياً
       clearInterval(_pingTimer);
       _pingTimer = setInterval(() => {
-        _send('phoenix', 'heartbeat', {});
+        if (_ws && _ws.readyState === WebSocket.OPEN) {
+          _send('phoenix', 'heartbeat', {});
+        }
       }, PING_INTERVAL);
 
-      // الانضمام لجميع الجداول
       WATCHED_TABLES.forEach(t => _joinTable(t));
     };
 
     _ws.onmessage = e => _onMessage(e.data);
 
-    _ws.onerror = err => {
-      console.warn('⚡ Realtime: خطأ في WebSocket');
-    };
+    // ✅ صامت — onclose يتولى كل شيء
+    _ws.onerror = () => {};
 
     _ws.onclose = (e) => {
+      clearTimeout(_connectTimeout);
       clearInterval(_pingTimer);
       SmartRealtime.isLive = false;
       _joinedTopics.clear();
       _setBadge('offline');
 
-      if (_running) {
-        console.log(`⚡ Realtime: انقطع (${e.code}) — إعادة محاولة بعد ${_reconnDelay/1000}ث`);
+      if (!_running) return;
+
+      // إذا انقطع قبل onopen (1006) → احسب كمحاولة فاشلة
+      if (e.code === 1006 && _wsAttempts < MAX_WS_ATTEMPTS) {
+        _wsAttempts++;
+      }
+
+      if (_wsAttempts >= MAX_WS_ATTEMPTS) {
+        console.warn(`⚡ Realtime: تعذّر الاتصال — تشغيل polling fallback`);
+        _startPollingFallback();
+      } else {
         _scheduleReconnect();
       }
     };
+  }
+
+  /* ─── Polling Fallback ──────────────────────── */
+  function _startPollingFallback() {
+    if (_pollActive) return;
+    _pollActive = true;
+    SmartRealtime.isLive = true; // ✅ polling = متصل
+    _setBadge('live');
+    console.log('⚡ Realtime: polling fallback نشط (كل 25 ث)');
+
+    // ينفّذ سحب صامت كل 25 ثانية باستخدام SupabaseClient (يعالج CORS بشكل صحيح)
+    _pollTimer = setInterval(async () => {
+      if (!_running || !navigator.onLine) return;
+      if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
+      if (!_tenantId) return;
+      if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
+
+      try {
+        // ✅ الأدمن يسحب كل الإشعارات، المستخدم العادي يسحب إشعارات مؤسسته فقط
+        let isAdminUser = false;
+        try {
+          const u = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
+          isAdminUser = u && u.is_admin === true;
+        } catch(_) {}
+
+        const remote = await SupabaseClient.select(
+          'notifications',
+          isAdminUser ? {} : { tenant_id: _tenantId },
+          { limit: isAdminUser ? 100 : 30 }
+        );
+        if (Array.isArray(remote) && remote.length) {
+          const lsKey = 'sbtp5_notifications';
+          const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
+          const remoteIds = new Set(remote.map(r => Number(r.id)));
+          const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+          const prevPending = local.filter(r => r.status === 'pending').length;
+          localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
+
+          // ✅ إذا الأدمن في صفحة الأدمن ووصل إشعار جديد — حدّث تلقائياً
+          if (isAdminUser && typeof App !== 'undefined' && App.currentPage === 'admin') {
+            const newPending = remote.filter(r => r.status === 'pending').length;
+            if (newPending > prevPending) {
+              if (typeof Toast !== 'undefined') Toast.info('🔔 إشعار جديد وصل');
+              try { App.navigate('admin'); } catch(_) {}
+            }
+          }
+        }
+      } catch(_) {
+        // فشل صامت — المحاولة التالية بعد 25 ث
+      }
+    }, 25000);
+  }
+
+  function _stopPollingFallback() {
+    if (!_pollActive) return;
+    _pollActive = false;
+    clearInterval(_pollTimer);
+    _pollTimer = null;
   }
 
   function _scheduleReconnect() {
     clearTimeout(_reconnTimer);
     _reconnTimer = setTimeout(() => {
       if (_running) {
-        // Exponential backoff
         _reconnDelay = Math.min(_reconnDelay * 1.5, 60000);
         _connect();
       }
     }, _reconnDelay);
   }
 })();
+
+// ✅ تصدير SmartRealtime للـ window
+window.SmartRealtime = SmartRealtime;
 
 /* ─── Toast.info — إضافة نوع Info إن لم يكن موجوداً ─── */
 (function patchToastInfo() {
@@ -1834,3 +2593,126 @@ var SUPABASE_HARDCODED = {
   set url(v)     { SUPABASE_CONFIG.url     = v; },
   set anonKey(v) { SUPABASE_CONFIG.anonKey = v; }
 };
+
+window.AutoSync = {
+  _enabled: false,
+  _pendingChanges: new Set(),
+  _debounceTimer: null,
+  _periodicTimer: null,
+  _isSyncing: false,
+  _lastSync: 0,
+
+  enable() {
+    if (this._enabled) return;
+    this._enabled = true;
+
+    // مزامنة أولى بعد 3 ثوانٍ من التحميل
+    setTimeout(() => this._runSync('initial'), 3000);
+
+    // مزامنة دورية كل 5 دقائق
+    this._periodicTimer = setInterval(() => {
+      if (navigator.onLine && !this._isSyncing) {
+        this._runSync('periodic');
+      }
+    }, 5 * 60 * 1000);
+
+    // إعادة الاتصال بالإنترنت → مزامنة فورية
+    window.addEventListener('online', () => {
+      console.log('[AutoSync] الاتصال بالإنترنت عاد، مزامنة...');
+      setTimeout(() => this._runSync('online'), 1000);
+      // إعادة تشغيل Realtime
+      if (window.SmartRealtime && !window.SmartRealtime.isLive) {
+        const tid = (typeof Auth !== 'undefined') ? Auth.getUser()?.tenant_id : null;
+        window.SmartRealtime.start(tid);
+      }
+    });
+
+    // عند الرجوع للتاب → مزامنة سريعة
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && Date.now() - this._lastSync > 30000) {
+        this._runSync('visibility');
+      }
+    });
+
+    console.log('🔄 AutoSync — تم تفعيل المزامنة التلقائية');
+  },
+
+  disable() {
+    this._enabled = false;
+    if (this._periodicTimer) { clearInterval(this._periodicTimer); this._periodicTimer = null; }
+    if (this._debounceTimer) { clearTimeout(this._debounceTimer); this._debounceTimer = null; }
+  },
+
+  // يُستدعى عند كل تعديل محلي
+  markDirty(table) {
+    if (!this._enabled) return;
+    this._pendingChanges.add(table);
+    // debounce — انتظر 1.5 ثانية قبل المزامنة لتجميع التعديلات
+    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => {
+      if (navigator.onLine && !this._isSyncing) {
+        this._runSync('change');
+      }
+    }, 1500);
+  },
+
+  async _runSync(reason) {
+    if (this._isSyncing) return;
+    if (!navigator.onLine) return;
+    if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
+    if (typeof Auth === 'undefined' || !Auth.getUser()) return;
+
+    this._isSyncing = true;
+    const tablesToSync = Array.from(this._pendingChanges);
+    this._pendingChanges.clear();
+
+    try {
+      // استدعاء syncAllDataToSupabase من app.js إن كانت موجودة (للمزامنة الأولية)
+      if (reason === 'initial' && typeof window.syncAllDataToSupabase === 'function') {
+        await window.syncAllDataToSupabase(true /* silent */);
+      } else if (tablesToSync.length > 0 && typeof window.syncTablesToSupabase === 'function') {
+        // مزامنة جداول محددة
+        await window.syncTablesToSupabase(tablesToSync, true /* silent */);
+      } else if (typeof window.syncAllDataToSupabase === 'function') {
+        // افتراضياً مزامنة الكل بصمت
+        await window.syncAllDataToSupabase(true);
+      }
+
+      this._lastSync = Date.now();
+      console.log(`🔄 [AutoSync] تمت المزامنة (${reason})`);
+
+      // تحديث badge المزامنة
+      const lastSyncEl = document.getElementById('lastSyncTime');
+      if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString('fr-DZ');
+    } catch (e) {
+      console.warn('[AutoSync] فشل:', e.message);
+      // أعد إضافة الجداول المعلّقة
+      tablesToSync.forEach(t => this._pendingChanges.add(t));
+    } finally {
+      this._isSyncing = false;
+    }
+  },
+
+  // إجبار المزامنة فوراً
+  syncNow() {
+    return this._runSync('manual');
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   🪝 Hook: ربط DBHybrid.set بـ AutoSync.markDirty
+   عند كل DB.set('table', ...) نضع علامة dirty للمزامنة التلقائية
+══════════════════════════════════════════════════════════════════════ */
+(function _installAutoSyncHook() {
+  if (typeof DBHybrid === 'undefined' || !DBHybrid.set) return;
+  const origSet = DBHybrid.set.bind(DBHybrid);
+  DBHybrid.set = function(table, value) {
+    const result = origSet(table, value);
+    // ضع علامة dirty (سيتم debounce في AutoSync)
+    if (window.AutoSync) {
+      window.AutoSync.markDirty(table);
+    }
+    return result;
+  };
+  console.log('🪝 AutoSync hook مُثبَّت على DBHybrid.set');
+})();

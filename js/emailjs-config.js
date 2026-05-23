@@ -7,6 +7,7 @@ const EMAILJS_DEFAULTS = {
   SERVICE_ID:     'service_37ya8ru',
   TEMPLATE_ADMIN: 'template_haus94b',
   TEMPLATE_USER:  'template_9hzgy4s',
+  TEMPLATE_OTP:   'template_abc123',   // One-Time Password template
   PUBLIC_KEY:     'hn_PRTs7PuJAgrrDp',
   ADMIN_EMAIL:    'ramzisaidi2018@gmail.com',
 };
@@ -26,6 +27,7 @@ const EMAILJS = {
   get SERVICE_ID()     { return getEmailJSConfig().SERVICE_ID; },
   get TEMPLATE_ADMIN() { return getEmailJSConfig().TEMPLATE_ADMIN; },
   get TEMPLATE_USER()  { return getEmailJSConfig().TEMPLATE_USER; },
+  get TEMPLATE_OTP()   { return getEmailJSConfig().TEMPLATE_OTP; },
   get ADMIN_EMAIL()    { return getEmailJSConfig().ADMIN_EMAIL; },
 
   // ── إرسال إشعار للمسؤول عند تسجيل حساب جديد ──
@@ -89,6 +91,43 @@ const EMAILJS = {
       return true;
     } catch(e) {
       console.warn('⚠️ EmailJS notifyResetRequest:', e);
+      return false;
+    }
+  },
+
+  // ── إرسال إيميل ترحيبي عند التسجيل الجديد (قبل التفعيل) ──
+  async sendWelcomeEmail(userData) {
+    try {
+      const userName   = userData.name || userData.full_name || '';
+      const userEmail  = userData.email || '';
+      const company    = userData.company || '';
+
+      const params = {
+        to_email:    userEmail,
+        to_name:     userName,
+        user_email:  userEmail,
+        user_name:   userName,
+        company_name:company,
+        plan_name:   'تجريبي 14 يوم',
+        date:        new Date().toLocaleDateString('ar-DZ', {year:'numeric',month:'long',day:'numeric'}),
+        message: `مرحباً ${userName}! 👋
+
+شكراً لانضمامك إلى SmartStruct — منصة إدارة مشاريع البناء الذكية! 🏗️
+
+تم استلام طلب تسجيلك لمؤسسة "${company}" بنجاح.
+سيتم مراجعة طلبك من قِبَل فريقنا وتفعيل حسابك في أقرب وقت.
+
+بمجرد التفعيل ستتمكن من الاستمتاع بـ 14 يوماً مجانياً كاملاً لاستكشاف جميع المزايا.
+
+مع تحيات فريق SmartStruct 💚
+contact@smartstruct.dz`
+      };
+
+      await emailjs.send(this.SERVICE_ID, this.TEMPLATE_USER, params);
+      console.log(`✅ EmailJS: إيميل الترحيب أُرسل إلى ${userEmail}`);
+      return true;
+    } catch(e) {
+      console.warn('⚠️ EmailJS sendWelcomeEmail:', e);
       return false;
     }
   },
