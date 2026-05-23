@@ -20531,12 +20531,12 @@ Pages.team = function() {
         <span id="themeCheckLight" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem"></span>
       </div>
       <!-- معاينة مصغرة -->
-      <div style="background:#e8e6e1;border-radius:8px;padding:.6rem;display:flex;gap:.4rem;border:1px solid #d4d1c8">
-        <div style="width:30%;background:#f7f5f1;border-radius:4px;height:42px;border:1px solid #ddd9cd"></div>
+      <div style="background:#d4d2c8;border-radius:8px;padding:.6rem;display:flex;gap:.4rem;border:1px solid #b5b1a3">
+        <div style="width:30%;background:#e3e1d7;border-radius:4px;height:42px;border:1px solid #c2bdae"></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
-          <div style="background:#f7f5f1;border-radius:3px;height:10px;border:1px solid #ddd9cd"></div>
+          <div style="background:#e3e1d7;border-radius:3px;height:10px;border:1px solid #c2bdae"></div>
           <div style="background:#a8801a;border-radius:3px;height:8px;width:60%"></div>
-          <div style="background:#dcdad3;border-radius:3px;height:8px;width:80%"></div>
+          <div style="background:#c8c4b8;border-radius:3px;height:8px;width:80%"></div>
         </div>
       </div>
       <div style="font-size:.72rem;color:var(--dim);margin-top:.6rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>

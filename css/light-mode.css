@@ -5,16 +5,16 @@
 
 html.light {
   /* ── الخلفيات — تدرّج رمادي دافئ ── */
-  --ss-bg-0:        #e8e6e1;   /* خلفية رئيسية */
-  --ss-bg-1:        #f7f5f1;   /* بطاقات */
-  --ss-bg-2:        #e2e0da;   /* عناصر ثانوية */
-  --ss-bg-3:        #dcdad3;   /* عناصر أعمق */
+  --ss-bg-0:        #dcdad2;   /* خلفية رئيسية */
+  --ss-bg-1:        #d3d0c6;   /* بطاقات */
+  --ss-bg-2:        #cdcabf;   /* عناصر ثانوية */
+  --ss-bg-3:        #c8c4b8;   /* عناصر أعمق */
 
-  --bg:             #e8e6e1;
-  --bg2:            #f7f5f1;
-  --bg3:            #e2e0da;
-  --bg4:            #dcdad3;
-  --card-bg:        #f7f5f1;
+  --bg:             #dcdad2;
+  --bg2:            #d3d0c6;
+  --bg3:            #cdcabf;
+  --bg4:            #c8c4b8;
+  --card-bg:        #d3d0c6;
 
   /* ── النصوص — رمادي داكن مريح ── */
   --ss-fg:          #2d2a26;
@@ -58,14 +58,14 @@ html.light {
 
 /* ── الجسم ── */
 html.light body {
-  background: #e8e6e1;
+  background: #dcdad2;
   color: #2d2a26;
 }
 
 /* ── الشريط الجانبي ── */
 html.light .sidebar,
 html.light .app-sidebar {
-  background: #f7f5f1;
+  background: #d3d0c6;
   border-color: #d4d1c8;
   box-shadow: 0 0 30px rgba(80,70,55,.03);
 }
@@ -85,7 +85,7 @@ html.light .nav-link.active {
 
 /* ── الشريط العلوي ── */
 html.light .topbar {
-  background: #f7f5f1;
+  background: #d3d0c6;
   border-color: #d4d1c8;
   box-shadow: 0 2px 12px rgba(80,70,55,.03);
 }
@@ -100,7 +100,7 @@ html.light .topbar-avatar {
 /* ── البطاقات ── */
 html.light .card,
 html.light .stat-card {
-  background: #f7f5f1;
+  background: #d3d0c6;
   border-color: #d4d1c8;
   box-shadow: 0 2px 12px rgba(80,70,55,.04);
 }
@@ -112,17 +112,17 @@ html.light .stat-card:hover {
 
 /* ── الأزرار ── */
 html.light .btn-ghost {
-  background: #e2e0da;
+  background: #cdcabf;
   border-color: #c4c0b5;
   color: #2d2a26;
 }
 html.light .btn-ghost:hover {
-  background: #dcdad3;
+  background: #c8c4b8;
   color: #2d2a26;
 }
 html.light .btn-gold {
   background: linear-gradient(135deg, #a8801a, #c49832);
-  color: #f7f5f1;
+  color: #d3d0c6;
   box-shadow: 0 2px 10px rgba(168,128,26,.25);
 }
 html.light .btn-gold:hover {
@@ -133,7 +133,7 @@ html.light .btn-gold:hover {
 html.light .form-input,
 html.light .form-select,
 html.light .form-textarea {
-  background: #f7f5f1;
+  background: #d3d0c6;
   border-color: #c4c0b5;
   color: #2d2a26;
 }
@@ -152,7 +152,7 @@ html.light .form-label {
 
 /* ── الجداول ── */
 html.light table thead th {
-  background: #e2e0da;
+  background: #cdcabf;
   color: #5c574f;
   border-bottom: 2px solid #d4d1c8;
 }
@@ -166,7 +166,7 @@ html.light tbody tr:hover td {
 
 /* ── الشارات ── */
 html.light .badge {
-  background: #e2e0da;
+  background: #cdcabf;
   color: #5c574f;
   border-color: #d4d1c8;
 }
@@ -188,7 +188,7 @@ html.light .badge-delayed {
 
 /* ── النوافذ المنبثقة ── */
 html.light .modal {
-  background: #f7f5f1;
+  background: #d3d0c6;
   border-color: #d4d1c8;
   box-shadow: 0 20px 60px rgba(80,70,55,.16);
 }
@@ -202,7 +202,7 @@ html.light .modal-title {
 
 /* ── شريط التمرير ── */
 html.light ::-webkit-scrollbar-track {
-  background: #e2e0da;
+  background: #cdcabf;
 }
 html.light ::-webkit-scrollbar-thumb {
   background: #bdb8ab;
@@ -227,11 +227,11 @@ html.light [style*="rgba(255,255,255,0.03)"] {
 }
 html.light [style*="rgba(255,255,255,.04)"],
 html.light [style*="rgba(255,255,255,0.04)"] {
-  background: #e8e6e1 !important;
+  background: #dcdad2 !important;
 }
 html.light [style*="rgba(255,255,255,.05)"],
 html.light [style*="rgba(255,255,255,0.05)"] {
-  background: #e2e0da !important;
+  background: #cdcabf !important;
 }
 html.light [style*="rgba(255,255,255,.06)"],
 html.light [style*="rgba(255,255,255,0.06)"] {
@@ -239,7 +239,7 @@ html.light [style*="rgba(255,255,255,0.06)"] {
 }
 html.light [style*="rgba(255,255,255,.08)"],
 html.light [style*="rgba(255,255,255,0.08)"] {
-  background: #dcdad3 !important;
+  background: #c8c4b8 !important;
 }
 
 /* ── شريط المزامنة ── */
@@ -252,7 +252,7 @@ html.light #syncPill {
 /* ── الرسوم البيانية والحاويات ── */
 html.light .chart-container,
 html.light .table-wrap {
-  background: #f7f5f1;
+  background: #d3d0c6;
 }
 
 /* ── انتقال سلس عند تبديل الوضع ── */
@@ -311,108 +311,141 @@ html.light .modal {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   لمسات احترافية للوضع الفاتح — نعومة وراحة للعين
+   لمسات احترافية — وضع فاتح غير ساطع (بيج/رمادي محسوس)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* خلفية بتدرّج ناعم بدل لون مسطح */
+/* خلفية رمادية بيج واضحة — ليست بيضاء */
 html.light body {
-  background: linear-gradient(160deg, #ebe9e3 0%, #e5e3dc 100%) !important;
+  background: #d4d2c8 !important;
   background-attachment: fixed;
 }
 
-/* الشريط الجانبي — كريمي دافئ مع حد خفيف */
+/* الشريط الجانبي — رمادي بيج أغمق قليلاً */
 html.light .sidebar,
 html.light .app-sidebar {
-  background: linear-gradient(180deg, #f2f0ea 0%, #ede9e1 100%) !important;
-  border-color: #d8d4c8 !important;
+  background: #cac7bb !important;
+  border-color: #b5b1a3 !important;
 }
 
-/* الشريط العلوي — نفس النعومة */
+/* الشريط العلوي */
 html.light .topbar {
-  background: #f2f0ea !important;
-  border-bottom: 1px solid #d8d4c8 !important;
+  background: #cac7bb !important;
+  border-bottom: 1px solid #b5b1a3 !important;
 }
 
-/* البطاقات — كريمي ناعم مع ظل دافئ */
+/* البطاقات — بيج هادئ واضح (ليس أبيض) */
 html.light .card,
 html.light .stat-card {
-  background: #f9f7f3 !important;
-  border-color: #ddd9cd !important;
-  box-shadow: 0 2px 10px rgba(90,80,60,.05) !important;
+  background: #e3e1d7 !important;
+  border-color: #c2bdae !important;
+  box-shadow: 0 2px 8px rgba(70,62,48,.08) !important;
 }
 html.light .card:hover,
 html.light .stat-card:hover {
-  box-shadow: 0 6px 20px rgba(90,80,60,.09) !important;
+  box-shadow: 0 5px 16px rgba(70,62,48,.12) !important;
+  background: #e8e6dc !important;
 }
 
-/* الحقول — خلفية كريمية فاتحة */
+/* الحقول — بيج فاتح واضح */
 html.light .form-input,
 html.light .form-select,
 html.light .form-textarea {
-  background: #fdfcfa !important;
-  border-color: #cfcbbe !important;
+  background: #eceae0 !important;
+  border-color: #bdb8a8 !important;
+  color: #2d2a24 !important;
+}
+html.light .form-input:focus,
+html.light .form-select:focus,
+html.light .form-textarea:focus {
+  border-color: #a8801a !important;
+  background: #f0eee4 !important;
 }
 
-/* الجداول — رأس بيج دافئ */
+/* الجداول */
 html.light table thead th {
-  background: #e8e5dd !important;
-  color: #5c574f !important;
+  background: #c5c1b2 !important;
+  color: #4a4640 !important;
+  border-bottom: 2px solid #b5b1a3 !important;
+}
+html.light tbody td {
+  border-bottom-color: #d0ccbe !important;
+  color: #2d2a24 !important;
 }
 html.light tbody tr:hover td {
-  background: rgba(168,128,26,.05) !important;
+  background: rgba(168,128,26,.08) !important;
 }
 
 /* النوافذ المنبثقة */
 html.light .modal {
-  background: #f9f7f3 !important;
-  border-color: #ddd9cd !important;
+  background: #e3e1d7 !important;
+  border-color: #c2bdae !important;
+  box-shadow: 0 20px 50px rgba(50,44,34,.25) !important;
+}
+html.light .modal-overlay {
+  background: rgba(45,40,30,.45) !important;
 }
 
-/* الأزرار الثانوية — بيج بدل رمادي بارد */
+/* الأزرار الثانوية */
 html.light .btn-ghost {
-  background: #e8e5dd !important;
-  border-color: #cfcbbe !important;
-  color: #2d2a26 !important;
+  background: #d4d1c5 !important;
+  border-color: #bdb8a8 !important;
+  color: #2d2a24 !important;
 }
 html.light .btn-ghost:hover {
-  background: #ddd9cd !important;
+  background: #c8c4b6 !important;
 }
 
-/* شريط التمرير — بني فاتح */
+/* شريط التمرير */
 html.light ::-webkit-scrollbar-thumb {
-  background: #c4bfb0 !important;
+  background: #b0ab99 !important;
+  border-radius: 8px;
 }
 html.light ::-webkit-scrollbar-thumb:hover {
-  background: #b0aa98 !important;
+  background: #9a9482 !important;
 }
 html.light ::-webkit-scrollbar-track {
-  background: #e5e3dc !important;
+  background: #cdcabc !important;
 }
 
-/* تقليل سطوع العناصر البيضاء الشفافة */
+/* العناصر البيضاء الشفافة — تُحوّل لبيج */
 html.light [style*="rgba(255,255,255,.03)"],
-html.light [style*="rgba(255,255,255,0.03)"] {
-  background: #f2f0ea !important;
-}
+html.light [style*="rgba(255,255,255,0.03)"] { background: #d8d5c9 !important; }
 html.light [style*="rgba(255,255,255,.04)"],
-html.light [style*="rgba(255,255,255,0.04)"] {
-  background: #ede9e1 !important;
-}
+html.light [style*="rgba(255,255,255,0.04)"] { background: #d3d0c4 !important; }
 html.light [style*="rgba(255,255,255,.05)"],
-html.light [style*="rgba(255,255,255,0.05)"] {
-  background: #e8e5dd !important;
-}
+html.light [style*="rgba(255,255,255,0.05)"] { background: #cecbbe !important; }
 html.light [style*="rgba(255,255,255,.06)"],
-html.light [style*="rgba(255,255,255,0.06)"] {
-  background: #e3e0d7 !important;
-}
+html.light [style*="rgba(255,255,255,0.06)"] { background: #c9c6b8 !important; }
 html.light [style*="rgba(255,255,255,.08)"],
-html.light [style*="rgba(255,255,255,0.08)"] {
-  background: #ddd9cd !important;
+html.light [style*="rgba(255,255,255,0.08)"] { background: #c2bfb0 !important; }
+
+/* الروابط النشطة */
+html.light .nav-link {
+  color: #5c574c !important;
+}
+html.light .nav-link:hover {
+  background: rgba(168,128,26,.1) !important;
+  color: #2d2a24 !important;
+}
+html.light .nav-link.active {
+  background: linear-gradient(135deg, rgba(168,128,26,.18), rgba(168,128,26,.07)) !important;
+  color: #8a6c14 !important;
 }
 
-/* الروابط النشطة في القائمة */
-html.light .nav-link.active {
-  background: linear-gradient(135deg, rgba(168,128,26,.14), rgba(168,128,26,.05)) !important;
-  color: #8a6c14 !important;
+/* النصوص العامة */
+html.light .page-title { color: #2d2a24 !important; }
+html.light .page-sub   { color: #8a847a !important; }
+html.light .topbar-breadcrumb { color: #5c574c !important; }
+
+/* الشارات */
+html.light .badge {
+  background: #d0ccbe !important;
+  color: #5c574c !important;
+  border-color: #bdb8a8 !important;
+}
+
+/* الأفاتار */
+html.light .topbar-avatar {
+  background: linear-gradient(135deg, #a8801a, #c49832) !important;
+  color: #fff !important;
 }
