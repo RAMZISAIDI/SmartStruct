@@ -17,13 +17,13 @@ html.light {
   --card-bg:        #d3d0c6;
 
   /* ── النصوص — رمادي داكن مريح ── */
-  --ss-fg:          #2d2a26;
-  --ss-fg-muted:    #5c574f;
-  --ss-fg-dim:      #9a948a;
+  --ss-fg:          #1a1714;
+  --ss-fg-muted:    #3d3830;
+  --ss-fg-dim:      #6e6760;
 
-  --text:           #2d2a26;
-  --muted:          #5c574f;
-  --dim:            #9a948a;
+  --text:           #1a1714;
+  --muted:          #3d3830;
+  --dim:            #6e6760;
 
   /* ── الحدود — رمادي ناعم ── */
   --ss-border:      #d4d1c8;
@@ -469,3 +469,24 @@ html.light .modal-overlay select {
   background: #eceae0 !important;
   color: #2d2a24 !important;
 }
+
+/* ── تعميق الكتابة في الوضع الفاتح ── */
+html.light body,
+html.light .page-title,
+html.light .team-user-name,
+html.light td,
+html.light th,
+html.light .stat-label,
+html.light .form-label,
+html.light .modal-title { color: #1a1714 !important; }
+
+html.light .page-sub,
+html.light .stat-value { color: #3d3830 !important; }
+
+html.light .nav-link { color: #3d3830 !important; }
+html.light .nav-link.active { color: #8a6c14 !important; }
+
+html.light .topbar-breadcrumb { color: #3d3830 !important; }
+
+html.light .card,
+html.light .stat-card { color: #1a1714 !important; }
