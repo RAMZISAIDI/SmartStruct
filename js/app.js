@@ -1587,22 +1587,17 @@ function topbarHTML(breadcrumb) {
         📱 ${L('الميدان','Terrain')}
       </button>
       ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
-      <!-- زر تبديل المود — بجانب الجرس -->
-      <button id="themeToggleBtn" title="${L('تبديل المظهر','Changer apparence')}"
-        onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
+      <!-- زر تبديل المود -->
+      <button id="themeToggleBtn"
+        title="${L('تبديل المظهر','Changer apparence')}"
+        onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
         style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
-               background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;
+               background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;line-height:1;
                display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
         onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
         onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
-        ☀️
+        ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
       </button>
-      <script>
-        (function(){
-          var btn = document.getElementById('themeToggleBtn');
-          if (btn) btn.textContent = document.documentElement.classList.contains('light') ? '🌙' : '☀️';
-        })();
-      </script>
       <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
       <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
         ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
@@ -8295,6 +8290,60 @@ Pages.settings = function() {
               </tbody>
             </table>
           </div>
+        </div>
+        <!-- 🎨 مظهر الموقع -->
+        <div class="card" style="margin-bottom:1rem;border:1px solid rgba(232,184,75,.2)">
+          <div style="font-weight:800;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem">
+            🎨 ${L('مظهر الموقع','Apparence du site')}
+          </div>
+          <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem">
+            ${L('اختر الوضع المريح لعينيك. يُحفظ تلقائياً.','Choisissez le mode confortable. Sauvegardé automatiquement.')}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+            <!-- الوضع الداكن -->
+            <div id="settingDark" onclick="setTheme('dark')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:.9rem;transition:all .2s">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+                <span style="font-weight:700;font-size:.85rem">🌙 ${L('الوضع الداكن','Mode sombre')}</span>
+                <span id="checkDark" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem"></span>
+              </div>
+              <div style="background:#0d1117;border-radius:6px;padding:.5rem;display:flex;gap:.3rem">
+                <div style="width:28%;background:#161b22;border-radius:3px;height:36px"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:.25rem">
+                  <div style="background:#21262d;border-radius:2px;height:9px"></div>
+                  <div style="background:#E8B84B;border-radius:2px;height:7px;width:55%"></div>
+                  <div style="background:#21262d;border-radius:2px;height:7px;width:75%"></div>
+                </div>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem">${L('مريح في الإضاءة المنخفضة','Confortable la nuit')}</div>
+            </div>
+            <!-- الوضع الفاتح -->
+            <div id="settingLight" onclick="setTheme('light')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:.9rem;transition:all .2s">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+                <span style="font-weight:700;font-size:.85rem">☀️ ${L('الوضع الفاتح','Mode clair')}</span>
+                <span id="checkLight" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem"></span>
+              </div>
+              <div style="background:#d4d2c8;border-radius:6px;padding:.5rem;display:flex;gap:.3rem;border:1px solid #b5b1a3">
+                <div style="width:28%;background:#cac7bb;border-radius:3px;height:36px;border:1px solid #b5b1a3"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:.25rem">
+                  <div style="background:#e3e1d7;border-radius:2px;height:9px;border:1px solid #c2bdae"></div>
+                  <div style="background:#a8801a;border-radius:2px;height:7px;width:55%"></div>
+                  <div style="background:#dcdad3;border-radius:2px;height:7px;width:75%"></div>
+                </div>
+              </div>
+              <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>
+            </div>
+          </div>
+          <script>
+            (function(){
+              var isLight = document.documentElement.classList.contains('light');
+              var dk = document.getElementById('settingDark');
+              var lt = document.getElementById('settingLight');
+              var ck = document.getElementById(isLight?'checkLight':'checkDark');
+              var active = isLight ? lt : dk;
+              if(active){ active.style.borderColor='var(--gold)'; active.style.background='rgba(232,184,75,.04)'; }
+              if(ck){ ck.style.background='var(--gold)'; ck.style.borderColor='var(--gold)'; ck.textContent='✓'; ck.style.color='#fff'; }
+            })();
+          </script>
         </div>
         <div class="card">
           <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي والاسترداد','Sauvegarde & Restauration')}</div>
