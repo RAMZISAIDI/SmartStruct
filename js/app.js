@@ -5151,32 +5151,51 @@ Pages.dashboard = function() {
 
     <!-- ══ شريط الاشتراك تحت بطاقة المؤسسة ══ -->
     ${(()=>{
-      if (!tenant) return '';
-      const status    = tenant.subscription_status || 'trial';
-      const planNames = {1:L('المبتدئ','Starter'), 2:L('الاحترافي','Pro'), 3:L('المؤسسي','Enterprise')};
-      const planName  = planNames[tenant.plan_id] || L('تجربة مجانية','Essai gratuit');
-      const planEmoji = tenant.plan_id===3?'🏆':tenant.plan_id===2?'⚡':'🌱';
-      const isExpired = status==='expired' || tenant.is_active===false;
+      // جلب بيانات المؤسسة المحدّثة من DB مباشرة (أدق من cache)
+      const dbTenants = DB.get('tenants') || [];
+      const t = dbTenants.find(x => x.id === tenant?.id) || tenant;
+      if (!t) return '';
+
+      const status    = t.subscription_status || 'trial';
+      const planNames = {1:L('المبتدئ 🌱','Starter 🌱'), 2:L('الاحترافي ⚡','Pro ⚡'), 3:L('المؤسسي 🏆','Enterprise 🏆')};
+      const planName  = planNames[t.plan_id] || L('تجربة مجانية','Essai gratuit');
+      const planEmoji = t.plan_id===3?'🏆':t.plan_id===2?'⚡':'🌱';
+      const isExpired = status==='expired' || t.is_active===false;
       const isActive  = status==='active';
       const isTrial   = status==='trial';
 
-      let barColor = isExpired?'#F04E6A' : isActive?'#34C38F' : '#E8B84B';
-      let endDate  = '—';
-      let pct      = 100;
+      // ── حساب التاريخ والأيام ──
+      const fmt = d => { try { return new Date(d).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}); } catch(e){return '—';} };
+      const daysDiff = d => Math.max(0, Math.round((new Date(d)-new Date())/86400000));
 
-      if (isTrial && tenant.trial_end) {
-        const dL = Math.max(0,Math.round((new Date(tenant.trial_end)-new Date())/86400000));
-        pct = Math.min(100,Math.round(dL/14*100));
-        endDate = new Date(tenant.trial_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'short',year:'numeric'});
-        barColor = dL<=3?'#F04E6A':dL<=7?'#E8B84B':'#34C38F';
-      } else if (isActive && tenant.subscription_end) {
-        const end = new Date(tenant.subscription_end);
-        const start = tenant.subscription_start?new Date(tenant.subscription_start):new Date(end.getTime()-30*86400000);
-        const dL = Math.max(0,Math.round((end-new Date())/86400000));
-        pct = Math.min(100,Math.round(dL/Math.round((end-start)/86400000||30)*100));
-        endDate = end.toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'short',year:'numeric'});
-        barColor = dL<=7?'#E8B84B':'#34C38F';
-      } else if (isExpired) { pct=0; }
+      let barColor = isExpired?'#F04E6A' : isActive?'#34C38F' : '#E8B84B';
+      let endDate  = '—', daysLeft = null, pct = 100;
+
+      // محاولة أكثر من حقل للتاريخ
+      const rawEnd = t.subscription_end || t.subscription_ends_at || t.trial_end || null;
+
+      if (isTrial) {
+        const te = t.trial_end || t.trial_ends_at;
+        if (te) {
+          daysLeft = daysDiff(te);
+          endDate  = fmt(te);
+          pct      = Math.min(100,Math.round(daysLeft/14*100));
+          barColor = daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
+        }
+      } else if (isActive) {
+        const se = t.subscription_end || t.subscription_ends_at;
+        if (se) {
+          daysLeft = daysDiff(se);
+          const ss = t.subscription_start;
+          const totalDays = ss ? Math.round((new Date(se)-new Date(ss))/86400000)||30 : 30;
+          pct      = Math.min(100,Math.round(daysLeft/totalDays*100));
+          endDate  = fmt(se);
+          barColor = daysLeft<=7?'#E8B84B':'#34C38F';
+        }
+      } else if (isExpired) {
+        pct=0;
+        if (rawEnd) endDate = fmt(rawEnd);
+      }
 
       const statusBadge = isExpired
         ? `<span style="background:#F04E6A18;border:1px solid #F04E6A44;color:#F04E6A;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⛔ ${L('منتهي','Expiré')}</span>`
@@ -5185,36 +5204,44 @@ Pages.dashboard = function() {
           : `<span style="background:#E8B84B18;border:1px solid #E8B84B44;color:#E8B84B;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⏳ ${L('تجريبي','Essai')}</span>`;
 
       return `
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
-                  border-radius:14px;padding:.7rem 1.2rem;margin-bottom:.3rem;
-                  display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-        <!-- الخطة والحالة -->
-        <div style="display:flex;align-items:center;gap:.6rem;flex:1;min-width:200px">
-          <span style="font-size:1.4rem">${planEmoji}</span>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);
+                  border-radius:14px;padding:.8rem 1.2rem;margin-bottom:.3rem;
+                  display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap">
+
+        <!-- الأيقونة والخطة -->
+        <div style="display:flex;align-items:center;gap:.7rem;flex:1;min-width:180px">
+          <span style="font-size:1.5rem">${planEmoji}</span>
           <div>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
-              <span style="font-weight:800;font-size:.88rem">${planName}</span>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;flex-wrap:wrap">
+              <span style="font-weight:800;font-size:.9rem">${planName}</span>
               ${statusBadge}
             </div>
-            <!-- شريط التقدم -->
-            <div style="height:3px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;width:200px;max-width:100%">
-              <div style="height:3px;background:${barColor};border-radius:4px;width:${pct}%;transition:width 1.2s"></div>
+            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;width:180px;max-width:100%">
+              <div style="height:4px;background:${barColor};border-radius:4px;width:${pct}%;transition:width 1.2s"></div>
             </div>
           </div>
         </div>
-      <!-- تاريخ الانتهاء -->
-      <div style="font-size:.76rem;color:var(--dim);white-space:nowrap">
-        ${isExpired
-          ? `<span style="color:#F04E6A;font-weight:700">⚠️ ${L('انتهت الصلاحية','Expiré')}</span>`
-          : endDate !== '—'
-            ? `<span style="color:var(--dim)">${L('📅 ينتهي في','📅 Expire le')}</span><br>
-               <strong style="color:var(--text);font-size:.82rem">${endDate}</strong>`
-            : `<span style="color:var(--dim);font-size:.7rem">${L('لا يوجد تاريخ','N/A')}</span>`}
-      </div>
+
+        <!-- تاريخ الانتهاء -->
+        <div style="display:flex;flex-direction:column;gap:.15rem;min-width:140px">
+          <span style="font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.3px">
+            ${isExpired ? L('⚠️ انتهت في','⚠️ Expiré le') : isTrial ? L('📅 انتهاء التجربة','📅 Fin essai') : L('📅 تاريخ الانتهاء','📅 Date expiration')}
+          </span>
+          <span style="font-size:.9rem;font-weight:800;color:${isExpired?'#F04E6A':barColor}">
+            ${endDate !== '—' ? endDate : `<span style="color:var(--dim);font-size:.75rem">${L('غير محدد — تحقق من لوحة الأدمن','Non défini')}</span>`}
+          </span>
+          ${daysLeft !== null && !isExpired ? `<span style="font-size:.7rem;color:var(--dim)">${daysLeft} ${L('يوم متبقي','jours restants')}</span>` : ''}
+        </div>
+
+        <!-- فاصل -->
+        <div style="width:1px;height:44px;background:rgba(255,255,255,.07);flex-shrink:0"></div>
+
         <!-- زر -->
         ${isExpired
-          ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">🚀 ${L('اشترك','S\'abonner')}</button>`
-          : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.72rem">💳 ${L('إدارة الاشتراك','Gérer')}</button>`}
+          ? `<button class="btn btn-gold" onclick="App.navigate('subscription')" style="font-size:.8rem">🚀 ${L('اشترك الآن','S\'abonner')}</button>`
+          : daysLeft !== null && daysLeft <= 7
+            ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.78rem">🔄 ${L('تجديد','Renouveler')}</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.72rem">💳 ${L('إدارة الاشتراك','Gérer')}</button>`}
       </div>`;
     })()}
 
@@ -10335,10 +10362,12 @@ Pages.admin = function() {
                 const paid    = tenants.filter(t=>t.id!==1 && t.subscription_status==='active' && t.is_active).length;
                 const trial   = tenants.filter(t=>t.id!==1 && t.subscription_status==='trial').length;
                 const expired = tenants.filter(t=>t.id!==1 && (t.subscription_status==='expired' || !t.is_active)).length;
+                const totalRevenue = (DB.get('subscription_invoices')||[]).reduce((s,i)=>s+Number(i.amount||0),0);
                 return `
                 <span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.25);color:#34C38F;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">✅ ${L('دفعت','Payé')} (${paid})</span>
                 <span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:#E8B84B;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⏱️ ${L('تجربة','Essai')} (${trial})</span>
-                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>`;
+                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>
+                <span style="background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.2);color:var(--gold);padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">💰 ${fmt(totalRevenue)} ${L('دج','DA')}</span>`;
               })()}
             </div>
           </div>
@@ -10346,88 +10375,88 @@ Pages.admin = function() {
             <table>
               <thead><tr>
                 <th>${L('المؤسسة','Entreprise')}</th>
-                <th>${L('حالة الدفع','Statut paiement')}</th>
+                <th>${L('حالة الدفع','Statut')}</th>
                 <th>${L('الخطة','Plan')}</th>
-                <th>${L('الوقت المتبقي','Temps restant')}</th>
-                <th>${L('تاريخ الانتهاء','Date d\'expiration')}</th>
-                <th>${L('إجراء','Action')}</th>
+                <th style="min-width:140px">${L('الوقت المتبقي','Temps restant')}</th>
+                <th>${L('تاريخ الانتهاء','Expiration')}</th>
+                <th>${L('إجراءات','Actions')}</th>
               </tr></thead>
               <tbody>
                 ${(()=>{
                   const today = new Date(); today.setHours(0,0,0,0);
                   return tenants
                     .filter(t => t.id !== 1)
+                    .sort((a,b) => {
+                      // ترتيب: منتهي → تجربة قريبة الانتهاء → نشط
+                      const score = t => t.subscription_status==='expired'?0:t.subscription_status==='trial'?1:2;
+                      return score(a)-score(b);
+                    })
                     .map(t => {
                       const pl = plans.find(p=>p.id===t.plan_id);
                       const st = t.subscription_status || '';
                       const isTrial   = st === 'trial';
                       const isPaid    = st === 'active' && t.is_active;
                       const isExpired = st === 'expired' || (!t.is_active && st !== 'trial' && st !== 'pending');
-                      const isPending = st === 'pending' || (!t.is_active && st === 'trial');
 
                       // حساب الأيام المتبقية
-                      let daysLeft = null, endDate = null;
+                      let daysLeft = null, endDate = null, totalDays = 30;
                       if (isTrial) {
-                        const tEnd = t.trial_end || t.trial_ends_at || null;
-                        if (tEnd) { endDate = tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
+                        const tEnd = t.trial_end || t.trial_ends_at;
+                        if (tEnd) { endDate=tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); totalDays=14; }
                       } else if (isPaid) {
-                        const sEnd = t.subscription_end || t.subscription_ends_at || null;
-                        if (sEnd) { endDate = sEnd; const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
-                      }
-
-                      // عرض الوقت المتبقي
-                      let daysHtml = '<span style="color:var(--dim)">—</span>';
-                      if (daysLeft !== null) {
-                        if (daysLeft < 0) {
-                          daysHtml = `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`;
-                        } else if (daysLeft === 0) {
-                          daysHtml = `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم الأخير!','Dernier jour!')}</span>`;
-                        } else if (daysLeft <= 3) {
-                          daysHtml = `<span style="color:#E8B84B;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`;
-                        } else if (daysLeft <= 7) {
-                          daysHtml = `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`;
-                        } else {
-                          daysHtml = `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
+                        const sEnd = t.subscription_end || t.subscription_ends_at;
+                        if (sEnd) {
+                          endDate=sEnd;
+                          const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000);
+                          if (t.subscription_start) totalDays=Math.round((new Date(sEnd)-new Date(t.subscription_start))/86400000)||30;
                         }
                       }
 
-                      // عرض حالة الدفع
-                      let payHtml;
-                      if (isPaid) {
-                        payHtml = `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`;
-                      } else if (isTrial && daysLeft !== null && daysLeft >= 0) {
-                        payHtml = `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة مجانية','Essai gratuit')}</span>`;
-                      } else if (isPending) {
-                        payHtml = `<span class="badge" style="background:rgba(74,144,226,.12);color:#4A90E2;border:1px solid rgba(74,144,226,.25);font-size:.7rem">⏳ ${L('انتظار','En attente')}</span>`;
-                      } else {
-                        payHtml = `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
+                      const pct = daysLeft!==null ? Math.max(0,Math.min(100,Math.round(daysLeft/totalDays*100))) : 0;
+                      const barC = daysLeft===null?'var(--dim)':daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
+
+                      // عرض الوقت المتبقي مع شريط
+                      let daysHtml = '<span style="color:var(--dim)">—</span>';
+                      if (daysLeft !== null) {
+                        const label = daysLeft<0 ? `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`
+                          : daysLeft===0 ? `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم!','Aujourd\'hui!')}</span>`
+                          : daysLeft<=3 ? `<span style="color:#F04E6A;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`
+                          : daysLeft<=7 ? `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`
+                          : `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
+                        daysHtml = `<div style="display:flex;flex-direction:column;gap:3px;min-width:120px">
+                          ${label}
+                          <div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden">
+                            <div style="height:3px;background:${barC};width:${pct}%;border-radius:2px;transition:width .8s"></div>
+                          </div>
+                        </div>`;
                       }
 
+                      let payHtml = isPaid
+                        ? `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`
+                        : isTrial && daysLeft!==null && daysLeft>=0
+                          ? `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة','Essai')}</span>`
+                          : `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
+
                       const endStr = endDate
-                        ? new Date(endDate).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'})
+                        ? new Date(endDate).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'2-digit',month:'short',year:'numeric'})
                         : '—';
 
-                      return `<tr>
+                      return `<tr style="${isExpired?'background:rgba(240,78,106,.04)':''}${daysLeft!==null&&daysLeft<=3&&!isExpired?'background:rgba(232,184,75,.03)':''}">
                         <td>
                           <div style="font-weight:700;font-size:.85rem">${escHtml(t.name)}</div>
-                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')}</div>
+                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')} · ID:${t.id}</div>
                         </td>
                         <td>${payHtml}</td>
-                        <td>
-                          <span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span>
-                        </td>
+                        <td><span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span></td>
                         <td>${daysHtml}</td>
-                        <td style="font-size:.78rem;color:var(--dim);font-family:monospace">${endStr}</td>
+                        <td>
+                          <span style="font-size:.8rem;font-weight:700;color:${daysLeft!==null&&daysLeft<=7?barC:'var(--text)'};font-family:monospace">${endStr}</span>
+                        </td>
                         <td>
                           <div style="display:flex;gap:.3rem;flex-wrap:wrap">
-                            ${(!isPaid) ? `<button class="btn btn-sm btn-gold" style="font-size:.7rem;padding:.25rem .6rem"
-                              onclick="editTenantPlan(${t.id})" title="${L('تفعيل الاشتراك المدفوع','Activer l\'abonnement payant')}">
-                              💳 ${L('فعّل','Activer')}
-                            </button>` : ''}
-                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.7rem;padding:.25rem .5rem"
-                              onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">
-                              ${t.is_active?'⏸️':'▶️'}
-                            </button>
+                            <button class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:.2rem .5rem" onclick="editTenantPlan(${t.id})" title="${L('تعديل الخطة','Modifier plan')}">⚙️</button>
+                            <button class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:.2rem .5rem" onclick="openSubInvoicesModal(${t.id})" title="${L('فواتير الاشتراك','Factures')}">🧾</button>
+                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.68rem;padding:.2rem .5rem" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">${t.is_active?'⏸️':'▶️'}</button>
                           </div>
                         </td>
                       </tr>`;

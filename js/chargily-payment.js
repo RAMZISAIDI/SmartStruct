@@ -100,10 +100,7 @@ const ChargilyPayment = (() => {
       },
     };
 
-    // إضافة بريد المستخدم إن وُجد
-    if (userEmail) {
-      payload.customer = { email: userEmail, name: tenantName };
-    }
+    // ملاحظة: customer غير مدعوم في /checkouts endpoint — نمرر البيانات في metadata فقط
 
     const res = await fetch(`${CONFIG.API_BASE}/checkouts`, {
       method: 'POST',
