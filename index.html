@@ -47,13 +47,17 @@
 <link rel="stylesheet" href="css/design-system.css">
 <link rel="stylesheet" href="assets/textures/atmosphere.css">
 <link rel="stylesheet" href="css/main.css?v=1779272139">
-<link rel="stylesheet" href="css/light-mode.css?v=3">
+<link rel="stylesheet" href="css/light-mode.css?v=4">
 <script>
-  // تطبيق الوضع المحفوظ فوراً قبل التحميل (تجنب الوميض)
+  // تطبيق الوضع المحفوظ — لكن ليس في صفحة Landing
   (function(){
     try {
       var saved = localStorage.getItem('sbtp_theme');
-      if (saved === 'light') document.documentElement.classList.add('light');
+      // Landing تُعرف بـ hash أو بغياب أي user session
+      var isLanding = !localStorage.getItem('sbtp5_user');
+      if (saved === 'light' && !isLanding) {
+        document.documentElement.classList.add('light');
+      }
     } catch(e){}
   })();
 </script>

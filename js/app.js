@@ -20502,13 +20502,16 @@ function setTheme(theme) {
 function _applyThemeForPage(page) {
   try {
     const saved = localStorage.getItem('sbtp_theme');
-    if (['landing','login'].includes(page)) {
-      // Landing وLogin دائماً داكنتان
+    if (['landing', 'login'].includes(page)) {
+      // Landing وLogin دائماً داكنتان — أزل light فوراً
       document.documentElement.classList.remove('light');
-    } else if (saved === 'light') {
-      document.documentElement.classList.add('light');
     } else {
-      document.documentElement.classList.remove('light');
+      // باقي الصفحات — طبّق الثيم المحفوظ
+      if (saved === 'light') {
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+      }
     }
   } catch(e) {}
 }

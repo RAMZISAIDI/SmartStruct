@@ -1,19 +1,4 @@
 
-/* ══════════════════════════════════════════════════
-   استثناء صفحة الهبوط Landing من الوضع الفاتح
-   ══════════════════════════════════════════════════ */
-html.light body:has(.ll-atmosphere),
-html.light body:has(.ll-nav),
-html.light body:has(.ll-hero) {
-  background: transparent !important;
-  color: inherit !important;
-}
-html.light body:has(.ll-atmosphere) *:not(button):not(input):not(select) {
-  color: inherit !important;
-  background: initial !important;
-  border-color: initial !important;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    SmartStruct — Light Mode احترافي
    وضع فاتح أنيق بألوان متناسقة — يُفعّل بإضافة class="light" على <html>
