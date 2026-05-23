@@ -1334,7 +1334,9 @@ const App = {
   currentPage: 'landing',
   params: {},
   navigate(page, params={}) {
-    this.currentPage = page; this.params = params; this.render();
+    this.currentPage = page; this.params = params;
+    if (typeof _applyThemeForPage === 'function') _applyThemeForPage(page);
+    this.render();
     window.scrollTo(0,0);
   },
   render() {
@@ -20489,11 +20491,26 @@ function setTheme(theme) {
         ? L('☀️ تم تفعيل الوضع الفاتح','☀️ Mode clair activé')
         : L('🌙 تم تفعيل الوضع الداكن','🌙 Mode sombre activé'));
     }
-    // إعادة رسم الصفحة الحالية لتحديث المعاينة
+    // إعادة رسم الصفحة الحالية لتحديث الأيقونة
     if (typeof App !== 'undefined' && App.currentPage) {
       App.navigate(App.currentPage);
     }
   } catch(e) { console.warn('setTheme failed:', e); }
+}
+
+// ── تطبيق / إزالة الوضع الفاتح حسب الصفحة ──
+function _applyThemeForPage(page) {
+  try {
+    const saved = localStorage.getItem('sbtp_theme');
+    if (['landing','login'].includes(page)) {
+      // Landing وLogin دائماً داكنتان
+      document.documentElement.classList.remove('light');
+    } else if (saved === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+  } catch(e) {}
 }
 
 Pages.team = function() {
