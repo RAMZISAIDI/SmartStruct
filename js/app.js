@@ -20487,75 +20487,123 @@ Pages.team = function() {
   .role-matrix-table th,.role-matrix-table td{padding:.45rem .6rem;font-size:.78rem}
 </style>
 
-<div class="page-header">
-  <div>
-    <div class="page-title">👥 ${L('فريق العمل','Équipe de travail')}</div>
-    <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
-  </div>
-  <div class="page-actions">
-    ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">✉️ ${L('إضافة مستخدم','Ajouter utilisateur')}</button>` : ''}
-  </div>
-</div>
-
-<!-- ══════════════ مظهر الموقع (Theme Switcher) ══════════════ -->
-<div class="card" style="margin-bottom:1.2rem;border:1px solid rgba(232,184,75,.2)">
-  <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem">
-    <div style="width:38px;height:38px;border-radius:10px;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);display:flex;align-items:center;justify-content:center;font-size:1.2rem">🎨</div>
+<div class="page-header" style="flex-direction:column;align-items:stretch;gap:.8rem">
+  <!-- السطر الأول: العنوان + الأزرار -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
     <div>
-      <div style="font-weight:800;font-size:.92rem">${L('مظهر الموقع','Apparence du site')}</div>
-      <div style="font-size:.74rem;color:var(--dim)">${L('اختر الوضع المريح لعينيك','Choisissez le mode confortable')}</div>
+      <div class="page-title">👥 ${L('فريق العمل','Équipe de travail')}</div>
+      <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+      <!-- زر تبديل المود -->
+      <button onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
+        style="display:flex;align-items:center;gap:.4rem;padding:.4rem .85rem;
+               background:rgba(255,255,255,.06);border:1px solid var(--border);
+               border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:700;
+               color:var(--text);transition:all .2s"
+        onmouseover="this.style.borderColor='rgba(232,184,75,.5)'"
+        onmouseout="this.style.borderColor='var(--border)'">
+        <span id="themeBtnIcon" style="font-size:.95rem">
+          ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')?'🌙':'☀️'}
+        </span>
+        <span id="themeBtnLabel">
+          ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')
+            ? L('الوضع الداكن','Mode sombre')
+            : L('الوضع الفاتح','Mode clair')}
+        </span>
+      </button>
+      ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">+ ${L('إضافة مستخدم','Ajouter')}</button>` : ''}
     </div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
-    <!-- الوضع الداكن -->
-    <div onclick="setTheme('dark')" id="themeOptDark" style="cursor:pointer;border:2px solid var(--border);border-radius:14px;padding:1rem;transition:all .2s;position:relative;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
-        <span style="font-weight:800;font-size:.88rem">🌙 ${L('الوضع الداكن','Mode sombre')}</span>
-        <span id="themeCheckDark" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem"></span>
+
+  <!-- السطر الثاني: شريط الاشتراك -->
+  ${(function(){
+    const t = Auth.getTenant();
+    if (!t || currentUser.is_admin) return '';
+
+    const status   = t.subscription_status || 'trial';
+    const planNames= {1:L('المبتدئ','Starter'), 2:L('الاحترافي','Pro'), 3:L('المؤسسي','Enterprise')};
+    const planName = planNames[t.plan_id] || L('التجريبي','Essai gratuit');
+    const planEmoji= t.plan_id===3?'🏆':t.plan_id===2?'⚡':'🌱';
+
+    let daysLeft = null, endDate = '—', pct = 100, barColor = '#34C38F', statusLabel = '';
+
+    if (status === 'trial' && t.trial_end) {
+      const end = new Date(t.trial_end);
+      daysLeft = Math.max(0, Math.round((end - new Date()) / 86400000));
+      endDate  = end.toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'});
+      pct      = Math.min(100, Math.round((daysLeft / 14) * 100));
+      barColor = daysLeft <= 3 ? '#F04E6A' : daysLeft <= 7 ? '#E8B84B' : '#34C38F';
+      statusLabel = L('تجربة مجانية','Essai gratuit');
+    } else if (status === 'active' && t.subscription_end) {
+      const end = new Date(t.subscription_end);
+      const start = t.subscription_start ? new Date(t.subscription_start) : new Date(end.getTime() - 30*86400000);
+      daysLeft = Math.max(0, Math.round((end - new Date()) / 86400000));
+      const totalDays = Math.round((end - start) / 86400000) || 30;
+      endDate  = end.toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'});
+      pct      = Math.min(100, Math.round((daysLeft / totalDays) * 100));
+      barColor = daysLeft <= 7 ? '#E8B84B' : '#34C38F';
+      statusLabel = L('اشتراك نشط','Abonnement actif');
+    } else if (status === 'expired') {
+      daysLeft = 0; pct = 0; barColor = '#F04E6A';
+      statusLabel = L('انتهى الاشتراك','Abonnement expiré');
+    }
+
+    const isExpired = status === 'expired' || daysLeft === 0;
+    const bgColor   = isExpired ? 'rgba(240,78,106,.08)' : 'rgba(255,255,255,.04)';
+    const borderCol = isExpired ? 'rgba(240,78,106,.35)' : 'rgba(255,255,255,.1)';
+
+    return `
+    <div style="background:${bgColor};border:1px solid ${borderCol};border-radius:14px;padding:.75rem 1.1rem;
+                display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+
+      <!-- أيقونة الخطة -->
+      <div style="width:40px;height:40px;border-radius:10px;
+                  background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.2);
+                  display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">
+        ${planEmoji}
       </div>
-      <!-- معاينة مصغرة -->
-      <div style="background:#0a0e1a;border-radius:8px;padding:.6rem;display:flex;gap:.4rem">
-        <div style="width:30%;background:#131a2a;border-radius:4px;height:42px"></div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
-          <div style="background:#1a2236;border-radius:3px;height:10px"></div>
-          <div style="background:#E8B84B;border-radius:3px;height:8px;width:60%"></div>
-          <div style="background:#1a2236;border-radius:3px;height:8px;width:80%"></div>
+
+      <!-- معلومات الخطة -->
+      <div style="flex:1;min-width:180px">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;flex-wrap:wrap">
+          <span style="font-weight:800;font-size:.88rem">${planName}</span>
+          <span style="padding:2px 9px;border-radius:12px;font-size:.68rem;font-weight:700;
+                       background:${barColor}18;border:1px solid ${barColor}44;color:${barColor}">
+            ${isExpired?'⛔':status==='active'?'✅':'⏳'} ${statusLabel}
+          </span>
+        </div>
+        <!-- شريط التقدم -->
+        <div style="height:5px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-bottom:.3rem">
+          <div style="height:5px;background:${barColor};border-radius:4px;width:${pct}%;
+                      transition:width 1s ease;
+                      ${pct>0?'box-shadow:0 0 6px '+barColor+'66':''}"
+          ></div>
+        </div>
+        <div style="font-size:.72rem;color:var(--dim)">
+          ${daysLeft !== null
+            ? `${isExpired
+                ? L('⚠️ انتهت الصلاحية — اشترك الآن','⚠️ Expiré — Abonnez-vous maintenant')
+                : `${L('يتبقى','Reste')} <strong style="color:${barColor}">${daysLeft} ${L('يوم','j.')}</strong> · ${L('تنتهي','Expire')} ${endDate}`}`
+            : `${L('تنتهي في','Expire le')} ${endDate}`}
         </div>
       </div>
-      <div style="font-size:.72rem;color:var(--dim);margin-top:.6rem">${L('مريح في الإضاءة المنخفضة','Confortable en faible luminosité')}</div>
-    </div>
-    <!-- الوضع الفاتح -->
-    <div onclick="setTheme('light')" id="themeOptLight" style="cursor:pointer;border:2px solid var(--border);border-radius:14px;padding:1rem;transition:all .2s;position:relative;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
-        <span style="font-weight:800;font-size:.88rem">☀️ ${L('الوضع الفاتح','Mode clair')}</span>
-        <span id="themeCheckLight" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem"></span>
-      </div>
-      <!-- معاينة مصغرة -->
-      <div style="background:#d4d2c8;border-radius:8px;padding:.6rem;display:flex;gap:.4rem;border:1px solid #b5b1a3">
-        <div style="width:30%;background:#e3e1d7;border-radius:4px;height:42px;border:1px solid #c2bdae"></div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
-          <div style="background:#e3e1d7;border-radius:3px;height:10px;border:1px solid #c2bdae"></div>
-          <div style="background:#a8801a;border-radius:3px;height:8px;width:60%"></div>
-          <div style="background:#c8c4b8;border-radius:3px;height:8px;width:80%"></div>
-        </div>
-      </div>
-      <div style="font-size:.72rem;color:var(--dim);margin-top:.6rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>
-    </div>
-  </div>
-  <script>
-    (function(){
-      var cur = (document.documentElement.classList.contains('light')) ? 'light' : 'dark';
-      var dk = document.getElementById('themeOptDark'), lt = document.getElementById('themeOptLight');
-      var ckD = document.getElementById('themeCheckDark'), ckL = document.getElementById('themeCheckLight');
-      if (cur === 'light') {
-        if(lt){lt.style.borderColor='var(--gold)';lt.style.background='rgba(184,134,11,.04)';}
-        if(ckL){ckL.style.background='var(--gold)';ckL.style.borderColor='var(--gold)';ckL.textContent='✓';ckL.style.color='#fff';}
-      } else {
-        if(dk){dk.style.borderColor='var(--gold)';dk.style.background='rgba(232,184,75,.04)';}
-        if(ckD){ckD.style.background='var(--gold)';ckD.style.borderColor='var(--gold)';ckD.textContent='✓';ckD.style.color='#000';}
+
+      <!-- زر الإجراء -->
+      ${isExpired
+        ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')" style="flex-shrink:0">
+             🚀 ${L('اشترك الآن','S\'abonner')}
+           </button>`
+        : daysLeft !== null && daysLeft <= 7
+          ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="flex-shrink:0">
+               🔄 ${L('تجديد','Renouveler')}
+             </button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="flex-shrink:0;font-size:.72rem">
+               💳 ${L('إدارة الاشتراك','Gérer l\'abonnement')}
+             </button>`
       }
-    })();
-  </script>
+    </div>`;
+  })()}
 </div>
 
 <!-- ══════════════ قائمة المستخدمين ══════════════ -->
