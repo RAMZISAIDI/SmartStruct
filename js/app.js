@@ -5164,32 +5164,26 @@ Pages.dashboard = function() {
       </div>
     </div>
 
-    <div class="page-header" style="flex-direction:column;align-items:stretch;gap:.7rem">
+    <!-- ═══ زر المود + شريط الاشتراك ═══ -->
+    <div style="display:flex;flex-direction:column;gap:.7rem;margin-bottom:1rem">
 
-      <!-- السطر الأول: العنوان + زر المود -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
-        <div>
-          <div class="page-title">📊 ${L('لوحة التحكم','Tableau de bord')}</div>
-          <div class="page-sub">${L('نظرة شاملة على مؤسستك','Vue d\'ensemble de votre entreprise')}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:.5rem">
-          <!-- زر تبديل المود -->
-          <button
-            onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
-            style="display:flex;align-items:center;gap:.4rem;padding:.38rem .85rem;
-                   background:rgba(255,255,255,.06);border:1px solid var(--border);
-                   border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:700;
-                   color:var(--text);transition:all .2s;white-space:nowrap"
-            onmouseover="this.style.background='rgba(232,184,75,.1)';this.style.borderColor='rgba(232,184,75,.4)'"
-            onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
-            ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')
-              ? `🌙 ${L('الوضع الداكن','Mode sombre')}`
-              : `☀️ ${L('الوضع الفاتح','Mode clair')}`}
-          </button>
-        </div>
+      <!-- زر تبديل المود -->
+      <div style="display:flex;justify-content:flex-end">
+        <button
+          onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
+          style="display:flex;align-items:center;gap:.4rem;padding:.38rem .85rem;
+                 background:rgba(255,255,255,.06);border:1px solid var(--border);
+                 border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:700;
+                 color:var(--text);transition:all .2s;white-space:nowrap"
+          onmouseover="this.style.background='rgba(232,184,75,.1)';this.style.borderColor='rgba(232,184,75,.4)'"
+          onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
+          ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')
+            ? `🌙 ${L('الوضع الداكن','Mode sombre')}`
+            : `☀️ ${L('الوضع الفاتح','Mode clair')}`}
+        </button>
       </div>
 
-      <!-- السطر الثاني: شريط الاشتراك -->
+      <!-- شريط الاشتراك -->
       ${(()=>{
         if (!tenant || user.is_admin) return '';
         const status    = tenant.subscription_status || 'trial';
@@ -5232,21 +5226,14 @@ Pages.dashboard = function() {
           : status==='active' ? 'rgba(52,195,143,.2)' : 'rgba(232,184,75,.2)';
 
         return `
-        <div style="background:${bgGrad};border:1px solid ${borderC};border-radius:14px;
-                    padding:.75rem 1.1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <!-- الخطة -->
-          <div style="display:flex;flex-direction:column;gap:.25rem;min-width:160px">
-            <div style="display:flex;align-items:center;gap:.5rem">
+        <div style="background:${bgGrad};border:1px solid ${borderC};border-radius:14px;padding:.75rem 1.1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:.25rem;min-width:160px;flex:1">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
               <span style="font-weight:800;font-size:.88rem;color:var(--text)">${planName}</span>
-              <span style="padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700;
-                           background:${barColor}18;border:1px solid ${barColor}44;color:${barColor}">
-                ${statusIcon} ${statusLabel}
-              </span>
+              <span style="padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700;background:${barColor}18;border:1px solid ${barColor}44;color:${barColor}">${statusIcon} ${statusLabel}</span>
             </div>
-            <!-- شريط التقدم -->
-            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;width:180px">
-              <div style="height:4px;background:linear-gradient(90deg,${barColor},${barColor}99);
-                          border-radius:4px;width:${pct}%;transition:width 1.2s ease"></div>
+            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;max-width:220px">
+              <div style="height:4px;background:linear-gradient(90deg,${barColor},${barColor}99);border-radius:4px;width:${pct}%;transition:width 1.2s ease"></div>
             </div>
             <div style="font-size:.7rem;color:var(--dim)">
               ${daysLeft!==null && !isExp
@@ -5255,20 +5242,20 @@ Pages.dashboard = function() {
                 : endDate}
             </div>
           </div>
-          <!-- فاصل -->
-          <div style="width:1px;height:36px;background:rgba(255,255,255,.08);flex-shrink:0"></div>
-          <!-- زر الإجراء -->
           ${isExp
-            ? `<button class="btn btn-gold" onclick="App.navigate('subscription')" style="font-size:.8rem">
-                 🚀 ${L('اشترك الآن','S\'abonner')}</button>`
+            ? `<button class="btn btn-gold" onclick="App.navigate('subscription')" style="font-size:.8rem">🚀 ${L('اشترك الآن','S\'abonner')}</button>`
             : daysLeft!==null && daysLeft<=7
-              ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.78rem">
-                   🔄 ${L('تجديد الاشتراك','Renouveler')}</button>`
-              : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.75rem">
-                   💳 ${L('إدارة الاشتراك','Mon abonnement')}</button>`}
+              ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.78rem">🔄 ${L('تجديد الاشتراك','Renouveler')}</button>`
+              : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.75rem">💳 ${L('إدارة الاشتراك','Mon abonnement')}</button>`}
         </div>`;
       })()}
     </div>
+
+    <div class="page-header">
+      <div>
+        <div class="page-title">📊 ${L('لوحة التحكم','Tableau de bord')}</div>
+        <div class="page-sub">${L('نظرة شاملة على مؤسستك','Vue d\'ensemble de votre entreprise')}</div>
+      </div>
       <div class="page-actions">
         <button id="syncAllBtn" class="btn btn-sm realtime-badge" style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="(function(){if(typeof AutoSync!=='undefined'){AutoSync.syncNow().then(()=>Toast.success('⚡ تمت المزامنة'));}else{syncAllDataToSupabase();}})()" title="${L('المزامنة تلقائية — اضغط للمزامنة الفورية','Sync auto — clic pour forcer')}">⚡ <span id="lastSyncTime">${L('متصل','En ligne')}</span></button>
         <button class="btn btn-sm" style="background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.3);color:#34C38F;font-weight:700" onclick="checkSupabaseStatus()" title="تحقق من الاتصال">🔌 Supabase</button>
