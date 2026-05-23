@@ -1055,7 +1055,7 @@ const ROLE_PERMISSIONS = {
     inventory:true, equipment:true, materials:true,
     suppliers:true, supplier_detail:true,
     documents:true, reports:true, bank_report:true, simulator:true,
-    obligations:true, audit_log:true, team:true, settings:true,
+    obligations:true, audit_log:true, team:true, settings:true, subscription:true,
     write_projects:true, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:true, write_equipment:true, write_documents:true,
@@ -1085,7 +1085,7 @@ const ROLE_PERMISSIONS = {
     inventory:'view', equipment:'view', materials:'view',
     suppliers:true, supplier_detail:true,
     documents:'view', reports:true, bank_report:true, simulator:true,
-    obligations:true, audit_log:'view', team:'view', settings:'view',
+    obligations:true, audit_log:'view', team:'view', settings:'view', subscription:true, subscription:true,
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:false, write_equipment:false, write_documents:false,
@@ -1100,7 +1100,7 @@ const ROLE_PERMISSIONS = {
     inventory:false, equipment:false, materials:false,
     suppliers:false, supplier_detail:false,
     documents:false, reports:false, bank_report:false, simulator:false,
-    obligations:false, audit_log:false, team:'view', settings:'view',
+    obligations:false, audit_log:false, team:'view', settings:'view', subscription:true,
     write_projects:false, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
@@ -1115,7 +1115,7 @@ const ROLE_PERMISSIONS = {
     inventory:'view', equipment:'view', materials:'view',
     suppliers:'view', supplier_detail:'view',
     documents:'view', reports:'view', bank_report:false, simulator:'view',
-    obligations:'view', audit_log:false, team:'view', settings:'view',
+    obligations:'view', audit_log:false, team:'view', settings:'view', subscription:true,
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:false, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
@@ -1137,7 +1137,7 @@ const PAGE_PERM_MAP = {
   dz_documents:'documents', archive:'documents',
   suppliers:'suppliers', supplier_detail:'suppliers',
   worker_profile:'workers',
-  subscription:'settings',
+  subscription:'subscription',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -5140,6 +5140,72 @@ Pages.dashboard = function() {
       </div>
     </div>
 
+    <!-- ══ شريط الاشتراك تحت بطاقة المؤسسة ══ -->
+    ${(()=>{
+      if (!tenant) return '';
+      const status    = tenant.subscription_status || 'trial';
+      const planNames = {1:L('المبتدئ','Starter'), 2:L('الاحترافي','Pro'), 3:L('المؤسسي','Enterprise')};
+      const planName  = planNames[tenant.plan_id] || L('تجربة مجانية','Essai gratuit');
+      const planEmoji = tenant.plan_id===3?'🏆':tenant.plan_id===2?'⚡':'🌱';
+      const isExpired = status==='expired' || tenant.is_active===false;
+      const isActive  = status==='active';
+      const isTrial   = status==='trial';
+
+      let barColor = isExpired?'#F04E6A' : isActive?'#34C38F' : '#E8B84B';
+      let endDate  = '—';
+      let pct      = 100;
+
+      if (isTrial && tenant.trial_end) {
+        const dL = Math.max(0,Math.round((new Date(tenant.trial_end)-new Date())/86400000));
+        pct = Math.min(100,Math.round(dL/14*100));
+        endDate = new Date(tenant.trial_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'short',year:'numeric'});
+        barColor = dL<=3?'#F04E6A':dL<=7?'#E8B84B':'#34C38F';
+      } else if (isActive && tenant.subscription_end) {
+        const end = new Date(tenant.subscription_end);
+        const start = tenant.subscription_start?new Date(tenant.subscription_start):new Date(end.getTime()-30*86400000);
+        const dL = Math.max(0,Math.round((end-new Date())/86400000));
+        pct = Math.min(100,Math.round(dL/Math.round((end-start)/86400000||30)*100));
+        endDate = end.toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'short',year:'numeric'});
+        barColor = dL<=7?'#E8B84B':'#34C38F';
+      } else if (isExpired) { pct=0; }
+
+      const statusBadge = isExpired
+        ? `<span style="background:#F04E6A18;border:1px solid #F04E6A44;color:#F04E6A;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⛔ ${L('منتهي','Expiré')}</span>`
+        : isActive
+          ? `<span style="background:#34C38F18;border:1px solid #34C38F44;color:#34C38F;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">✅ ${L('نشط','Actif')}</span>`
+          : `<span style="background:#E8B84B18;border:1px solid #E8B84B44;color:#E8B84B;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⏳ ${L('تجريبي','Essai')}</span>`;
+
+      return `
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+                  border-radius:14px;padding:.7rem 1.2rem;margin-bottom:.3rem;
+                  display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <!-- الخطة والحالة -->
+        <div style="display:flex;align-items:center;gap:.6rem;flex:1;min-width:200px">
+          <span style="font-size:1.4rem">${planEmoji}</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+              <span style="font-weight:800;font-size:.88rem">${planName}</span>
+              ${statusBadge}
+            </div>
+            <!-- شريط التقدم -->
+            <div style="height:3px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;width:200px;max-width:100%">
+              <div style="height:3px;background:${barColor};border-radius:4px;width:${pct}%;transition:width 1.2s"></div>
+            </div>
+          </div>
+        </div>
+        <!-- تاريخ الانتهاء -->
+        <div style="font-size:.72rem;color:var(--dim);text-align:center">
+          ${isExpired
+            ? `<span style="color:#F04E6A">${L('⚠️ اشترك الآن','⚠️ Abonnez-vous')}</span>`
+            : `${L('تنتهي في','Expire le')} <strong style="color:var(--text)">${endDate}</strong>`}
+        </div>
+        <!-- زر -->
+        ${isExpired
+          ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">🚀 ${L('اشترك','S\'abonner')}</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.72rem">💳 ${L('إدارة الاشتراك','Gérer')}</button>`}
+      </div>`;
+    })()}
+
     <!-- AI CEO DAILY SUMMARY -->
     <div class="ai-ceo-banner">
       <div class="ai-ceo-icon">🤖</div>
@@ -5164,91 +5230,20 @@ Pages.dashboard = function() {
       </div>
     </div>
 
-    <!-- ═══ زر المود + شريط الاشتراك ═══ -->
-    <div style="display:flex;flex-direction:column;gap:.7rem;margin-bottom:1rem">
-
-      <!-- زر تبديل المود -->
-      <div style="display:flex;justify-content:flex-end">
-        <button
-          onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
-          style="display:flex;align-items:center;gap:.4rem;padding:.38rem .85rem;
-                 background:rgba(255,255,255,.06);border:1px solid var(--border);
-                 border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:700;
-                 color:var(--text);transition:all .2s;white-space:nowrap"
-          onmouseover="this.style.background='rgba(232,184,75,.1)';this.style.borderColor='rgba(232,184,75,.4)'"
-          onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
-          ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')
-            ? `🌙 ${L('الوضع الداكن','Mode sombre')}`
-            : `☀️ ${L('الوضع الفاتح','Mode clair')}`}
-        </button>
-      </div>
-
-      <!-- شريط الاشتراك -->
-      ${(()=>{
-        if (!tenant || user.is_admin) return '';
-        const status    = tenant.subscription_status || 'trial';
-        const planNames = {1:L('المبتدئ 🌱','Starter 🌱'), 2:L('الاحترافي ⚡','Pro ⚡'), 3:L('المؤسسي 🏆','Enterprise 🏆')};
-        const planName  = planNames[tenant.plan_id] || L('تجربة مجانية','Essai gratuit');
-
-        let daysLeft=null, endDate='—', pct=100, barColor='#34C38F', statusLabel='', statusIcon='✅';
-
-        if (status==='trial' && tenant.trial_end) {
-          const end = new Date(tenant.trial_end);
-          daysLeft  = Math.max(0, Math.round((end-new Date())/86400000));
-          endDate   = end.toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long'});
-          pct       = Math.min(100,Math.round(daysLeft/14*100));
-          barColor  = daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
-          statusIcon= daysLeft<=3?'⚠️':'⏳';
-          statusLabel = `${daysLeft} ${L('يوم متبقي','j. restants')}`;
-        } else if (status==='active' && tenant.subscription_end) {
-          const end   = new Date(tenant.subscription_end);
-          const start = tenant.subscription_start ? new Date(tenant.subscription_start) : new Date(end.getTime()-30*86400000);
-          daysLeft    = Math.max(0,Math.round((end-new Date())/86400000));
-          const total = Math.round((end-start)/86400000)||30;
-          endDate     = end.toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'});
-          pct         = Math.min(100,Math.round(daysLeft/total*100));
-          barColor    = daysLeft<=7?'#E8B84B':'#34C38F';
-          statusIcon  = '✅';
-          statusLabel = `${daysLeft} ${L('يوم للتجديد','j. renouvellement')}`;
-        } else if (status==='expired'||tenant.is_active===false) {
-          daysLeft=0; pct=0; barColor='#F04E6A'; statusIcon='⛔';
-          statusLabel = L('انتهت الصلاحية','Expiré');
-        }
-
-        const isExp = status==='expired' || tenant.is_active===false || daysLeft===0;
-        const bgGrad = isExp
-          ? 'linear-gradient(135deg,rgba(240,78,106,.08),rgba(240,78,106,.03))'
-          : status==='active'
-            ? 'linear-gradient(135deg,rgba(52,195,143,.07),rgba(52,195,143,.02))'
-            : 'linear-gradient(135deg,rgba(232,184,75,.07),rgba(232,184,75,.02))';
-        const borderC = isExp
-          ? 'rgba(240,78,106,.3)'
-          : status==='active' ? 'rgba(52,195,143,.2)' : 'rgba(232,184,75,.2)';
-
-        return `
-        <div style="background:${bgGrad};border:1px solid ${borderC};border-radius:14px;padding:.75rem 1.1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <div style="display:flex;flex-direction:column;gap:.25rem;min-width:160px;flex:1">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-              <span style="font-weight:800;font-size:.88rem;color:var(--text)">${planName}</span>
-              <span style="padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700;background:${barColor}18;border:1px solid ${barColor}44;color:${barColor}">${statusIcon} ${statusLabel}</span>
-            </div>
-            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;max-width:220px">
-              <div style="height:4px;background:linear-gradient(90deg,${barColor},${barColor}99);border-radius:4px;width:${pct}%;transition:width 1.2s ease"></div>
-            </div>
-            <div style="font-size:.7rem;color:var(--dim)">
-              ${daysLeft!==null && !isExp
-                ? `${L('تنتهي في','Expire le')} <strong style="color:var(--text)">${endDate}</strong>`
-                : isExp ? `<span style="color:#F04E6A">${L('⚠️ اشترك لمواصلة الاستخدام','⚠️ Abonnez-vous pour continuer')}</span>`
-                : endDate}
-            </div>
-          </div>
-          ${isExp
-            ? `<button class="btn btn-gold" onclick="App.navigate('subscription')" style="font-size:.8rem">🚀 ${L('اشترك الآن','S\'abonner')}</button>`
-            : daysLeft!==null && daysLeft<=7
-              ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.78rem">🔄 ${L('تجديد الاشتراك','Renouveler')}</button>`
-              : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.75rem">💳 ${L('إدارة الاشتراك','Mon abonnement')}</button>`}
-        </div>`;
-      })()}
+    <!-- ═══ زر المود ═══ -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem">
+      <button
+        onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
+        style="display:flex;align-items:center;gap:.4rem;padding:.38rem .85rem;
+               background:rgba(255,255,255,.06);border:1px solid var(--border);
+               border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:700;
+               color:var(--text);transition:all .2s;white-space:nowrap"
+        onmouseover="this.style.background='rgba(232,184,75,.1)';this.style.borderColor='rgba(232,184,75,.4)'"
+        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
+        ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')
+          ? `🌙 ${L('الوضع الداكن','Mode sombre')}`
+          : `☀️ ${L('الوضع الفاتح','Mode clair')}`}
+      </button>
     </div>
 
     <div class="page-header">
