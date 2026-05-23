@@ -1587,7 +1587,7 @@ function topbarHTML(breadcrumb) {
         📱 ${L('الميدان','Terrain')}
       </button>
       ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
-      <!-- زر تبديل المود -->
+      <!-- زر تبديل المود — بجانب جرس الإشعارات مباشرةً -->
       <button id="themeToggleBtn"
         title="${L('تبديل المظهر','Changer apparence')}"
         onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
