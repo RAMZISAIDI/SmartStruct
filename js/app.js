@@ -1585,6 +1585,16 @@ function topbarHTML(breadcrumb) {
         📱 ${L('الميدان','Terrain')}
       </button>
       ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
+      <!-- زر تبديل المود — بجانب الجرس -->
+      <button title="${L('تبديل المظهر','Changer apparence')}"
+        onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
+        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+               background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;
+               display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
+        onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
+        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
+        ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')?'🌙':'☀️'}
+      </button>
       <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
       <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
         ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
@@ -5193,12 +5203,14 @@ Pages.dashboard = function() {
             </div>
           </div>
         </div>
-        <!-- تاريخ الانتهاء -->
-        <div style="font-size:.72rem;color:var(--dim);text-align:center">
-          ${isExpired
-            ? `<span style="color:#F04E6A">${L('⚠️ اشترك الآن','⚠️ Abonnez-vous')}</span>`
-            : `${L('تنتهي في','Expire le')} <strong style="color:var(--text)">${endDate}</strong>`}
-        </div>
+      <!-- تاريخ الانتهاء -->
+      <div style="font-size:.76rem;color:var(--dim)">
+        ${isExpired
+          ? `<span style="color:#F04E6A;font-weight:700">⚠️ ${L('انتهت الصلاحية','Expiré')}</span>`
+          : endDate !== '—'
+            ? `${L('📅 ينتهي في','📅 Expire le')} <strong style="color:var(--text);font-size:.82rem">${endDate}</strong>`
+            : `<span style="color:var(--dim)">${L('لا يوجد تاريخ محدد','Date non définie')}</span>`}
+      </div>
         <!-- زر -->
         ${isExpired
           ? `<button class="btn btn-gold btn-sm" onclick="App.navigate('subscription')">🚀 ${L('اشترك','S\'abonner')}</button>`
@@ -5228,22 +5240,6 @@ Pages.dashboard = function() {
       <div class="ai-ceo-actions">
         <button class="btn btn-sm btn-ghost" onclick="printAICEOSummary()" style="font-size:.72rem">📄 PDF</button>
       </div>
-    </div>
-
-    <!-- ═══ زر المود ═══ -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem">
-      <button
-        onclick="setTheme(document.documentElement.classList.contains('light')?'dark':'light')"
-        style="display:flex;align-items:center;gap:.4rem;padding:.38rem .85rem;
-               background:rgba(255,255,255,.06);border:1px solid var(--border);
-               border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:700;
-               color:var(--text);transition:all .2s;white-space:nowrap"
-        onmouseover="this.style.background='rgba(232,184,75,.1)';this.style.borderColor='rgba(232,184,75,.4)'"
-        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
-        ${typeof document!=='undefined'&&document.documentElement.classList.contains('light')
-          ? `🌙 ${L('الوضع الداكن','Mode sombre')}`
-          : `☀️ ${L('الوضع الفاتح','Mode clair')}`}
-      </button>
     </div>
 
     <div class="page-header">

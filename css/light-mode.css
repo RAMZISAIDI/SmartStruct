@@ -449,3 +449,23 @@ html.light .topbar-avatar {
   background: linear-gradient(135deg, #a8801a, #c49832) !important;
   color: #fff !important;
 }
+
+/* ── إصلاح القوائم المنسدلة في الوضع الفاتح ── */
+html.light .form-select option,
+html.light select option {
+  background: #f9f7f3 !important;
+  color: #2d2a24 !important;
+}
+html.light .form-select,
+html.light select {
+  background: #eceae0 !important;
+  color: #2d2a24 !important;
+  border-color: #bdb8a8 !important;
+}
+html.light .modal .form-select,
+html.light .modal select,
+html.light .modal-overlay .form-select,
+html.light .modal-overlay select {
+  background: #eceae0 !important;
+  color: #2d2a24 !important;
+}
