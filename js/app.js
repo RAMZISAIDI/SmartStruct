@@ -15743,6 +15743,17 @@ function topbarHTMLv5(title) {
         </div>
         ${buildNotifPanel()}
       </div>
+      <!-- زر تبديل المود — بجانب جرس الإشعارات -->
+      <button id="themeToggleBtn"
+        title="${L('تبديل المظهر','Changer apparence')}"
+        onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
+        style="width:34px;height:34px;border-radius:50%;border:1px solid var(--border2);
+               background:rgba(255,255,255,.05);cursor:pointer;font-size:1rem;line-height:1;
+               display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
+        onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
+        onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='var(--border2)'">
+        ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
+      </button>
       ${avatarHtml(user?.full_name, user?.avatar_color || '#E8B84B', 32)}
     </div>
   </header>`;
