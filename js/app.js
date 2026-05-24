@@ -155,7 +155,7 @@ const Auth = {
     this.currentUser = null;
     sessionStorage.removeItem('sbtp_user');
     if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
-    App.navigate('landing');
+    window.location.replace('index.html');
   },
 
   async logout() {
@@ -176,7 +176,7 @@ const Auth = {
     this.currentUser = null;
     sessionStorage.removeItem('sbtp_user');
     if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
-    App.navigate('landing');
+    window.location.replace('index.html');
   },
   load() {
     const u = sessionStorage.getItem('sbtp_user');
@@ -1331,7 +1331,7 @@ async function _doSyncBeforeExit(isWindowClose) {
 }
 
 const App = {
-  currentPage: 'landing',
+  currentPage: 'login',
   params: {},
   navigate(page, params={}) {
     this.currentPage = page; this.params = params;
@@ -1342,7 +1342,11 @@ const App = {
   render() {
     const app = document.getElementById('app');
     const user = Auth.getUser();
-    if (!user && !['landing','login'].includes(this.currentPage)) this.currentPage = 'landing';
+    if (!user && !['login'].includes(this.currentPage)) {
+      // لا يوجد مستخدم — أعد التوجيه إلى الصفحة الرئيسية
+      window.location.replace('index.html');
+      return;
+    }
     if (user && this.currentPage === 'login') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
     if (user && this.currentPage === 'landing') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
 
@@ -1433,7 +1437,7 @@ const App = {
   },
   bindEvents() {
     document.querySelectorAll('[data-nav]').forEach(el => {
-      el.addEventListener('click', e => { e.preventDefault(); App.navigate(el.dataset.nav); });
+      el.addEventListener('click', e => { e.preventDefault(); const target = el.dataset.nav; if (target === 'landing') { window.location.replace('index.html'); } else { App.navigate(target); } });
     });
     document.querySelectorAll('[data-modal-open]').forEach(el => {
       el.addEventListener('click', () => { const m = document.getElementById(el.dataset.modalOpen); if(m) m.classList.add('show'); });
@@ -1755,7 +1759,7 @@ Pages.contact = function() {
 
     <!-- ═══ NAVBAR ═══ -->
     <nav class="ll-nav ll-scrolled">
-      <a class="ll-nav-logo" onclick="App.navigate('landing')" style="cursor:pointer">
+      <a class="ll-nav-logo" onclick="window.location.replace('index.html')" style="cursor:pointer">
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
@@ -1763,7 +1767,7 @@ Pages.contact = function() {
         </div>
       </a>
       <div class="ll-nav-links">
-        <a class="ll-nav-link" onclick="App.navigate('landing')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link" onclick="window.location.replace('index.html')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
         <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
         <a class="ll-nav-link" style="color:var(--gold)">${L('تواصل معنا','Contact')}</a>
       </div>
@@ -1910,7 +1914,7 @@ Pages.contact = function() {
     <!-- ═══ FOOTER ═══ -->
     <footer class="ll-footer">
       <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
-        <button class="ll-nav-link" onclick="App.navigate('landing')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <button class="ll-nav-link" onclick="window.location.replace('index.html')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
         <button class="ll-nav-link" onclick="App.navigate('about')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('من نحن','À propos')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
@@ -1935,7 +1939,7 @@ Pages.about = function() {
 
     <!-- ═══ NAVBAR ═══ -->
     <nav class="ll-nav ll-scrolled" id="aboutNav">
-      <a class="ll-nav-logo" onclick="App.navigate('landing')" style="cursor:pointer">
+      <a class="ll-nav-logo" onclick="window.location.replace('index.html')" style="cursor:pointer">
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
@@ -1943,7 +1947,7 @@ Pages.about = function() {
         </div>
       </a>
       <div class="ll-nav-links">
-        <a class="ll-nav-link" onclick="App.navigate('landing')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link" onclick="window.location.replace('index.html')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
         <a class="ll-nav-link ll-active" style="color:var(--gold)">${L('من نحن','À propos')}</a>
         <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
       </div>
@@ -2142,7 +2146,7 @@ Pages.about = function() {
     <!-- ═══ FOOTER ═══ -->
     <footer class="ll-footer" style="border-top:1px solid rgba(255,255,255,.07)">
       <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
-        <button class="ll-nav-link" onclick="App.navigate('landing')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <button class="ll-nav-link" onclick="window.location.replace('index.html')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
         <button class="ll-nav-link ll-active" style="background:none;border:none;cursor:pointer;font-family:inherit;color:var(--gold)">${L('من نحن','À propos')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
@@ -2156,847 +2160,12 @@ Pages.about = function() {
 
 // ═══ Pages.landing ═══
 Pages.landing = function() {
-  const user = Auth.getUser();
-  const isAr = I18N.currentLang === 'ar';
-
-  return `<div class="landing-page" id="landingRoot">
-    <!-- ═══ ATMOSPHERE LAYERS ═══ -->
-    <div class="ll-atmosphere"></div>
-    <div class="ll-particles" id="llParticles"></div>
-
-    <!-- ═══ NAVBAR ═══ -->
-    <nav class="ll-nav" id="llNav">
-      <a class="ll-nav-logo" data-nav="landing" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'})">
-        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
-        <div class="ll-nav-logo-text">
-          <div class="ll-nav-logo-name">SmartStruct</div>
-          
-        </div>
-      </a>
-
-      <div class="ll-nav-links">
-        <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
-        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
-        <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
-        <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
-        <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
-      </div>
-
-      <div class="ll-nav-cta">
-        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
-          ${isAr ? 'FR' : 'AR'}
-        </button>
-        ${user
-          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
-          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
-             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
-        }
-        <!-- Hamburger للموبايل -->
-        <button class="ll-hamburger" id="llHamburger" aria-label="${L('القائمة','Menu')}" onclick="(function(){const m=document.getElementById('llMobileMenu');m.style.display=m.style.display==='flex'?'none':'flex';})()">
-          <span></span><span></span><span></span>
-        </button>
-      </div>
-    </nav>
-
-    <!-- Mobile Menu -->
-    <div id="llMobileMenu" style="display:none;position:fixed;inset:0;background:var(--bg,#09120A);z-index:9998;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem">
-      <button style="position:absolute;top:1.2rem;${isAr?'left':'right'}:1.2rem;background:none;border:none;color:var(--text,#fff);font-size:1.6rem;cursor:pointer" onclick="document.getElementById('llMobileMenu').style.display='none'">✕</button>
-      <a class="ll-nav-link" href="#ll-features" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('المزايا','Fonctionnalités')}</a>
-      <a class="ll-nav-link" href="#ll-showcase" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('عرض الواجهة','Aperçu')}</a>
-      <a class="ll-nav-link" href="#ll-pricing" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الأسعار','Tarifs')}</a>
-      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('about')" style="font-size:1.4rem;cursor:pointer">${L('من نحن','À propos')}</a>
-      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('contact')" style="font-size:1.4rem;cursor:pointer">${L('تواصل معنا','Contact')}</a>
-      <div style="display:flex;flex-direction:column;gap:.7rem;width:200px;margin-top:1rem">
-        ${user
-          ? `<button class="ll-btn ll-btn-gold" data-nav="${user.is_admin?'admin':'dashboard'}" onclick="document.getElementById('llMobileMenu').style.display='none'" style="justify-content:center">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
-          : `<button class="ll-btn ll-btn-gold" onclick="document.getElementById('llMobileMenu').style.display='none';showRegisterPanel()" style="justify-content:center">${L('جرّب مجاناً','Essai gratuit')}</button>
-             <button class="ll-btn ll-btn-ghost" onclick="document.getElementById('llMobileMenu').style.display='none';showLoginPanel()" style="justify-content:center">${L('دخول','Connexion')}</button>`
-        }
-      </div>
-    </div>
-
-    <!-- ═══ HERO ═══ -->
-    <section class="ll-hero">
-      <!-- خلفية مقاولاتية هندسية -->
-      <svg class="ll-hero-bg" viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
-        <defs>
-          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.03"/>
-            <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0.01"/>
-          </linearGradient>
-          <!-- شبكة هندسية خفيفة -->
-          <pattern id="gridPat" width="60" height="60" patternUnits="userSpaceOnUse">
-            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.07)" stroke-width="0.8"/>
-          </pattern>
-          <!-- خطوط قُطرية -->
-          <pattern id="diagPat" width="120" height="120" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="120" x2="120" y2="0" stroke="rgba(232,184,75,0.04)" stroke-width="1"/>
-          </pattern>
-        </defs>
-
-        <!-- طبقة شبكة -->
-        <rect width="1440" height="900" fill="url(#gridPat)"/>
-        <rect width="1440" height="900" fill="url(#diagPat)"/>
-
-        <!-- رافعة بناء — يمين (إحداثيات مصحّحة داخل viewBox 1440x900) -->
-        <g opacity="0.13" stroke="#e8b84b" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <!-- عمود الرافعة الرأسي: x=1280, من y=30 إلى y=820 -->
-          <line x1="1280" y1="30" x2="1280" y2="820"/>
-          <!-- ذراع أفقي رئيسي: يمتد يساراً من العمود -->
-          <line x1="1280" y1="80" x2="1060" y2="80"/>
-          <!-- ذراع ثقل الموازنة: يمتد يميناً -->
-          <line x1="1280" y1="80" x2="1380" y2="80"/>
-          <!-- حبل التعليق من طرف الذراع -->
-          <line x1="1065" y1="80" x2="1065" y2="260"/>
-          <!-- خطوط دعم مائلة -->
-          <line x1="1280" y1="120" x2="1090" y2="80"/>
-          <line x1="1280" y1="160" x2="1090" y2="80"/>
-          <!-- شبكة العمود (مزيكا) -->
-          <line x1="1270" y1="100" x2="1290" y2="100"/>
-          <line x1="1270" y1="140" x2="1290" y2="140"/>
-          <line x1="1270" y1="180" x2="1290" y2="180"/>
-          <line x1="1270" y1="220" x2="1290" y2="220"/>
-          <line x1="1270" y1="260" x2="1290" y2="260"/>
-          <line x1="1270" y1="300" x2="1290" y2="300"/>
-          <line x1="1270" y1="340" x2="1290" y2="340"/>
-          <line x1="1270" y1="380" x2="1290" y2="380"/>
-          <line x1="1270" y1="420" x2="1290" y2="420"/>
-          <line x1="1270" y1="460" x2="1290" y2="460"/>
-          <line x1="1270" y1="500" x2="1290" y2="500"/>
-          <line x1="1270" y1="540" x2="1290" y2="540"/>
-          <line x1="1270" y1="580" x2="1290" y2="580"/>
-          <line x1="1270" y1="620" x2="1290" y2="620"/>
-          <line x1="1270" y1="660" x2="1290" y2="660"/>
-          <line x1="1270" y1="700" x2="1290" y2="700"/>
-          <line x1="1270" y1="740" x2="1290" y2="740"/>
-          <line x1="1270" y1="780" x2="1290" y2="780"/>
-          <!-- قاعدة الرافعة -->
-          <line x1="1240" y1="820" x2="1320" y2="820"/>
-          <line x1="1250" y1="800" x2="1310" y2="800"/>
-          <!-- علبة الرفع (hook box) -->
-          <rect x="1048" y="255" width="34" height="26" rx="3" fill="rgba(232,184,75,0.08)"/>
-          <!-- خطاف الرافعة -->
-          <path d="M1065 281 Q1075 295 1065 305 Q1055 315 1060 325" stroke-width="2"/>
-          <!-- ثقل الموازنة يمين -->
-          <rect x="1330" y="70" width="50" height="20" rx="3" fill="rgba(232,184,75,0.08)"/>
-        </g>
-
-        <!-- مخطط هندسي — يسار أسفل -->
-        <g opacity="0.07" stroke="#e8b84b" stroke-width="1.5" fill="none" stroke-linecap="round" transform="translate(40, 480)">
-          <!-- مستطيل مبنى -->
-          <rect x="20" y="20" width="200" height="160" rx="2"/>
-          <!-- طوابق -->
-          <line x1="20" y1="73" x2="220" y2="73"/>
-          <line x1="20" y1="126" x2="220" y2="126"/>
-          <!-- نوافذ طابق 1 -->
-          <rect x="45" y="35" width="30" height="25" rx="1"/>
-          <rect x="95" y="35" width="30" height="25" rx="1"/>
-          <rect x="145" y="35" width="30" height="25" rx="1"/>
-          <!-- نوافذ طابق 2 -->
-          <rect x="45" y="88" width="30" height="25" rx="1"/>
-          <rect x="95" y="88" width="30" height="25" rx="1"/>
-          <rect x="145" y="88" width="30" height="25" rx="1"/>
-          <!-- باب -->
-          <rect x="90" y="135" width="40" height="45" rx="2"/>
-          <!-- خطوط قياس -->
-          <line x1="-15" y1="20" x2="-15" y2="180"/>
-          <line x1="-20" y1="20" x2="-10" y2="20"/>
-          <line x1="-20" y1="180" x2="-10" y2="180"/>
-          <line x1="20" y1="195" x2="220" y2="195"/>
-          <line x1="20" y1="190" x2="20" y2="200"/>
-          <line x1="220" y1="190" x2="220" y2="200"/>
-        </g>
-
-        <!-- نقاط زاوية هندسية — يسار أعلى -->
-        <g opacity="0.1" stroke="#e8b84b" stroke-width="1.5" fill="rgba(232,184,75,0.15)" transform="translate(60, 60)">
-          <circle cx="0" cy="0" r="4"/>
-          <circle cx="80" cy="0" r="4"/>
-          <circle cx="0" cy="80" r="4"/>
-          <line x1="0" y1="0" x2="80" y2="0"/>
-          <line x1="0" y1="0" x2="0" y2="80"/>
-          <line x1="4" y1="4" x2="30" y2="30"/>
-        </g>
-
-        <!-- خطوط ضوء في المنتصف -->
-        <ellipse cx="720" cy="420" rx="520" ry="300" fill="radial" opacity="0"/>
-        <radialGradient id="glowCenter" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.04"/>
-          <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0"/>
-        </radialGradient>
-        <ellipse cx="720" cy="430" rx="600" ry="350" fill="url(#glowCenter)"/>
-      </svg>
-      <div class="ll-hero-badge">
-        <span class="ll-hero-badge-dot"></span>
-        ${L('تجربة مجانية 14 يوماً — بدون بطاقة بنكية','Essai gratuit 14 jours — sans carte bancaire')}
-      </div>
-
-      <h1 class="ll-hero-title">
-        ${L('إدارة مشاريع المقاولة','Gestion de projets')}<br>
-        <span class="ll-word-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
-      </h1>
-
-      <p class="ll-hero-sub">
-        ${L(
-          'منصة متكاملة لشركات المقاولة الجزائرية — من إدارة المشاريع والعمال إلى الفوترة والتوقعات المالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري (NIF/NIS/RC + TVA 19٪).',
-          'Plateforme complète pour les entreprises de BTP en Algérie — projets, ouvriers, facturation, prévisions financières, le tout propulsé par l\'IA et conforme à la loi algérienne (NIF/NIS/RC + TVA 19%).'
-        )}
-      </p>
-
-      <div class="ll-hero-actions">
-        ${user
-          ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
-               ${L('الذهاب للوحة التحكم','Tableau de bord')}
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-             </button>`
-          : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
-               ${L('ابدأ التجربة الآن','Commencer l\'essai')}
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-             </button>`
-        }
-        <a class="ll-btn ll-btn-ghost ll-btn-lg" href="#ll-showcase">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          ${L('شاهد العرض','Voir la démo')}
-        </a>
-      </div>
-
-      <div class="ll-hero-trust">
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('27 جدول قاعدة بيانات','27 tables de BDD')}
-        </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('حماية بياناتك','Protection des données')}
-        </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          Row-Level Security
-        </div>
-        <div class="ll-trust-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          ${L('دعم عربي كامل','Support arabe complet')}
-        </div>
-      </div>
-
-      <!-- ═══ 3D HERO SCENE ═══ -->
-      <div class="ll-scene">
-        <div class="ll-scene-glow"></div>
-        <div class="ll-scene-stage" id="llSceneStage">
-
-          <!-- Floating: Projects (top-right in LTR / top-left in RTL via auto reposition) -->
-          <div class="ll-float-card ll-fc-stat ll-fc-projects">
-            <div class="ll-fc-mini-icon ll-icon-projects">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('المشاريع النشطة','Projets actifs')}</div>
-            <div class="ll-fc-mini-val">12</div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              ${L('+3 هذا الشهر','+3 ce mois')}
-            </div>
-          </div>
-
-          <!-- Floating: Workers -->
-          <div class="ll-float-card ll-fc-stat ll-fc-workers">
-            <div class="ll-fc-mini-icon ll-icon-workers">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('العمال الحاضرون','Ouvriers présents')}</div>
-            <div class="ll-fc-mini-val">87 / 92</div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              ${L('نسبة 94٪','Taux 94%')}
-            </div>
-          </div>
-
-          <!-- Floating: Revenue -->
-          <div class="ll-float-card ll-fc-stat ll-fc-revenue">
-            <div class="ll-fc-mini-icon ll-icon-revenue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">${L('إيرادات الشهر','Revenus du mois')}</div>
-            <div class="ll-fc-mini-val">4.2M <span style="font-size:.7rem;color:var(--muted)">${L('دج','DA')}</span></div>
-            <div class="ll-fc-mini-trend ll-trend-up">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-              +18.4٪
-            </div>
-          </div>
-
-          <!-- Floating: AI -->
-          <div class="ll-float-card ll-fc-stat ll-fc-ai">
-            <div class="ll-fc-mini-icon ll-icon-ai">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            </div>
-            <div class="ll-fc-mini-label">SmartAI</div>
-            <div class="ll-ai-typing">
-              <span class="ll-typing-dot"></span><span class="ll-typing-dot"></span><span class="ll-typing-dot"></span>
-              <span class="ll-ai-text">${L('يحلل بياناتك...','analyse en cours...')}</span>
-            </div>
-          </div>
-
-          <!-- Main dashboard card -->
-          <div class="ll-float-card ll-fc-main">
-            <div class="ll-fc-header">
-              <div class="ll-fc-title">
-                <div class="ll-fc-title-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
-                </div>
-                ${L('لوحة التحكم','Tableau de bord')}
-              </div>
-              <div class="ll-fc-dots">
-                <span class="ll-fc-dot ll-active"></span><span class="ll-fc-dot"></span><span class="ll-fc-dot"></span>
-              </div>
-            </div>
-            <div class="ll-fc-stats">
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('إجمالي المشاريع','Total projets')}</div>
-                <div class="ll-fc-stat-val ll-gold">24</div>
-              </div>
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('معدل الإنجاز','Avancement')}</div>
-                <div class="ll-fc-stat-val ll-green">76%</div>
-              </div>
-              <div class="ll-fc-stat-box">
-                <div class="ll-fc-stat-label">${L('صافي الربح','Bénéfice net')}</div>
-                <div class="ll-fc-stat-val">1.8M</div>
-              </div>
-            </div>
-            <div class="ll-fc-chart">
-              <svg viewBox="0 0 500 120" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="llGoldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#E8B84B" stop-opacity="0.4"/>
-                    <stop offset="100%" stop-color="#E8B84B" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <line class="ll-chart-grid" x1="0" y1="30" x2="500" y2="30"/>
-                <line class="ll-chart-grid" x1="0" y1="60" x2="500" y2="60"/>
-                <line class="ll-chart-grid" x1="0" y1="90" x2="500" y2="90"/>
-                <path class="ll-chart-area" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15 L500,120 L0,120 Z"/>
-                <path class="ll-chart-line" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15"/>
-              </svg>
-            </div>
-          </div>
-
-          <div class="ll-scene-platform"></div>
-        </div>
-      </div>
-
-      <!-- ═══ STATS BAR ═══ -->
-      <div class="ll-stats-bar ll-reveal">
-        <div class="ll-stat-item">
-          <div class="ll-stat-number" data-count="27" data-suffix="+" class="ll-stat-num">0</div>
-          <div class="ll-stat-label">${L('جدول قاعدة بيانات','Tables de BDD')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number" data-count="19" class="ll-stat-num">0</div>
-          <div class="ll-stat-label">${L('ميزة احترافية','Fonctionnalités pro')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number"><span data-count="14" class="ll-stat-num">0</span> ${L('يوم','jours')}</div>
-          <div class="ll-stat-label">${L('تجربة مجانية','Essai gratuit')}</div>
-        </div>
-        <div class="ll-stat-item">
-          <div class="ll-stat-number">100<span style="font-size:1.5rem">٪</span></div>
-          <div class="ll-stat-label">${L('متوافق مع القانون الجزائري','Conforme loi algérienne')}</div>
-        </div>
-      </div>
-
-      <!-- شريط التقنيات المتحرك -->
-      <div class="ll-tech-strip" id="llTechStrip" style="margin-top:2.5rem;padding:.8rem 0;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden">
-      </div>
-    </section>
-
-    <!-- ═══ FEATURES ═══ -->
-    <section class="ll-section" id="ll-features">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('19 ميزة احترافية','19 fonctionnalités pro')}</span>
-        <h2 class="ll-section-title">${L('كل ما تحتاجه شركتك','Tout ce dont votre entreprise a besoin')}<br><span class="ll-gold">${L('في منصة واحدة','dans une seule plateforme')}</span></h2>
-        <p class="ll-section-desc">${L(
-          'من تشفير البيانات إلى توقعات السيولة، من توليد PDF إلى تتبع GPS — أدوات حقيقية لمشاكل حقيقية في قطاع البناء.',
-          'Du chiffrement aux prévisions de trésorerie, du PDF au GPS — des outils réels pour des problèmes réels du BTP.'
-        )}</p>
-      </div>
-
-      <div class="ll-features-grid">
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('تحليل','Analyse')}</span>
-          <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('تقارير EVM احترافية','Rapports EVM professionnels')}</h3>
-          <p class="ll-feature-desc">${L('مؤشرات الأداء الدولية: SPI · CPI · BCWP · EAC — معايير إدارة المشاريع العالمية مُكيَّفة للسوق الجزائرية.','Indicateurs internationaux : SPI · CPI · BCWP · EAC — normes mondiales adaptées au marché algérien.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('جديد','Nouveau')}</span>
-          <div class="ll-feature-icon ll-purple">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('SmartAI — مساعد ذكي','SmartAI — assistant IA')}</h3>
-          <p class="ll-feature-desc">${L('يحلّل مشاريعك ويكتب تقارير شهرية بالعربية مع توصيات قابلة للتنفيذ. مدعوم بـ Groq.','Analyse vos projets et rédige des rapports mensuels avec recommandations. Propulsé par Groq.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">PDF</span>
-          <div class="ll-feature-icon ll-red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('فواتير وعقود رسمية','Factures & contrats officiels')}</h3>
-          <p class="ll-feature-desc">${L('PDF احترافي مع NIF/NIS/RC، TVA 19٪، عقود عمل حسب القانون الجزائري، وتوقيع إلكتروني.','PDF pro avec NIF/NIS/RC, TVA 19%, contrats conformes & signature électronique.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('مالي','Finance')}</span>
-          <div class="ll-feature-icon ll-green">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</h3>
-          <p class="ll-feature-desc">${L('منحنى رصيد متوقع للأشهر الثلاثة القادمة + تنبيهات استباقية + استيراد كشوف CCP/BNA/BEA.','Courbe de solde projetée + alertes proactives + import des relevés CCP/BNA/BEA.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('ميدان','Terrain')}</span>
-          <div class="ll-feature-icon ll-blue">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('تتبع GPS للمعدات','Suivi GPS du matériel')}</h3>
-          <p class="ll-feature-desc">${L('QR لكل معدة → مسح بالهاتف → تسجيل الموقع تلقائياً. وضع ميدان مبسط بـ 5 أزرار كبيرة.','QR par engin → scan → géolocalisation auto. Mode chantier à 5 gros boutons.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('إنتاجية','Productivité')}</span>
-          <div class="ll-feature-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('بحث فوري شامل','Recherche globale instantanée')}</h3>
-          <p class="ll-feature-desc">${L('Ctrl+K → ابحث في كل البيانات: مشاريع، عمال، فواتير، ملاحظات. تصدير Excel بنقرة واحدة.','Ctrl+K → cherchez partout : projets, ouvriers, factures. Export Excel en un clic.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('عمال','RH')}</span>
-          <div class="ll-feature-icon ll-green">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('إدارة العمال والرواتب','Gestion RH & paie')}</h3>
-          <p class="ll-feature-desc">${L('تسجيل الحضور والغياب، كشوف الرواتب التلقائية، تتبع الإضافي والسلف — كل شيء في مكان واحد.','Pointage, fiches de paie automatiques, heures sup & avances — tout centralisé.')}</p>
-        </div>
-
-        <div class="ll-feature-card ll-reveal" data-tilt>
-          <span class="ll-feature-tag">${L('مخزون','Stock')}</span>
-          <div class="ll-feature-icon ll-red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          </div>
-          <h3 class="ll-feature-title">${L('مراقبة المواد والمخزون','Suivi matériaux & stock')}</h3>
-          <p class="ll-feature-desc">${L('تتبع دخول وخروج المواد لكل مشروع، تنبيهات نقص المخزون، وربط مباشر مع المصاريف.','Entrées/sorties par chantier, alertes rupture de stock, liaison directe aux dépenses.')}</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ SHOWCASE ═══ -->
-    <section class="ll-section" id="ll-showcase">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('واجهة عربية احترافية','Interface arabe professionnelle')}</span>
-        <h2 class="ll-section-title">${L('صُممت','Conçue')}<span class="ll-gold"> ${L('للسرعة والوضوح','pour vitesse & clarté')}</span></h2>
-        <p class="ll-section-desc">${L('واجهة RTL كاملة، 3 ثيمات (داكن، فاتح، ذهبي)، أيقونات واضحة، وتجربة سلسة على الهاتف والحاسوب.','RTL complet, 3 thèmes, icônes claires, expérience fluide sur mobile et desktop.')}</p>
-      </div>
-
-      <div class="ll-showcase ll-reveal">
-        <div class="ll-showcase-stage" id="llShowcaseStage">
-          <div class="ll-showcase-screen">
-            <div class="ll-showcase-toolbar">
-              <span class="ll-tb-dot ll-r"></span><span class="ll-tb-dot ll-y"></span><span class="ll-tb-dot ll-g"></span>
-              <span class="ll-tb-url">smartstruct.dz/dashboard</span>
-            </div>
-            <div class="ll-showcase-body">
-              <div class="ll-sc-sidebar">
-                <div class="ll-sc-nav ll-active">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-                  <span>${L('لوحة التحكم','Tableau')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  <span>${L('المشاريع','Projets')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                  <span>${L('العمال','Ouvriers')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <span>${L('الفواتير','Factures')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-                  <span>${L('التقارير','Rapports')}</span>
-                </div>
-                <div class="ll-sc-nav">
-                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
-                  <span>SmartAI</span>
-                </div>
-              </div>
-              <div class="ll-sc-content">
-                <div class="ll-sc-stats">
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('المشاريع','Projets')}</div><div class="ll-sc-stat-val">24</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('العمال','Ouvriers')}</div><div class="ll-sc-stat-val">92</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الإيرادات','Revenus')}</div><div class="ll-sc-stat-val">4.2M</div></div>
-                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الربح','Bénéfice')}</div><div class="ll-sc-stat-val">1.8M</div></div>
-                </div>
-                <div class="ll-sc-graph">
-                  <svg viewBox="0 0 400 140" preserveAspectRatio="none">
-                    <rect x="20" y="80" width="20" height="50" rx="3" fill="rgba(232,184,75,0.3)"/>
-                    <rect x="55" y="60" width="20" height="70" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="90" y="70" width="20" height="60" rx="3" fill="rgba(232,184,75,0.4)"/>
-                    <rect x="125" y="40" width="20" height="90" rx="3" fill="rgba(232,184,75,0.6)"/>
-                    <rect x="160" y="55" width="20" height="75" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="195" y="30" width="20" height="100" rx="3" fill="rgba(232,184,75,0.7)"/>
-                    <rect x="230" y="20" width="20" height="110" rx="3" fill="#E8B84B"/>
-                    <rect x="265" y="50" width="20" height="80" rx="3" fill="rgba(232,184,75,0.5)"/>
-                    <rect x="300" y="35" width="20" height="95" rx="3" fill="rgba(232,184,75,0.6)"/>
-                    <rect x="335" y="15" width="20" height="115" rx="3" fill="#F5D07A"/>
-                    <path d="M30,90 Q70,70 100,80 T180,55 T260,40 T340,25" stroke="#E8B84B" stroke-width="2" fill="none" stroke-linecap="round" filter="drop-shadow(0 0 4px #E8B84B)"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ BENEFITS ═══ -->
-    <section class="ll-section" id="ll-benefits">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('حلول مصممة لقطاعك','Solutions sur mesure')}</span>
-        <h2 class="ll-section-title">${L('من الميدان إلى','Du chantier à la')}<span class="ll-gold"> ${L('غرفة الاجتماعات','salle de réunion')}</span></h2>
-        <p class="ll-section-desc">${L('SmartStruct يغطي كل أبعاد عمل شركة المقاولة الجزائرية — قانونياً، مالياً، وميدانياً.','SmartStruct couvre toutes les dimensions du BTP algérien — légal, financier, terrain.')}</p>
-      </div>
-
-      <div class="ll-benefits">
-
-        <!-- Row 1: PDF -->
-        <div class="ll-benefit-row ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('فواتير و','Factures &')}<span class="ll-gold">${L('عقود قانونية','contrats légaux')}</span> ${L('بنقرة واحدة','en un clic')}</h3>
-            <p>${L('توقَّف عن إعادة تنسيق نفس الفاتورة كل مرة. SmartStruct يولّد فواتير PDF احترافية متوافقة مع القانون الجزائري في ثوانٍ.','Cessez de reformater à chaque fois. SmartStruct génère des factures PDF pro conformes en quelques secondes.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('NIF / NIS / RC تلقائياً في الترويسة','NIF / NIS / RC auto en en-tête')}</li>
-              <li><span class="ll-check">✓</span> ${L('TVA 19٪ محسوبة بدقة + مكان الختم','TVA 19% calculée + emplacement cachet')}</li>
-              <li><span class="ll-check">✓</span> ${L('عقود عمل حسب قانون العمل الجزائري','Contrats conformes au droit du travail')}</li>
-              <li><span class="ll-check">✓</span> ${L('توقيع إلكتروني عبر رابط فريد للعميل','Signature électronique via lien unique')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-pdf-mockup">
-                <div class="ll-pdf-header">
-                  <div>
-                    <div class="ll-pdf-logo">${ssLogo(26, true)}</div>
-                  </div>
-                  <div style="text-align:${isAr?'right':'left'}">
-                    <div class="ll-pdf-co">${L('شركة الإنشاءات الجزائرية','Sté Constructions DZ')}</div>
-                    <div class="ll-pdf-co-sub">NIF: 0987 6543 21 · RC: 16/00-A123</div>
-                  </div>
-                  <div class="ll-pdf-num">
-                    ${L('فاتورة رقم','Facture N°')}
-                    <strong>INV-2026-0142</strong>
-                  </div>
-                </div>
-                <div class="ll-pdf-title">${L('تفاصيل الخدمات','Détails des prestations')}</div>
-                <div class="ll-pdf-line"><span>${L('أعمال خرسانة مسلحة','Béton armé')}</span><span>1,250,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>${L('تركيب هيكل معدني','Structure métallique')}</span><span>875,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>${L('أعمال البناء — المرحلة 2','Maçonnerie — Phase 2')}</span><span>620,000 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-line"><span>TVA 19٪</span><span>521,550 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-total"><span>${L('الإجمالي المستحق','Total dû')}</span><span>3,266,550 ${L('دج','DA')}</span></div>
-                <div class="ll-pdf-stamp">SmartStruct<br>VERIFIED</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 2: AI -->
-        <div class="ll-benefit-row ll-reverse ll-reveal">
-          <div class="ll-benefit-content">
-            <h3>${L('مساعدك الذكي يعمل','Votre IA travaille')} <span class="ll-gold">${L('معك 24/7','avec vous 24/7')}</span></h3>
-            <p>${L('SmartAI ليس chatbot عام — هو يعرف بياناتك، يحلل مشاريعك، ويعطيك توصيات قابلة للتنفيذ بالعربية.','SmartAI n\'est pas un chatbot générique — il connaît vos données et donne des recommandations concrètes.')}</p>
-            <ul class="ll-benefit-list">
-              <li><span class="ll-check">✓</span> ${L('تحليل ربحية كل مشروع على حدة','Analyse de rentabilité par projet')}</li>
-              <li><span class="ll-check">✓</span> ${L('تقارير شهرية احترافية تلقائية','Rapports mensuels pro automatiques')}</li>
-              <li><span class="ll-check">✓</span> ${L('تنبيهات للمخاطر المالية مبكراً','Alertes financières précoces')}</li>
-              <li><span class="ll-check">✓</span> ${L('14,400 سؤال يومياً مجاناً','14 400 questions/jour gratuites')}</li>
-            </ul>
-          </div>
-          <div class="ll-benefit-visual">
-            <div class="ll-benefit-stage">
-              <div class="ll-ai-mockup">
-                <div class="ll-ai-mock-header">
-                  <div class="ll-ai-avatar-mock">🤖</div>
-                  <div>
-                    <div class="ll-ai-mock-name">SmartAI</div>
-                    <div class="ll-ai-mock-status">${L('متصل — يحلّل بياناتك','En ligne — analyse en cours')}</div>
-                  </div>
-                </div>
-                <div class="ll-ai-mock-body">
-                  <div class="ll-ai-msg ll-user">${L('ما هو أفضل مشروع من حيث الربحية هذا الشهر؟','Quel projet est le plus rentable ce mois ?')}</div>
-                  <div class="ll-ai-msg ll-bot">${L('مشروع "فيلا حيدرة" حقق هامش ربح 28٪ — الأعلى بين مشاريعك. لكن انتبه: مشروع "مبنى وهران" متأخر 12 يوماً.','Le projet "Villa Hydra" a une marge de 28% — la plus élevée. Attention : "Immeuble Oran" a 12 jours de retard.')}</div>
-                  <div class="ll-ai-msg ll-user">${L('كم سأكسب نهاية الشهر؟','Combien à la fin du mois ?')}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
-      </div>
-    </section>
-
-    <!-- ═══ PRICING ═══ -->
-    <section class="ll-section" id="ll-pricing">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('أسعار شفافة','Tarifs transparents')}</span>
-        <h2 class="ll-section-title">${L('اختر الخطة','Choisissez le plan')} <span class="ll-gold">${L('المناسبة لك','qui vous convient')}</span></h2>
-        <p class="ll-section-desc">${L('من المقاول الفردي إلى الشركات الكبرى — جميع الخطط تشمل التجربة المجانية 14 يوماً بدون بطاقة بنكية.','Du contractant individuel aux grandes entreprises — tous les plans incluent 14 jours d\'essai gratuit sans CB.')}</p>
-      </div>
-
-      <div class="ll-pricing-grid">
-        <!-- المبتدئ — للمقاولين الأفراد والشركات الناشئة -->
-        <div class="ll-price-card ll-reveal">
-          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">👷 ${L('للمقاول الفردي','Contractant individuel')}</div>
-          <div class="ll-price-name">${L('المبتدئ','Starter')}</div>
-          <div class="ll-price-tagline">${L('للشركات الناشئة والمقاولين الأفراد','Pour entrepreneurs individuels')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num">2,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('حتى 3 مشاريع نشطة','Jusqu\'à 3 projets actifs')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 15 عامل','Jusqu\'à 15 ouvriers')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('فواتير PDF احترافية','Factures PDF pro')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('50 بريد إلكتروني/شهر','50 emails/mois')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم بالبريد الإلكتروني','Support par email')}</li>
-          </ul>
-          ${user
-            ? `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
-            : `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(1):showRegisterPanel()">💳 ${L('ادفع الآن — 2,900 دج','Payer — 2 900 DA')}</button>`
-          }
-        </div>
-
-        <!-- الاحترافي — للشركات المتوسطة (المُوصى به) -->
-        <div class="ll-price-card ll-featured ll-reveal">
-          <div class="ll-price-badge">⭐ ${L('الأكثر شيوعاً','Plus populaire')}</div>
-          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏢 ${L('للشركات المتوسطة','Entreprises moyennes')}</div>
-          <div class="ll-price-name">${L('الاحترافي','Professionnel')}</div>
-          <div class="ll-price-tagline">${L('للشركات النامية','Pour entreprises en croissance')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num ll-gold">7,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('حتى 20 مشروع','Jusqu\'à 20 projets')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 100 عامل','Jusqu\'à 100 ouvriers')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('حتى 50 معدة','Jusqu\'à 50 équipements')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('SmartAI كامل + تقارير شهرية','SmartAI complet + rapports')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('500 بريد إلكتروني/شهر','500 emails/mois')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي ذو أولوية','Support prioritaire')}</li>
-          </ul>
-          ${user
-            ? `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
-            : `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):showRegisterPanel()">💳 ${L('ادفع الآن — 7,900 دج','Payer — 7 900 DA')}</button>`
-          }
-        </div>
-
-        <!-- المؤسسي — للشركات الكبرى -->
-        <div class="ll-price-card ll-reveal">
-          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏛️ ${L('للمؤسسات الكبرى','Grandes entreprises')}</div>
-          <div class="ll-price-name">${L('المؤسسي','Entreprise')}</div>
-          <div class="ll-price-tagline">${L('للشركات الكبرى','Pour les grandes entreprises')}</div>
-          <div class="ll-price-amount">
-            <span class="ll-price-num">19,900</span>
-            <span class="ll-price-currency">${L('دج','DA')}</span>
-            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
-          </div>
-          <ul class="ll-price-features">
-            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('عمال غير محدودين','Ouvriers illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('معدات غير محدودة','Équipements illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('بريد إلكتروني غير محدود','Emails illimités')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('SLA + تدريب فريقك','SLA + formation équipe')}</li>
-            <li><span class="ll-price-check">✓</span> ${L('مدير حساب مخصص','Account manager dédié')}</li>
-          </ul>
-          <a class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Nous contacter')}</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ قبل / بعد ═══ -->
-    <section class="ll-section" style="background:rgba(232,184,75,.03);border-top:1px solid rgba(232,184,75,.08);border-bottom:1px solid rgba(232,184,75,.08)">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('الفرق الحقيقي','La vraie différence')}</span>
-        <h2 class="ll-section-title">${L('حياتك','Votre quotidien')} <span class="ll-gold">${L('قبل وبعد SmartStruct','avant & après SmartStruct')}</span></h2>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:960px;margin:2.5rem auto 0" class="ll-reveal">
-        <div style="background:rgba(240,78,106,.05);border:1px solid rgba(240,78,106,.2);border-radius:16px;padding:2rem">
-          <div style="font-size:1.1rem;font-weight:900;color:#F04E6A;margin-bottom:1.2rem">😰 ${L('قبل','Avant')}</div>
-          ${[
-            L('دفاتر ورقية تضيع أو تتلف','Carnets papier perdus ou abîmés'),
-            L('Excel يتعطل عند آخر لحظة','Excel qui plante au dernier moment'),
-            L('فواتير بأخطاء جبائية مكلفة','Factures avec erreurs fiscales coûteuses'),
-            L('لا تعرف أين ذهب مال شركتك','Impossible de savoir où va l\'argent'),
-            L('ساعات في إعداد كشف الراتب','Des heures à préparer les fiches de paie'),
-            L('لا تعرف ربحية كل مشروع','Impossible de connaître la marge par projet'),
-          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--muted)"><span style="color:#F04E6A;flex-shrink:0">✗</span>${t}</div>`).join('')}
-        </div>
-        <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.2);border-radius:16px;padding:2rem">
-          <div style="font-size:1.1rem;font-weight:900;color:#34C38F;margin-bottom:1.2rem">🚀 ${L('بعد SmartStruct','Avec SmartStruct')}</div>
-          ${[
-            L('كل البيانات في السحابة — لا تضيع أبداً','Toutes les données dans le cloud — jamais perdues'),
-            L('لوحة تحكم حية بالثانية','Dashboard live actualisé en temps réel'),
-            L('23 وثيقة رسمية بنقرة واحدة','23 documents officiels en un seul clic'),
-            L('تعرف أرباحك لحظة بلحظة','Vos bénéfices en temps réel'),
-            L('كشف راتب كامل في 10 ثوانٍ','Bulletin de paie complet en 10 secondes'),
-            L('تقرير AI ذكي شهري تلقائياً','Rapport IA mensuel automatique'),
-          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--text)"><span style="color:#34C38F;flex-shrink:0">✓</span>${t}</div>`).join('')}
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ أرقام التأثير ═══ -->
-    <section class="ll-section">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('بالأرقام','En chiffres')}</span>
-        <h2 class="ll-section-title">${L('توفير حقيقي في','Économies réelles de')} <span class="ll-gold">${L('الوقت والمال','temps & d\'argent')}</span></h2>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;max-width:1050px;margin:2rem auto 0" class="ll-reveal">
-        ${[
-          {n:'23',u:'',s:L('وثيقة رسمية جاهزة للطباعة','documents officiels imprimables'),i:'📄',c:'#E8B84B'},
-          {n:'80',u:'%',s:L('توفير في وقت الإدارة','du temps administratif économisé'),i:'⏱️',c:'#34C38F'},
-          {n:'100',u:'%',s:L('توافق مع القانون الجزائري','conforme loi algérienne NIF/NIS'),i:'🏛️',c:'#4A90E2'},
-          {n:'14',u:'',s:L('يوم تجربة مجانية كاملة','jours d\'essai gratuit complet'),i:'🎁',c:'#9B6DFF'},
-          {n:'0',u:'',s:L('بيانات تضيع — ضمان مدى الحياة','donnée perdue — garanti à vie'),i:'🔒',c:'#FF7043'},
-          {n:'2',u:'',s:L('لغة — عربي وفرنسي كامل','langues — arabe & français complets'),i:'🌐',c:'#E8B84B'},
-        ].map(s=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1.4rem;text-align:center;transition:transform .2s,border-color .2s" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(232,184,75,.3)'" onmouseout="this.style.transform='';this.style.borderColor='rgba(255,255,255,.07)'">
-          <div style="font-size:1.7rem;margin-bottom:.4rem">${s.i}</div>
-          <div style="font-size:2.4rem;font-weight:900;color:${s.c};font-family:monospace;line-height:1">${s.n}<span style="font-size:1.1rem">${s.u}</span></div>
-          <div style="font-size:.74rem;color:var(--muted);margin-top:.4rem;line-height:1.5">${s.s}</div>
-        </div>`).join('')}
-      </div>
-    </section>
-
-    <!-- ═══ شهادات المقاولين ═══ -->
-    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('يقولون عنا','Ils en parlent')}</span>
-        <h2 class="ll-section-title">${L('مقاولون جزائريون','Des entrepreneurs algériens')} <span class="ll-gold">${L('وثقوا بنا','nous font confiance')}</span></h2>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:2.5rem" class="ll-reveal">
-        ${[
-          {name:L('محمد الصالح قاسمي','Mohamed Salah Kasmi'),role:L('مقاول بناء — الجزائر العاصمة','Entrepreneur BTP — Alger'),av:'👷',c:'#E8B84B',
-           t:L('"قبل SmartStruct كنت أضيع 3 ساعات يومياً في الورق. الآن كل شيء في هاتفي — الحضور، الرواتب، الفواتير. وفّرت أكثر من 300,000 دج في 3 أشهر."','"Avant SmartStruct, je perdais 3h/jour dans la paperasse. Maintenant tout est dans mon téléphone. J\'ai économisé plus de 300 000 DA en 3 mois grâce au suivi."')},
-          {name:L('فريدة بن يوسف','Farida Benyoucef'),role:L('مديرة مؤسسة إنجاز — وهران','Directrice Injaaz Ent. — Oran'),av:'👩‍💼',c:'#34C38F',
-           t:L('"أخيراً نظام يفهم العربية ويعمل مع القانون الجزائري. الفواتير مع NIF وNIS في دقيقة. حتى من لا يعرف الكمبيوتر يستخدمه."','"Enfin un système qui comprend l\'arabe et la loi algérienne. Factures avec NIF/NIS en une minute. Même les non-techniciens l\'utilisent facilement."')},
-          {name:L('عماد الدين تيزي','Imad Eddine Tizi'),role:L('مقاول ترميم — قسنطينة','Entrepreneur rénovation — Constantine'),av:'🏗️',c:'#4A90E2',
-           t:L('"استخدمت برامج أجنبية قبلاً — معقدة وبالإنجليزية. SmartStruct صُنع لنا نحن. محضر الاستلام، كشف الرواتب، العقود — كلها بالعربية بلمسة واحدة."','"J\'ai essayé des logiciels étrangers avant — trop complexes. SmartStruct est fait pour nous. PV, bulletins de paie, contrats — tout en arabe en un clic."')},
-        ].map(t=>`<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:1.8rem;display:flex;flex-direction:column;gap:.8rem">
-          <div style="color:#E8B84B;font-size:.9rem;letter-spacing:2px">★★★★★</div>
-          <p style="font-size:.83rem;color:var(--muted);line-height:1.8;font-style:italic;flex:1">${t.t}</p>
-          <div style="display:flex;align-items:center;gap:.8rem;padding-top:.8rem;border-top:1px solid rgba(255,255,255,.06)">
-            <div style="width:40px;height:40px;border-radius:50%;background:${t.c}22;border:1px solid ${t.c}44;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${t.av}</div>
-            <div><div style="font-weight:800;font-size:.84rem">${t.name}</div><div style="font-size:.7rem;color:${t.c};font-weight:600">${t.role}</div></div>
-          </div>
-        </div>`).join('')}
-      </div>
-    </section>
-
-    <!-- ═══ FAQ ═══ -->
-    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
-      <div class="ll-section-head ll-reveal">
-        <span class="ll-eyebrow">${L('أسئلة شائعة','FAQ')}</span>
-        <h2 class="ll-section-title">${L('كل ما تريد معرفته','Tout ce que vous voulez savoir')} <span class="ll-gold">?</span></h2>
-      </div>
-      <div style="max-width:720px;margin:2.5rem auto 0;display:flex;flex-direction:column;gap:.7rem" class="ll-reveal">
-        ${[
-          {q:L('هل يحتاج تثبيتاً؟','Faut-il l\'installer ?'),a:L('لا. SmartStruct يعمل من المتصفح مباشرة على أي جهاز — حاسوب، هاتف، تابلت. لا تثبيت ولا تحديثات يدوية.','Non. SmartStruct fonctionne directement depuis le navigateur sur n\'importe quel appareil. Pas d\'installation ni de mises à jour manuelles.')},
-          {q:L('هل بياناتي آمنة؟','Mes données sont-elles sécurisées ?'),a:L('نعم. بياناتك مُشفّرة PBKDF2+SHA-256، محفوظة في Supabase مع Row-Level Security. لا أحد غيرك يصل لها — حتى نحن.','Oui. Chiffrement PBKDF2+SHA-256, hébergement Supabase avec Row-Level Security. Personne d\'autre ne peut y accéder, même nous.')},
-          {q:L('هل يعمل بدون إنترنت؟','Fonctionne-t-il sans internet ?'),a:L('نعم. يحفظ البيانات محلياً ويتزامن تلقائياً عند عودة الإنترنت. مثالي للورشات في المناطق النائية.','Oui. Il sauvegarde localement et se synchronise automatiquement au retour de la connexion. Idéal pour les chantiers éloignés.')},
-          {q:L('هل هو متوافق مع القانون الجزائري؟','Est-il conforme à la loi algérienne ?'),a:L('100٪. كل الوثائق تحتوي NIF, NIS, RC, Article d\'Imposition وTVA 19٪. الرواتب تحتسب CNAS وIRG تلقائياً.','À 100%. Tous les documents incluent NIF, NIS, RC, Article d\'Imposition et TVA 19%. Les salaires calculent CNAS et IRG automatiquement.')},
-          {q:L('كيف أبدأ؟','Comment démarrer ?'),a:L('اضغط "ابدأ التجربة الآن"، سجّل اسمك وبريدك وكلمة مرور — في دقيقتين حسابك جاهز وتجربة 14 يوم مجانية تبدأ فوراً بدون بطاقة بنكية.','Cliquez "Commencer l\'essai", entrez votre nom, email et mot de passe — en 2 minutes votre compte est prêt et votre essai 14 jours commence immédiatement, sans carte bancaire.')},
-        ].map((f,i)=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
-          <button onclick="(function(b){var d=b.nextElementSibling,open=d.style.maxHeight&&d.style.maxHeight!=='0px';d.style.maxHeight=open?'0px':'300px';d.style.paddingTop=open?'0':'.8rem';d.style.paddingBottom=open?'0':'.9rem';b.querySelector('span:last-child').style.transform=open?'':'rotate(180deg)'})(this)"
-            style="width:100%;padding:.9rem 1.2rem;background:none;border:none;cursor:pointer;text-align:${isAr?'right':'left'};color:var(--text);font-family:inherit;font-size:.87rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:1rem">
-            <span>${f.q}</span><span style="color:var(--gold);transition:transform .25s;flex-shrink:0;font-size:.8rem">▼</span>
-          </button>
-          <div style="max-height:0;overflow:hidden;transition:all .3s;padding:0 1.2rem;font-size:.81rem;color:var(--muted);line-height:1.8">${f.a}</div>
-        </div>`).join('')}
-      </div>
-    </section>
-
-    <!-- ═══ CTA ═══ -->
-    <div class="ll-cta ll-reveal">
-      <div class="ll-cta-content">
-        <h2 class="ll-cta-title">${L('جاهز لتحويل طريقة','Prêt à transformer la gestion')} <span class="ll-gold">${L('إدارة شركتك؟','de votre entreprise ?')}</span></h2>
-        <p class="ll-cta-desc">${L('14 يوم تجربة مجانية كاملة. لا بطاقة بنكية. لا التزام. فقط جرّب وقرّر.','14 jours d\'essai complet. Sans CB. Sans engagement. Testez et décidez.')}</p>
-        <div class="ll-hero-actions" style="justify-content:center">
-          ${user
-            ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
-                 ${L('الذهاب للوحة التحكم','Tableau de bord')}
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-               </button>`
-            : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
-                 ${L('ابدأ التجربة الآن','Commencer l\'essai')}
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-               </button>
-               <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showLoginPanel()">${L('لدي حساب — دخول','J\'ai un compte')}</button>`
-          }
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══ FOOTER ═══ -->
-    <footer class="ll-footer">
-      <div class="ll-footer-grid">
-        <div>
-          <div class="ll-footer-brand">
-            <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
-            <div class="ll-nav-logo-text">
-              <div class="ll-nav-logo-name">SmartStruct</div>
-              
-            </div>
-          </div>
-          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('المنتج','Produit')}</h4>
-          <ul>
-            <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
-            <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
-            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
-            <li><a href="#ll-benefits">${L('الفوائد','Avantages')}</a></li>
-          </ul>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('الشركة','Entreprise')}</h4>
-          <ul>
-            <li><a href="#" onclick="event.preventDefault();App.navigate('about')">${L('من نحن','À propos')}</a></li>
-            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('تواصل معنا','Contact')}</a></li>
-          </ul>
-        </div>
-        <div class="ll-footer-col">
-          <h4>${L('الدعم','Support')}</h4>
-          <ul>
-            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('مركز التواصل','Centre contact')}</a></li>
-            <li><a href="mailto:support@smartstruct.dz">${L('الدعم التقني','Support technique')}</a></li>
-            <li><a href="mailto:contact@smartstruct.dz">${L('البريد الإلكتروني','Email')}</a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="ll-footer-bottom">
-        <div>© 2026 SmartStruct — ${L('صُمم للشركات الجزائرية في قطاع البناء','Conçu pour les entreprises BTP algériennes')}</div>
-        <div>${L('صُنع بـ ♥ في الجزائر','Fait avec ♥ en Algérie')}</div>
-      </div>
-    </footer>
-  </div>`;
+  // الصفحة الرئيسية الجديدة في index.html — إعادة توجيه
+  if (window.location.pathname.indexOf('app.html') !== -1 || 
+      window.location.pathname.indexOf('index.html') === -1) {
+    window.location.replace('index.html');
+  }
+  return '<div style="display:none"></div>';
 };
 
 /* ─── Init dynamic effects after landing renders ─── */
@@ -7407,7 +6576,7 @@ Pages.attendance = function() {
 Pages.subscription = function() {
   const user = Auth.getUser();
   const tenant = Auth.getTenant();
-  if (!user || !tenant) return App.navigate('landing');
+  if (!user || !tenant) return window.location.replace('index.html');
 
   const plans = typeof ChargilyPayment !== 'undefined' ? ChargilyPayment.PLANS : {};
   const isAr = I18N.currentLang === 'ar';
@@ -8284,7 +7453,7 @@ Pages.settings = function() {
             <button class="btn btn-gold btn-sm" onclick="TrialManager._requestUpgrade(${(plan?.id||0)+1})">
               ⬆️ ${L('ترقية الخطة','Mise à niveau')}
             </button>
-            <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')">
+            <button class="btn btn-ghost btn-sm" onclick="window.location.replace('index.html')">
               📋 ${L('مقارنة الخطط','Comparer plans')}
             </button>
           </div>
@@ -23170,9 +22339,18 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis','dz_documents','archive','about','contact'];
+    'audit_log','obligations','team','ai_analysis','dz_documents','archive','about','contact',
+    'login','register'];
   if (hash && validPages.includes(hash)) {
-    App.currentPage = hash;
+    if (hash === 'register') {
+      App.currentPage = 'login';
+      sessionStorage.setItem('auth_mode', 'register');
+    } else if (hash === 'login') {
+      App.currentPage = 'login';
+      sessionStorage.setItem('auth_mode', 'login');
+    } else {
+      App.currentPage = hash;
+    }
   }
   if (hash) history.replaceState(null, '', window.location.pathname);
 })();
@@ -23478,7 +22656,7 @@ window.dzsPrintPDF = function(id) {
     if (!Auth.getUser()) return;
     if (typeof Auth.logout === 'function') Auth.logout();
     Toast.info(L('تم تسجيل خروجك تلقائياً بسبب الخمول','Déconnexion automatique par inactivité'));
-    App.navigate('landing');
+    window.location.replace('index.html');
   }
 
   // استمع لأي نشاط
