@@ -706,12 +706,24 @@ function applyLang(lang) {
     document.body.style.fontFamily = "'Inter', system-ui, sans-serif";
   }
 
-  // Update lang switcher button
-  const btn = document.getElementById('langSwitchBtn');
-  if (btn) {
-    btn.textContent = t('lang_switch_label');
-    btn.title = t('lang_switch_title');
-  }
+  // Update lang switcher highlight
+  updateLangSwitcher(lang);
+}
+
+function updateLangSwitcher(lang) {
+  ['ar','fr','en'].forEach(function(l) {
+    var btn = document.getElementById('lang-' + l);
+    if (!btn) return;
+    if (l === lang) {
+      btn.style.background = 'rgba(232,184,75,0.18)';
+      btn.style.color = 'var(--gold)';
+      btn.style.boxShadow = 'inset 0 0 0 1px rgba(232,184,75,0.35)';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--fg-muted)';
+      btn.style.boxShadow = 'none';
+    }
+  });
 }
 
 function toggleLang() {
@@ -2385,7 +2397,11 @@ html[dir="ltr"] .ai-viz { direction: ltr; }
         <span data-i18n="nav_start">ابدأ مجاناً</span>
         <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
       </a>
-      <button id="langSwitchBtn" onclick="toggleLang()" title="Passer en français" style="margin-right:4px;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:0.12em;background:rgba(232,184,75,0.12);color:var(--gold);border:1px solid rgba(232,184,75,0.3);cursor:pointer;transition:background 0.2s,border-color 0.2s;font-family:var(--mono)">FR</button>
+      <div id="langSwitcher" style="display:flex;align-items:center;gap:2px;background:rgba(255,255,255,0.05);border:1px solid rgba(232,184,75,0.2);border-radius:10px;padding:3px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:0.1em;margin-right:4px;">
+        <button onclick="applyLang('ar')" id="lang-ar" style="padding:5px 10px;border-radius:7px;border:none;cursor:pointer;transition:all 0.2s;background:transparent;color:var(--fg-muted);">AR</button>
+        <button onclick="applyLang('fr')" id="lang-fr" style="padding:5px 10px;border-radius:7px;border:none;cursor:pointer;transition:all 0.2s;background:transparent;color:var(--fg-muted);">FR</button>
+        <button onclick="applyLang('en')" id="lang-en" style="padding:5px 10px;border-radius:7px;border:none;cursor:pointer;transition:all 0.2s;background:transparent;color:var(--fg-muted);">EN</button>
+      </div>
     </div>
   </div>
 </nav>
