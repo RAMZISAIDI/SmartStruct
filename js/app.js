@@ -2476,14 +2476,15 @@ Pages.login = function(mode) {
     <div class="auth-particles" id="authParticles"></div>
 
     <!-- Top controls -->
-    <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour')}">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'none':'rotate(180deg)'}">
-        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-      </svg>
-      <span>${L('العودة للموقع','Retour au site')}</span>
-    </button>
-
-    ${I18N.langSwitcherHTML('position:absolute;top:1rem;left:1rem;z-index:10;')}
+    <div style="position:fixed;top:1rem;left:1rem;z-index:100;display:flex;align-items:center;gap:10px;">
+      <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour')}" style="position:static;top:auto;right:auto;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'none':'rotate(180deg)'}">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        <span>${L('العودة للموقع','Retour au site')}</span>
+      </button>
+      ${I18N.langSwitcherHTML()}
+    </div>
 
     <!-- Main grid: Left brand panel + Right form -->
     <div class="auth-shell">
