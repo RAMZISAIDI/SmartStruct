@@ -14,19 +14,28 @@ window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.cl
 //  SmartStruct — Logo SVG Generator
 // ══════════════════════════════════════════
 function ssLogo(size=22, dark=false) {
-  const c1 = dark ? '#09120A' : '#F5D07A';
-  const c2 = dark ? '#09120A' : '#C49030';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="${size}" height="${size}">
+  // ── الشعار الرسمي — يطابق logo-mark.svg المستخدم في الصفحة الرئيسية ──
+  const uid = 'ssG' + size + (dark?'d':'');
+  const c1 = '#F5D07A', c2 = '#E8B84B', c3 = '#C49030';
+  const txt = dark ? '#09120A' : '#09120A';
+  const bg1 = dark ? 'rgba(255,255,255,0.9)' : `url(#${uid})`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="${size}" height="${size}" style="border-radius:${Math.round(size*0.229)}px;display:block;box-shadow:0 1px 0 rgba(255,255,255,0.4) inset,0 4px 12px rgba(232,184,75,0.3)">
     <defs>
-      <linearGradient id="ssG${size}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="${uid}" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="${c1}"/>
-        <stop offset="100%" stop-color="${c2}"/>
+        <stop offset="50%" stop-color="${c2}"/>
+        <stop offset="100%" stop-color="${c3}"/>
       </linearGradient>
     </defs>
-    <rect x="4" y="5" width="28" height="5" rx="2.5" fill="url(#ssG${size})"/>
-    <rect x="4" y="15.5" width="20" height="5" rx="2.5" fill="url(#ssG${size})" opacity=".82"/>
-    <rect x="4" y="26" width="13" height="5" rx="2.5" fill="url(#ssG${size})" opacity=".6"/>
-    <rect x="4" y="5" width="5" height="26" rx="2.5" fill="url(#ssG${size})" opacity=".35"/>
+    <rect x="0" y="0" width="48" height="48" rx="11" ry="11" fill="${bg1}"/>
+    <rect x="0" y="0" width="48" height="1" rx="0.5" fill="rgba(255,255,255,0.5)"/>
+    <rect x="0" y="45" width="48" height="3" rx="1.5" fill="rgba(0,0,0,0.18)"/>
+    <g transform="translate(8,8)">
+      <rect x="0" y="0" width="5" height="32" rx="2.5" fill="${txt}" opacity="0.35"/>
+      <rect x="0" y="0" width="34" height="6" rx="3" fill="${txt}"/>
+      <rect x="0" y="13" width="24" height="6" rx="3" fill="${txt}" opacity="0.82"/>
+      <rect x="0" y="26" width="16" height="6" rx="3" fill="${txt}" opacity="0.6"/>
+    </g>
   </svg>`;
 }
 

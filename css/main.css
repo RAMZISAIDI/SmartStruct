@@ -24,7 +24,7 @@ body{font-family:'Tajawal',sans-serif;background:var(--bg);color:var(--text);lin
 .sidebar{width:var(--sidebar-w);background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;right:0;height:100vh;z-index:200;transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);overflow:hidden}
 .sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:180px;background:radial-gradient(ellipse at 50% -20%,rgba(232,184,75,0.08),transparent 70%);pointer-events:none}
 .sidebar-logo{padding:0.9rem 1rem 0.9rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.6rem}
-.sidebar-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#E8B84B,#C49030);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.sidebar-logo-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
 /* SmartStruct SVG Logo */
 .ss-logo-svg{display:inline-flex;align-items:center;justify-content:center}
 .sidebar-logo-text{font-size:1rem;font-weight:900;color:var(--gold)}
@@ -193,7 +193,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 .ll-nav{position:fixed;top:0;left:0;right:0;z-index:500;padding:1rem 2.5rem;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(0);border-bottom:1px solid transparent;transition:all 0.4s cubic-bezier(0.4,0,0.2,1)}
 .ll-nav.ll-scrolled{padding:0.65rem 2.5rem;background:rgba(6,10,16,0.85);backdrop-filter:blur(24px) saturate(180%);border-bottom:1px solid var(--border)}
 .ll-nav-logo{display:flex;align-items:center;gap:0.7rem;cursor:pointer;text-decoration:none}
-.ll-nav-logo-mark{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#F5D07A 0%,#E8B84B 50%,#C49030 100%);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 4px 16px rgba(232,184,75,0.4),inset 0 1px 1px rgba(255,255,255,0.4),inset 0 -2px 4px rgba(0,0,0,0.2)}
+.ll-nav-logo-mark{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
 .ll-nav-logo-text{display:flex;flex-direction:column;line-height:1}
 .ll-nav-logo-name{font-weight:900;font-size:1.15rem;color:var(--gold);letter-spacing:0.5px}
 .ll-nav-logo-sub{font-size:0.62rem;color:var(--dim);font-weight:600;margin-top:3px;letter-spacing:1.5px;text-transform:uppercase}
@@ -629,9 +629,8 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 }
 .auth-brand-logo-mark{
   width:48px; height:48px; border-radius:12px;
-  background:linear-gradient(135deg,#F5D07A,#E8B84B 50%,#C49030);
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 6px 20px rgba(232,184,75,0.4),inset 0 1px 1px rgba(255,255,255,0.4);
+  overflow:hidden;
 }
 .auth-brand-logo-text{display:flex; flex-direction:column; line-height:1}
 .auth-brand-logo-name{font-weight:900; font-size:1.2rem; color:var(--gold); letter-spacing:0.5px}
