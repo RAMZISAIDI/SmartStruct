@@ -3273,7 +3273,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         ${_L('مؤسسة:','Entreprise:')} <strong style="color:#E8B84B">${escHtml(companyName||'')}</strong>
       </div>
       <div style="font-size:.88rem;color:#6B7694;margin-bottom:2rem;line-height:1.6">
-        ${_L('تم استلام طلب تسجيلك بنجاح ✅','Votre demande d'inscription a bien été reçue ✅')}
+        ${_L('تم استلام طلب تسجيلك بنجاح ✅',"Votre demande d'inscription a bien été reçue ✅")}
       </div>
 
       <!-- كارت الحالة -->
@@ -3290,7 +3290,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
             border:1px solid rgba(232,184,75,.3);
             border-radius:20px;padding:.15rem .7rem;
             font-size:.72rem;font-weight:700;
-          ">${_L('بانتظار الموافقة','En attente d'approbation')}</span>
+          ">${_L('بانتظار الموافقة',"En attente d'approbation")}</span>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:.7rem">
@@ -3300,7 +3300,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(74,144,226,.12);border:1px solid rgba(74,144,226,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">👑</span>
-            <span>${_L('سيقوم المسؤول بمراجعة طلبك في أقرب وقت','L'administrateur examinera votre demande dans les plus brefs délais')}</span>
+            <span>${_L('سيقوم المسؤول بمراجعة طلبك في أقرب وقت',"L'administrateur examinera votre demande dans les plus brefs délais")}</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">📧</span>
@@ -3308,7 +3308,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">🚀</span>
-            <span>${_L('بعد التفعيل يمكنك الدخول والاستمتاع بـ 14 يوم مجاناً','Après activation, profitez de 14 jours d'essai gratuit complet')}</span>
+            <span>${_L('بعد التفعيل يمكنك الدخول والاستمتاع بـ 14 يوم مجاناً',"Après activation, profitez de 14 jours d'essai gratuit complet")}</span>
           </div>
         </div>
       </div>
@@ -3323,7 +3323,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         flex-wrap:wrap;
       ">
         <span style="font-size:1.1rem">📬</span>
-        <span style="font-size:.82rem;color:#8892A4">${_L('سيُرسَل إيميل التفعيل إلى:','L'email d'activation sera envoyé à :')}</span>
+        <span style="font-size:.82rem;color:#8892A4">${_L('سيُرسَل إيميل التفعيل إلى:',"L'email d'activation sera envoyé à :")}</span>
         <strong style="font-size:.85rem;color:#4A90E2;direction:ltr;font-family:monospace">${escHtml(userEmail)}</strong>
       </div>
 
