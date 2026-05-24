@@ -1609,7 +1609,7 @@ function topbarHTML(breadcrumb) {
         style="padding:5px 10px;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:8px;color:#34C38F;cursor:pointer;font-size:.75rem;font-weight:700;white-space:nowrap">
         📱 ${L('الميدان','Terrain')}
       </button>
-      ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
+      ${alertCount>0?`<div class="notif-bell" title="${alertCount} ${L('مشروع يقترب من تجاوز الميزانية','projet(s) approche(nt) du dépassement de budget')}" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
       <!-- زر تبديل المود — بجانب جرس الإشعارات مباشرةً -->
       <button id="themeToggleBtn"
         title="${L('تبديل المظهر','Changer apparence')}"
@@ -4051,7 +4051,7 @@ function calcBTPMetrics(projects, txs, workers, attendance, invoices, materials,
   if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text:`السيولة ستنفد خلال ${m.cashRunway} يوم` });
   if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text:`متوسط التحصيل ${m.dso} يوم - بطيء` });
   if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text:`هامش ربح منخفض (${m.grossMargin}%)` });
-  if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} مادة مخزون منخفض` });
+  if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} ${L('مادة مخزون منخفض','matériau(x) stock bas')}` });
   if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text:`الأجور ${m.payrollRatio}% من الإيرادات` });
   if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text:`فواتير غير محصلة: ${fmt(Math.round(m.unpaidAmount))} دج` });
 
@@ -6848,7 +6848,7 @@ function generateAISmartReport() {
   if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text:`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز` });
   if (attendanceRate >= 85) positives.push({ icon:'👷', text:`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة` });
   if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text:`السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات` });
-  if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text:`المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى` });
+  if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text: L('المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى', 'Stock bien géré — aucun matériau sous le seuil minimum') });
   if (completedProjects >= 3) positives.push({ icon:'🏆', text:`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي` });
   if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text:`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق` });
   if (documents.length >= 10) positives.push({ icon:'📁', text:`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم` });
@@ -10479,10 +10479,10 @@ Pages.materials = function() {
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card"><div class="stat-icon">🧱</div><div class="stat-value" style="color:var(--blue)">${materials.length}</div><div class="stat-label">إجمالي المواد</div></div>
-      <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value" style="color:${lowStock>0?'var(--red)':'var(--green)'}">${lowStock}</div><div class="stat-label">مخزون منخفض</div></div>
+      <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value" style="color:${lowStock>0?'var(--red)':'var(--green)'}">${lowStock}</div><div class="stat-label">${L("مخزون منخفض","Stock bas")}</div></div>
       <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:var(--gold);font-size:1rem">${fmt(totalValue)}</div><div class="stat-label">قيمة المخزون (دج)</div></div>
     </div>
-    ${lowStock>0?`<div class="budget-alert budget-alert-warn">⚠️ تنبيه: ${lowStock} مادة وصلت للحد الأدنى من المخزون وتحتاج إلى تجديد</div>`:''}
+    ${lowStock>0?`<div class="budget-alert budget-alert-warn">⚠️ ${L("تنبيه","Alerte")}: ${lowStock} ${L("مادة وصلت للحد الأدنى من المخزون وتحتاج إلى تجديد","matériau(x) ont atteint le seuil minimum et nécessitent un réapprovisionnement")}</div>`:''}
     ${materials.length?`<div class="table-wrap"><table>
       <thead><tr><th>المادة</th><th>المشروع</th><th>الكمية</th><th>الوحدة</th><th>سعر الوحدة (دج)</th><th>القيمة الإجمالية</th><th>المورد</th><th>الحالة</th><th>حذف</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="empty-icon">🧱</div><div class="empty-title">لا توجد مواد مسجلة</div></div>`}
@@ -10493,7 +10493,7 @@ Pages.materials = function() {
           <div class="form-group"><label class="form-label">اسم المادة *</label><input class="form-input" id="mName" placeholder="حديد، أسمنت..."></div>
           <div class="form-group"><label class="form-label">الوحدة *</label><select class="form-select" id="mUnit"><option>طن</option><option>كيس</option><option>م³</option><option>ألف قطعة</option><option>لتر</option><option>قطعة</option><option>م²</option></select></div>
           <div class="form-group"><label class="form-label">الكمية المتوفرة</label><input class="form-input" id="mQty" type="number" value="0"></div>
-          <div class="form-group"><label class="form-label">الحد الأدنى للتنبيه</label><input class="form-input" id="mMinQty" type="number" value="5"></div>
+          <div class="form-group"><label class="form-label">${L("الحد الأدنى للتنبيه","Seuil d'alerte minimum")}</label><input class="form-input" id="mMinQty" type="number" value="5"></div>
           <div class="form-group"><label class="form-label">سعر الوحدة (دج)</label><input class="form-input" id="mPrice" type="number" value="0"></div>
           <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="mProject"><option value="">— عام</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
         </div>
@@ -14949,11 +14949,11 @@ function buildNotifPanel() {
     if (n.type === 'new_account' && !user.is_admin) return false;
     return n.tenant_id === user.tenant_id;
   }).slice(0, 8);
-  if (!notifs.length) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد إشعارات</div></div>`;
+  if (!notifs.length) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد إشعارات','Aucune notification')}</div></div>`;
   return `<div class="notif-panel" id="notifPanel" style="display:none">
     <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center">
-      <span>الإشعارات</span>
-      <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--blue);font-size:.72rem;cursor:pointer;font-family:'Tajawal',sans-serif">تحديد كمقروء</button>
+      <span>${L('الإشعارات','Notifications')}</span>
+      <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--blue);font-size:.72rem;cursor:pointer;font-family:'Tajawal',sans-serif">${L('تحديد كمقروء','Tout marquer lu')}</button>
     </div>
     ${notifs.map(n=>`<div class="notif-item ${n.read?'':'unread'}" onclick="markNotifRead(${n.id})">
       <div style="font-size:.82rem;font-weight:700">${n.type==='warn'?'⚠️':n.type==='danger'?'🚨':'ℹ️'} ${escHtml(n.title)}</div>
@@ -14984,7 +14984,7 @@ function markAllNotifsRead() {
   const tid = Auth.getUser()?.tenant_id;
   DB.set('notifications', DB.get('notifications').map(n => n.tenant_id === tid ? {...n, read:true} : n));
   const p = document.getElementById('notifPanel');
-  if (p) p.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد إشعارات جديدة</div>`;
+  if (p) p.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد إشعارات جديدة','Aucune nouvelle notification')}</div>`;
 }
 function markNotifRead(id) {
   DB.set('notifications', DB.get('notifications').map(n => n.id === id ? {...n, read:true} : n));
@@ -19366,7 +19366,7 @@ Pages.inventory = function() {
           <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المادة *</label><input class="form-input" id="matName" placeholder="حديد، أسمنت..."></div>
           <div class="form-group"><label class="form-label">الوحدة</label><input class="form-input" id="matUnit" placeholder="طن، كيس، م³"></div>
           <div class="form-group"><label class="form-label">الكمية الحالية</label><input class="form-input" id="matQty" type="number" placeholder="0"></div>
-          <div class="form-group"><label class="form-label">الحد الأدنى للتنبيه</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
+          <div class="form-group"><label class="form-label">${L("الحد الأدنى للتنبيه","Seuil d'alerte minimum")}</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
           <div class="form-group"><label class="form-label">السعر/وحدة (دج)</label><input class="form-input" id="matPrice" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="matProj"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group" style="grid-column:1/-1">
@@ -19382,7 +19382,7 @@ Pages.inventory = function() {
     </div>
     <div class="modal-overlay" id="stockMoveModal">
       <div class="modal">
-        <div class="modal-title" id="stockMoveTitle">📦 حركة مخزون</div>
+        <div class="modal-title" id="stockMoveTitle">📦 ${L("حركة مخزون","Mouvement de stock")}</div>
         <input type="hidden" id="stockMatId"><input type="hidden" id="stockMoveTyp">
         <div class="form-group"><label class="form-label">الكمية *</label><input class="form-input" id="stockMoveQty" type="number" placeholder="0" min="1"></div>
         <div class="form-group"><label class="form-label">ملاحظة</label><input class="form-input" id="stockMoveNote" placeholder="توريد، استخدام..."></div>
@@ -19405,7 +19405,7 @@ function openStockMove(matId,type){
   if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتحريك المخزون','Permission refusée : stock')); return; }
   document.getElementById('stockMatId').value=matId;
   document.getElementById('stockMoveTyp').value=type;
-  document.getElementById('stockMoveTitle').textContent=type==='in'?'📦 إدخال مواد':'📦 إخراج مواد';
+  document.getElementById('stockMoveTitle').textContent=type==='in'? `📦 ${L('إدخال مواد','Entrée de matériaux')}` : `📦 ${L('إخراج مواد','Sortie de matériaux')}`;
   document.getElementById('stockMoveQty').value='';
   document.getElementById('stockMoveNote').value='';
   document.getElementById('stockMoveModal').classList.add('show');
@@ -19430,10 +19430,10 @@ function confirmStockMoveV5(){
   DB.set('stock_movements',mvs);
   sbSync('stock_movements', newMv, 'POST').catch(()=>{});
   if(mats[idx].quantity<=mats[idx].min_quantity){
-    addNotification(Auth.getUser().tenant_id,'تنبيه المخزون',`مخزون "${mats[idx].name}" وصل للحد الأدنى (${mats[idx].quantity} ${mats[idx].unit})`,'warn');
-    Toast.warn(`⚠️ تنبيه: مخزون "${mats[idx].name}" منخفض!`);
+    addNotification(Auth.getUser().tenant_id, L('تنبيه المخزون','Alerte stock'), `${L('مخزون','Stock')} "${mats[idx].name}" ${L('وصل للحد الأدنى','a atteint le minimum')} (${mats[idx].quantity} ${mats[idx].unit})`, 'warn');
+    Toast.warn(`⚠️ ${L("تنبيه: مخزون","Alerte: stock")} "${mats[idx].name}" ${L("منخفض","bas")}!`);
   } else {
-    Toast.success(`✅ ${type==='in'?'إدخال':'إخراج'} ${qty} ${mats[idx].unit} من ${mats[idx].name}`);
+    Toast.success(`✅ ${type==='in'? L('إدخال','Entrée') : L('إخراج','Sortie')} ${qty} ${mats[idx].unit} ${L('من','de')} ${mats[idx].name}`);
   }
   document.getElementById('stockMoveModal').classList.remove('show');
   App.navigate('inventory');
