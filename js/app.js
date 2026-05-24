@@ -2973,7 +2973,7 @@ async function doRegister() {
 
   const showErr = (msg) => {
     if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
-    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
   };
 
   // ── تحقق من الحقول ──
@@ -3014,7 +3014,7 @@ async function doRegister() {
   }
 
   // ── عرض حالة التحميل ──
-  if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = '⏳ جاري التسجيل...'; }
+  if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = `⏳ ${L('جاري التسجيل...','Inscription en cours...')}`; }
   if (errEl) errEl.style.display = 'none';
 
   try {
@@ -3027,7 +3027,7 @@ async function doRegister() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
+    if (!sbUrl || !sbKey) throw new Error(L('Supabase غير مربوط — تواصل مع المسؤول', 'Supabase non configuré — contactez l\'administrateur'));
 
     const sbH = {
       'Content-Type': 'application/json',
@@ -3043,7 +3043,7 @@ async function doRegister() {
       if (existing.length) {
         // ✅ المستخدم موجود بالفعل — إذا كانت حالته pending أعرض شاشة الانتظار
         if (existing[0].account_status === 'pending') {
-          if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+          if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
           showPendingActivationScreen(name.trim(), email, company.trim());
           return;
         }
@@ -3093,7 +3093,7 @@ async function doRegister() {
           }
         }
       }
-      throw new Error('فشل حفظ بيانات المؤسسة: ' + errText);
+      throw new Error(L('فشل حفظ بيانات المؤسسة: ','Échec de la sauvegarde des données entreprise: ') + errText);
     }
     const [sbTenant] = await tRes.json();
 
@@ -3126,11 +3126,11 @@ async function doRegister() {
       try { errJson = JSON.parse(errText); } catch(_) {}
       if (errJson.code === '23505') {
         // المستخدم موجود — أعرض شاشة الانتظار
-        if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+        if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
         showPendingActivationScreen(name.trim(), email, company.trim());
         return;
       }
-      throw new Error('فشل حفظ بيانات المستخدم: ' + errText);
+      throw new Error(L('فشل حفظ بيانات المستخدم: ','Échec de la sauvegarde des données utilisateur: ') + errText);
     }
     const [sbUser] = await uRes.json();
 
@@ -3145,8 +3145,8 @@ async function doRegister() {
         body: JSON.stringify({
           // ✅ لا نمرر id — Supabase يولّده تلقائياً (SERIAL/BIGSERIAL)
           type: 'new_account',
-          title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
-          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})${phone.trim()?' — 📞 '+('+213'+phone.trim().replace(/^0/,'').replace(/\s/g,'')):''} — 📍 ${wilaya}`,
+          title: L('🆕 طلب تسجيل جديد بانتظار الموافقة','🆕 Nouvelle demande d\'inscription en attente d\'approbation'),
+          body: `${L('مؤسسة','Entreprise')} "${company.trim()}" — ${name.trim()} (${email})${phone.trim()?' — 📞 '+('+213'+phone.trim().replace(/^0/,'').replace(/\s/g,'')):''} — 📍 ${wilaya}`,
           user_id: sbUser.id, tenant_id: sbTenant.id,
           date: now.toISOString(), read: false, status: 'pending',
           extra_data: encodedPass // ✅ كلمة مرور base64 مؤقتة للإيميل
@@ -3187,8 +3187,8 @@ async function doRegister() {
     if (sbNotif && !localNotifs.find(n => n.id === sbNotif.id)) {
       localNotifs.unshift({
         id: sbNotif.id, type: 'new_account',
-        title: '🆕 طلب تسجيل جديد — بانتظار الموافقة',
-        body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
+        title: L('🆕 طلب تسجيل جديد — بانتظار الموافقة','🆕 Nouvelle demande d\'inscription — en attente'),
+        body: `${L('مؤسسة','Entreprise')} "${company.trim()}" — ${name.trim()} (${email})`,
         user_id: sbUser.id, tenant_id: sbTenant.id,
         date: now.toISOString(), read: false, status: 'pending'
       });
@@ -3213,7 +3213,7 @@ async function doRegister() {
     EMAILJS.sendWelcomeEmail({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
 
     // 7. عرض شاشة الترحيب وانتظار الموافقة (بدون تسجيل دخول)
-    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
+    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
     showPendingActivationScreen(name.trim(), email, company.trim());
 
   } catch(e) {
@@ -3238,6 +3238,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
     padding:1rem;
   `;
 
+  const _L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
   overlay.innerHTML = `
     <div style="
       max-width:520px;width:100%;
@@ -3266,13 +3267,13 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
 
       <!-- عنوان الترحيب -->
       <div style="font-size:1.6rem;font-weight:900;color:#EDF2F7;margin-bottom:.4rem;line-height:1.3">
-        أهلاً وسهلاً، ${escHtml(userName)}! 🌟
+        ${_L('أهلاً وسهلاً،','Bienvenue,')} ${escHtml(userName)}! 🌟
       </div>
       <div style="font-size:.95rem;color:#8892A4;margin-bottom:.5rem">
-        مؤسسة: <strong style="color:#E8B84B">${escHtml(companyName||'')}</strong>
+        ${_L('مؤسسة:','Entreprise:')} <strong style="color:#E8B84B">${escHtml(companyName||'')}</strong>
       </div>
       <div style="font-size:.88rem;color:#6B7694;margin-bottom:2rem;line-height:1.6">
-        تم استلام طلب تسجيلك بنجاح ✅
+        ${_L('تم استلام طلب تسجيلك بنجاح ✅','Votre demande d'inscription a bien été reçue ✅')}
       </div>
 
       <!-- كارت الحالة -->
@@ -3280,34 +3281,34 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.04));
         border:1px solid rgba(232,184,75,.25);
         border-radius:18px;padding:1.5rem 1.3rem;
-        margin-bottom:1.3rem;text-align:right;
+        margin-bottom:1.3rem;text-align:${I18N.currentLang==='ar'?'right':'left'};
       ">
-        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;justify-content:flex-end">
-          <span style="font-size:.9rem;font-weight:800;color:#E8B84B">⏳ حسابك قيد المراجعة</span>
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;justify-content:${I18N.currentLang==='ar'?'flex-end':'flex-start'}">
+          <span style="font-size:.9rem;font-weight:800;color:#E8B84B">⏳ ${_L('حسابك قيد المراجعة','Compte en cours de vérification')}</span>
           <span style="
             background:rgba(232,184,75,.15);color:#E8B84B;
             border:1px solid rgba(232,184,75,.3);
             border-radius:20px;padding:.15rem .7rem;
             font-size:.72rem;font-weight:700;
-          ">بانتظار الموافقة</span>
+          ">${_L('بانتظار الموافقة','En attente d'approbation')}</span>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:.7rem">
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">✅</span>
-            <span>تم حفظ بيانات مؤسستك في النظام بنجاح</span>
+            <span>${_L('تم حفظ بيانات مؤسستك في النظام بنجاح','Les données de votre entreprise ont bien été enregistrées')}</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(74,144,226,.12);border:1px solid rgba(74,144,226,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">👑</span>
-            <span>سيقوم المسؤول بمراجعة طلبك في أقرب وقت</span>
+            <span>${_L('سيقوم المسؤول بمراجعة طلبك في أقرب وقت','L'administrateur examinera votre demande dans les plus brefs délais')}</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">📧</span>
-            <span>ستصلك رسالة بريد إلكتروني فور تفعيل حسابك</span>
+            <span>${_L('ستصلك رسالة بريد إلكتروني فور تفعيل حسابك','Vous recevrez un email dès que votre compte sera activé')}</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">🚀</span>
-            <span>بعد التفعيل يمكنك الدخول والاستمتاع بـ 14 يوم مجاناً</span>
+            <span>${_L('بعد التفعيل يمكنك الدخول والاستمتاع بـ 14 يوم مجاناً','Après activation, profitez de 14 jours d'essai gratuit complet')}</span>
           </div>
         </div>
       </div>
@@ -3322,7 +3323,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         flex-wrap:wrap;
       ">
         <span style="font-size:1.1rem">📬</span>
-        <span style="font-size:.82rem;color:#8892A4">سيُرسَل إيميل التفعيل إلى:</span>
+        <span style="font-size:.82rem;color:#8892A4">${_L('سيُرسَل إيميل التفعيل إلى:','L'email d'activation sera envoyé à :')}</span>
         <strong style="font-size:.85rem;color:#4A90E2;direction:ltr;font-family:monospace">${escHtml(userEmail)}</strong>
       </div>
 
@@ -3341,11 +3342,11 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 30px rgba(232,184,75,.45)'"
         onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(232,184,75,.3)'"
       >
-        ← العودة لصفحة تسجيل الدخول
+        ${_L('← العودة لصفحة تسجيل الدخول','← Retour à la page de connexion')}
       </button>
 
       <div style="margin-top:1rem;font-size:.75rem;color:#4A5568">
-        للاستفسار تواصل مع فريق الدعم
+        ${_L('للاستفسار تواصل مع فريق الدعم','Pour toute question, contactez notre équipe support')}
       </div>
     </div>
   `;
@@ -11425,7 +11426,7 @@ async function doLogin() {
     }
 
     // ── للمستخدمين العاديين: التحقق من Supabase ──
-    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
+    if (!sbUrl || !sbKey) throw new Error(L('Supabase غير مربوط — تواصل مع المسؤول', 'Supabase non configuré — contactez l\'administrateur'));
 
     const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
 
@@ -14305,7 +14306,7 @@ function submitForgotRequest() {
       company_name:tenant?.name||'',
       date:        new Date().toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{year:'numeric',month:'long',day:'numeric'}),
       new_password:'[سيتم إرسالها من المسؤول قريباً / Sera envoyé par l\'admin]',
-      message:     `تم استلام طلبك لإعادة تعيين كلمة المرور. سيقوم المسؤول بمعالجة طلبك وإرسال كلمة المرور الجديدة إليك قريباً.`
+      message:     L('تم استلام طلبك لإعادة تعيين كلمة المرور. سيقوم المسؤول بمعالجة طلبك وإرسال كلمة المرور الجديدة إليك قريباً.', 'Votre demande de réinitialisation a été reçue. L\'administrateur traitera votre demande et vous enverra un nouveau mot de passe prochainement.')
     }).then(()=>console.log('✅ تأكيد الطلب أُرسل للمستخدم')).catch(e=>console.warn('تأكيد المستخدم:',e));
   } catch(e){ console.warn(e); }
   msgEl.style.display='block'; msgEl.style.background='rgba(52,195,143,.08)'; msgEl.style.border='1px solid rgba(52,195,143,.25)'; msgEl.style.color='#6eddb5';
@@ -14906,7 +14907,7 @@ function topbarHTMLv5(title) {
       </div>
       <div id="notifPanelWrap" style="position:relative">
         ${user?.is_admin ? `
-          <div class="notif-bell" onclick="openAdminNotifTab()" title="طلبات إعادة تعيين كلمة المرور" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
+          <div class="notif-bell" onclick="openAdminNotifTab()" title="${L('طلبات إعادة تعيين كلمة المرور','Demandes de réinitialisation MDP')}" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
             🛎️${adminResetPending>0?`<span class="notif-count">${adminResetPending>99?'99+':adminResetPending}</span>`:''}
           </div>
         ` : ''}
