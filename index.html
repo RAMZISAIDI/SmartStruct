@@ -736,10 +736,11 @@ function updateRotator() {
   const rotator = document.querySelector('.rotator');
   if (!rotator) return;
   rotator.innerHTML = '';
-  // ghost span for sizing
+  // ghost uses longest phrase so width auto-fits any language
+  const longest = phrases.reduce((a, b) => b.length > a.length ? b : a, '');
   const ghost = document.createElement('span');
   ghost.className = 'ghost';
-  ghost.textContent = phrases[0];
+  ghost.textContent = longest;
   rotator.appendChild(ghost);
   phrases.forEach(p => {
     const s = document.createElement('span');
@@ -2029,10 +2030,10 @@ footer {
 .rotator {
   display: inline-block;
   position: relative;
-  height: 1.3em;
-  line-height: 1.3em;
+  height: 1.45em;
+  line-height: 1.45em;
   overflow: hidden;
-  vertical-align: -0.18em;
+  vertical-align: -0.25em;
   /* Width is set by the invisible ghost word inside — guarantees longest word fits */
 }
 .rotator .ghost {
@@ -2414,7 +2415,7 @@ html[dir="ltr"] .ai-viz { direction: ltr; }
       <span class="eyebrow" data-i18n="hero_eyebrow" style="display:none"></span>
       <h1>
         <span data-i18n="hero_h1_pre">منصة موحَّدة لإدارة</span><br>
-        <span class="rotator" style="height: 95px; width: 369px"><span class="ghost">الفواتير</span><span>المقاولة</span><span>المشاريع</span><span>الفواتير</span><span>الورشة</span></span><br>
+        <span class="rotator"><span class="ghost">الفواتير</span><span>المقاولة</span><span>المشاريع</span><span>الفواتير</span><span>الورشة</span></span><br>
         <span data-i18n="hero_h1_post">من العقد إلى التسليم.</span>
       </h1>
       <p class="lead" data-i18n="hero_lead">
