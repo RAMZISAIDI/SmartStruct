@@ -289,25 +289,28 @@ const PHASES = [
   "أعمال الطاقة الشمسية","أعمال العزل والحماية",
   "تركيب المعدات","اختبار وتسليم","ضمان ومتابعة","الاستلام النهائي"
 ];
-const PROJECT_TYPES = [
-  {value:'building', label: `🏗️ ${L('بناء وإنشاء','Construction')}`, icon:'🏗️'},
-  {value:'electrical', label: `⚡ ${L('كهرباء وتمديدات','Électricité & réseaux')}`, icon:'⚡'},
-  {value:'plumbing', label: `🚿 ${L('سباكة وصرف صحي','Plomberie & sanitaires')}`, icon:'🚿'},
-  {value:'roads', label: `🛣️ ${L('طرق وتهيئة','Routes & aménagement')}`, icon:'🛣️'},
-  {value:'hvac', label: `❄️ ${L('تكييف وتهوية','Climatisation & ventilation')}`, icon:'❄️'},
-  {value:'telecom', label: `📡 ${L('اتصالات وشبكات','Télécoms & réseaux')}`, icon:'📡'},
-  {value:'painting', label: `🎨 ${L('دهن وديكور','Peinture & décoration')}`, icon:'🎨'},
-  {value:'metalworks', label: `🔩 ${L('حدادة ومعادن','Ferronnerie & métaux')}`, icon:'🔩'},
-  {value:'woodworks', label: `🪵 ${L('نجارة وأبواب','Menuiserie & portes')}`, icon:'🪵'},
-  {value:'flooring', label: `🪟 ${L('أرضيات وبلاط','Revêtements & carrelage')}`, icon:'🪟'},
-  {value:'renovation', label: `🔧 ${L('ترميم وصيانة','Rénovation & maintenance')}`, icon:'🔧'},
-  {value:'infrastructure', label: `🏛️ ${L('بنية تحتية','Infrastructure')}`, icon:'🏛️'},
-  {value:'landscaping', label: `🌿 ${L('تهيئة خضراء وحدائق','Espaces verts & jardins')}`, icon:'🌿'},
-  {value:'demolition', label: `💥 ${L('هدم وإزالة','Démolition & déblaiement')}`, icon:'💥'},
-  {value:'waterproofing', label: `💧 ${L('عزل وحماية','Étanchéité & protection')}`, icon:'💧'},
-  {value:'solar', label: `☀️ ${L('طاقة شمسية','Énergie solaire')}`, icon:'☀️'},
-  {value:'other', label: `📋 ${L('أخرى','Autres')}`, icon:'📋'},
-];
+// getProjectTypes() — دالة تُستدعى بعد تهيئة I18N لضمان الترجمة الصحيحة
+function getProjectTypes() {
+  return [
+    {value:'building',       label: `🏗️ ${L('بناء وإنشاء','Construction')}`,                  icon:'🏗️'},
+    {value:'electrical',     label: `⚡ ${L('كهرباء وتمديدات','Électricité & réseaux')}`,       icon:'⚡'},
+    {value:'plumbing',       label: `🚿 ${L('سباكة وصرف صحي','Plomberie & sanitaires')}`,       icon:'🚿'},
+    {value:'roads',          label: `🛣️ ${L('طرق وتهيئة','Routes & aménagement')}`,             icon:'🛣️'},
+    {value:'hvac',           label: `❄️ ${L('تكييف وتهوية','Climatisation & ventilation')}`,    icon:'❄️'},
+    {value:'telecom',        label: `📡 ${L('اتصالات وشبكات','Télécoms & réseaux')}`,           icon:'📡'},
+    {value:'painting',       label: `🎨 ${L('دهن وديكور','Peinture & décoration')}`,            icon:'🎨'},
+    {value:'metalworks',     label: `🔩 ${L('حدادة ومعادن','Ferronnerie & métaux')}`,           icon:'🔩'},
+    {value:'woodworks',      label: `🪵 ${L('نجارة وأبواب','Menuiserie & portes')}`,            icon:'🪵'},
+    {value:'flooring',       label: `🪟 ${L('أرضيات وبلاط','Revêtements & carrelage')}`,        icon:'🪟'},
+    {value:'renovation',     label: `🔧 ${L('ترميم وصيانة','Rénovation & maintenance')}`,       icon:'🔧'},
+    {value:'infrastructure', label: `🏛️ ${L('بنية تحتية','Infrastructure')}`,                  icon:'🏛️'},
+    {value:'landscaping',    label: `🌿 ${L('تهيئة خضراء وحدائق','Espaces verts & jardins')}`, icon:'🌿'},
+    {value:'demolition',     label: `💥 ${L('هدم وإزالة','Démolition & déblaiement')}`,         icon:'💥'},
+    {value:'waterproofing',  label: `💧 ${L('عزل وحماية','Étanchéité & protection')}`,          icon:'💧'},
+    {value:'solar',          label: `☀️ ${L('طاقة شمسية','Énergie solaire')}`,                 icon:'☀️'},
+    {value:'other',          label: `📋 ${L('أخرى','Autres')}`,                                 icon:'📋'},
+  ];
+}
 const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26C6DA','#AB47BC'];
 
 /* ══════════════════════════════════════════════════════
@@ -5020,7 +5023,7 @@ Pages.projects = function() {
 
   const cards = projects.map(p=>{
     const wCount=workers.filter(w=>w.project_id===p.id).length;
-    const pTypeObj = PROJECT_TYPES.find(t=>t.value===p.project_type);
+    const pTypeObj = getProjectTypes().find(t=>t.value===p.project_type);
     return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:16px;overflow:hidden;transition:all .28s cubic-bezier(.34,1.56,.64,1)" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform=''">
       <div style="height:3px;background:${p.color}"></div>
       <div style="padding:1.1rem 1.2rem">
@@ -5077,14 +5080,14 @@ Pages.projects = function() {
       </select>
       <select class="form-select" id="projTypeFilter" onchange="filterProjects()" style="width:auto;min-width:160px">
         <option value="">${L('كل أنواع المشاريع','Tous types')}</option>
-        ${PROJECT_TYPES.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}
+        ${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}
       </select>
     </div>
     <div class="grid-cards" id="projGrid">${cards}</div>
     <div class="modal-overlay" id="addProjectModal">
       <div class="modal modal-lg">
         <div class="modal-title">🏗️ ${L('إضافة مشروع جديد','Ajouter un projet')}</div>
-        <div class="form-group"><label class="form-label">${L('نوع المشروع *','Type de projet *')}</label><select class="form-select" id="pType"><option value="">${L('اختر نوع المشروع...','Choisir un type...')}</option>${PROJECT_TYPES.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">${L('نوع المشروع *','Type de projet *')}</label><select class="form-select" id="pType"><option value="">${L('اختر نوع المشروع...','Choisir un type...')}</option>${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
@@ -5115,7 +5118,7 @@ Pages.projects = function() {
     <div class="modal-overlay" id="editProjectModal">
       <div class="modal modal-lg">
         <div class="modal-title">✏️ ${L('تعديل المشروع','Modifier le projet')}</div><input type="hidden" id="epId">
-        <div class="form-group"><label class="form-label">${L('نوع المشروع','Type de projet')}</label><select class="form-select" id="epType"><option value="">${L('اختر...','Choisir...')}</option>${PROJECT_TYPES.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">${L('نوع المشروع','Type de projet')}</label><select class="form-select" id="epType"><option value="">${L('اختر...','Choisir...')}</option>${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
           <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
@@ -10301,7 +10304,7 @@ Pages.project_detail = function() {
         </div>
         <div class="page-title">${escHtml(p.name)}</div>
         <div class="page-sub">
-          ${(()=>{const t=PROJECT_TYPES.find(t=>t.value===p.project_type);return t?`<span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;margin-left:.5rem">${t.label}</span>`:''})()}
+          ${(()=>{const t=getProjectTypes().find(t=>t.value===p.project_type);return t?`<span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;margin-left:.5rem">${t.label}</span>`:''})()}
           ${p.wilaya?'📍 '+escHtml(p.wilaya):''} ${p.client_name?'• 👤 '+escHtml(p.client_name):''} ${p.phase?'• 🔧 '+escHtml(p.phase):''}
         </div>
       </div>
@@ -10531,7 +10534,7 @@ function filterProjects() {
   if (!filtered.length) { grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔍</div><div class="empty-title">لا توجد نتائج</div></div>`; return; }
   grid.innerHTML = filtered.map(p=>{
     const wCount=workers.filter(w=>w.project_id===p.id).length;
-    const pTypeObj = PROJECT_TYPES.find(t=>t.value===p.project_type);
+    const pTypeObj = getProjectTypes().find(t=>t.value===p.project_type);
     return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:16px;overflow:hidden;transition:all .28s" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform=''">
       <div style="height:3px;background:${p.color}"></div>
       <div style="padding:1.1rem 1.2rem">
@@ -20268,8 +20271,8 @@ Pages.compare = function() {
           ${row(__('cmp.efficiency'), eff(p1)+'%', eff(p2)+'%', true)}
           <tr>
             <td style="color:var(--muted);font-size:.82rem;font-weight:700;padding:.7rem 1rem">${__('lbl.type')}</td>
-            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(PROJECT_TYPES.find(t=>t.value===p1.project_type)||{label:'—'}).label}</td>
-            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(PROJECT_TYPES.find(t=>t.value===p2.project_type)||{label:'—'}).label}</td>
+            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(getProjectTypes().find(t=>t.value===p1.project_type)||{label:'—'}).label}</td>
+            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(getProjectTypes().find(t=>t.value===p2.project_type)||{label:'—'}).label}</td>
           </tr>
           <tr>
             <td style="color:var(--muted);font-size:.82rem;font-weight:700;padding:.7rem 1rem">الحالة</td>
