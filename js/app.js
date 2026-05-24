@@ -251,11 +251,11 @@ const Toast = {
 function fmt(n) { return Number(n||0).toLocaleString('fr-DZ'); }
 function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('ar-DZ'); }
 function statusBadge(s) {
-  const map = { active:'badge-active نشط', completed:'badge-completed مكتمل', delayed:'badge-delayed متأخر', paused:'badge-paused متوقف' };
+  const map = { active:`badge-active ${L('نشط','Actif')}`, completed:`badge-completed ${L('مكتمل','Terminé')}`, delayed:`badge-delayed ${L('متأخر','En retard')}`, paused:`badge-paused ${L('متوقف','En pause')}` };
   const [cls, label] = (map[s]||'badge-paused —').split(' ');
   return `<span class="badge ${cls}">${label}</span>`;
 }
-function statusLabel(s) { return {active:'نشط',completed:'مكتمل',delayed:'متأخر',paused:'متوقف'}[s]||s; }
+function statusLabel(s) { return {active:L('نشط','Actif'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','En pause')}[s]||s; }
 function escHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s)
@@ -285,23 +285,23 @@ const PHASES = [
   "تركيب المعدات","اختبار وتسليم","ضمان ومتابعة","الاستلام النهائي"
 ];
 const PROJECT_TYPES = [
-  {value:'building', label:'🏗️ بناء وإنشاء', icon:'🏗️'},
-  {value:'electrical', label:'⚡ كهرباء وتمديدات', icon:'⚡'},
-  {value:'plumbing', label:'🚿 سباكة وصرف صحي', icon:'🚿'},
-  {value:'roads', label:'🛣️ طرق وتهيئة', icon:'🛣️'},
-  {value:'hvac', label:'❄️ تكييف وتهوية', icon:'❄️'},
-  {value:'telecom', label:'📡 اتصالات وشبكات', icon:'📡'},
-  {value:'painting', label:'🎨 دهن وديكور', icon:'🎨'},
-  {value:'metalworks', label:'🔩 حدادة ومعادن', icon:'🔩'},
-  {value:'woodworks', label:'🪵 نجارة وأبواب', icon:'🪵'},
-  {value:'flooring', label:'🪟 أرضيات وبلاط', icon:'🪟'},
-  {value:'renovation', label:'🔧 ترميم وصيانة', icon:'🔧'},
-  {value:'infrastructure', label:'🏛️ بنية تحتية', icon:'🏛️'},
-  {value:'landscaping', label:'🌿 تهيئة خضراء وحدائق', icon:'🌿'},
-  {value:'demolition', label:'💥 هدم وإزالة', icon:'💥'},
-  {value:'waterproofing', label:'💧 عزل وحماية', icon:'💧'},
-  {value:'solar', label:'☀️ طاقة شمسية', icon:'☀️'},
-  {value:'other', label:'📋 أخرى', icon:'📋'},
+  {value:'building', label: `🏗️ ${L('بناء وإنشاء','Construction')}`, icon:'🏗️'},
+  {value:'electrical', label: `⚡ ${L('كهرباء وتمديدات','Électricité & réseaux')}`, icon:'⚡'},
+  {value:'plumbing', label: `🚿 ${L('سباكة وصرف صحي','Plomberie & sanitaires')}`, icon:'🚿'},
+  {value:'roads', label: `🛣️ ${L('طرق وتهيئة','Routes & aménagement')}`, icon:'🛣️'},
+  {value:'hvac', label: `❄️ ${L('تكييف وتهوية','Climatisation & ventilation')}`, icon:'❄️'},
+  {value:'telecom', label: `📡 ${L('اتصالات وشبكات','Télécoms & réseaux')}`, icon:'📡'},
+  {value:'painting', label: `🎨 ${L('دهن وديكور','Peinture & décoration')}`, icon:'🎨'},
+  {value:'metalworks', label: `🔩 ${L('حدادة ومعادن','Ferronnerie & métaux')}`, icon:'🔩'},
+  {value:'woodworks', label: `🪵 ${L('نجارة وأبواب','Menuiserie & portes')}`, icon:'🪵'},
+  {value:'flooring', label: `🪟 ${L('أرضيات وبلاط','Revêtements & carrelage')}`, icon:'🪟'},
+  {value:'renovation', label: `🔧 ${L('ترميم وصيانة','Rénovation & maintenance')}`, icon:'🔧'},
+  {value:'infrastructure', label: `🏛️ ${L('بنية تحتية','Infrastructure')}`, icon:'🏛️'},
+  {value:'landscaping', label: `🌿 ${L('تهيئة خضراء وحدائق','Espaces verts & jardins')}`, icon:'🌿'},
+  {value:'demolition', label: `💥 ${L('هدم وإزالة','Démolition & déblaiement')}`, icon:'💥'},
+  {value:'waterproofing', label: `💧 ${L('عزل وحماية','Étanchéité & protection')}`, icon:'💧'},
+  {value:'solar', label: `☀️ ${L('طاقة شمسية','Énergie solaire')}`, icon:'☀️'},
+  {value:'other', label: `📋 ${L('أخرى','Autres')}`, icon:'📋'},
 ];
 const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26C6DA','#AB47BC'];
 
@@ -4046,14 +4046,14 @@ function calcBTPMetrics(projects, txs, workers, attendance, invoices, materials,
 
   // ⑭ تقييم صحي ذكي لكل مؤشر
   m.alerts = [];
-  if (m.cpi !== null && m.cpi < 0.9)        m.alerts.push({ icon:'💸', text:'تجاوز التكلفة المقدرة (CPI<0.9)' });
-  if (m.spi !== null && m.spi < 0.85)       m.alerts.push({ icon:'⏰', text:'تأخر زمني في المشاريع (SPI<0.85)' });
-  if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text:`السيولة ستنفد خلال ${m.cashRunway} يوم` });
-  if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text:`متوسط التحصيل ${m.dso} يوم - بطيء` });
-  if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text:`هامش ربح منخفض (${m.grossMargin}%)` });
+  if (m.cpi !== null && m.cpi < 0.9)        m.alerts.push({ icon:'💸', text: L('تجاوز التكلفة المقدرة (CPI<0.9)','Dépassement de coût (CPI<0.9)') });
+  if (m.spi !== null && m.spi < 0.85)       m.alerts.push({ icon:'⏰', text: L('تأخر زمني في المشاريع (SPI<0.85)','Retard de planning (SPI<0.85)') });
+  if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text: `${L('السيولة ستنفد خلال','Liquidité épuisée dans')} ${m.cashRunway} ${L('يوم','jours')}` });
+  if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text: `${L('متوسط التحصيل','Délai de recouvrement')} ${m.dso} ${L('يوم - بطيء','jours - lent')}` });
+  if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text: `${L('هامش ربح منخفض','Marge bénéficiaire faible')} (${m.grossMargin}%)` });
   if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} ${L('مادة مخزون منخفض','matériau(x) stock bas')}` });
-  if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text:`الأجور ${m.payrollRatio}% من الإيرادات` });
-  if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text:`فواتير غير محصلة: ${fmt(Math.round(m.unpaidAmount))} دج` });
+  if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text: `${L('الأجور','Paie')} ${m.payrollRatio}% ${L('من الإيرادات','des revenus')}` });
+  if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text: `${L('فواتير غير محصلة','Factures impayées')}: ${fmt(Math.round(m.unpaidAmount))} ${L('دج','DA')}` });
 
   return m;
 }
@@ -4431,19 +4431,19 @@ Pages.dashboard = function() {
     <div class="ai-ceo-banner">
       <div class="ai-ceo-icon">🤖</div>
       <div style="flex:1">
-        <div class="ai-ceo-greeting">🌅 ملخص الذكاء الاصطناعي — ${new Date().toLocaleDateString('ar-DZ',{weekday:'long',day:'numeric',month:'long'})}</div>
+        <div class="ai-ceo-greeting">🌅 ${L('ملخص الذكاء الاصطناعي','Récapitulatif IA')} — ${new Date().toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</div>
         <div style="font-size:.88rem;font-weight:800;margin-bottom:.4rem">
-          ${risks.filter(r=>r.level==='danger').length > 0 ? `🔴 ${risks.filter(r=>r.level==='danger').length} مشروع في خطر` : `✅ جميع المشاريع في وضع سليم`}
-          ${totalBudget > 0 && totalSpent/totalBudget > 0.7 ? ` • 🟡 استهلاك الميزانية مرتفع ${Math.round(totalSpent/totalBudget*100)}%` : ''}
+          ${risks.filter(r=>r.level==='danger').length > 0 ? `🔴 ${risks.filter(r=>r.level==='danger').length} ${L('مشروع في خطر','projet(s) en danger')}` : `✅ ${L('جميع المشاريع في وضع سليم','Tous les projets sont en bonne santé')}`}
+          ${totalBudget > 0 && totalSpent/totalBudget > 0.7 ? ` • 🟡 ${L('استهلاك الميزانية مرتفع','Consommation budget élevée')} ${Math.round(totalSpent/totalBudget*100)}%` : ''}
         </div>
         <div class="ai-ceo-insights">
-          <span class="ai-ceo-chip ${forecastProfit >= 0 ? 'green' : 'red'}">💰 ربح متوقع: ${fmt(Math.round(forecastProfit))} دج</span>
-          ${health.score >= 75 ? `<span class="ai-ceo-chip green">🏥 الصحة المالية ممتازة ${health.score}/100</span>` 
-            : health.score >= 55 ? `<span class="ai-ceo-chip yellow">🏥 تحتاج اهتمام ${health.score}/100</span>`
-            : `<span class="ai-ceo-chip red">🏥 خطر مالي ${health.score}/100</span>`}
-          ${workers.length > 0 ? `<span class="ai-ceo-chip blue">👷 ${presentToday}/${workers.length} حاضر اليوم</span>` : ''}
-          ${projects.filter(p=>p.status==='active').length > 0 ? `<span class="ai-ceo-chip blue">🏗️ ${projects.filter(p=>p.status==='active').length} مشروع نشط</span>` : ''}
-          ${risks.length > 0 ? `<span class="ai-ceo-chip ${risks.filter(r=>r.level==='danger').length>0?'red':'yellow'}">⚠️ ${risks.length} تنبيه</span>` : ''}
+          <span class="ai-ceo-chip ${forecastProfit >= 0 ? 'green' : 'red'}">💰 ${L('ربح متوقع','Bénéfice prévu')}: ${fmt(Math.round(forecastProfit))} ${L('دج','DA')}</span>
+          ${health.score >= 75 ? `<span class="ai-ceo-chip green">🏥 ${L('الصحة المالية ممتازة','Santé financière excellente')} ${health.score}/100</span>` 
+            : health.score >= 55 ? `<span class="ai-ceo-chip yellow">🏥 ${L('تحتاج اهتمام','Attention requise')} ${health.score}/100</span>`
+            : `<span class="ai-ceo-chip red">🏥 ${L('خطر مالي','Risque financier')} ${health.score}/100</span>`}
+          ${workers.length > 0 ? `<span class="ai-ceo-chip blue">👷 ${presentToday}/${workers.length} ${L('حاضر اليوم','présent(s) aujourd\'hui')}</span>` : ''}
+          ${projects.filter(p=>p.status==='active').length > 0 ? `<span class="ai-ceo-chip blue">🏗️ ${projects.filter(p=>p.status==='active').length} ${L('مشروع نشط','projet(s) actif(s)')}</span>` : ''}
+          ${risks.length > 0 ? `<span class="ai-ceo-chip ${risks.filter(r=>r.level==='danger').length>0?'red':'yellow'}">⚠️ ${risks.length} ${L('تنبيه','alerte(s)')}</span>` : ''}
         </div>
       </div>
       <div class="ai-ceo-actions">
@@ -6803,7 +6803,7 @@ Pages.reports = function() {
 // ════════════════════════════════════════════════════════════════════
 function generateAISmartReport() {
   const tenant = Auth.getTenant();
-  if (!tenant) { Toast.error('يجب تسجيل الدخول'); return; }
+  if (!tenant) { Toast.error(L('يجب تسجيل الدخول','Vous devez être connecté')); return; }
   const tid = tenant.id;
 
   // ═══ جمع كل البيانات ═══
@@ -6842,59 +6842,59 @@ function generateAISmartReport() {
   const strategies = [];
 
   // ① الإيجابيات
-  if (btp.cpi !== null && btp.cpi >= 1) positives.push({ icon:'✅', text:`أداء التكلفة ممتاز (CPI=${btp.cpi}) — تنجز أعمالاً قيمتها أكثر من المنفق` });
-  if (btp.spi !== null && btp.spi >= 1) positives.push({ icon:'⚡', text:`الجدول الزمني متقدم (SPI=${btp.spi}) — مشاريعك تسير حسب أو أسرع من المخطط` });
-  if (btp.grossMargin !== null && btp.grossMargin >= 20) positives.push({ icon:'💰', text:`هامش ربح ممتاز ${btp.grossMargin}% — أعلى من متوسط القطاع` });
-  if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text:`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز` });
-  if (attendanceRate >= 85) positives.push({ icon:'👷', text:`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة` });
-  if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text:`السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات` });
+  if (btp.cpi !== null && btp.cpi >= 1) positives.push({ icon:'✅', text: L(`أداء التكلفة ممتاز (CPI=${btp.cpi}) — تنجز أعمالاً قيمتها أكثر من المنفق`, `Performance coût excellente (CPI=${btp.cpi}) — vous livrez plus que dépensé`) });
+  if (btp.spi !== null && btp.spi >= 1) positives.push({ icon:'⚡', text: L(`الجدول الزمني متقدم (SPI=${btp.spi}) — مشاريعك تسير حسب أو أسرع من المخطط`, `Planning en avance (SPI=${btp.spi}) — vos projets avancent bien`) });
+  if (btp.grossMargin !== null && btp.grossMargin >= 20) positives.push({ icon:'💰', text: L(`هامش ربح ممتاز ${btp.grossMargin}% — أعلى من متوسط القطاع`, `Marge excellente ${btp.grossMargin}% — au-dessus de la moyenne du secteur`) });
+  if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text: L(`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز`, `Recouvrement rapide (${btp.dso} jours) — excellent flux de trésorerie`) });
+  if (attendanceRate >= 85) positives.push({ icon:'👷', text: L(`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة`, `Taux de présence élevé (${attendanceRate}%) — main d'œuvre disciplinée`) });
+  if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text: L('السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات', 'Liquidité au niveau sécurisé — suffisant pour plus de 6 mois') });
   if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text: L('المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى', 'Stock bien géré — aucun matériau sous le seuil minimum') });
-  if (completedProjects >= 3) positives.push({ icon:'🏆', text:`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي` });
-  if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text:`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق` });
-  if (documents.length >= 10) positives.push({ icon:'📁', text:`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم` });
+  if (completedProjects >= 3) positives.push({ icon:'🏆', text: L(`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي`, `${completedProjects} projets terminés — solide bilan d'exécution`) });
+  if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text: L(`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق`, `Utilisation équipements excellente (${btp.equipUtilization}%) — investissement rentable`) });
+  if (documents.length >= 10) positives.push({ icon:'📁', text: L(`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم`, `${documents.length} documents archivés — organisation administrative avancée`) });
 
   // ② السلبيات
-  if (btp.cpi !== null && btp.cpi < 0.85) negatives.push({ icon:'🚨', text:`تجاوز تكلفة كبير (CPI=${btp.cpi}) — تنفق ${Math.round((1-btp.cpi)*100)}% أكثر من المخطط` });
-  if (btp.spi !== null && btp.spi < 0.85) negatives.push({ icon:'⏰', text:`تأخر زمني كبير (SPI=${btp.spi}) — متأخر ${Math.round((1-btp.spi)*100)}% عن الجدول` });
-  if (btp.grossMargin !== null && btp.grossMargin < 5) negatives.push({ icon:'📉', text:`هامش ربح منخفض جداً (${btp.grossMargin}%) — قد يهدد استمرارية المؤسسة` });
-  if (btp.cashRunway !== null && btp.cashRunway > 0 && btp.cashRunway < 30) negatives.push({ icon:'🚨', text:`خطر السيولة الحاد — ستنفد خلال ${btp.cashRunway} يوم فقط` });
-  if (btp.dso !== null && btp.dso > 90) negatives.push({ icon:'🐌', text:`بطء حاد في التحصيل (${btp.dso} يوم) — تجمد رأس المال` });
-  if (btp.payrollRatio !== null && btp.payrollRatio > 50) negatives.push({ icon:'⚠️', text:`الأجور تستهلك ${btp.payrollRatio}% من الإيرادات — مرتفع جداً` });
-  if (delayedProjects >= 3) negatives.push({ icon:'❌', text:`${delayedProjects} مشاريع متأخرة — مؤشر على مشاكل تنظيمية` });
-  if (btp.unpaidAmount > 500000) negatives.push({ icon:'💸', text:`فواتير غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج — تأثير سلبي على السيولة` });
-  if (attendanceRate < 70 && workers.length > 3) negatives.push({ icon:'👥', text:`نسبة حضور منخفضة (${attendanceRate}%) — تأثير على الإنتاجية` });
+  if (btp.cpi !== null && btp.cpi < 0.85) negatives.push({ icon:'🚨', text: L(`تجاوز تكلفة كبير (CPI=${btp.cpi}) — تنفق ${Math.round((1-btp.cpi)*100)}% أكثر من المخطط`, `Dépassement de coût important (CPI=${btp.cpi}) — vous dépensez ${Math.round((1-btp.cpi)*100)}% de plus`) });
+  if (btp.spi !== null && btp.spi < 0.85) negatives.push({ icon:'⏰', text: L(`تأخر زمني كبير (SPI=${btp.spi}) — متأخر ${Math.round((1-btp.spi)*100)}% عن الجدول`, `Retard important (SPI=${btp.spi}) — ${Math.round((1-btp.spi)*100)}% de retard sur le planning`) });
+  if (btp.grossMargin !== null && btp.grossMargin < 5) negatives.push({ icon:'📉', text: L(`هامش ربح منخفض جداً (${btp.grossMargin}%) — قد يهدد استمرارية المؤسسة`, `Marge très faible (${btp.grossMargin}%) — peut menacer la continuité`) });
+  if (btp.cashRunway !== null && btp.cashRunway > 0 && btp.cashRunway < 30) negatives.push({ icon:'🚨', text: L(`خطر السيولة الحاد — ستنفد خلال ${btp.cashRunway} يوم فقط`, `Risque liquidité critique — épuisement dans ${btp.cashRunway} jours seulement`) });
+  if (btp.dso !== null && btp.dso > 90) negatives.push({ icon:'🐌', text: L(`بطء حاد في التحصيل (${btp.dso} يوم) — تجمد رأس المال`, `Recouvrement très lent (${btp.dso} jours) — immobilisation du capital`) });
+  if (btp.payrollRatio !== null && btp.payrollRatio > 50) negatives.push({ icon:'⚠️', text: L(`الأجور تستهلك ${btp.payrollRatio}% من الإيرادات — مرتفع جداً`, `La paie représente ${btp.payrollRatio}% des revenus — trop élevé`) });
+  if (delayedProjects >= 3) negatives.push({ icon:'❌', text: L(`${delayedProjects} مشاريع متأخرة — مؤشر على مشاكل تنظيمية`, `${delayedProjects} projets en retard — indicateur de problèmes organisationnels`) });
+  if (btp.unpaidAmount > 500000) negatives.push({ icon:'💸', text: L(`فواتير غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج — تأثير سلبي على السيولة`, `Factures impayées de ${fmt(Math.round(btp.unpaidAmount))} DA — impact négatif sur la liquidité`) });
+  if (attendanceRate < 70 && workers.length > 3) negatives.push({ icon:'👥', text: L(`نسبة حضور منخفضة (${attendanceRate}%) — تأثير على الإنتاجية`, `Taux de présence faible (${attendanceRate}%) — impact sur la productivité`) });
 
   // ③ النواقص
-  if (!tenant.rc_number || !tenant.nif || !tenant.nis) lacks.push({ icon:'📋', text:'البيانات القانونية ناقصة (RC, NIF, NIS) — مطلوبة في الوثائق الرسمية' });
-  if (!tenant.logo_url) lacks.push({ icon:'🎨', text:'لا يوجد شعار للمؤسسة — يضعف الهوية البصرية في الوثائق' });
-  if (!tenant.rib && !tenant.bank_account) lacks.push({ icon:'🏦', text:'لا يوجد رقم حساب بنكي — الفواتير تحتاج RIB للتحصيل' });
-  if (projects.length === 0) lacks.push({ icon:'🏗️', text:'لا توجد مشاريع مُسجَّلة بعد — ابدأ بإضافة مشاريعك' });
-  if (workers.length === 0) lacks.push({ icon:'👷', text:'لا يوجد عمال مُسجَّلون — لا يمكن متابعة الحضور والأجور' });
-  if (equipment.length === 0) lacks.push({ icon:'🚜', text:'لا يوجد معدات مُسجَّلة — لا يمكن تتبع استخداماتها' });
-  if (materials.length === 0) lacks.push({ icon:'📦', text:'لا يوجد مخزون مواد — تتبع المواد يساعد في حساب التكاليف الحقيقية' });
-  if (txs.length < 10) lacks.push({ icon:'💼', text:`عدد المعاملات قليل (${txs.length}) — لمزيد من الدقة، سجّل كل عملية مالية` });
-  if (documents.length === 0) lacks.push({ icon:'📄', text:'لم تُولّد أي وثيقة بعد — استفد من وحدة الوثائق الإدارية' });
-  if (invoices.length === 0) lacks.push({ icon:'🧾', text:'لا توجد فواتير — أداة الفواتير ضرورية لمتابعة المستحقات' });
+  if (!tenant.rc_number || !tenant.nif || !tenant.nis) lacks.push({ icon:'📋', text: L('البيانات القانونية ناقصة (RC, NIF, NIS) — مطلوبة في الوثائق الرسمية', 'Données légales incomplètes (RC, NIF, NIS) — requises pour les documents officiels') });
+  if (!tenant.logo_url) lacks.push({ icon:'🎨', text: L('لا يوجد شعار للمؤسسة — يضعف الهوية البصرية في الوثائق', "Pas de logo d'entreprise — affaiblit l'identité visuelle dans les documents") });
+  if (!tenant.rib && !tenant.bank_account) lacks.push({ icon:'🏦', text: L('لا يوجد رقم حساب بنكي — الفواتير تحتاج RIB للتحصيل', 'Pas de RIB bancaire — les factures nécessitent un RIB pour le recouvrement') });
+  if (projects.length === 0) lacks.push({ icon:'🏗️', text: L('لا توجد مشاريع مُسجَّلة بعد — ابدأ بإضافة مشاريعك', 'Aucun projet enregistré — commencez par ajouter vos projets') });
+  if (workers.length === 0) lacks.push({ icon:'👷', text: L('لا يوجد عمال مُسجَّلون — لا يمكن متابعة الحضور والأجور', 'Aucun ouvrier enregistré — impossible de suivre présence et salaires') });
+  if (equipment.length === 0) lacks.push({ icon:'🚜', text: L('لا يوجد معدات مُسجَّلة — لا يمكن تتبع استخداماتها', 'Aucun équipement enregistré — impossible de suivre leur utilisation') });
+  if (materials.length === 0) lacks.push({ icon:'📦', text: L('لا يوجد مخزون مواد — تتبع المواد يساعد في حساب التكاليف الحقيقية', 'Aucun stock de matériaux — le suivi aide à calculer les coûts réels') });
+  if (txs.length < 10) lacks.push({ icon:'💼', text: L(`عدد المعاملات قليل (${txs.length}) — لمزيد من الدقة، سجّل كل عملية مالية`, `Peu de transactions (${txs.length}) — pour plus de précision, enregistrez chaque opération`) });
+  if (documents.length === 0) lacks.push({ icon:'📄', text: L('لم تُولّد أي وثيقة بعد — استفد من وحدة الوثائق الإدارية', 'Aucun document généré — utilisez le module de documents administratifs') });
+  if (invoices.length === 0) lacks.push({ icon:'🧾', text: L('لا توجد فواتير — أداة الفواتير ضرورية لمتابعة المستحقات', 'Aucune facture — cet outil est essentiel pour suivre les créances') });
 
   // ④ التحسينات
-  if (btp.cpi !== null && btp.cpi < 1) improvements.push({ icon:'💡', priority:'عالية', text:'حسّن إدارة التكاليف: راجع التقدير المسبق، فاوض الموردين، وقلّل الهدر في المواد' });
-  if (btp.spi !== null && btp.spi < 1) improvements.push({ icon:'⏱️', priority:'عالية', text:'استخدم Gantt Chart بانتظام، عيّن قائد أشغال لكل مشروع، وعقد اجتماعات أسبوعية للمتابعة' });
-  if (btp.dso !== null && btp.dso > 60) improvements.push({ icon:'📞', priority:'متوسطة', text:'حسّن التحصيل: شروط دفع أقصر (30 يوم)، خصومات للدفع السريع، تذكيرات تلقائية' });
-  if (btp.grossMargin !== null && btp.grossMargin < 15) improvements.push({ icon:'📊', priority:'عالية', text:'راجع التسعير: احسب التكلفة الحقيقية + هامش ربح 20-25% على الأقل' });
-  if (btp.equipUtilization < 50 && equipment.length > 0) improvements.push({ icon:'🚜', priority:'متوسطة', text:'استثمر المعدات الخاملة: أجّرها لشركات أخرى، أو بعها لتحرير السيولة' });
-  if (btp.lowStockCount > 0) improvements.push({ icon:'📦', priority:'متوسطة', text:`اطلب ${btp.lowStockCount} مادة من المخزون المنخفض قبل توقف الأشغال` });
-  if (attendanceRate < 80) improvements.push({ icon:'👷', priority:'متوسطة', text:'حسّن إدارة الموارد البشرية: نظام مكافآت للحضور، تحفيز، تواصل أفضل' });
-  if (projects.filter(p => !p.start_date || !p.end_date).length > 0) improvements.push({ icon:'📅', priority:'منخفضة', text:'حدد تواريخ البدء والانتهاء لكل المشاريع لحساب SPI بدقة' });
+  if (btp.cpi !== null && btp.cpi < 1) improvements.push({ icon:'💡', priority: L('عالية','Haute'), text: L('حسّن إدارة التكاليف: راجع التقدير المسبق، فاوض الموردين، وقلّل الهدر في المواد', 'Améliorez la gestion: révisez les estimations, négociez avec les fournisseurs, réduisez les gaspillages') });
+  if (btp.spi !== null && btp.spi < 1) improvements.push({ icon:'⏱️', priority: L('عالية','Haute'), text: L('استخدم Gantt Chart بانتظام، عيّن قائد أشغال لكل مشروع، وعقد اجتماعات أسبوعية للمتابعة', 'Utilisez Gantt régulièrement, nommez un chef de chantier par projet, réunions hebdomadaires') });
+  if (btp.dso !== null && btp.dso > 60) improvements.push({ icon:'📞', priority: L('متوسطة','Moyenne'), text: L('حسّن التحصيل: شروط دفع أقصر (30 يوم)، خصومات للدفع السريع، تذكيرات تلقائية', 'Améliorez le recouvrement: délais 30j, remises pour paiement rapide, rappels automatiques') });
+  if (btp.grossMargin !== null && btp.grossMargin < 15) improvements.push({ icon:'📊', priority: L('عالية','Haute'), text: L('راجع التسعير: احسب التكلفة الحقيقية + هامش ربح 20-25% على الأقل', 'Révisez la tarification: calculez le coût réel + marge bénéficiaire 20-25% minimum') });
+  if (btp.equipUtilization < 50 && equipment.length > 0) improvements.push({ icon:'🚜', priority: L('متوسطة','Moyenne'), text: L('استثمر المعدات الخاملة: أجّرها لشركات أخرى، أو بعها لتحرير السيولة', 'Valorisez les équipements inactifs: louez-les ou vendez-les pour libérer de la trésorerie') });
+  if (btp.lowStockCount > 0) improvements.push({ icon:'📦', priority: L('متوسطة','Moyenne'), text: L(`اطلب ${btp.lowStockCount} مادة من المخزون المنخفض قبل توقف الأشغال`, `Commandez ${btp.lowStockCount} matériau(x) en stock bas avant l'arrêt des travaux`) });
+  if (attendanceRate < 80) improvements.push({ icon:'👷', priority: L('متوسطة','Moyenne'), text: L('حسّن إدارة الموارد البشرية: نظام مكافآت للحضور، تحفيز، تواصل أفضل', 'Améliorez la RH: primes de présence, motivation, meilleure communication') });
+  if (projects.filter(p => !p.start_date || !p.end_date).length > 0) improvements.push({ icon:'📅', priority: L('منخفضة','Faible'), text: L('حدد تواريخ البدء والانتهاء لكل المشاريع لحساب SPI بدقة', 'Définissez les dates début/fin de tous les projets pour calculer le SPI avec précision') });
 
   // ⑤ الاستراتيجيات
-  if (revenue > 0 && btp.grossMargin > 15) strategies.push({ icon:'🚀', text:'التوسّع: مع هامش ربح صحي، يمكنك توسيع نشاطك لمشاريع أكبر أو فتح فرع جديد' });
-  if (workers.length >= 5 && btp.payrollRatio !== null && btp.payrollRatio < 35) strategies.push({ icon:'🏆', text:'الكفاءة العالية في إدارة العمالة فرصة لاستثمار الفائض في التدريب والمعدات' });
-  if (btp.cashRunway === null || btp.cashRunway > 180) strategies.push({ icon:'💼', text:'استثمر السيولة الفائضة: ودائع بنكية، شراء معدات، أو دخول مشاريع أكبر' });
-  if (delayedProjects === 0 && completedProjects >= 2) strategies.push({ icon:'📈', text:'سجلك التنفيذي ممتاز — استغله للتقدّم لصفقات حكومية أو شركاء أكبر' });
-  if (btp.unpaidAmount > 200000) strategies.push({ icon:'💰', text:'تخصيص فريق متابعة التحصيل أو الاستعانة بمحامي مختصّ في التحصيل التجاري' });
-  strategies.push({ icon:'📊', text:'تنفيذ نظام KPIs شهري للمتابعة: عقد اجتماع شهري لمراجعة CPI, SPI, السيولة, وهامش الربح' });
-  strategies.push({ icon:'🎓', text:'الاستثمار في التدريب: العمال المُدرَّبون أكثر إنتاجية بنسبة 20-30% (دراسات BTP الدولية)' });
-  strategies.push({ icon:'🤝', text:'بناء علاقات مع موردين موثوقين بأسعار تنافسية وشروط دفع مرنة' });
+  if (revenue > 0 && btp.grossMargin > 15) strategies.push({ icon:'🚀', text: L('التوسّع: مع هامش ربح صحي، يمكنك توسيع نشاطك لمشاريع أكبر أو فتح فرع جديد', 'Expansion: avec une marge saine, développez votre activité vers de plus grands projets') });
+  if (workers.length >= 5 && btp.payrollRatio !== null && btp.payrollRatio < 35) strategies.push({ icon:'🏆', text: L('الكفاءة العالية في إدارة العمالة فرصة لاستثمار الفائض في التدريب والمعدات', 'Haute efficacité RH — opportunité d\'investir le surplus dans la formation et les équipements') });
+  if (btp.cashRunway === null || btp.cashRunway > 180) strategies.push({ icon:'💼', text: L('استثمر السيولة الفائضة: ودائع بنكية، شراء معدات، أو دخول مشاريع أكبر', 'Investissez la trésorerie excédentaire: dépôts bancaires, achat équipements, projets plus importants') });
+  if (delayedProjects === 0 && completedProjects >= 2) strategies.push({ icon:'📈', text: L('سجلك التنفيذي ممتاز — استغله للتقدّم لصفقات حكومية أو شركاء أكبر', 'Excellent bilan d\'exécution — exploitez-le pour accéder aux marchés publics') });
+  if (btp.unpaidAmount > 200000) strategies.push({ icon:'💰', text: L('تخصيص فريق متابعة التحصيل أو الاستعانة بمحامي مختصّ في التحصيل التجاري', 'Constituez une équipe de recouvrement ou faites appel à un avocat spécialisé') });
+  strategies.push({ icon:'📊', text: L('تنفيذ نظام KPIs شهري للمتابعة: عقد اجتماع شهري لمراجعة CPI, SPI, السيولة, وهامش الربح', 'Implémentez un suivi KPIs mensuel: CPI, SPI, trésorerie, marge bénéficiaire') });
+  strategies.push({ icon:'🎓', text: L('الاستثمار في التدريب: العمال المُدرَّبون أكثر إنتاجية بنسبة 20-30% (دراسات BTP الدولية)', 'Investissez en formation: les travailleurs formés sont 20-30% plus productifs (études BTP)') });
+  strategies.push({ icon:'🤝', text: L('بناء علاقات مع موردين موثوقين بأسعار تنافسية وشروط دفع مرنة', 'Développez des relations avec des fournisseurs fiables aux prix compétitifs') });
 
   // التقييم العام
   let overallScore = 50;
@@ -7236,7 +7236,7 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
     w.document.write(html);
     w.document.close();
     w.document.title = `Rapport_IA_${tenant.name}_${reportId}`;
-    Toast.success('✨ تم توليد التقرير الذكي بنجاح!');
+    Toast.success(L('✨ تم توليد التقرير الذكي بنجاح!','✨ Rapport IA généré avec succès!'));
 
     // حفظ في الأرشيف
     try {
@@ -7264,10 +7264,10 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 
     // سجل audit
     if (typeof addAuditLog === 'function') {
-      addAuditLog(`توليد تقرير ذكي - رقم ${reportId} (تقييم: ${overallScore}/100)`, { icon: '🤖' });
+      addAuditLog(L(`توليد تقرير ذكي - رقم ${reportId} (تقييم: ${overallScore}/100)`, `Rapport IA généré - n°${reportId} (score: ${overallScore}/100)`), { icon: '🤖' });
     }
   } else {
-    Toast.error('فشل فتح النافذة. تحقق من إعدادات المتصفح.');
+    Toast.error(L('فشل فتح النافذة. تحقق من إعدادات المتصفح.','Échec ouverture. Vérifiez les paramètres du navigateur.'));
   }
 }
 
@@ -8268,7 +8268,7 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
 
   // ── تنبيهات ذكية ──
   const alerts = [];
-  delayedProj.forEach(p => alerts.push({ type:'danger', icon:'⚠️', text:`مشروع "${escHtml(p.name)}" متأخر — تقدمه ${p.progress}%` }));
+  delayedProj.forEach(p => alerts.push({ type:'danger', icon:'⚠️', text: L(`مشروع "${escHtml(p.name)}" متأخر — تقدمه ${p.progress}%`, `Projet "${escHtml(p.name)}" en retard — avancement ${p.progress}%`) }));
   projects.forEach(p => {
     if (p.budget > 0 && p.total_spent > p.budget) alerts.push({ type:'danger', icon:'💸', text:`مشروع "${escHtml(p.name)}" تجاوز الميزانية بـ ${fmt(p.total_spent - p.budget)} دج` });
     else if (p.budget > 0 && p.total_spent >= p.budget * 0.85) alerts.push({ type:'warning', icon:'🟡', text:`مشروع "${escHtml(p.name)}" استهلك ${Math.round(p.total_spent/p.budget*100)}% من الميزانية` });
