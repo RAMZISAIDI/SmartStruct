@@ -251,9 +251,14 @@ const Toast = {
 function fmt(n) { return Number(n||0).toLocaleString('fr-DZ'); }
 function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('ar-DZ'); }
 function statusBadge(s) {
-  const map = { active:`badge-active ${L('نشط','Actif')}`, completed:`badge-completed ${L('مكتمل','Terminé')}`, delayed:`badge-delayed ${L('متأخر','En retard')}`, paused:`badge-paused ${L('متوقف','En pause')}` };
-  const [cls, label] = (map[s]||'badge-paused —').split(' ');
-  return `<span class="badge ${cls}">${label}</span>`;
+  const map = {
+    active:    { cls:'badge-active',    label: L('نشط','Actif') },
+    completed: { cls:'badge-completed', label: L('مكتمل','Terminé') },
+    delayed:   { cls:'badge-delayed',   label: L('متأخر','En retard') },
+    paused:    { cls:'badge-paused',    label: L('متوقف','En pause') }
+  };
+  const entry = map[s] || { cls:'badge-paused', label:'—' };
+  return `<span class="badge ${entry.cls}">${entry.label}</span>`;
 }
 function statusLabel(s) { return {active:L('نشط','Actif'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','En pause')}[s]||s; }
 function escHtml(s) {
