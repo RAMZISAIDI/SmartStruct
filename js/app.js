@@ -300,10 +300,11 @@ const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26
    INTERNATIONALISATION — عربي / Français
 ══════════════════════════════════════════════════════ */
 const I18N = {
-  currentLang: localStorage.getItem('sbtp_lang') || 'ar',
+  currentLang: localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar',
   setLang(lang) {
     this.currentLang = lang;
     localStorage.setItem('sbtp_lang', lang);
+    localStorage.setItem('ss_lang', lang); // sync with landing page i18n
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     App.render();
@@ -22459,6 +22460,11 @@ function setupConnBadge() {
 // ── تشغيل التطبيق مع معالجة الأخطاء ──
 (function bootApp() {
   try {
+    // ── تطبيق اللغة المحفوظة قبل أي render (يدعم ss_lang من الصفحة الرئيسية) ──
+    const savedLang = localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar';
+    if (savedLang !== I18N.currentLang) I18N.currentLang = savedLang;
+    document.documentElement.lang = savedLang;
+    document.documentElement.dir = savedLang === 'fr' ? 'ltr' : 'rtl';
     App.render();
     setupConnBadge();
     // إخفاء شاشة التحميل بعد نجاح التشغيل

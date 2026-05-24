@@ -463,6 +463,7 @@ function t(key) {
 function applyLang(lang) {
   currentLang = lang;
   localStorage.setItem('ss_lang', lang);
+  localStorage.setItem('sbtp_lang', lang); // sync with app.html I18N system
 
   const html = document.documentElement;
   const isRTL = lang === 'ar';
