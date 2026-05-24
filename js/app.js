@@ -297,7 +297,7 @@ const PROJECT_TYPES = [
 const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26C6DA','#AB47BC'];
 
 /* ══════════════════════════════════════════════════════
-   INTERNATIONALISATION — عربي / Français
+   INTERNATIONALISATION — عربي / Français / English
 ══════════════════════════════════════════════════════ */
 const I18N = {
   currentLang: localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar',
@@ -313,7 +313,18 @@ const I18N = {
   t(key) {
     const d = this.dict[key];
     if (!d) return key;
-    return d[this.currentLang] || d['ar'] || key;
+    return d[this.currentLang] || d['en'] || d['ar'] || key;
+  },
+  langSwitcherHTML(style='') {
+    const cur = this.currentLang;
+    const btnStyle = (active) => active
+      ? 'padding:4px 9px;border-radius:6px;border:none;cursor:pointer;background:rgba(232,184,75,0.18);color:#E8B84B;box-shadow:inset 0 0 0 1px rgba(232,184,75,0.35);font-weight:700;'
+      : 'padding:4px 9px;border-radius:6px;border:none;cursor:pointer;background:transparent;color:var(--text-muted,#7E8595);font-weight:700;';
+    return `<div style="display:flex;align-items:center;gap:2px;background:rgba(255,255,255,0.05);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:2px;font-family:var(--mono,'JetBrains Mono',monospace);font-size:11px;letter-spacing:0.08em;${style}">
+      <button onclick="I18N.setLang('ar')" style="${btnStyle(cur==='ar')}">AR</button>
+      <button onclick="I18N.setLang('fr')" style="${btnStyle(cur==='fr')}">FR</button>
+      <button onclick="I18N.setLang('en')" style="${btnStyle(cur==='en')}">EN</button>
+    </div>`;
   },
   dict: {
     // Navigation
@@ -592,8 +603,6 @@ function __(key) { return I18N.t(key); }
 function applyDOMTranslation() {
   if (I18N.currentLang === 'ar') return;
   const lang = I18N.currentLang;
-
-  // ترجمة عناصر data-i18n
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     const val = I18N.t(key);
@@ -620,7 +629,7 @@ function applyDOMTranslation() {
   });
 }
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
-function L(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; }
+function L(ar, fr, en) { return I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr; }
 
 // ── الحصول على اسم الكيان (مؤسسة/عامل/عميل) حسب اللغة الحالية ──
 // يدعم حقلين: name (عربي) و name_fr (فرنسي)
@@ -1604,9 +1613,7 @@ function topbarHTML(breadcrumb) {
         ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
       </button>
       <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
-      <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-        ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
-      </button>
+      ${I18N.langSwitcherHTML()}
       <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
         <span id="syncLabel">${L('متزامن','Sync')}</span>
@@ -1773,9 +1780,7 @@ Pages.contact = function() {
         <a class="ll-nav-link" style="color:var(--gold)">${L('تواصل معنا','Contact')}</a>
       </div>
       <div class="ll-nav-cta">
-        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-          ${isAr ? 'FR' : 'AR'}
-        </button>
+        ${I18N.langSwitcherHTML()}
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
           : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
@@ -1953,9 +1958,7 @@ Pages.about = function() {
         <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
       </div>
       <div class="ll-nav-cta">
-        <button class="ll-lang-btn" onclick="I18N.setLang(isAr?'fr':'ar')">
-          ${isAr ? 'FR' : 'AR'}
-        </button>
+        ${I18N.langSwitcherHTML()}
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
           : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
@@ -2480,9 +2483,7 @@ Pages.login = function(mode) {
       <span>${L('العودة للموقع','Retour au site')}</span>
     </button>
 
-    <button class="auth-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
-      ${isAr ? 'FR' : 'AR'}
-    </button>
+    ${I18N.langSwitcherHTML('position:absolute;top:1rem;left:1rem;z-index:10;')}
 
     <!-- Main grid: Left brand panel + Right form -->
     <div class="auth-shell">
