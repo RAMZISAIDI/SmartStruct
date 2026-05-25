@@ -74,11 +74,16 @@
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </div>
 <script>
-  // ضمان إخفاء شاشة التحميل بعد 5 ثوانٍ في أسوأ الحالات
+  // ضمان إخفاء شاشة التحميل بعد 8 ثوانٍ في أسوأ الحالات
   setTimeout(function() {
     var ldr = document.getElementById('appLoader');
     if (ldr) ldr.style.display = 'none';
-  }, 5000);
+    // إذا كان #app فارغاً بعد 8 ثوانٍ، أظهر رسالة خطأ
+    var app = document.getElementById('app');
+    if (app && !app.innerHTML.trim()) {
+      app.innerHTML = '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#060A10;color:#EDF2F7;font-family:Tajawal,sans-serif;text-align:center;padding:2rem"><div style="font-size:3rem;margin-bottom:1rem">⚠️</div><h2 style="color:#E8B84B;margin-bottom:0.5rem">خطأ في التحميل</h2><p style="color:#8892A4;margin-bottom:1.5rem">حدث خطأ أثناء تحميل التطبيق.<br>افتح Developer Console للمزيد.</p><button onclick="location.reload()" style="background:#E8B84B;color:#060A10;border:none;padding:0.7rem 2rem;border-radius:10px;font-family:Tajawal,sans-serif;font-size:1rem;font-weight:700;cursor:pointer">🔄 إعادة التحميل</button></div>';
+    }
+  }, 8000);
 </script>
 
 <div class="toast-container" id="toastContainer"></div>

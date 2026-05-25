@@ -1,20 +1,5 @@
 'use strict';
 
-// ── إخفاء شاشة التحميل فوراً عند بدء تنفيذ app.js ──
-// هذا يضمن أن الـ loader لن يبقى ظاهراً أبداً حتى لو حدث خطأ لاحقاً
-(function() {
-  function _hideLoaderNow() {
-    var ldr = document.getElementById('appLoader');
-    if (ldr) ldr.style.display = 'none';
-  }
-  // محاولة إخفاء فورية
-  _hideLoaderNow();
-  // وأيضاً بعد 100ms كضمان إضافي
-  setTimeout(_hideLoaderNow, 100);
-  // وبعد 3 ثوانٍ كحد أقصى مطلق
-  setTimeout(_hideLoaderNow, 3000);
-})();
-
 // ════════════════════════════════════════════════════════════════════
 //  Global helpers (تُعرَّف الدوال الفعلية لاحقاً في الملف، هذه stubs آمنة)
 // ════════════════════════════════════════════════════════════════════
@@ -1473,6 +1458,16 @@ const App = {
                            !['landing','login'].includes(this.currentPage);
       if (fabEl) fabEl.style.display = isTenantPage ? '' : 'none';
       if (chatPanelEl && !isTenantPage) { chatPanelEl.style.display = 'none'; SmartAI.isOpen = false; }
+    } else {
+      // الصفحة غير موجودة — ارجع لتسجيل الدخول
+      console.warn('⚠️ Page not found:', this.currentPage, '— falling back to login');
+      this.currentPage = 'login';
+      if (Pages.login) {
+        app.innerHTML = Pages.login();
+        this.bindEvents();
+        applyDOMTranslation();
+        if (typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
+      }
     }
   },
   bindEvents() {
@@ -22490,8 +22485,8 @@ function setupConnBadge() {
   window.addEventListener('offline', renderBadge);
 }
 
-// ── تشغيل التطبيق بعد اكتمال تحميل جميع السكريبتات ──
-window.addEventListener('load', function bootApp() {
+// ── تشغيل التطبيق بعد اكتمال تحميل DOM وجميع السكريبتات ──
+function _bootApp() {
   // إخفاء شاشة التحميل دائماً بعد المحاولة (سواء نجح أو فشل)
   function hideLoader() {
     const __ldr = document.getElementById('appLoader');
@@ -22537,7 +22532,13 @@ window.addEventListener('load', function bootApp() {
         </div>`;
     }
   }
-});
+}
+// تشغيل فوري إذا كان DOM محملاً، وإلا انتظر DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _bootApp);
+} else {
+  _bootApp();
+}
 setTimeout(() => { if (Auth.getUser()) checkOnboarding(); }, 500);
 // Auto-run simulator if on simulator page
 document.addEventListener('DOMContentLoaded', () => {
