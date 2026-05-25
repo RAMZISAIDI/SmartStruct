@@ -317,11 +317,10 @@ const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26
    INTERNATIONALISATION — عربي / Français / English
 ══════════════════════════════════════════════════════ */
 const I18N = {
-  currentLang: localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar',
+  currentLang: localStorage.getItem('sbtp_app_lang') || 'ar',
   setLang(lang) {
     this.currentLang = lang;
-    localStorage.setItem('sbtp_lang', lang);
-    localStorage.setItem('ss_lang', lang); // sync with landing page i18n
+    localStorage.setItem('sbtp_app_lang', lang); // app-only language key (isolated from landing page)
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     App.render();
@@ -22429,9 +22428,9 @@ async function checkTenantStatusFromSupabase() {
 // تشغيل الفحص بعد تحميل الصفحة
 setTimeout(checkTenantStatusFromSupabase, 800);
 
-// Apply saved language direction
+// Apply saved language direction (app-specific key, isolated from landing page)
 (function(){
-  const lang = localStorage.getItem('sbtp_lang')||'ar';
+  const lang = localStorage.getItem('sbtp_app_lang')||'ar';
   document.documentElement.lang = lang;
   document.documentElement.dir = lang==='ar'?'rtl':'ltr';
   I18N.currentLang = lang;
@@ -22480,8 +22479,8 @@ function setupConnBadge() {
 // ── تشغيل التطبيق مع معالجة الأخطاء ──
 (function bootApp() {
   try {
-    // ── تطبيق اللغة المحفوظة قبل أي render (يدعم ss_lang من الصفحة الرئيسية) ──
-    const savedLang = localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar';
+    // ── تطبيق اللغة المحفوظة (مفتاح خاص بالتطبيق، معزول عن صفحة الهبوط) ──
+    const savedLang = localStorage.getItem('sbtp_app_lang') || 'ar';
     if (savedLang !== I18N.currentLang) I18N.currentLang = savedLang;
     document.documentElement.lang = savedLang;
     document.documentElement.dir = savedLang === 'fr' ? 'ltr' : 'rtl';
