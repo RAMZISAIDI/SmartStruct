@@ -1369,9 +1369,8 @@ const App = {
     const app = document.getElementById('app');
     const user = Auth.getUser();
     if (!user && !['login'].includes(this.currentPage)) {
-      // لا يوجد مستخدم — أعد التوجيه إلى الصفحة الرئيسية
-      window.location.replace('index.html');
-      return;
+      // لا يوجد مستخدم — اعرض صفحة تسجيل الدخول مباشرةً بدل إعادة التوجيه
+      this.currentPage = 'login';
     }
     if (user && this.currentPage === 'login') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
     if (user && this.currentPage === 'landing') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
@@ -22478,6 +22477,11 @@ function setupConnBadge() {
 
 // ── تشغيل التطبيق مع معالجة الأخطاء ──
 (function bootApp() {
+  // إخفاء شاشة التحميل دائماً بعد المحاولة (سواء نجح أو فشل)
+  function hideLoader() {
+    const __ldr = document.getElementById('appLoader');
+    if (__ldr) __ldr.style.display = 'none';
+  }
   try {
     // ── تطبيق اللغة المحفوظة (مفتاح خاص بالتطبيق، معزول عن صفحة الهبوط) ──
     const savedLang = localStorage.getItem('sbtp_app_lang') || 'ar';
@@ -22486,11 +22490,10 @@ function setupConnBadge() {
     document.documentElement.dir = savedLang === 'fr' ? 'ltr' : 'rtl';
     App.render();
     setupConnBadge();
-    // إخفاء شاشة التحميل بعد نجاح التشغيل
-    const __ldr = document.getElementById('appLoader');
-    if (__ldr) __ldr.style.display = 'none';
+    hideLoader();
   } catch(e) {
     console.error('❌ SmartStruct Boot Error:', e);
+    hideLoader(); // إخفاء شاشة التحميل حتى عند الخطأ
     // عرض رسالة خطأ واضحة بدلاً من شاشة فارغة
     const app = document.getElementById('app');
     if (app) {
