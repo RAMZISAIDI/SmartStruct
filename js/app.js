@@ -10880,7 +10880,25 @@ function _saveSbOpToOfflineQueue(table, record, method) {
 }
 
 async function sbSyncDelete(table, id) {
+  _trackLocalDelete(table, id);
   return sbSync(table, { id }, 'DELETE');
+}
+
+/* ── تتبع السجلات المحذوفة محلياً لمنع pullAllTenantData من إعادتها ── */
+function _trackLocalDelete(table, id) {
+  try {
+    const KEY = 'sbtp5_deleted_' + table;
+    const ids = JSON.parse(localStorage.getItem(KEY) || '[]');
+    if (!ids.includes(id)) {
+      ids.push(id);
+      if (ids.length > 1000) ids.splice(0, ids.length - 1000);
+      localStorage.setItem(KEY, JSON.stringify(ids));
+    }
+  } catch(e) { console.warn('_trackLocalDelete:', e.message); }
+}
+function _getLocalDeletedIds(table) {
+  try { return JSON.parse(localStorage.getItem('sbtp5_deleted_' + table) || '[]'); }
+  catch { return []; }
 }
 
 async function sbSyncUpsert(table, record) {
@@ -11685,14 +11703,21 @@ async function pullAllTenantDataFromSupabase(tenantId) {
       const remote = await r.json();
       if (!Array.isArray(remote)) continue;
 
-      // دمج: نفضّل بيانات Supabase لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
+      // ✅ دمج: نفضّل بيانات Supabase ونتجاهل السجلات المحذوفة محلياً
       const local = DB.get(table) || [];
       const remoteIds = new Set(remote.map(r => r.id));
-      const localOnly = local.filter(l => !remoteIds.has(l.id));
-      const merged = [...remote, ...localOnly];
+      const deletedIds = new Set(_getLocalDeletedIds(table).map(i => Number(i)));
+
+      // نستبعد من Supabase أي سجل محذوف محلياً لكن لم يصله الحذف بعد
+      const remoteFiltered = remote.filter(r => !deletedIds.has(Number(r.id)));
+
+      // نضيف السجلات المحلية التي لم تُرفع بعد (بشرط ألا تكون محذوفة)
+      const localOnly = local.filter(l => !remoteIds.has(l.id) && !deletedIds.has(Number(l.id)));
+
+      const merged = [...remoteFiltered, ...localOnly];
 
       localStorage.setItem('sbtp5_' + table, JSON.stringify(merged));
-      console.log(`📥 Pulled ${table}: ${remote.length} remote + ${localOnly.length} local-only`);
+      console.log(`📥 Pulled ${table}: ${remoteFiltered.length} remote + ${localOnly.length} local-only (skipped ${deletedIds.size} locally-deleted)`);
     } catch(e) {
       console.warn(`⚠️ pull ${table}:`, e.message);
     }
