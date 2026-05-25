@@ -317,10 +317,11 @@ const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26
    INTERNATIONALISATION — عربي / Français / English
 ══════════════════════════════════════════════════════ */
 const I18N = {
-  currentLang: localStorage.getItem('sbtp_app_lang') || 'ar',
+  currentLang: localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar',
   setLang(lang) {
     this.currentLang = lang;
-    localStorage.setItem('sbtp_app_lang', lang); // app-only language key (isolated from landing page)
+    localStorage.setItem('sbtp_lang', lang);
+    localStorage.setItem('ss_lang', lang); // sync with landing page i18n
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     App.render();
@@ -437,7 +438,7 @@ const I18N = {
     'dash.noRisks':       {ar:'لا مخاطر مكتشفة الآن',   fr:'Aucun risque détecté'},
     'dash.forecastTitle': {ar:'توقعات الربح',            fr:'Prévisions de bénéfice'},
     'dash.thisMonth':     {ar:'هذا الشهر',               fr:'Ce mois'},
-    'dash.monthRevenue':  {ar:L('إيرادات الشهر','Revenus du mois'),           fr:'Revenus du mois'},
+    'dash.monthRevenue':  {ar:'إيرادات الشهر',           fr:'Revenus du mois'},
     'dash.dailyBurn':     {ar:'معدل الصرف اليومي',       fr:'Taux de dépense journalier'},
     'dash.forecastExp':   {ar:'مصاريف متوقعة نهاية الشهر', fr:'Dépenses prévues fin du mois'},
     'dash.forecastEnd':   {ar:'ربح متوقع نهاية الشهر',   fr:'Bénéfice prévu fin du mois'},
@@ -818,7 +819,7 @@ const TR = {
   'لا يوجد عمال':'Aucun ouvrier',
   'الطاقة الاستيعابية:':'Capacité :',
   // ── Attendance Page ──
-  'الحضور والغياب':'Présence & Absences',
+  'الحضور والغياب':'Présence et absences',
   '✅ حاضر':'✅ Présent',
   '❌ غائب':'❌ Absent',
   '🔶 نصف يوم':'🔶 Demi-journée',
@@ -882,7 +883,7 @@ const TR = {
   'متوسط الأجر اليومي':'Salaire moyen/j',
   'التكلفة اليومية الكلية':'Coût journalier total',
   'أكبر فئات المصاريف':'Top catégories dépenses',
-  '🏆 أكبر فئات المصاريف':'🏆 Principales catégories de dépenses',
+  '🏆 أكبر فئات المصاريف':'🏆 Top catégories dépenses',
   'ربحية المشاريع':'Rentabilité projets',
   '💼 ربحية المشاريع':'💼 Rentabilité projets',
   'إجمالي الميزانية':'Budget total',
@@ -1369,8 +1370,9 @@ const App = {
     const app = document.getElementById('app');
     const user = Auth.getUser();
     if (!user && !['login'].includes(this.currentPage)) {
-      // لا يوجد مستخدم — اعرض صفحة تسجيل الدخول مباشرةً بدل إعادة التوجيه
-      this.currentPage = 'login';
+      // لا يوجد مستخدم — أعد التوجيه إلى الصفحة الرئيسية
+      window.location.replace('index.html');
+      return;
     }
     if (user && this.currentPage === 'login') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
     if (user && this.currentPage === 'landing') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
@@ -1458,16 +1460,6 @@ const App = {
                            !['landing','login'].includes(this.currentPage);
       if (fabEl) fabEl.style.display = isTenantPage ? '' : 'none';
       if (chatPanelEl && !isTenantPage) { chatPanelEl.style.display = 'none'; SmartAI.isOpen = false; }
-    } else {
-      // الصفحة غير موجودة — ارجع لتسجيل الدخول
-      console.warn('⚠️ Page not found:', this.currentPage, '— falling back to login');
-      this.currentPage = 'login';
-      if (Pages.login) {
-        app.innerHTML = Pages.login();
-        this.bindEvents();
-        applyDOMTranslation();
-        if (typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
-      }
     }
   },
   bindEvents() {
@@ -1676,7 +1668,7 @@ function layoutHTML(active, breadcrumb, content) {
     ${topbarHTML(breadcrumb)}
     <main class="page-content animate-fade">${content}</main>
     <footer style="padding:.8rem 1.8rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
-      <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct — ${L('منصة إدارة مشاريع مقاولة الجزائرية','Plateforme de gestion des projets BTP en Algérie')}</span>
+      <span style="font-size:.7rem;color:var(--dim)">© 2025 SmartStruct — منصة إدارة مشاريع المقاولة الجزائرية</span>
       
     </footer>
   </div></div>`;
@@ -4311,7 +4303,7 @@ Pages.dashboard = function() {
   const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id === tid);
   const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equip, salaryRecsData);
 
-  return layoutHTML('dashboard', L('لوحة التحكم','Tableau de bord'), `
+  return layoutHTML('dashboard','لوحة التحكم',`
     ${trialBannerHTML}
 
     <!-- ✅ بطاقة المؤسسة الترحيبية — شعار + اسم الشركة + معلومات قانونية -->
@@ -5577,7 +5569,7 @@ function smartPrint({ title, subtitle, icon, columns, rows, summaryRows = [], no
     ${notes?`<div class="notes"><strong>${isAr?'ملاحظات:':'Notes :'}</strong> ${notes}</div>`:''}
   </div>
   <div class="footer" id="spFooter">
-    <span>SmartStruct — ${L('منصة إدارة مشاريع المقاولة الجزائرية','Plateforme algérienne de gestion BTP')}</span>
+    <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme algérienne de gestion BTP'}</span>
     <span class="gld">${escHtml(title)} — ${today}</span>
   </div>
 </div>
@@ -5796,7 +5788,7 @@ function printSalary() {
     rows,
     summaryRows: [
       { label: isAr?'إجمالي العمال':'Total ouvriers',   value: workers.length },
-      { label: isAr?L('تم الصرف','Payé(s)'):'Payés',                value: salaryRecs.length },
+      { label: isAr?'تم الصرف':'Payés',                value: salaryRecs.length },
       { label: isAr?'إجمالي المصروف (دج)':'Total versé (DA)', value: `${totalPaid.toLocaleString('fr-DZ')} ${isAr?'دج':'DA'}` },
     ],
     notes: isAr ? `كشف رواتب شهر: ${monthLabel}` : `Bulletin de salaire — ${monthLabel}`,
@@ -6539,7 +6531,7 @@ Pages.attendance = function() {
   });
 
   // Project filter options
-  let projOpts = `<option value="0"${!filterPid?' selected':''}>${L('كل المشاريع','Tous les projets')}</option>`;
+  let projOpts = '<option value="0"' + (!filterPid?' selected':'') + '>كل المشاريع</option>';
   projects.forEach(function(p) {
     projOpts += '<option value="' + p.id + '"' + (filterPid===p.id?' selected':'') + '>' + escHtml(p.name) + '</option>';
   });
@@ -6553,7 +6545,7 @@ Pages.attendance = function() {
     ? '<div class="table-wrap"><table><thead><tr><th>العامل</th><th>المشروع</th><th>الحالة</th><th>ساعات</th><th>ملاحظة</th><th>التسجيل</th><th>الأجر</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
     : '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">لا يوجد عمال</div><div class="empty-text">أضف عمالاً من صفحة العمال</div></div>';
 
-  return layoutHTML('attendance', L(L('الحضور والغياب','Présence & Absences'),'Présence & Absences'), `
+  return layoutHTML('attendance', 'الحضور والغياب', `
     <div class="page-header">
       <div>
         <div class="page-title">📅 الحضور والغياب</div>
@@ -6711,7 +6703,7 @@ Pages.reports = function() {
   const allProjs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const isFiltered = !!(dateFrom||dateTo||projId||txType);
 
-  return layoutHTML('reports', L('التقارير','Rapports'), `
+  return layoutHTML('reports','التقارير',`
     <div class="page-header">
       <div><div class="page-title">📈 ${L('التقارير والإحصاء','Rapports & Statistiques')}</div></div>
       <div class="page-actions">
@@ -6795,19 +6787,19 @@ Pages.reports = function() {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
       <div class="card">
-        <div style="font-weight:800;margin-bottom:1rem">🏗️ ${L('ملخص المشاريع','Résumé des projets')}</div>
+        <div style="font-weight:800;margin-bottom:1rem">🏗️ ملخص المشاريع</div>
         ${['active','completed','delayed'].map(s=>{const cnt=projs.filter(p=>p.status===s).length;const col=s==='active'?'var(--green)':s==='completed'?'var(--blue)':'var(--red)';return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted);font-size:.84rem">${statusLabel(s)}</span><span style="font-weight:900;color:${col};font-family:monospace">${cnt}</span></div>`;}).join('')}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0"><span style="color:var(--muted);font-size:.84rem">إجمالي الميزانية</span><span style="font-weight:700;font-family:monospace;font-size:.82rem">${fmt(totalBudget)} دج</span></div>
       </div>
       <div class="card">
-        <div style="font-weight:800;margin-bottom:1rem">👷 ${L('إحصاء العمال','Statistiques ouvriers')}</div>
+        <div style="font-weight:800;margin-bottom:1rem">👷 إحصاء العمال</div>
         <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted);font-size:.84rem">إجمالي العمال</span><span style="font-weight:900;font-family:monospace">${workers.length}</span></div>
         <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted);font-size:.84rem">متوسط الأجر اليومي</span><span style="font-weight:700;font-family:monospace;font-size:.82rem">${workers.length?fmt(Math.round(workers.reduce((s,w)=>s+Number(w.daily_salary),0)/workers.length)):0} دج</span></div>
         <div style="display:flex;justify-content:space-between;padding:.5rem 0"><span style="color:var(--muted);font-size:.84rem">التكلفة اليومية الكلية</span><span style="font-weight:700;font-family:monospace;font-size:.82rem">${fmt(workers.reduce((s,w)=>s+Number(w.daily_salary),0))} دج</span></div>
       </div>
     </div>
     ${topCats.length?`<div class="card" style="margin-bottom:1rem"><div style="font-weight:800;margin-bottom:1rem">🏆 أكبر فئات المصاريف</div>${topCats.map(([cat,amt])=>`<div style="margin-bottom:.8rem"><div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px"><span style="color:var(--muted)">${escHtml(cat)}</span><span style="font-weight:700;font-family:monospace">${fmt(amt)} دج</span></div><div class="progress-bar"><div class="progress-fill" style="background:var(--red)" data-width="${Math.round(amt/maxCat*100)}"></div></div></div>`).join('')}</div>`:''}
-    <div class="card"><div style="font-weight:800;margin-bottom:1rem">💼 ${L('ربحية المشاريع','Rentabilité des projets')}</div><div class="table-wrap"><table><thead><tr><th>${L('المشروع','Projet')}</th><th>${L('الميزانية','Budget')}</th><th>${L('المُنفَق','Dépensé')}</th><th>${L('التقدم','Avancement')}</th><th>${L('الحالة','Statut')}</th></tr></thead>
+    <div class="card"><div style="font-weight:800;margin-bottom:1rem">💼 ربحية المشاريع</div><div class="table-wrap"><table><thead><tr><th>المشروع</th><th>الميزانية</th><th>المُنفَق</th><th>التقدم</th><th>الحالة</th></tr></thead>
       <tbody>${projs.map(p=>`<tr><td><span style="font-weight:700">${escHtml(p.name)}</span></td><td style="font-family:monospace;font-size:.82rem">${fmt(p.budget)}</td><td style="font-family:monospace;font-size:.82rem;color:${p.total_spent>p.budget?'var(--red)':'var(--green)'}">${fmt(p.total_spent)}</td><td><div style="display:flex;align-items:center;gap:.5rem"><div class="progress-bar" style="flex:1"><div class="progress-fill" style="background:${p.color}" data-width="${p.progress}"></div></div><span style="font-size:.75rem;font-weight:700">${p.progress}%</span></div></td><td>${statusBadge(p.status)}</td></tr>`).join('')}</tbody>
     </table></div></div>
   `);
@@ -7082,7 +7074,7 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
     <div style="margin-top:14px;font-size:12px;color:#666;line-height:1.8">
       <strong style="color:#3a3a3a">نظرة عامة:</strong> تدير مؤسسة <strong>${escHtml(tenant.name)}</strong> حالياً <strong style="color:#9B6DFF">${projects.length}</strong> مشروع (منها ${activeProjects} نشط، ${completedProjects} مكتمل${delayedProjects>0?'، '+delayedProjects+' متأخر':''})، بفريق من <strong style="color:#9B6DFF">${workers.length}</strong> عامل،
       و<strong style="color:#9B6DFF">${equipment.length}</strong> معدة، وقد سجّلت <strong style="color:#9B6DFF">${txs.length}</strong> معاملة مالية بإجمالي إيرادات <strong style="color:#2a8055">${fmt(revenue)} دج</strong>
-      ${L('ومصاريف','et dépenses')} <strong style="color:#a32d3d">${fmt(expense)} دج</strong>${revenue-expense >= 0 ? `، محقّقةً ربحاً صافياً قدره <strong style="color:#2a8055">${fmt(revenue-expense)} دج</strong>` : `، وحالياً في حالة عجز قدره <strong style="color:#a32d3d">${fmt(Math.abs(revenue-expense))} دج</strong>`}.
+      ومصاريف <strong style="color:#a32d3d">${fmt(expense)} دج</strong>${revenue-expense >= 0 ? `، محقّقةً ربحاً صافياً قدره <strong style="color:#2a8055">${fmt(revenue-expense)} دج</strong>` : `، وحالياً في حالة عجز قدره <strong style="color:#a32d3d">${fmt(Math.abs(revenue-expense))} دج</strong>`}.
     </div>
   </div>
 
@@ -8286,12 +8278,12 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
   const alerts = [];
   delayedProj.forEach(p => alerts.push({ type:'danger', icon:'⚠️', text: L(`مشروع "${escHtml(p.name)}" متأخر — تقدمه ${p.progress}%`, `Projet "${escHtml(p.name)}" en retard — avancement ${p.progress}%`) }));
   projects.forEach(p => {
-    if (p.budget > 0 && p.total_spent > p.budget) alerts.push({ type:'danger', icon:'💸', text: L(`مشروع "${escHtml(p.name)}" تجاوز الميزانية بـ ${fmt(p.total_spent - p.budget)} دج`, `Projet "${escHtml(p.name)}" a dépassé le budget de ${fmt(p.total_spent - p.budget)} DA`) });
-    else if (p.budget > 0 && p.total_spent >= p.budget * 0.85) alerts.push({ type:'warning', icon:'🟡', text: L(`مشروع "${escHtml(p.name)}" استهلك ${Math.round(p.total_spent/p.budget*100)}% من الميزانية`, `Projet "${escHtml(p.name)}" a consommé ${Math.round(p.total_spent/p.budget*100)}% du budget`) });
+    if (p.budget > 0 && p.total_spent > p.budget) alerts.push({ type:'danger', icon:'💸', text:`مشروع "${escHtml(p.name)}" تجاوز الميزانية بـ ${fmt(p.total_spent - p.budget)} دج` });
+    else if (p.budget > 0 && p.total_spent >= p.budget * 0.85) alerts.push({ type:'warning', icon:'🟡', text:`مشروع "${escHtml(p.name)}" استهلك ${Math.round(p.total_spent/p.budget*100)}% من الميزانية` });
   });
-  if (equipMaint > 0) alerts.push({ type:'warning', icon:'🔧', text: L(`${equipMaint} معدة في الصيانة حالياً`, `${equipMaint} équipement(s) en maintenance`) });
-  if (workers.length > 0 && attendanceRate < 70) alerts.push({ type:'warning', icon:'👷', text: L(`نسبة الحضور اليوم منخفضة: ${attendanceRate}%`, `Taux de présence faible aujourd'hui: ${attendanceRate}%`) });
-  if (netProfit < 0) alerts.push({ type:'danger', icon:'📉', text: L(`الرصيد الصافي سلبي: ${fmt(netProfit)} دج`, `Solde net négatif: ${fmt(netProfit)} DA`) });
+  if (equipMaint > 0) alerts.push({ type:'warning', icon:'🔧', text:`${equipMaint} معدة في الصيانة حالياً` });
+  if (workers.length > 0 && attendanceRate < 70) alerts.push({ type:'warning', icon:'👷', text:`نسبة الحضور اليوم منخفضة: ${attendanceRate}%` });
+  if (netProfit < 0) alerts.push({ type:'danger', icon:'📉', text:`الرصيد الصافي سلبي: ${fmt(netProfit)} دج` });
 
   // ── رسم أعمدة الحضور mini ──
   const attBars = last7.map(d => {
@@ -8307,7 +8299,7 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
 
   // ── شريط الميزانية لكل مشروع (pre-computed) ──
   const budgetBarsHTML = projects.length === 0
-    ? `<div style="font-size:.78rem;color:var(--dim);text-align:center;padding:.5rem">${L('لا توجد مشاريع','Aucun projet')}</div>`
+    ? `<div style="font-size:.78rem;color:var(--dim);text-align:center;padding:.5rem">لا توجد مشاريع</div>`
     : projects.slice(0,4).map(p => {
         const pct = p.budget > 0 ? Math.min(100, Math.round(p.total_spent/p.budget*100)) : 0;
         const bc  = pct >= 100 ? 'var(--red)' : pct >= 85 ? '#FF7043' : pct >= 60 ? 'var(--gold)' : 'var(--green)';
@@ -8323,7 +8315,7 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
 
   // ── تنبيهات HTML (pre-computed) ──
   const alertsHTML = alerts.length === 0
-    ? `<div style="padding:.7rem 1rem;background:rgba(52,195,143,0.06);border:1px solid rgba(52,195,143,0.2);border-radius:10px;display:flex;align-items:center;gap:.6rem"><span>✅</span><span style="font-size:.8rem;color:var(--green);font-weight:700">${L('لا توجد تنبيهات — مؤسستك في وضع ممتاز','Aucune alerte — votre entreprise est en excellent état')}</span></div>`
+    ? `<div style="padding:.7rem 1rem;background:rgba(52,195,143,0.06);border:1px solid rgba(52,195,143,0.2);border-radius:10px;display:flex;align-items:center;gap:.6rem"><span>✅</span><span style="font-size:.8rem;color:var(--green);font-weight:700">لا توجد تنبيهات — مؤسستك في وضع ممتاز</span></div>`
     : alerts.map(a => {
         const bgClr = a.type==='danger' ? '240,78,106' : '232,184,75';
         const txtClr= a.type==='danger' ? 'var(--red)' : 'var(--gold)';
@@ -8341,7 +8333,7 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
     : '';
   const equipMaintHTML = equipMaint ? `<div style="color:var(--gold)">🔧 ${equipMaint} صيانة</div>` : '';
   const attChartHTML = workers.length === 0
-    ? `<div style="font-size:.78rem;color:var(--dim);text-align:center;padding:1rem">${L('لا يوجد عمال مسجلون','Aucun ouvrier enregistré')}</div>`
+    ? `<div style="font-size:.78rem;color:var(--dim);text-align:center;padding:1rem">لا يوجد عمال مسجلون</div>`
     : `<div style="display:flex;gap:3px;align-items:flex-end;height:58px">${attBars}</div><div style="display:flex;justify-content:space-between;margin-top:.4rem;font-size:.6rem;color:var(--dim)"><span>منذ 7 أيام</span><span>اليوم</span></div>`;
 
   return `
@@ -8351,8 +8343,8 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
       <div style="display:flex;align-items:center;gap:.8rem">
         <div style="width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,rgba(155,109,255,0.25),rgba(52,195,143,0.15));border:1px solid rgba(155,109,255,0.35);display:flex;align-items:center;justify-content:center;font-size:1.3rem;box-shadow:0 4px 16px rgba(155,109,255,0.2)">📡</div>
         <div>
-          <div style="font-size:.95rem;font-weight:900;letter-spacing:-.2px">${L('🧠 تحليلات ذكية','🧠 Analytiques intelligentes')}</div>
-          <div style="font-size:.68rem;color:var(--muted)">${L('تُحدَّث تلقائياً • آخر تحديث: ','Mise à jour auto • Dernière MAJ: ')}<span style="color:var(--gold);font-weight:700">${now.toLocaleTimeString('ar-DZ')}</span></div>
+          <div style="font-size:.95rem;font-weight:900;letter-spacing:-.2px">🧠 تحليلات ذكية</div>
+          <div style="font-size:.68rem;color:var(--muted)">تُحدَّث تلقائياً • آخر تحديث: <span style="color:var(--gold);font-weight:700">${now.toLocaleTimeString('ar-DZ')}</span></div>
         </div>
       </div>
       <button onclick="refreshTenantAnalytics()" style="background:rgba(155,109,255,0.1);border:1px solid rgba(155,109,255,0.25);color:#B89AFF;border-radius:9px;padding:.35rem .9rem;cursor:pointer;font-size:.75rem;font-weight:800;font-family:'Tajawal',sans-serif;transition:all .2s" onmouseover="this.style.background='rgba(155,109,255,0.2)'" onmouseout="this.style.background='rgba(155,109,255,0.1)'">
@@ -8368,8 +8360,8 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
         <div style="font-size:1.6rem;font-weight:900;color:var(--blue);line-height:1">${projects.length}</div>
         <div style="font-size:.68rem;margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap">
           <span style="color:var(--green)">✅ ${activeProj.length} نشط</span>
-          ${delayedProj.length ? `<span style="color:var(--red)">⚠️ ${delayedProj.length} ${L('متأخر','en retard')}</span>` : ''}
-          ${completedProj.length ? `<span style="color:var(--muted)">🏁 ${completedProj.length} ${L('منجز','terminé(s)')}</span>` : ''}
+          ${delayedProj.length ? `<span style="color:var(--red)">⚠️ ${delayedProj.length} متأخر</span>` : ''}
+          ${completedProj.length ? `<span style="color:var(--muted)">🏁 ${completedProj.length} منجز</span>` : ''}
         </div>
       </div>
 
@@ -8408,14 +8400,14 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
 
       <!-- شريط الميزانية vs المنفق -->
       <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:.9rem">
-        <div style="font-size:.75rem;font-weight:800;margin-bottom:.7rem">💼 ${L('الميزانية مقابل الإنفاق','Budget vs Dépenses')}</div>
+        <div style="font-size:.75rem;font-weight:800;margin-bottom:.7rem">💼 الميزانية مقابل الإنفاق</div>
         ${budgetBarsHTML}
-        ${projects.length > 0 ? `<div style="font-size:.65rem;color:var(--dim);margin-top:.4rem">L('متوسط التقدم:','Avancement moy.:') <strong style="color:var(--text)">${avgProgress}%</strong></div>` : ''}
+        ${projects.length > 0 ? `<div style="font-size:.65rem;color:var(--dim);margin-top:.4rem">متوسط التقدم: <strong style="color:var(--text)">${avgProgress}%</strong></div>` : ''}
       </div>
 
       <!-- حضور آخر 7 أيام mini chart -->
       <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:.9rem">
-        <div style="font-size:.75rem;font-weight:800;margin-bottom:.7rem">📅 ${L('الحضور — آخر 7 أيام','Présence — 7 derniers jours')}</div>
+        <div style="font-size:.75rem;font-weight:800;margin-bottom:.7rem">📅 الحضور — آخر 7 أيام</div>
         ${attChartHTML}
       </div>
 
@@ -10485,7 +10477,7 @@ Pages.materials = function() {
     </tr>`;
   }).join('');
 
-  return layoutHTML('materials', L('المواد والمخزون','Gestion du stock'), `
+  return layoutHTML('materials','المواد والمخزون',`
     <div class="page-header">
       <div><div class="page-title">🧱 المواد والمخزون</div><div class="page-sub">${materials.length} ${L('مادة مسجلة','matériau(x)')}</div></div>
       <div class="page-actions">
@@ -10501,19 +10493,19 @@ Pages.materials = function() {
     ${lowStock>0?`<div class="budget-alert budget-alert-warn">⚠️ ${L("تنبيه","Alerte")}: ${lowStock} ${L("مادة وصلت للحد الأدنى من المخزون وتحتاج إلى تجديد","matériau(x) ont atteint le seuil minimum et nécessitent un réapprovisionnement")}</div>`:''}
     ${materials.length?`<div class="table-wrap"><table>
       <thead><tr><th>المادة</th><th>المشروع</th><th>الكمية</th><th>الوحدة</th><th>سعر الوحدة (دج)</th><th>القيمة الإجمالية</th><th>المورد</th><th>الحالة</th><th>حذف</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="empty-icon">🧱</div><div class="empty-title">${L('لا توجد مواد مسجلة','Aucun matériau enregistré')}</div></div>`}
+      <tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="empty-icon">🧱</div><div class="empty-title">لا توجد مواد مسجلة</div></div>`}
     <div class="modal-overlay" id="addMatModal">
       <div class="modal">
         <div class="modal-title">🧱 إضافة مادة</div>
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">${L('اسم المادة *','Nom du matériau *')}</label><input class="form-input" id="mName" placeholder="${L('حديد، أسمنت...','Fer, ciment...')}"></div>
+          <div class="form-group"><label class="form-label">اسم المادة *</label><input class="form-input" id="mName" placeholder="حديد، أسمنت..."></div>
           <div class="form-group"><label class="form-label">الوحدة *</label><select class="form-select" id="mUnit"><option>طن</option><option>كيس</option><option>م³</option><option>ألف قطعة</option><option>لتر</option><option>قطعة</option><option>م²</option></select></div>
           <div class="form-group"><label class="form-label">الكمية المتوفرة</label><input class="form-input" id="mQty" type="number" value="0"></div>
           <div class="form-group"><label class="form-label">${L("الحد الأدنى للتنبيه","Seuil d'alerte minimum")}</label><input class="form-input" id="mMinQty" type="number" value="5"></div>
           <div class="form-group"><label class="form-label">سعر الوحدة (دج)</label><input class="form-input" id="mPrice" type="number" value="0"></div>
-          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="mProject"><option value="">— ${L('عام','Général')}</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="mProject"><option value="">— عام</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
         </div>
-        <div class="form-group"><label class="form-label">${L('المورد','Fournisseur')}</label><input class="form-input" id="mSupplier" placeholder="${L('اسم المورد...','Nom du fournisseur...')}"></div>
+        <div class="form-group"><label class="form-label">المورد</label><input class="form-input" id="mSupplier" placeholder="اسم المورد..."></div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="addMat()">💾 حفظ</button></div>
       </div>
     </div>
@@ -11172,14 +11164,14 @@ window.syncTablesToSupabase = syncTablesToSupabase;
 function addNote(pid) {
   if (!canDo('write_notes')) { Toast.error(L('ليس لديك صلاحية لإضافة ملاحظة','Permission refusée : note')); return; }
   const text = document.getElementById('noteText')?.value?.trim();
-  if (!text) { Toast.error(L('أدخل نص الملاحظة','Saisissez le texte de la note')); return; }
+  if (!text) { Toast.error('أدخل نص الملاحظة'); return; }
   const user = Auth.getUser();
   const notes = DB.get('notes');
   const newNote = { id:DB.nextId('notes'), tenant_id:user.tenant_id, project_id:pid, user_id:user.id, text, date:todayStr() };
   notes.push(newNote);
   DB.set('notes', notes);
   sbSync('notes', newNote, 'POST').catch(()=>{});
-  Toast.success(L('تمت إضافة الملاحظة','Note ajoutée'));
+  Toast.success('تمت إضافة الملاحظة');
   App.navigate('project_detail', {id:pid});
 }
 
@@ -11188,7 +11180,7 @@ function deleteNote(id, pid) {
   if (!confirm('حذف هذه الملاحظة؟')) return;
   DB.set('notes', DB.get('notes').filter(n=>n.id!==id));
   sbSyncDelete('notes', id).catch(()=>{});
-  Toast.success(L('تم حذف الملاحظة','Note supprimée'));
+  Toast.success('تم حذف الملاحظة');
   App.navigate('project_detail', {id:pid});
 }
 
@@ -11196,7 +11188,7 @@ function deleteNote(id, pid) {
 function addMat() {
   if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لإضافة مادة','Permission refusée : matériau')); return; }
   const name = document.getElementById('mName')?.value?.trim();
-  if (!name) { Toast.error(L('أدخل اسم المادة','Saisissez le nom du matériau')); return; }
+  if (!name) { Toast.error('أدخل اسم المادة'); return; }
   const tid = Auth.getUser().tenant_id;
   const mats = DB.get('materials');
   const newMat = { id:DB.nextId('materials'), tenant_id:tid, name, unit:document.getElementById('mUnit')?.value||'قطعة', quantity:Number(document.getElementById('mQty')?.value)||0, min_quantity:Number(document.getElementById('mMinQty')?.value)||5, unit_price:Number(document.getElementById('mPrice')?.value)||0, project_id:Number(document.getElementById('mProject')?.value)||null, supplier:document.getElementById('mSupplier')?.value||'' };
@@ -11222,7 +11214,7 @@ function deleteMat(id) {
   if (!confirm('حذف هذه المادة؟')) return;
   DB.set('materials', DB.get('materials').filter(m=>m.id!==id));
   sbSyncDelete('materials', id).catch(()=>{});
-  Toast.success(L('تم الحذف','Supprimé')); App.navigate('materials');
+  Toast.success('تم الحذف'); App.navigate('materials');
 }
 
 function exportMaterials() {
@@ -11233,7 +11225,7 @@ function exportMaterials() {
   mats.forEach(m=>{ const proj=projs.find(p=>p.id===m.project_id); csv+=`"${m.name}","${proj?.name||'—'}","${m.quantity}","${m.unit}","${m.unit_price}","${m.quantity*m.unit_price}","${m.supplier||''}","${m.quantity<=m.min_quantity?'منخفض':'كافٍ'}"\n`; });
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='materials.csv'; a.click();
-  Toast.success(L('تم تصدير ملف CSV','Fichier CSV exporté'));
+  Toast.success('تم تصدير ملف CSV');
 }
 
 /* ─── EXPORT FINANCIAL CSV ─── */
@@ -11867,7 +11859,7 @@ function addProject() {
   projs.push(newProject);
   DB.set('projects', projs);
   sbSync('projects', newProject, 'POST').catch(()=>{});
-  Toast.success(L('✅ تم إضافة المشروع','✅ Projet ajouté'));
+  Toast.success('✅ تم إضافة المشروع');
   App.navigate('projects');
 }
 
@@ -11890,7 +11882,7 @@ function saveProject() {
   projs[idx]={...projs[idx], project_type:document.getElementById('epType')?.value||projs[idx].project_type||'', name:document.getElementById('epName').value, wilaya:document.getElementById('epWilaya').value, status:document.getElementById('epStatus').value, progress:Number(document.getElementById('epProgress').value)||0, budget:Number(document.getElementById('epBudget').value)||0, phase:document.getElementById('epPhase').value, client_name:document.getElementById('epClient').value, end_date:document.getElementById('epEnd').value };
   DB.set('projects',projs);
   sbSync('projects', projs[idx], 'PATCH').catch(()=>{});
-  Toast.success(L('✅ تم تحديث المشروع','✅ Projet mis à jour'));
+  Toast.success('✅ تم تحديث المشروع');
   if (App.currentPage==='project_detail') App.navigate('project_detail',{id});
   else App.navigate('projects');
 }
@@ -11901,7 +11893,7 @@ function deleteProject(id,name) {
   const updProjs = DB.get('projects').map(p=>p.id===id?{...p,is_archived:true}:p);
   DB.set('projects', updProjs);
   sbSync('projects', {id, is_archived:true}, 'PATCH').catch(()=>{});
-  Toast.success(L('تم حذف المشروع','Projet supprimé')); App.navigate('projects');
+  Toast.success('تم حذف المشروع'); App.navigate('projects');
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -12034,7 +12026,7 @@ function addWorker() {
   ws.push(newWorker);
   DB.set('workers',ws);
   sbSync('workers', newWorker, 'POST').catch(()=>{});
-  Toast.success(L('✅ تم إضافة العامل','✅ Ouvrier ajouté')); App.navigate('workers');
+  Toast.success('✅ تم إضافة العامل'); App.navigate('workers');
 }
 
 function editWorker(id) {
@@ -12166,7 +12158,7 @@ function saveWorker() {
   ws[idx]={...ws[idx], full_name:document.getElementById('ewName').value, role:document.getElementById('ewRole').value, phone:document.getElementById('ewPhone').value, daily_salary:Number(document.getElementById('ewSalary').value)||0, contract_type:document.getElementById('ewContract').value, project_id:Number(document.getElementById('ewProject').value)||null };
   DB.set('workers',ws);
   sbSync('workers', ws[idx], 'PATCH').catch(()=>{});
-  Toast.success(L('✅ تم تحديث العامل','✅ Ouvrier mis à jour')); App.navigate('workers');
+  Toast.success('✅ تم تحديث العامل'); App.navigate('workers');
 }
 
 function deleteWorker(id,name) {
@@ -12174,7 +12166,7 @@ function deleteWorker(id,name) {
   if(!confirm(`حذف العامل "${name}"؟`)) return;
   DB.set('workers', DB.get('workers').filter(w=>w.id!==id));
   sbSyncDelete('workers', id).catch(()=>{});
-  Toast.success(L('تم حذف العامل','Ouvrier supprimé')); App.navigate('workers');
+  Toast.success('تم حذف العامل'); App.navigate('workers');
 }
 
 function exportWorkers() {
@@ -12184,7 +12176,7 @@ function exportWorkers() {
   ws.forEach(w=>{const proj=projs.find(p=>p.id===w.project_id);csv+=`"${w.full_name}","${w.role}","${w.phone||''}","${w.daily_salary}","${w.contract_type}","${w.hire_date||''}","${proj?.name||''}"\n`;});
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='workers.csv';a.click();
-  Toast.success(L('تم تصدير ملف CSV','Fichier CSV exporté'));
+  Toast.success('تم تصدير ملف CSV');
 }
 
 function addEquip() {
@@ -12434,7 +12426,7 @@ td{padding:7px 10px;border-bottom:1px solid #f0ede0}
   </tbody>
 </table>
 <div class="footer">
-  <span>SmartStruct — ${L('منصة إدارة مشاريع المقاولة الجزائرية','Plateforme de gestion BTP Algérie')}</span>
+  <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme gestion BTP Algérie'}</span>
   <span>${equip.name} | ${logs.length} ${isAr?'عملية':'opération(s)'}</span>
 </div>
 </body></html>`;
@@ -12450,7 +12442,7 @@ function updateEquipStatus(id,status) {
   const updEquip = DB.get('equipment').map(e=>e.id===id?{...e,status}:e);
   DB.set('equipment', updEquip);
   sbSync('equipment', {id, status}, 'PATCH').catch(()=>{});
-  Toast.success(L('تم تحديث حالة المعدة','État de l\'équipement mis à jour'));
+  Toast.success('تم تحديث حالة المعدة');
 }
 
 function deleteEquip(id,name) {
@@ -12458,7 +12450,7 @@ function deleteEquip(id,name) {
   if(!confirm(`حذف "${name}"؟`)) return;
   DB.set('equipment', DB.get('equipment').filter(e=>e.id!==id));
   sbSyncDelete('equipment', id).catch(()=>{});
-  Toast.success(L('تم حذف المعدة','Équipement supprimé')); App.navigate('equipment');
+  Toast.success('تم حذف المعدة'); App.navigate('equipment');
 }
 
 const RCATS=["دفعة عميل","دفعة مقدمة","دفعة مرحلية","استلام نهائي","إيراد آخر"];
@@ -12501,7 +12493,7 @@ function addTx() {
     const projs=DB.get('projects'); const pidx=projs.findIndex(p=>p.id===pid);
     if(pidx>=0){projs[pidx].total_spent=DB.get('transactions').filter(t=>t.project_id===pid&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);DB.set('projects',projs);sbSync('projects',projs[pidx],'PATCH').catch(()=>{});}
   }
-  Toast.success(L('✅ تم إضافة المعاملة','✅ Transaction ajoutée')); App.navigate('transactions');
+  Toast.success('✅ تم إضافة المعاملة'); App.navigate('transactions');
 }
 
 function deleteTx(id) {
@@ -15294,10 +15286,10 @@ Pages.kanban = function() {
   const priorityColors = {high:'var(--red)',medium:'var(--orange)',low:'var(--dim)'};
   const priorityLabels = {high:'عالية',medium:'متوسطة',low:'منخفضة'};
   const cols = [
-    {key:'todo',label:L('قيد الانتظار','En attente'),color:'var(--dim)'},
-    {key:'inprogress',label:L('جاري التنفيذ','En cours'),color:'var(--blue)'},
-    {key:'review',label:L('مراجعة','Révision'),color:'var(--orange)'},
-    {key:'done',label:L('مكتمل','Terminé'),color:'var(--green)'}, 
+    {key:'todo',label:'قيد الانتظار',color:'var(--dim)'},
+    {key:'inprogress',label:'جاري التنفيذ',color:'var(--blue)'},
+    {key:'review',label:'مراجعة',color:'var(--orange)'},
+    {key:'done',label:'مكتمل',color:'var(--green)'},
   ];
   return layoutHTML('kanban', 'Kanban Board', `
     <div class="page-header">
@@ -15345,11 +15337,11 @@ Pages.kanban = function() {
     <div class="modal-overlay" id="addTaskModal">
       <div class="modal">
         <div class="modal-title">📋 مهمة جديدة</div>
-        <div class="form-group"><label class="form-label">${L('عنوان المهمة *','Titre de la tâche *')}</label><input class="form-input" id="taskTitle" placeholder="${L('وصف المهمة...','Description...')}"></div>
+        <div class="form-group"><label class="form-label">عنوان المهمة *</label><input class="form-input" id="taskTitle" placeholder="وصف المهمة..."></div>
         <div class="form-grid-2">
-          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="taskProject"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="taskProject"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">الأولوية</label><select class="form-select" id="taskPriority"><option value="medium">متوسطة</option><option value="high">عالية</option><option value="low">منخفضة</option></select></div>
-          <div class="form-group"><label class="form-label">${L('المسؤول','Responsable')}</label><select class="form-select" id="taskAssignee"><option value="">—</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.full_name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">المسؤول</label><select class="form-select" id="taskAssignee"><option value="">—</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.full_name)}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">تاريخ الاستحقاق</label><input class="form-input" type="date" id="taskDue"></div>
           <div class="form-group"><label class="form-label">العمود</label><select class="form-select" id="taskCol"><option value="todo">قيد الانتظار</option><option value="inprogress">جاري</option><option value="review">مراجعة</option><option value="done">مكتمل</option></select></div>
         </div>
@@ -15385,19 +15377,19 @@ function kanbanDrop(e, colKey) {
   if (idx >= 0) { tasks[idx].col = colKey; DB.set('kanban_tasks', tasks); sbSync('kanban_tasks', tasks[idx], 'PATCH').catch(()=>{}); }
   _dragTaskId = null;
   App.navigate('kanban');
-  Toast.success(L('✅ تم نقل المهمة','✅ Tâche déplacée'));
+  Toast.success('✅ تم نقل المهمة');
 }
 function addKanbanTask() {
   if (!canDo('write_projects')) { Toast.error(L('ليس لديك صلاحية لإضافة مهمة','Permission refusée : tâche')); return; }
   const title = document.getElementById('taskTitle')?.value?.trim();
-  if (!title) { Toast.error(L('أدخل عنوان المهمة','Saisissez un titre')); return; }
+  if (!title) { Toast.error('أدخل عنوان المهمة'); return; }
   const tid = Auth.getUser().tenant_id;
   const tasks = DB.get('kanban_tasks');
   const newTask = {id:DB.nextId('kanban_tasks'),tenant_id:tid,title,project_id:Number(document.getElementById('taskProject')?.value)||null,priority:document.getElementById('taskPriority')?.value||'medium',assignee_id:Number(document.getElementById('taskAssignee')?.value)||null,due_date:document.getElementById('taskDue')?.value||null,col:document.getElementById('taskCol')?.value||'todo'};
   tasks.push(newTask);
   DB.set('kanban_tasks', tasks);
   sbSync('kanban_tasks', newTask, 'POST').catch(()=>{});
-  Toast.success(L('✅ تم إضافة المهمة','✅ Tâche ajoutée'));
+  Toast.success('✅ تم إضافة المهمة');
   App.navigate('kanban');
 }
 function deleteKanbanTask(id) {
@@ -15405,7 +15397,7 @@ function deleteKanbanTask(id) {
   if (!confirm('حذف هذه المهمة؟')) return;
   DB.set('kanban_tasks', DB.get('kanban_tasks').filter(t => t.id !== id));
   sbSyncDelete('kanban_tasks', id).catch(()=>{});
-  Toast.success(L('تم الحذف','Supprimé')); App.navigate('kanban');
+  Toast.success('تم الحذف'); App.navigate('kanban');
 }
 function quickAddTask(col) {
   const sel = document.getElementById('taskCol');
@@ -15596,7 +15588,7 @@ Pages.analytics = function() {
   // ✅ احسب الذكاء التحليلي (AI Insights)
   const aiInsights = generateAIInsights(btp, projects, txs, workers, invoicesData, materialsData);
 
-  return layoutHTML('analytics', L('التحليلات','Analytiques'), `
+  return layoutHTML('analytics', 'التحليلات', `
     <div class="page-header">
       <div>
         <div class="page-title">📊 ${L('التحليلات الذكية والتقارير','Analyses intelligentes')}</div>
@@ -17280,9 +17272,9 @@ Pages.salary = function() {
       </div>
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card"><div class="stat-icon">💵</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total)}</div><div class="stat-label">${L('إجمالي الرواتب (دج)','Total salaires (DA)')}</div></div>
+      <div class="stat-card"><div class="stat-icon">💵</div><div class="stat-value" style="color:var(--green);font-size:1.1rem">${fmt(total)}</div><div class="stat-label">إجمالي الرواتب (دج)</div></div>
       <div class="stat-card"><div class="stat-icon">👷</div><div class="stat-value">${workers.length}</div><div class="stat-label">${L('عدد العمال','Nb ouvriers')}</div></div>
-      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:var(--blue)">${records.filter(r=>r.month_key===selectedMonthKey).length}</div><div class="stat-label">${L('تم الصرف','Payé(s)')}</div></div>
+      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:var(--blue)">${records.filter(r=>r.month_key===selectedMonthKey).length}</div><div class="stat-label">تم الصرف</div></div>
     </div>
     <div style="display:grid;gap:.8rem">
       ${workers.map(w => {
@@ -17320,7 +17312,7 @@ Pages.salary = function() {
                 <button class="btn btn-ghost btn-sm" onclick="addAllowanceModal(${w.id},'${selectedMonthKey}')" title="${L('علاوات وخصومات','Primes/Déductions')}">💰 ${L('علاوات','Primes')}</button>
                 <button class="btn btn-ghost btn-sm" onclick="addOvertime(${w.id})" title="${L('ساعات إضافية','Heures sup.')}">⏰</button>
                 <button class="btn btn-ghost btn-sm" onclick="printWorkerHistory(${w.id})" title="${L('كشف حساب كل الأشهر','Relevé annuel')}">📊</button>
-                ${paid?`<span class="badge badge-active">✅ ${L(L('تم الصرف','Payé(s)'),'Payé')}</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${finalNet})">💳 ${L('صرف','Payer')}</button>`:`<span class="badge">${L('معلق','En attente')}</span>`}
+                ${paid?`<span class="badge badge-active">✅ ${L('تم الصرف','Payé')}</span>`:canDo('salary')?`<button class="btn btn-gold btn-sm" onclick="paySalary(${w.id},'${selectedMonthKey}',${finalNet})">💳 ${L('صرف','Payer')}</button>`:`<span class="badge">${L('معلق','En attente')}</span>`}
               </div>
             </div>
           </div>
@@ -17566,7 +17558,7 @@ function printWorkerHistory(wid) {
 </div>
 
 <div class="footer">
-  <span>SmartStruct — ${L('منصة إدارة مشاريع المقاولة الجزائرية','Plateforme de gestion BTP Algérie')}</span>
+  <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة الجزائرية':'Plateforme gestion BTP Algérie'}</span>
   <span>${isAr?'تاريخ الإصدار':'Émis le'}: ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ', {day:'2-digit',month:'long',year:'numeric'})}</span>
 </div>
 </body>
@@ -17660,7 +17652,7 @@ function _saveSalaryDays(workerId, monthKey) {
 function paySalary(wid, monthKey, amount) {
   if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaire')); return; }
   const records = DB.get('salary_records');
-  if (records.find(r=>r.worker_id===wid&&r.month_key===monthKey)) { Toast.warn(L('تم صرف الراتب مسبقاً','Salaire déjà versé')); return; }
+  if (records.find(r=>r.worker_id===wid&&r.month_key===monthKey)) { Toast.warn('تم صرف الراتب مسبقاً'); return; }
   const worker = DB.get('workers').find(w=>w.id===wid);
   const tid = Auth.getUser().tenant_id;
   const newSalary = {id:DB.nextId('salary_records'),tenant_id:tid,worker_id:wid,month_key:monthKey,amount,paid_date:todayStr()};
@@ -17672,7 +17664,7 @@ function paySalary(wid, monthKey, amount) {
   txs.push(salTx);
   DB.set('transactions', txs);
   sbSync('transactions', salTx, 'POST').catch(()=>{});
-  Toast.success(L(`✅ تم صرف راتب ${worker?.full_name||''}`,`✅ Salaire versé à ${worker?.full_name||''}`));
+  Toast.success(`✅ تم صرف راتب ${worker?.full_name||''}`);
   App.navigate('salary', {monthKey});
 }
 
@@ -17698,7 +17690,7 @@ function payAllSalaries(monthKey) {
   DB.set('salary_records', records);
   // Sync all new salary records to Supabase
   records.filter(r=>r.paid_date===todayStr()).forEach(r => sbSync('salary_records', r, 'POST').catch(()=>{}));
-  Toast.success(L(`✅ تم صرف رواتب ${paid} عامل`,`✅ ${paid} salaire(s) versé(s)`));
+  Toast.success(`✅ تم صرف رواتب ${paid} عامل`);
   App.navigate('salary', {monthKey});
 }
 
@@ -19251,7 +19243,7 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
 
   <!-- Footer -->
   <div class="inv-footer">
-    <span>SmartStruct — ${L('منصة إدارة مشاريع المقاولة','Plateforme BTP')}</span>
+    <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة':'Plateforme BTP'}</span>
     <span class="gold-text">${escHtml(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
   </div>
 
@@ -19360,7 +19352,7 @@ Pages.inventory = function() {
       }).join('')}</tbody></table>
     </div>
     <div class="card">
-      <div style="font-weight:800;margin-bottom:1rem">📋 ${L('سجل حركات المواد','Journal des mouvements')}</div>
+      <div style="font-weight:800;margin-bottom:1rem">📋 سجل حركات المواد</div>
       <div class="stock-movement-log">
         ${movements.length?movements.slice(-15).reverse().map(mv=>{
           const mat=materials.find(m=>m.id===mv.material_id);
@@ -19372,19 +19364,19 @@ Pages.inventory = function() {
             <span style="color:var(--dim);font-size:.75rem">${escHtml(mv.note||'')}</span>
           </div>`;
         }).join(''):
-        `<div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد حركات مسجلة','Aucun mouvement enregistré')}</div>`}
+        `<div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد حركات مسجلة</div>`}
       </div>
     </div>
     <div class="modal-overlay" id="addMatModal">
       <div class="modal">
         <div class="modal-title">📦 إضافة مادة</div>
         <div class="form-grid-2">
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">${L('اسم المادة *','Nom du matériau *')}</label><input class="form-input" id="matName" placeholder="${L('حديد، أسمنت...','Fer, ciment...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الوحدة','Unité')}</label><input class="form-input" id="matUnit" placeholder="${L('طن، كيس، م³','Tonne, sac, m³')}"></div>
-          <div class="form-group"><label class="form-label">${L('الكمية الحالية','Quantité actuelle')}</label><input class="form-input" id="matQty" type="number" placeholder="0"></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المادة *</label><input class="form-input" id="matName" placeholder="حديد، أسمنت..."></div>
+          <div class="form-group"><label class="form-label">الوحدة</label><input class="form-input" id="matUnit" placeholder="طن، كيس، م³"></div>
+          <div class="form-group"><label class="form-label">الكمية الحالية</label><input class="form-input" id="matQty" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L("الحد الأدنى للتنبيه","Seuil d'alerte minimum")}</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
-          <div class="form-group"><label class="form-label">${L('السعر/وحدة (دج)','Prix/unité (DA)')}</label><input class="form-input" id="matPrice" type="number" placeholder="0"></div>
-          <div class="form-group"><label class="form-label">${L('المشروع','Projet')}</label><select class="form-select" id="matProj"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">السعر/وحدة (دج)</label><input class="form-input" id="matPrice" type="number" placeholder="0"></div>
+          <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="matProj"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">${L('المورد','Fournisseur')}</label>
             <select class="form-select" id="matSupplier">
@@ -19400,8 +19392,8 @@ Pages.inventory = function() {
       <div class="modal">
         <div class="modal-title" id="stockMoveTitle">📦 ${L("حركة مخزون","Mouvement de stock")}</div>
         <input type="hidden" id="stockMatId"><input type="hidden" id="stockMoveTyp">
-        <div class="form-group"><label class="form-label">${L('الكمية *','Quantité *')}</label><input class="form-input" id="stockMoveQty" type="number" placeholder="0" min="1"></div>
-        <div class="form-group"><label class="form-label">${L('ملاحظة','Note')}</label><input class="form-input" id="stockMoveNote" placeholder="${L('توريد، استخدام...','Livraison, utilisation...')}"></div>
+        <div class="form-group"><label class="form-label">الكمية *</label><input class="form-input" id="stockMoveQty" type="number" placeholder="0" min="1"></div>
+        <div class="form-group"><label class="form-label">ملاحظة</label><input class="form-input" id="stockMoveNote" placeholder="توريد، استخدام..."></div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="confirmStockMoveV5()">✅ تأكيد</button></div>
       </div>
     </div>
@@ -19409,7 +19401,7 @@ Pages.inventory = function() {
 };
 function addMaterialItem(){
   const name=document.getElementById('matName')?.value?.trim();
-  if(!name){Toast.error(L('أدخل اسم المادة','Saisissez le nom du matériau'));return;}
+  if(!name){Toast.error('أدخل اسم المادة');return;}
   const mats=DB.get('materials');
   const newMatItem = {id:DB.nextId('materials'),tenant_id:Auth.getUser().tenant_id,name,unit:document.getElementById('matUnit')?.value||'وحدة',quantity:Number(document.getElementById('matQty')?.value)||0,min_quantity:Number(document.getElementById('matMin')?.value)||5,unit_price:Number(document.getElementById('matPrice')?.value)||0,project_id:Number(document.getElementById('matProj')?.value)||null,supplier:document.getElementById('matSupplier')?.value||''};
   mats.push(newMatItem);
@@ -19432,11 +19424,11 @@ function confirmStockMoveV5(){
   const type=document.getElementById('stockMoveTyp')?.value;
   const qty=Number(document.getElementById('stockMoveQty')?.value);
   const note=document.getElementById('stockMoveNote')?.value||'';
-  if(!qty){Toast.error(L('أدخل الكمية','Saisissez la quantité'));return;}
+  if(!qty){Toast.error('أدخل الكمية');return;}
   const mats=DB.get('materials');
   const idx=mats.findIndex(m=>m.id===matId);
   if(idx<0)return;
-  if(type==='out'&&mats[idx].quantity<qty){Toast.error(L('الكمية المطلوبة أكبر من المخزون','Quantité demandée supérieure au stock'));return;}
+  if(type==='out'&&mats[idx].quantity<qty){Toast.error('الكمية المطلوبة أكبر من المخزون');return;}
   mats[idx].quantity=type==='in'?mats[idx].quantity+qty:mats[idx].quantity-qty;
   DB.set('materials',mats);
   sbSync('materials', mats[idx], 'PATCH').catch(()=>{});
@@ -21523,7 +21515,7 @@ function clearAuditLog() {
   if (!confirm(L('هل تريد مسح سجل النشاط؟','Voulez-vous effacer le journal d\'activité ?'))) return;
   const tid = Auth.getUser().tenant_id;
   DB.set('audit_log_'+tid, []);
-  Toast.success(L('تم مسح السجل','Journal effacé'));
+  Toast.success('تم مسح السجل');
   App.navigate('audit_log');
 }
 function printAICEOSummary() {
@@ -22007,8 +21999,8 @@ Pages.ai_analysis = function() {
     const issues = [];
     if (budgetPct > 90) { score -= 30; issues.push({ icon: '🔴', text: `استهلاك الميزانية حرج: ${budgetPct}%` }); }
     else if (budgetPct > 70 && p.progress < 60) { score -= 20; issues.push({ icon: '🟡', text: `استهلاك مرتفع (${budgetPct}%) مع تقدم منخفض (${p.progress}%)` }); }
-    if (p.status === 'delayed') { score -= 25; issues.push({ icon: '⏰', text: L('المشروع متأخر عن الجدول الزمني','Projet en retard sur le planning') }); }
-    if (pRev > 0 && roi < 5) { score -= 15; issues.push({ icon: '💸', text: L(`هامش ربح منخفض جداً: ${roi}%`, `Marge bénéficiaire très faible: ${roi}%`) }); }
+    if (p.status === 'delayed') { score -= 25; issues.push({ icon: '⏰', text: 'المشروع متأخر عن الجدول الزمني' }); }
+    if (pRev > 0 && roi < 5) { score -= 15; issues.push({ icon: '💸', text: `هامش ربح منخفض جداً: ${roi}%` }); }
     if (p.progress < 10 && p.start_date && new Date(p.start_date) < new Date(Date.now() - 30 * 86400000)) { score -= 10; issues.push({ icon: '🐢', text: 'بداية متأخرة — التقدم أقل من المتوقع' }); }
     score = Math.max(0, score);
     const scoreClass = score >= 80 ? 'ai-score-excellent' : score >= 60 ? 'ai-score-good' : score >= 40 ? 'ai-score-warn' : 'ai-score-danger';
@@ -22437,9 +22429,9 @@ async function checkTenantStatusFromSupabase() {
 // تشغيل الفحص بعد تحميل الصفحة
 setTimeout(checkTenantStatusFromSupabase, 800);
 
-// Apply saved language direction (app-specific key, isolated from landing page)
+// Apply saved language direction
 (function(){
-  const lang = localStorage.getItem('sbtp_app_lang')||'ar';
+  const lang = localStorage.getItem('sbtp_lang')||'ar';
   document.documentElement.lang = lang;
   document.documentElement.dir = lang==='ar'?'rtl':'ltr';
   I18N.currentLang = lang;
@@ -22485,25 +22477,21 @@ function setupConnBadge() {
   window.addEventListener('offline', renderBadge);
 }
 
-// ── تشغيل التطبيق بعد اكتمال تحميل DOM وجميع السكريبتات ──
-function _bootApp() {
-  // إخفاء شاشة التحميل دائماً بعد المحاولة (سواء نجح أو فشل)
-  function hideLoader() {
-    const __ldr = document.getElementById('appLoader');
-    if (__ldr) __ldr.style.display = 'none';
-  }
+// ── تشغيل التطبيق مع معالجة الأخطاء ──
+(function bootApp() {
   try {
-    // ── تطبيق اللغة المحفوظة (مفتاح خاص بالتطبيق، معزول عن صفحة الهبوط) ──
-    const savedLang = localStorage.getItem('sbtp_app_lang') || 'ar';
+    // ── تطبيق اللغة المحفوظة قبل أي render (يدعم ss_lang من الصفحة الرئيسية) ──
+    const savedLang = localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar';
     if (savedLang !== I18N.currentLang) I18N.currentLang = savedLang;
     document.documentElement.lang = savedLang;
     document.documentElement.dir = savedLang === 'fr' ? 'ltr' : 'rtl';
     App.render();
     setupConnBadge();
-    hideLoader();
+    // إخفاء شاشة التحميل بعد نجاح التشغيل
+    const __ldr = document.getElementById('appLoader');
+    if (__ldr) __ldr.style.display = 'none';
   } catch(e) {
     console.error('❌ SmartStruct Boot Error:', e);
-    hideLoader(); // إخفاء شاشة التحميل حتى عند الخطأ
     // عرض رسالة خطأ واضحة بدلاً من شاشة فارغة
     const app = document.getElementById('app');
     if (app) {
@@ -22532,13 +22520,7 @@ function _bootApp() {
         </div>`;
     }
   }
-}
-// تشغيل فوري إذا كان DOM محملاً، وإلا انتظر DOMContentLoaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', _bootApp);
-} else {
-  _bootApp();
-}
+})();
 setTimeout(() => { if (Auth.getUser()) checkOnboarding(); }, 500);
 // Auto-run simulator if on simulator page
 document.addEventListener('DOMContentLoaded', () => {
