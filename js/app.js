@@ -252,7 +252,7 @@ function fmt(n) { return Number(n||0).toLocaleString('fr-DZ'); }
 function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('ar-DZ'); }
 function statusBadge(s) {
   const map = {
-    active:    { cls:'badge-active',    label: L('نشط','Actif') },
+    active:    { cls:'badge-active',    label: L('نشط','Actif','Active') },
     completed: { cls:'badge-completed', label: L('مكتمل','Terminé') },
     delayed:   { cls:'badge-delayed',   label: L('متأخر','En retard') },
     paused:    { cls:'badge-paused',    label: L('متوقف','En pause') }
@@ -260,7 +260,7 @@ function statusBadge(s) {
   const entry = map[s] || { cls:'badge-paused', label:'—' };
   return `<span class="badge ${entry.cls}">${entry.label}</span>`;
 }
-function statusLabel(s) { return {active:L('نشط','Actif'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','En pause')}[s]||s; }
+function statusLabel(s) { return {active:L('نشط','Actif','Active'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','En pause')}[s]||s; }
 function escHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s)
@@ -345,272 +345,272 @@ const I18N = {
   },
   dict: {
     // Navigation
-    'nav.dashboard':    {ar:'لوحة التحكم',    fr:'Tableau de bord'},
-    'nav.projects':     {ar:'المشاريع',        fr:'Projets'},
-    'nav.workers':      {ar:'العمال',          fr:'Ouvriers'},
-    'nav.attendance':   {ar:'الحضور',          fr:'Présence'},
-    'nav.salary':       {ar:'الرواتب',         fr:'Salaires'},
-    'nav.equipment':    {ar:'المعدات',         fr:'Équipements'},
-    'nav.transactions': {ar:'المعاملات',       fr:'Transactions'},
-    'nav.invoices':     {ar:'الفواتير',        fr:'Factures'},
-    'nav.inventory':    {ar:'المخزون',         fr:'Stock'},
-    'nav.suppliers':    {ar:'الموردون',        fr:'Fournisseurs'},
-    'nav.materials':    {ar:'المواد',          fr:'Matériaux'},
-    'nav.documents':    {ar:'الوثائق',         fr:'Documents'},
-    'nav.reports':      {ar:'التقارير',        fr:'Rapports'},
-    'nav.analytics':    {ar:'تحليلات',         fr:'Analytiques'},
-    'nav.kanban':       {ar:'Kanban',           fr:'Kanban'},
-    'nav.gantt':        {ar:'Gantt Chart',      fr:'Diagramme Gantt'},
-    'nav.team':         {ar:'الفريق',          fr:'Équipe'},
-    'nav.settings':     {ar:'الإعدادات',       fr:'Paramètres'},
-    'nav.compare':      {ar:'مقارنة المشاريع', fr:'Comparer projets'},
-    'nav.calendar':     {ar:'التقويم',         fr:'Calendrier'},
-    'nav.map':          {ar:'خريطة الولايات',  fr:'Carte wilayas'},
+    'nav.dashboard': {ar:'لوحة التحكم', fr:'Tableau de bord', en:'Dashboard'},
+    'nav.projects': {ar:'المشاريع', fr:'Projets', en:'Projects'},
+    'nav.workers': {ar:'العمال', fr:'Ouvriers', en:'Workers'},
+    'nav.attendance': {ar:'الحضور', fr:'Présence', en:'Attendance'},
+    'nav.salary': {ar:'الرواتب', fr:'Salaires', en:'Payroll'},
+    'nav.equipment': {ar:'المعدات', fr:'Équipements', en:'Equipment'},
+    'nav.transactions': {ar:'المعاملات', fr:'Transactions', en:'Transactions'},
+    'nav.invoices': {ar:'الفواتير', fr:'Factures', en:'Invoices'},
+    'nav.inventory': {ar:'المخزون', fr:'Stock', en:'Stock'},
+    'nav.suppliers': {ar:'الموردون', fr:'Fournisseurs', en:'Suppliers'},
+    'nav.materials': {ar:'المواد', fr:'Matériaux', en:'Materials'},
+    'nav.documents': {ar:'الوثائق', fr:'Documents', en:'Documents'},
+    'nav.reports': {ar:'التقارير', fr:'Rapports', en:'Reports'},
+    'nav.analytics': {ar:'تحليلات', fr:'Analytiques', en:'Analytics'},
+    'nav.kanban': {ar:'Kanban', fr:'Kanban', en:'Kanban'},
+    'nav.gantt': {ar:'Gantt Chart', fr:'Diagramme Gantt', en:'Gantt Chart'},
+    'nav.team': {ar:'الفريق', fr:'Équipe', en:'Team'},
+    'nav.settings': {ar:'الإعدادات', fr:'Paramètres', en:'Settings'},
+    'nav.compare': {ar:'مقارنة المشاريع', fr:'Comparer projets', en:'Compare Projects'},
+    'nav.calendar': {ar:'التقويم', fr:'Calendrier', en:'Calendar'},
+    'nav.map': {ar:'خريطة الولايات', fr:'Carte wilayas', en:'Wilayas Map'},
     // Sections
-    'section.main':     {ar:'الرئيسية',        fr:'Principal'},
-    'section.projects': {ar:'المشاريع',        fr:'Projets'},
-    'section.hr':       {ar:'الموارد البشرية', fr:'Ressources humaines'},
-    'section.finance':  {ar:'المالية',         fr:'Finance'},
-    'section.stock':    {ar:'المواد',          fr:'Stock'},
-    'section.docs':     {ar:'الوثائق والتقارير',fr:'Docs & Rapports'},
-    'section.account':  {ar:'الحساب',         fr:'Compte'},
+    'section.main': {ar:'الرئيسية', fr:'Principal', en:'Main'},
+    'section.projects': {ar:'المشاريع', fr:'Projets', en:'Projects'},
+    'section.hr': {ar:'الموارد البشرية', fr:'Ressources humaines', en:'Human Resources'},
+    'section.finance': {ar:'المالية', fr:'Finance', en:'Finance'},
+    'section.stock': {ar:'المواد', fr:'Stock', en:'Stock'},
+    'section.docs': {ar:'الوثائق والتقارير', fr:'Docs & Rapports', en:'Documents & Reports'},
+    'section.account': {ar:'الحساب', fr:'Compte', en:'Account'},
     // Common actions
-    'action.add':       {ar:'إضافة',           fr:'Ajouter'},
-    'action.edit':      {ar:'تعديل',           fr:'Modifier'},
-    'action.delete':    {ar:'حذف',             fr:'Supprimer'},
-    'action.save':      {ar:'حفظ',             fr:'Enregistrer'},
-    'action.cancel':    {ar:'إلغاء',           fr:'Annuler'},
-    'action.export':    {ar:'تصدير',           fr:'Exporter'},
-    'action.print':     {ar:'طباعة',           fr:'Imprimer'},
-    'action.search':    {ar:'بحث',             fr:'Rechercher'},
-    'action.close':     {ar:'إغلاق',           fr:'Fermer'},
-    'action.details':   {ar:'تفاصيل',          fr:'Détails'},
-    'action.back':      {ar:'العودة',          fr:'Retour'},
+    'action.add': {ar:'إضافة', fr:'Ajouter', en:'Add'},
+    'action.edit': {ar:'تعديل', fr:'Modifier', en:'Edit'},
+    'action.delete': {ar:'حذف', fr:'Supprimer', en:'Delete'},
+    'action.save': {ar:'حفظ', fr:'Enregistrer', en:'Save'},
+    'action.cancel': {ar:'إلغاء', fr:'Annuler', en:'Cancel'},
+    'action.export': {ar:'تصدير', fr:'Exporter', en:'Export'},
+    'action.print': {ar:'طباعة', fr:'Imprimer', en:'Print'},
+    'action.search': {ar:'بحث', fr:'Rechercher', en:'Search'},
+    'action.close': {ar:'إغلاق', fr:'Fermer', en:'Close'},
+    'action.details': {ar:'تفاصيل', fr:'Détails', en:'Details'},
+    'action.back': {ar:'العودة', fr:'Retour', en:'Back'},
     // Status
-    'status.active':    {ar:'نشط',             fr:'Actif'},
-    'status.completed': {ar:'مكتمل',           fr:'Terminé'},
-    'status.delayed':   {ar:'متأخر',           fr:'En retard'},
-    'status.paused':    {ar:'متوقف',           fr:'Pausé'},
+    'status.active': {ar:'نشط', fr:'Actif', en:'Active'},
+    'status.completed': {ar:'مكتمل', fr:'Terminé', en:'Completed'},
+    'status.delayed': {ar:'متأخر', fr:'En retard', en:'Delayed'},
+    'status.paused': {ar:'متوقف', fr:'Pausé', en:'Paused'},
     // Common labels
-    'lbl.project':      {ar:'المشروع',         fr:'Projet'},
-    'lbl.budget':       {ar:'الميزانية',       fr:'Budget'},
-    'lbl.spent':        {ar:'المُنفَق',        fr:'Dépensé'},
-    'lbl.progress':     {ar:'التقدم',          fr:'Avancement'},
-    'lbl.client':       {ar:'العميل',          fr:'Client'},
-    'lbl.wilaya':       {ar:'الولاية',         fr:'Wilaya'},
-    'lbl.date':         {ar:'التاريخ',         fr:'Date'},
-    'lbl.amount':       {ar:'المبلغ',          fr:'Montant'},
-    'lbl.worker':       {ar:'العامل',          fr:'Ouvrier'},
-    'lbl.salary':       {ar:'الأجر',           fr:'Salaire'},
-    'lbl.phone':        {ar:'الهاتف',          fr:'Téléphone'},
-    'lbl.name':         {ar:'الاسم',           fr:'Nom'},
-    'lbl.type':         {ar:'النوع',           fr:'Type'},
-    'lbl.notes':        {ar:'ملاحظات',         fr:'Notes'},
-    'lbl.total':        {ar:'الإجمالي',        fr:'Total'},
-    'lbl.revenue':      {ar:'إيراد',           fr:'Revenu'},
-    'lbl.expense':      {ar:'مصروف',           fr:'Dépense'},
-    'lbl.profit':       {ar:'الربح',           fr:'Bénéfice'},
-    'lbl.netProfit':    {ar:'الربح الصافي',    fr:'Bénéfice net'},
-    'lbl.allWilayas':   {ar:'كل الولايات',     fr:'Toutes wilayas'},
-    'lbl.allStatus':    {ar:'كل الحالات',      fr:'Tous statuts'},
-    'lbl.allTypes':     {ar:'كل أنواع المشاريع',fr:'Tous types'},
+    'lbl.project': {ar:'المشروع', fr:'Projet', en:'Project'},
+    'lbl.budget': {ar:'الميزانية', fr:'Budget', en:'Budget'},
+    'lbl.spent': {ar:'المُنفَق', fr:'Dépensé', en:'Spent'},
+    'lbl.progress': {ar:'التقدم', fr:'Avancement', en:'Progress'},
+    'lbl.client': {ar:'العميل', fr:'Client', en:'Client'},
+    'lbl.wilaya': {ar:'الولاية', fr:'Wilaya', en:'Wilaya'},
+    'lbl.date': {ar:'التاريخ', fr:'Date', en:'Date'},
+    'lbl.amount': {ar:'المبلغ', fr:'Montant', en:'Amount'},
+    'lbl.worker': {ar:'العامل', fr:'Ouvrier', en:'Worker'},
+    'lbl.salary': {ar:'الأجر', fr:'Salaire', en:'Salary'},
+    'lbl.phone': {ar:'الهاتف', fr:'Téléphone', en:'Phone'},
+    'lbl.name': {ar:'الاسم', fr:'Nom', en:'Name'},
+    'lbl.type': {ar:'النوع', fr:'Type', en:'Type'},
+    'lbl.notes': {ar:'ملاحظات', fr:'Notes', en:'Notes'},
+    'lbl.total': {ar:'الإجمالي', fr:'Total', en:'Total'},
+    'lbl.revenue': {ar:'إيراد', fr:'Revenu', en:'Revenue'},
+    'lbl.expense': {ar:'مصروف', fr:'Dépense', en:'Expense'},
+    'lbl.profit': {ar:'الربح', fr:'Bénéfice', en:'Profit'},
+    'lbl.netProfit': {ar:'الربح الصافي', fr:'Bénéfice net', en:'Net Profit'},
+    'lbl.allWilayas': {ar:'كل الولايات', fr:'Toutes wilayas', en:'All Wilayas'},
+    'lbl.allStatus': {ar:'كل الحالات', fr:'Tous statuts', en:'All Statuses'},
+    'lbl.allTypes': {ar:'كل أنواع المشاريع', fr:'Tous types', en:'All Types'},
     // Pages titles
-    'page.projects':    {ar:'🏗️ المشاريع',    fr:'🏗️ Projets'},
-    'page.workers':     {ar:'👷 العمال',       fr:'👷 Ouvriers'},
-    'page.equipment':   {ar:'🚜 المعدات',      fr:'🚜 Équipements'},
-    'page.transactions':{ar:'💰 المعاملات المالية', fr:'💰 Transactions financières'},
-    'page.reports':     {ar:'📈 التقارير',     fr:'📈 Rapports'},
-    'page.settings':    {ar:'⚙️ الإعدادات',   fr:'⚙️ Paramètres'},
-    'page.compare':     {ar:'📊 مقارنة المشاريع', fr:'📊 Comparaison de projets'},
-    'page.calendar':    {ar:'🗓️ تقويم المشاريع', fr:'🗓️ Calendrier des projets'},
-    'page.map':         {ar:'🗺️ خريطة المشاريع', fr:'🗺️ Carte des projets'},
-    'page.backup':      {ar:'💾 النسخ الاحتياطي', fr:'💾 Sauvegarde'},
+    'page.projects': {ar:'🏗️ المشاريع', fr:'🏗️ Projets', en:'🏗️ Projects'},
+    'page.workers': {ar:'👷 العمال', fr:'👷 Ouvriers', en:'👷 Workers'},
+    'page.equipment': {ar:'🚜 المعدات', fr:'🚜 Équipements', en:'🚜 Equipment'},
+    'page.transactions': {ar:'💰 المعاملات المالية', fr:'💰 Transactions financières', en:'💰 Financial Transactions'},
+    'page.reports': {ar:'📈 التقارير', fr:'📈 Rapports', en:'📈 Reports'},
+    'page.settings': {ar:'⚙️ الإعدادات', fr:'⚙️ Paramètres', en:'⚙️ Settings'},
+    'page.compare': {ar:'📊 مقارنة المشاريع', fr:'📊 Comparaison de projets', en:'📊 Compare Projects'},
+    'page.calendar': {ar:'🗓️ تقويم المشاريع', fr:'🗓️ Calendrier des projets', en:'🗓️ Project Calendar'},
+    'page.map': {ar:'🗺️ خريطة المشاريع', fr:'🗺️ Carte des projets', en:'🗺️ Project Map'},
+    'page.backup': {ar:'💾 النسخ الاحتياطي', fr:'💾 Sauvegarde', en:'💾 Backup'},
     // Dashboard v9
-    'dash.healthScore':   {ar:'مؤشر صحة المؤسسة',      fr:'Score de santé'},
-    'dash.healthSub':     {ar:'تقييم شامل للأداء المالي والتشغيلي', fr:'Évaluation globale des performances'},
-    'dash.activeProj':    {ar:'مشاريع نشطة',            fr:'Projets actifs'},
-    'dash.forecastProfit':{ar:'ربح متوقع/شهر (دج)',     fr:'Bénéfice prévu/mois (DA)'},
-    'dash.atRisk':        {ar:'مشاريع في خطر',          fr:'Projets à risque'},
-    'dash.netLiquidity':  {ar:'صافي السيولة (دج)',       fr:'Liquidité nette (DA)'},
+    'dash.healthScore': {ar:'مؤشر صحة المؤسسة', fr:'Score de santé', en:'Company Health Score'},
+    'dash.healthSub': {ar:'تقييم شامل للأداء المالي والتشغيلي', fr:'Évaluation globale des performances', en:'Overall financial & operational performance'},
+    'dash.activeProj': {ar:'مشاريع نشطة', fr:'Projets actifs', en:'Active Projects'},
+    'dash.forecastProfit': {ar:'ربح متوقع/شهر (دج)', fr:'Bénéfice prévu/mois (DA)', en:'Forecast Profit/Month (DZD)'},
+    'dash.atRisk': {ar:'مشاريع في خطر', fr:'Projets à risque', en:'Projects at Risk'},
+    'dash.netLiquidity': {ar:'صافي السيولة (دج)', fr:'Liquidité nette (DA)', en:'Net Liquidity (DZD)'},
     'dash.todayPresence': {ar:'حضور اليوم',              fr:'Présence aujourd\'hui'},
-    'dash.budgetConsum':  {ar:'استهلاك الميزانية الإجمالي', fr:'Consommation budget global'},
-    'dash.riskPanel':     {ar:'لوحة المخاطر الذكية',    fr:'Tableau des risques IA'},
-    'dash.noRisks':       {ar:'لا مخاطر مكتشفة الآن',   fr:'Aucun risque détecté'},
-    'dash.forecastTitle': {ar:'توقعات الربح',            fr:'Prévisions de bénéfice'},
-    'dash.thisMonth':     {ar:'هذا الشهر',               fr:'Ce mois'},
-    'dash.monthRevenue':  {ar:'إيرادات الشهر',           fr:'Revenus du mois'},
-    'dash.dailyBurn':     {ar:'معدل الصرف اليومي',       fr:'Taux de dépense journalier'},
-    'dash.forecastExp':   {ar:'مصاريف متوقعة نهاية الشهر', fr:'Dépenses prévues fin du mois'},
-    'dash.forecastEnd':   {ar:'ربح متوقع نهاية الشهر',   fr:'Bénéfice prévu fin du mois'},
+    'dash.budgetConsum': {ar:'استهلاك الميزانية الإجمالي', fr:'Consommation budget global', en:'Total Budget Consumption'},
+    'dash.riskPanel': {ar:'لوحة المخاطر الذكية', fr:'Tableau des risques IA', en:'Smart Risk Dashboard'},
+    'dash.noRisks': {ar:'لا مخاطر مكتشفة الآن', fr:'Aucun risque détecté', en:'No risks detected'},
+    'dash.forecastTitle': {ar:'توقعات الربح', fr:'Prévisions de bénéfice', en:'Profit Forecast'},
+    'dash.thisMonth': {ar:'هذا الشهر', fr:'Ce mois', en:'This Month'},
+    'dash.monthRevenue': {ar:'إيرادات الشهر', fr:'Revenus du mois', en:'Month Revenue'},
+    'dash.dailyBurn': {ar:'معدل الصرف اليومي', fr:'Taux de dépense journalier', en:'Daily Burn Rate'},
+    'dash.forecastExp': {ar:'مصاريف متوقعة نهاية الشهر', fr:'Dépenses prévues fin du mois', en:'Forecast Expenses (end of month)'},
+    'dash.forecastEnd': {ar:'ربح متوقع نهاية الشهر', fr:'Bénéfice prévu fin du mois', en:'Forecast Profit (end of month)'},
     'dash.workerEff':     {ar:'كفاءة القوى العاملة',     fr:'Efficacité de la main-d\'œuvre'},
-    'dash.totalWorkers':  {ar:'إجمالي عمال',             fr:'Total ouvriers'},
-    'dash.dailyCost':     {ar:'تكلفة يومية إجمالية',     fr:'Coût journalier total'},
+    'dash.totalWorkers': {ar:'إجمالي عمال', fr:'Total ouvriers', en:'Total Workers'},
+    'dash.dailyCost': {ar:'تكلفة يومية إجمالية', fr:'Coût journalier total', en:'Total Daily Cost'},
     'dash.presentToday':  {ar:'حاضر اليوم',              fr:'Présent aujourd\'hui'},
-    'dash.cashflow':      {ar:'التدفق النقدي (6 أشهر)',  fr:'Flux de trésorerie (6 mois)'},
-    'dash.revenues':      {ar:'إيرادات',                 fr:'Revenus'},
-    'dash.expenses':      {ar:'مصاريف',                  fr:'Dépenses'},
-    'dash.profitClass':   {ar:'تصنيف ربحية المشاريع',   fr:'Classification rentabilité'},
-    'dash.recentProj':    {ar:'آخر المشاريع',            fr:'Projets récents'},
-    'dash.viewAll':       {ar:'عرض الكل ←',              fr:'Voir tout →'},
-    'dash.newProject':    {ar:'+ مشروع جديد',            fr:'+ Nouveau projet'},
-    'dash.worker':        {ar:'عامل',                    fr:'ouvrier(s)'},
-    'dash.stable':        {ar:'🟢 مستقر',                fr:'🟢 Stable'},
-    'dash.needsAttn':     {ar:'🟡 تحتاج انتباه',         fr:'🟡 Attention requise'},
-    'dash.danger':        {ar:'🔴 خطر مالي',             fr:'🔴 Danger financier'},
-    'dash.overrunWarn':   {ar:'تجاوز متوقع',             fr:'Dépassement prévu'},
-    'dash.noProjects':    {ar:'لا توجد مشاريع بعد',      fr:'Aucun projet encore'},
-    'dash.alerts':        {ar:'تنبيه',                   fr:'alerte(s)'},
-    'dash.budgetPct':     {ar:'مُستهلَك، تقدم',          fr:'consommé, avancement'},
-    'dash.delayed':       {ar:'متأخر',                   fr:'En retard'},
-    'dash.region':        {ar:'الولاية:',                fr:'Wilaya:'},
-    'dash.forecastOver':  {ar:'تجاوز ميزانية متوقع',    fr:'Dépassement budget prévu'},
-    'dash.totalBudget':   {ar:'دج',                      fr:'DA'},
-    'dash.profHigh':      {ar:'🟢 مربح',                 fr:'🟢 Rentable'},
-    'dash.profMed':       {ar:'🟡 متوسط',                fr:'🟡 Moyen'},
-    'dash.profLow':       {ar:'🟠 ضعيف',                 fr:'🟠 Faible'},
-    'dash.profLoss':      {ar:'🔴 خاسر',                 fr:'🔴 Déficitaire'},
-    'dash.riskBudget70':  {ar:'تجاوز 70% ميزانية قبل 50% تقدم', fr:'70% budget avant 50% avancement'},
-    'dash.riskConsumed':  {ar:'مستهلك، تقدم',            fr:'consommé, avancement'},
-    'dash.riskDelayed':   {ar:'متأخر',                   fr:'En retard'},
-    'dash.riskWilaya':    {ar:'الولاية:',                fr:'Wilaya:'},
-    'dash.riskForecast':  {ar:'توقع تجاوز ميزانية',     fr:'Dépassement budget prévu'},
-    'dash.riskOverrun':   {ar:'تجاوز متوقع:',            fr:'Dépassement prévu:'},
-    'dash.budgetConsumed':{ar:'% مستهلك',                fr:'% consommé'},
+    'dash.cashflow': {ar:'التدفق النقدي (6 أشهر)', fr:'Flux de trésorerie (6 mois)', en:'Cash Flow (6 months)'},
+    'dash.revenues': {ar:'إيرادات', fr:'Revenus', en:'Revenues'},
+    'dash.expenses': {ar:'مصاريف', fr:'Dépenses', en:'Expenses'},
+    'dash.profitClass': {ar:'تصنيف ربحية المشاريع', fr:'Classification rentabilité', en:'Project Profitability'},
+    'dash.recentProj': {ar:'آخر المشاريع', fr:'Projets récents', en:'Recent Projects'},
+    'dash.viewAll': {ar:'عرض الكل ←', fr:'Voir tout →', en:'View All →'},
+    'dash.newProject': {ar:'+ مشروع جديد', fr:'+ Nouveau projet', en:'+ New Project'},
+    'dash.worker': {ar:'عامل', fr:'ouvrier(s)', en:'worker(s)'},
+    'dash.stable': {ar:'🟢 مستقر', fr:'🟢 Stable', en:'🟢 Stable'},
+    'dash.needsAttn': {ar:'🟡 تحتاج انتباه', fr:'🟡 Attention requise', en:'🟡 Needs Attention'},
+    'dash.danger': {ar:'🔴 خطر مالي', fr:'🔴 Danger financier', en:'🔴 Financial Risk'},
+    'dash.overrunWarn': {ar:'تجاوز متوقع', fr:'Dépassement prévu', en:'Expected overrun'},
+    'dash.noProjects': {ar:'لا توجد مشاريع بعد', fr:'Aucun projet encore', en:'No projects yet'},
+    'dash.alerts': {ar:'تنبيه', fr:'alerte(s)', en:'alert(s)'},
+    'dash.budgetPct': {ar:'مُستهلَك، تقدم', fr:'consommé, avancement', en:'consumed, progress'},
+    'dash.delayed': {ar:'متأخر', fr:'En retard', en:'Delayed'},
+    'dash.region': {ar:'الولاية:', fr:'Wilaya:', en:'Wilaya:'},
+    'dash.forecastOver': {ar:'تجاوز ميزانية متوقع', fr:'Dépassement budget prévu', en:'Budget overrun expected'},
+    'dash.totalBudget': {ar:'دج', fr:'DA', en:'DZD'},
+    'dash.profHigh': {ar:'🟢 مربح', fr:'🟢 Rentable', en:'🟢 Profitable'},
+    'dash.profMed': {ar:'🟡 متوسط', fr:'🟡 Moyen', en:'🟡 Medium'},
+    'dash.profLow': {ar:'🟠 ضعيف', fr:'🟠 Faible', en:'🟠 Low'},
+    'dash.profLoss': {ar:'🔴 خاسر', fr:'🔴 Déficitaire', en:'🔴 Loss'},
+    'dash.riskBudget70': {ar:'تجاوز 70% ميزانية قبل 50% تقدم', fr:'70% budget avant 50% avancement', en:'70% budget before 50% progress'},
+    'dash.riskConsumed': {ar:'مستهلك، تقدم', fr:'consommé, avancement', en:'consumed, progress'},
+    'dash.riskDelayed': {ar:'متأخر', fr:'En retard', en:'Delayed'},
+    'dash.riskWilaya': {ar:'الولاية:', fr:'Wilaya:', en:'Wilaya:'},
+    'dash.riskForecast': {ar:'توقع تجاوز ميزانية', fr:'Dépassement budget prévu', en:'Budget overrun expected'},
+    'dash.riskOverrun': {ar:'تجاوز متوقع:', fr:'Dépassement prévu:', en:'Expected overrun:'},
+    'dash.budgetConsumed': {ar:'% مستهلك', fr:'% consommé', en:'% consumed'},
     // Settings
-    'set.company':      {ar:'معلومات الشركة',  fr:'Infos société'},
-    'set.companyName':  {ar:'اسم الشركة',      fr:'Nom de la société'},
-    'set.language':     {ar:'اللغة',           fr:'Langue'},
-    'set.langAr':       {ar:'العربية',         fr:'Arabe'},
-    'set.langFr':       {ar:'الفرنسية',        fr:'Français'},
-    'set.backup':       {ar:'النسخ الاحتياطي', fr:'Sauvegarde'},
-    'set.exportAll':    {ar:'تصدير جميع البيانات', fr:'Exporter toutes les données'},
-    'set.importData':   {ar:'استيراد البيانات', fr:'Importer des données'},
-    'set.saveChanges':  {ar:'💾 حفظ التغييرات', fr:'💾 Sauvegarder'},
-    'set.password':     {ar:'🔑 تغيير كلمة المرور', fr:'🔑 Changer mot de passe'},
+    'set.company': {ar:'معلومات الشركة', fr:'Infos société', en:'Company Info'},
+    'set.companyName': {ar:'اسم الشركة', fr:'Nom de la société', en:'Company Name'},
+    'set.language': {ar:'اللغة', fr:'Langue', en:'Language'},
+    'set.langAr': {ar:'العربية', fr:'Arabe', en:'Arabic'},
+    'set.langFr': {ar:'الفرنسية', fr:'Français', en:'French'},
+    'set.backup': {ar:'النسخ الاحتياطي', fr:'Sauvegarde', en:'Backup'},
+    'set.exportAll': {ar:'تصدير جميع البيانات', fr:'Exporter toutes les données', en:'Export All Data'},
+    'set.importData': {ar:'استيراد البيانات', fr:'Importer des données', en:'Import Data'},
+    'set.saveChanges': {ar:'💾 حفظ التغييرات', fr:'💾 Sauvegarder', en:'💾 Save Changes'},
+    'set.password': {ar:'🔑 تغيير كلمة المرور', fr:'🔑 Changer mot de passe', en:'🔑 Change Password'},
     // Compare
-    'cmp.title':        {ar:'مقارنة المشاريع', fr:'Comparaison de projets'},
-    'cmp.select1':      {ar:'المشروع الأول',   fr:'Premier projet'},
-    'cmp.select2':      {ar:'المشروع الثاني',  fr:'Deuxième projet'},
-    'cmp.compare':      {ar:'قارن الآن',       fr:'Comparer'},
-    'cmp.budget':       {ar:'الميزانية',       fr:'Budget'},
-    'cmp.spent':        {ar:'المُنفَق',        fr:'Dépensé'},
-    'cmp.progress':     {ar:'التقدم',          fr:'Avancement'},
-    'cmp.workers':      {ar:'العمال',          fr:'Ouvriers'},
-    'cmp.duration':     {ar:'المدة (يوم)',      fr:'Durée (j)'},
-    'cmp.efficiency':   {ar:'كفاءة الميزانية', fr:'Efficacité budget'},
+    'cmp.title': {ar:'مقارنة المشاريع', fr:'Comparaison de projets', en:'Compare Projects'},
+    'cmp.select1': {ar:'المشروع الأول', fr:'Premier projet', en:'First Project'},
+    'cmp.select2': {ar:'المشروع الثاني', fr:'Deuxième projet', en:'Second Project'},
+    'cmp.compare': {ar:'قارن الآن', fr:'Comparer', en:'Compare Now'},
+    'cmp.budget': {ar:'الميزانية', fr:'Budget', en:'Budget'},
+    'cmp.spent': {ar:'المُنفَق', fr:'Dépensé', en:'Spent'},
+    'cmp.progress': {ar:'التقدم', fr:'Avancement', en:'Progress'},
+    'cmp.workers': {ar:'العمال', fr:'Ouvriers', en:'Workers'},
+    'cmp.duration': {ar:'المدة (يوم)', fr:'Durée (j)', en:'Duration (days)'},
+    'cmp.efficiency': {ar:'كفاءة الميزانية', fr:'Efficacité budget', en:'Budget Efficiency'},
 
     // ── HR ──
-    'hr.leaves':        {ar:'الإجازات',              fr:'Congés'},
-    'hr.leave.annual':  {ar:'إجازة سنوية',           fr:'Congé annuel'},
-    'hr.leave.sick':    {ar:'إجازة مرضية',           fr:'Congé maladie'},
-    'hr.leave.maternity':{ar:'إجازة أمومة',          fr:'Congé maternité'},
-    'hr.leave.unpaid':  {ar:'إجازة بدون أجر',        fr:'Congé sans solde'},
-    'hr.leave.other':   {ar:'إجازة أخرى',            fr:'Autre congé'},
-    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant'},
+    'hr.leaves': {ar:'الإجازات', fr:'Congés', en:'Leave'},
+    'hr.leave.annual': {ar:'إجازة سنوية', fr:'Congé annuel', en:'Annual Leave'},
+    'hr.leave.sick': {ar:'إجازة مرضية', fr:'Congé maladie', en:'Sick Leave'},
+    'hr.leave.maternity': {ar:'إجازة أمومة', fr:'Congé maternité', en:'Maternity Leave'},
+    'hr.leave.unpaid': {ar:'إجازة بدون أجر', fr:'Congé sans solde', en:'Unpaid Leave'},
+    'hr.leave.other': {ar:'إجازة أخرى', fr:'Autre congé', en:'Other Leave'},
+    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant', en:'Remaining Leave Balance'},
     'hr.leave.pending': {ar:'بانتظار الموافقة',       fr:'En attente d\'approbation'},
-    'hr.leave.approved':{ar:'مُعتمد',                fr:'Approuvé'},
-    'hr.leave.rejected':{ar:'مرفوض',                 fr:'Refusé'},
-    'hr.warning':       {ar:'إنذار',                 fr:'Avertissement'},
-    'hr.warning.verbal':{ar:'شفوي',                  fr:'Verbal'},
-    'hr.warning.written':{ar:'كتابي',                fr:'Écrit'},
-    'hr.warning.final': {ar:'إنذار نهائي',           fr:'Avertissement final'},
-    'hr.overtime':      {ar:'ساعات إضافية',          fr:'Heures supplémentaires'},
-    'hr.overtime.rate': {ar:'نسبة المكافأة',         fr:'Taux de majoration'},
-    'hr.profile':       {ar:'الملف التفصيلي',        fr:'Profil détaillé'},
-    'hr.contract.end':  {ar:'تاريخ انتهاء العقد',    fr:'Date de fin de contrat'},
-    'hr.contract.expiring':{ar:'تنتهي عقودهم قريباً',fr:'Contrats bientôt expirés'},
-    'hr.absence.cost':  {ar:'تكلفة الغياب',          fr:'Coût des absences'},
-    'hr.allowances':    {ar:'العلاوات',              fr:'Primes'},
-    'hr.deductions':    {ar:'الخصومات',              fr:'Déductions'},
-    'hr.transport':     {ar:'بدل نقل',               fr:'Indemnité transport'},
-    'hr.housing':       {ar:'بدل إقامة',             fr:'Indemnité logement'},
-    'hr.productivity':  {ar:'علاوة إنتاجية',         fr:'Prime de productivité'},
+    'hr.leave.approved': {ar:'مُعتمد', fr:'Approuvé', en:'Approved'},
+    'hr.leave.rejected': {ar:'مرفوض', fr:'Refusé', en:'Rejected'},
+    'hr.warning': {ar:'إنذار', fr:'Avertissement', en:'Warning'},
+    'hr.warning.verbal': {ar:'شفوي', fr:'Verbal', en:'Verbal'},
+    'hr.warning.written': {ar:'كتابي', fr:'Écrit', en:'Written'},
+    'hr.warning.final': {ar:'إنذار نهائي', fr:'Avertissement final', en:'Final Warning'},
+    'hr.overtime': {ar:'ساعات إضافية', fr:'Heures supplémentaires', en:'Overtime Hours'},
+    'hr.overtime.rate': {ar:'نسبة المكافأة', fr:'Taux de majoration', en:'Bonus Rate'},
+    'hr.profile': {ar:'الملف التفصيلي', fr:'Profil détaillé', en:'Detailed Profile'},
+    'hr.contract.end': {ar:'تاريخ انتهاء العقد', fr:'Date de fin de contrat', en:'Contract End Date'},
+    'hr.contract.expiring': {ar:'تنتهي عقودهم قريباً', fr:'Contrats bientôt expirés', en:'Expiring Contracts'},
+    'hr.absence.cost': {ar:'تكلفة الغياب', fr:'Coût des absences', en:'Absence Cost'},
+    'hr.allowances': {ar:'العلاوات', fr:'Primes', en:'Allowances'},
+    'hr.deductions': {ar:'الخصومات', fr:'Déductions', en:'Deductions'},
+    'hr.transport': {ar:'بدل نقل', fr:'Indemnité transport', en:'Transport Allowance'},
+    'hr.housing': {ar:'بدل إقامة', fr:'Indemnité logement', en:'Housing Allowance'},
+    'hr.productivity': {ar:'علاوة إنتاجية', fr:'Prime de productivité', en:'Productivity Bonus'},
 
     // ── Invoices ──
-    'inv.draft':        {ar:'مسودة',               fr:'Brouillon'},
-    'inv.pending':      {ar:'معلقة',               fr:'En attente'},
-    'inv.partial':      {ar:'جزئية',               fr:'Paiement partiel'},
-    'inv.paid':         {ar:'مدفوعة',              fr:'Payée'},
-    'inv.overdue':      {ar:'متأخرة',              fr:'En retard'},
-    'inv.confirm':      {ar:'تأكيد الفاتورة',      fr:'Confirmer la facture'},
-    'inv.partial.pay':  {ar:'تسجيل دفع جزئي',      fr:'Paiement partiel'},
+    'inv.draft': {ar:'مسودة', fr:'Brouillon', en:'Draft'},
+    'inv.pending': {ar:'معلقة', fr:'En attente', en:'Pending'},
+    'inv.partial': {ar:'جزئية', fr:'Paiement partiel', en:'Partial'},
+    'inv.paid': {ar:'مدفوعة', fr:'Payée', en:'Paid'},
+    'inv.overdue': {ar:'متأخرة', fr:'En retard', en:'Overdue'},
+    'inv.confirm': {ar:'تأكيد الفاتورة', fr:'Confirmer la facture', en:'Confirm Invoice'},
+    'inv.partial.pay': {ar:'تسجيل دفع جزئي', fr:'Paiement partiel', en:'Record Partial Payment'},
     'inv.aging':        {ar:'تقرير الذمم المدينة',  fr:'Rapport d\'aging'},
-    'inv.balance':      {ar:'الرصيد المتبقي',       fr:'Solde restant'},
-    'inv.paid_amount':  {ar:'المبلغ المدفوع',       fr:'Montant payé'},
-    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive'},
+    'inv.balance': {ar:'الرصيد المتبقي', fr:'Solde restant', en:'Remaining Balance'},
+    'inv.paid_amount': {ar:'المبلغ المدفوع', fr:'Montant payé', en:'Paid Amount'},
+    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive', en:'Upload to Google Drive'},
 
     // ── Suppliers ──
-    'sup.prices':       {ar:'قائمة الأسعار',       fr:'Tarifs de référence'},
-    'sup.obligations':  {ar:'الالتزامات',          fr:'Obligations'},
-    'sup.obl.invoice':  {ar:'فاتورة آجلة',         fr:'Facture à terme'},
-    'sup.obl.check':    {ar:'شيك مستحق',           fr:'Chèque à encaisser'},
-    'sup.obl.deposit':  {ar:'ضمان/عربون',          fr:'Caution/Acompte'},
-    'sup.obl.loan':     {ar:'قرض/سلفة',            fr:'Prêt/Avance'},
-    'sup.obl.done':     {ar:'تأشير كمنجز',         fr:'Marquer accompli'},
+    'sup.prices': {ar:'قائمة الأسعار', fr:'Tarifs de référence', en:'Price List'},
+    'sup.obligations': {ar:'الالتزامات', fr:'Obligations', en:'Obligations'},
+    'sup.obl.invoice': {ar:'فاتورة آجلة', fr:'Facture à terme', en:'Deferred Invoice'},
+    'sup.obl.check': {ar:'شيك مستحق', fr:'Chèque à encaisser', en:'Check Due'},
+    'sup.obl.deposit': {ar:'ضمان/عربون', fr:'Caution/Acompte', en:'Deposit/Advance'},
+    'sup.obl.loan': {ar:'قرض/سلفة', fr:'Prêt/Avance', en:'Loan/Advance'},
+    'sup.obl.done': {ar:'تأشير كمنجز', fr:'Marquer accompli', en:'Mark as Done'},
     'sup.due':          {ar:'تاريخ الاستحقاق',     fr:'Date d\'échéance'},
-    'sup.ref':          {ar:'المرجع',              fr:'Référence'},
+    'sup.ref': {ar:'المرجع', fr:'Référence', en:'Reference'},
 
     // ── Filter ──
-    'filter.project':   {ar:'تصفية بالمشروع',     fr:'Filtrer par projet'},
-    'filter.all':       {ar:'كل المشاريع',        fr:'Tous les projets'},
-    'filter.clear':     {ar:'إلغاء الفلتر',       fr:'Effacer le filtre'},
+    'filter.project': {ar:'تصفية بالمشروع', fr:'Filtrer par projet', en:'Filter by Project'},
+    'filter.all': {ar:'كل المشاريع', fr:'Tous les projets', en:'All Projects'},
+    'filter.clear': {ar:'إلغاء الفلتر', fr:'Effacer le filtre', en:'Clear Filter'},
 
     // ── Print ──
-    'print.customize':  {ar:'تخصيص الورقة',      fr:'Personnaliser'},
-    'print.font':       {ar:'نوع الخط',          fr:'Police'},
-    'print.fontSize':   {ar:'حجم الخط',          fr:'Taille police'},
-    'print.color':      {ar:'اللون الرئيسي',     fr:'Couleur principale'},
-    'print.margin':     {ar:'الهوامش',           fr:'Marges'},
-    'print.pageSize':   {ar:'حجم الورق',         fr:'Format papier'},
-    'print.orient':     {ar:'الاتجاه',           fr:'Orientation'},
-    'print.portrait':   {ar:'عمودي',             fr:'Portrait'},
-    'print.landscape':  {ar:'أفقي',              fr:'Paysage'},
-    'print.watermark':  {ar:'نص خلفي',           fr:'Filigrane'},
-    'print.lineHeight': {ar:'تباعد الأسطر',      fr:'Interligne'},
-    'print.save':       {ar:'حفظ الإعدادات',     fr:'Sauvegarder paramètres'},
-    'print.reset':      {ar:'إعادة الإعدادات',   fr:'Réinitialiser'},
-    'print.savePC':     {ar:'حفظ على الحاسوب',   fr:'Enregistrer sur PC'},
-    'print.showLogo':   {ar:'إظهار الشعار',      fr:'Afficher logo'},
-    'print.showFooter': {ar:'إظهار الفوتر',      fr:'Afficher pied de page'},
-    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page'},
-    'print.tableHeader':{ar:'لون رأس الجدول',    fr:'Couleur en-tête tableau'},
-    'print.rowColor':   {ar:'لون الصفوف',        fr:'Couleur des lignes'},
-    'print.headingSize':{ar:'حجم العناوين',      fr:'Taille des titres'},
+    'print.customize': {ar:'تخصيص الورقة', fr:'Personnaliser', en:'Customize'},
+    'print.font': {ar:'نوع الخط', fr:'Police', en:'Font'},
+    'print.fontSize': {ar:'حجم الخط', fr:'Taille police', en:'Font Size'},
+    'print.color': {ar:'اللون الرئيسي', fr:'Couleur principale', en:'Primary Color'},
+    'print.margin': {ar:'الهوامش', fr:'Marges', en:'Margins'},
+    'print.pageSize': {ar:'حجم الورق', fr:'Format papier', en:'Page Size'},
+    'print.orient': {ar:'الاتجاه', fr:'Orientation', en:'Orientation'},
+    'print.portrait': {ar:'عمودي', fr:'Portrait', en:'Portrait'},
+    'print.landscape': {ar:'أفقي', fr:'Paysage', en:'Landscape'},
+    'print.watermark': {ar:'نص خلفي', fr:'Filigrane', en:'Watermark'},
+    'print.lineHeight': {ar:'تباعد الأسطر', fr:'Interligne', en:'Line Height'},
+    'print.save': {ar:'حفظ الإعدادات', fr:'Sauvegarder paramètres', en:'Save Settings'},
+    'print.reset': {ar:'إعادة الإعدادات', fr:'Réinitialiser', en:'Reset'},
+    'print.savePC': {ar:'حفظ على الحاسوب', fr:'Enregistrer sur PC', en:'Save to PC'},
+    'print.showLogo': {ar:'إظهار الشعار', fr:'Afficher logo', en:'Show Logo'},
+    'print.showFooter': {ar:'إظهار الفوتر', fr:'Afficher pied de page', en:'Show Footer'},
+    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page', en:'Footer Text'},
+    'print.tableHeader': {ar:'لون رأس الجدول', fr:'Couleur en-tête tableau', en:'Table Header Color'},
+    'print.rowColor': {ar:'لون الصفوف', fr:'Couleur des lignes', en:'Row Color'},
+    'print.headingSize': {ar:'حجم العناوين', fr:'Taille des titres', en:'Heading Size'},
 
     // ── Backup ──
-    'bak.export':       {ar:'تصدير نسخة احتياطية',  fr:'Exporter sauvegarde'},
-    'bak.import':       {ar:'استعادة من نسخة',       fr:'Restaurer depuis'},
-    'bak.exportExcel':  {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel'},
-    'bak.exportSalary': {ar:'تصدير الرواتب Excel',   fr:'Exporter salaires Excel'},
+    'bak.export': {ar:'تصدير نسخة احتياطية', fr:'Exporter sauvegarde', en:'Export Backup'},
+    'bak.import': {ar:'استعادة من نسخة', fr:'Restaurer depuis', en:'Restore from Backup'},
+    'bak.exportExcel': {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel', en:'Export Transactions Excel'},
+    'bak.exportSalary': {ar:'تصدير الرواتب Excel', fr:'Exporter salaires Excel', en:'Export Payroll Excel'},
 
     // ── Auth ──
-    'auth.phone':       {ar:'رقم الهاتف',           fr:'Téléphone'},
-    'auth.sendOtp':     {ar:'إرسال كود',             fr:'Envoyer code'},
-    'auth.otp':         {ar:'كود التحقق',            fr:'Code de vérification'},
-    'auth.otpSent':     {ar:'تم إرسال الكود إلى',    fr:'Code envoyé à'},
-    'auth.otpExpiry':   {ar:'ينتهي خلال',            fr:'Expire dans'},
-    'auth.resend':      {ar:'إعادة إرسال',           fr:'Renvoyer'},
-    'auth.register':    {ar:'إنشاء حساب مجاناً',     fr:'Créer un compte gratuit'},
-    'auth.login':       {ar:'تسجيل الدخول',          fr:'Connexion'},
+    'auth.phone': {ar:'رقم الهاتف', fr:'Téléphone', en:'Phone Number'},
+    'auth.sendOtp': {ar:'إرسال كود', fr:'Envoyer code', en:'Send Code'},
+    'auth.otp': {ar:'كود التحقق', fr:'Code de vérification', en:'Verification Code'},
+    'auth.otpSent': {ar:'تم إرسال الكود إلى', fr:'Code envoyé à', en:'Code sent to'},
+    'auth.otpExpiry': {ar:'ينتهي خلال', fr:'Expire dans', en:'Expires in'},
+    'auth.resend': {ar:'إعادة إرسال', fr:'Renvoyer', en:'Resend'},
+    'auth.register': {ar:'إنشاء حساب مجاناً', fr:'Créer un compte gratuit', en:'Create Free Account'},
+    'auth.login': {ar:'تسجيل الدخول', fr:'Connexion', en:'Sign In'},
     'auth.company':     {ar:'اسم المؤسسة',           fr:'Nom de l\'entreprise'},
-    'auth.fullName':    {ar:'الاسم الكامل',          fr:'Nom complet'},
-    'auth.password':    {ar:'كلمة المرور',           fr:'Mot de passe'},
-    'auth.wilaya':      {ar:'الولاية',               fr:'Wilaya'},
+    'auth.fullName': {ar:'الاسم الكامل', fr:'Nom complet', en:'Full Name'},
+    'auth.password': {ar:'كلمة المرور', fr:'Mot de passe', en:'Password'},
+    'auth.wilaya': {ar:'الولاية', fr:'Wilaya', en:'Wilaya'},
     'auth.terms':       {ar:'أوافق على الشروط',      fr:'J\'accepte les conditions'},
-    'auth.trial':       {ar:'14 يوم مجاناً',         fr:'14 jours gratuits'},
-    'auth.noCard':      {ar:'بدون بطاقة بنكية',      fr:'Sans carte bancaire'},
+    'auth.trial': {ar:'14 يوم مجاناً', fr:'14 jours gratuits', en:'14 days free'},
+    'auth.noCard': {ar:'بدون بطاقة بنكية', fr:'Sans carte bancaire', en:'No credit card required'},
 
     // ── Drive ──
-    'drive.connect':    {ar:'ربط Google Drive',      fr:'Connecter Google Drive'},
-    'drive.connected':  {ar:'متصل',                  fr:'Connecté'},
-    'drive.files':      {ar:'آخر الملفات المحفوظة',  fr:'Derniers fichiers sauvegardés'},
-    'drive.clientId':   {ar:'إعداد Client ID',       fr:'Configuration Client ID'},
+    'drive.connect': {ar:'ربط Google Drive', fr:'Connecter Google Drive', en:'Connect Google Drive'},
+    'drive.connected': {ar:'متصل', fr:'Connecté', en:'Connected'},
+    'drive.files': {ar:'آخر الملفات المحفوظة', fr:'Derniers fichiers sauvegardés', en:'Recent Saved Files'},
+    'drive.clientId': {ar:'إعداد Client ID', fr:'Configuration Client ID', en:'Client ID Setup'},
 
     // ── Protection ──
-    'prot.unsaved':     {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!'},
-    'prot.syncFirst':   {ar:'ارفع التعديلات ثم اخرج',fr:'Synchroniser puis quitter'},
-    'prot.exitAnyway':  {ar:'اخرج بدون رفع',        fr:'Quitter sans synchroniser'},
-    'prot.stay':        {ar:'رجوع — لا أريد الخروج',fr:'Annuler'},
+    'prot.unsaved': {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!', en:'Unsaved data!'},
+    'prot.syncFirst': {ar:'ارفع التعديلات ثم اخرج', fr:'Synchroniser puis quitter', en:'Sync changes then exit'},
+    'prot.exitAnyway': {ar:'اخرج بدون رفع', fr:'Quitter sans synchroniser', en:'Exit without saving'},
+    'prot.stay': {ar:'رجوع — لا أريد الخروج', fr:'Annuler', en:'Cancel'},
   }
 };
 // Shortcut
@@ -646,7 +646,11 @@ function applyDOMTranslation() {
   });
 }
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
-function L(ar, fr, en) { return I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr; }
+function L(ar, fr, en) {
+  if (I18N.currentLang === 'ar') return ar;
+  if (I18N.currentLang === 'en') return en || fr;
+  return fr;
+}
 
 // ── الحصول على اسم الكيان (مؤسسة/عامل/عميل) حسب اللغة الحالية ──
 // يدعم حقلين: name (عربي) و name_fr (فرنسي)
@@ -1688,7 +1692,7 @@ function attTodayWidget(workers) {
   var todayAbsent   = todayAtt.filter(function(a) { return a.status === 'absent'; }).length;
   var todayUnmarked = workers.length - todayAtt.length;
   var pct = workers.length ? Math.round(todayPresent / workers.length * 100) : 0;
-  var L = function(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; };
+  var L = function(ar, fr, en) { return I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr; };
   var warnDiv = todayUnmarked > 0
     ? ('<div style="margin-top:.6rem;padding:.5rem .8rem;background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:8px;font-size:.75rem;color:var(--gold)">\u26a0\ufe0f '
        + todayUnmarked + ' ' + L('\u0639\u0627\u0645\u0644 \u0644\u0645 \u064a\u064f\u0633\u062c\u064e\u0651\u0644 \u062d\u0636\u0648\u0631\u0647 \u0627\u0644\u064a\u0648\u0645 \u2014 ', 'ouvrier(s) non enregistr\u00e9(s) \u2014 ') + '<span onclick="sessionStorage.setItem(\'att_date\',todayStr());App.navigate(\'attendance\')" style="cursor:pointer;text-decoration:underline">' + L('\u0633\u062c\u0651\u0644 \u0627\u0644\u0622\u0646','Enregistrer') + '</span></div>')
@@ -2494,11 +2498,11 @@ Pages.login = function(mode) {
 
     <!-- Top controls -->
     <div style="position:fixed;top:1rem;left:1rem;z-index:100;display:flex;align-items:center;gap:10px;">
-      <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour')}" style="position:static;top:auto;right:auto;">
+      <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour','Back')}" style="position:static;top:auto;right:auto;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'none':'rotate(180deg)'}">
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
-        <span>${L('العودة للموقع','Retour au site')}</span>
+        <span>${L('العودة للموقع','Retour au site','Back to site')}</span>
       </button>
       ${I18N.langSwitcherHTML()}
     </div>
@@ -2522,12 +2526,12 @@ Pages.login = function(mode) {
 
           <div class="auth-trial-pill">
             <span class="auth-trial-dot"></span>
-            ${L('تجربة مجانية 14 يوم — بدون بطاقة بنكية','Essai gratuit 14j — sans CB')}
+            ${L('تجربة مجانية 14 يوم — بدون بطاقة بنكية','Essai gratuit 14j — sans CB','14-day free trial — no credit card')}
           </div>
 
           <h1 class="auth-brand-title">
-            ${L('أدِر شركتك','Gérez votre BTP')}<br>
-            <span class="auth-brand-title-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
+            ${L('أدِر شركتك','Gérez votre BTP','Manage Your Business')}<br>
+            <span class="auth-brand-title-gold">${L('بذكاءٍ احترافي','en intelligence pro','with Professional Intelligence')}</span>
           </h1>
 
           <p class="auth-brand-desc">${L(
@@ -2542,7 +2546,7 @@ Pages.login = function(mode) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div class="auth-mc-text">
-                <div class="auth-mc-label">${L('المشاريع','Projets')}</div>
+                <div class="auth-mc-label">${L('المشاريع','Projets','Projects')}</div>
                 <div class="auth-mc-val">+18.4%</div>
               </div>
             </div>
@@ -2551,7 +2555,7 @@ Pages.login = function(mode) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
               <div class="auth-mc-text">
-                <div class="auth-mc-label">${L('الإيرادات','Revenus')}</div>
+                <div class="auth-mc-label">${L('الإيرادات','Revenus','Revenue')}</div>
                 <div class="auth-mc-val">4.2M</div>
               </div>
             </div>
@@ -2561,16 +2565,16 @@ Pages.login = function(mode) {
               </div>
               <div class="auth-mc-text">
                 <div class="auth-mc-label">SmartAI</div>
-                <div class="auth-mc-val">${L('نشط','Actif')}</div>
+                <div class="auth-mc-val">${L('نشط','Actif','Active')}</div>
               </div>
             </div>
           </div>
 
           <ul class="auth-brand-features">
-            <li><span class="auth-feat-check">✓</span> ${L('27 جدول قاعدة بيانات + RLS','27 tables BDD + RLS')}</li>
-            <li><span class="auth-feat-check">✓</span> ${L('فواتير PDF + توقيع إلكتروني','Factures PDF + signature')}</li>
-            <li><span class="auth-feat-check">✓</span> ${L('SmartAI + توقعات السيولة','SmartAI + prévisions cash')}</li>
-            <li><span class="auth-feat-check">✓</span> ${L('GPS للمعدات + وضع ميدان','GPS engins + mode chantier')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('27 جدول قاعدة بيانات + RLS','27 tables BDD + RLS','27 DB tables + RLS')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('فواتير PDF + توقيع إلكتروني','Factures PDF + signature','PDF Invoices + e-signature')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('SmartAI + توقعات السيولة','SmartAI + prévisions cash','SmartAI + cash flow forecasts')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('GPS للمعدات + وضع ميدان','GPS engins + mode chantier','Equipment GPS + field mode')}</li>
           </ul>
         </div>
       </div>
@@ -2589,37 +2593,37 @@ Pages.login = function(mode) {
 };
 
 function renderLoginForm(L) {
-  if (!L) L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
+  if (!L) L = (ar, fr, en) => I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr;
   return `
     <!-- Mode tabs -->
     <div class="auth-tabs">
       <button class="auth-tab active" onclick="switchAuthMode('login')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        ${L('تسجيل الدخول','Connexion')}
+        ${L('تسجيل الدخول','Connexion','Sign In')}
       </button>
       <button class="auth-tab" onclick="switchAuthMode('register')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        ${L('إنشاء حساب','Inscription')}
+        ${L('إنشاء حساب','Inscription','Sign Up')}
       </button>
     </div>
 
     <div class="auth-heading">
-      <h2 class="auth-h-title">${L('مرحباً بعودتك 👋','Bon retour 👋')}</h2>
-      <p class="auth-h-sub">${L('سجّل دخولك للوصول إلى لوحة التحكم','Connectez-vous pour accéder à votre tableau de bord')}</p>
+      <h2 class="auth-h-title">${L('مرحباً بعودتك 👋','Bon retour 👋','Welcome Back 👋')}</h2>
+      <p class="auth-h-sub">${L('سجّل دخولك للوصول إلى لوحة التحكم','Connectez-vous pour accéder à votre tableau de bord','Sign in to access your dashboard')}</p>
     </div>
 
     <div id="loginError" style="display:none" class="auth-alert auth-alert-error">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <div>
-        <strong>${L('بيانات الدخول غير صحيحة','Identifiants incorrects')}</strong>
+        <strong>${L('بيانات الدخول غير صحيحة','Identifiants incorrects','Incorrect credentials')}</strong>
         <div style="font-size:.74rem;margin-top:3px;opacity:.85">
-          ${L('💡 جرّب الحساب التجريبي بالأسفل','💡 Essayez le compte démo ci-dessous')}
+          ${L('💡 جرّب الحساب التجريبي بالأسفل','💡 Essayez le compte démo ci-dessous','💡 Try the demo account below')}
         </div>
       </div>
     </div>
 
     <div class="auth-field">
-      <label class="auth-label">${L('البريد الإلكتروني','Adresse email')}</label>
+      <label class="auth-label">${L('البريد الإلكتروني','Adresse email','Email Address')}</label>
       <div class="auth-input-wrap">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         <input class="auth-input" id="loginEmail" type="email" placeholder="example@company.dz" dir="ltr" autocomplete="email">
@@ -2627,7 +2631,7 @@ function renderLoginForm(L) {
     </div>
 
     <div class="auth-field">
-      <label class="auth-label">${L('كلمة المرور','Mot de passe')}</label>
+      <label class="auth-label">${L('كلمة المرور','Mot de passe','Password')}</label>
       <div class="auth-input-wrap">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <input class="auth-input" id="loginPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
@@ -2644,12 +2648,12 @@ function renderLoginForm(L) {
         <span class="auth-checkbox-label">${L('تذكّرني','Se souvenir')}</span>
       </label>
       <button type="button" class="auth-link" onclick="showForgotModal()">
-        ${L('نسيت كلمة المرور؟','Mot de passe oublié ?')}
+        ${L('نسيت كلمة المرور؟','Mot de passe oublié ?','Forgot password?')}
       </button>
     </div>
 
     <button class="auth-submit auth-submit-gold" onclick="doLogin()">
-      <span>${L('تسجيل الدخول','Se connecter')}</span>
+      <span>${L('تسجيل الدخول','Se connecter','Sign In')}</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${I18N.currentLang==='ar'?'rotate(180deg)':'none'}">
         <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
       </svg>
@@ -2663,32 +2667,32 @@ function renderLoginForm(L) {
     </button>
 
     <div class="auth-bottom-text">
-      ${L('ليس لديك حساب؟','Pas encore de compte ?')}
+      ${L('ليس لديك حساب؟','Pas encore de compte ?','No account yet?')}
       <button type="button" class="auth-link auth-link-strong" onclick="switchAuthMode('register')">
-        ${L('ابدأ تجربتك المجانية 14 يوم ←','Démarrer l\'essai gratuit →')}
+        ${L('ابدأ تجربتك المجانية 14 يوم ←','Démarrer l\'essai gratuit →','Start your 14-day free trial →')}
       </button>
     </div>
   `;
 }
 
 function renderRegisterForm(L) {
-  if (!L) L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
+  if (!L) L = (ar, fr, en) => I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr;
   return `
     <!-- Mode tabs -->
     <div class="auth-tabs">
       <button class="auth-tab" onclick="switchAuthMode('login')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        ${L('تسجيل الدخول','Connexion')}
+        ${L('تسجيل الدخول','Connexion','Sign In')}
       </button>
       <button class="auth-tab active" onclick="switchAuthMode('register')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        ${L('إنشاء حساب','Inscription')}
+        ${L('إنشاء حساب','Inscription','Sign Up')}
       </button>
     </div>
 
     <div class="auth-heading">
-      <h2 class="auth-h-title">${L('ابدأ مجاناً 🚀','Commencez gratuitement 🚀')}</h2>
-      <p class="auth-h-sub">${L('14 يوماً تجربة كاملة. بدون بطاقة بنكية. ألغِ متى شئت.','14 jours d\'essai complet. Sans CB. Annulez quand vous voulez.')}</p>
+      <h2 class="auth-h-title">${L('ابدأ مجاناً 🚀','Commencez gratuitement 🚀','Get Started Free 🚀')}</h2>
+      <p class="auth-h-sub">${L('14 يوماً تجربة كاملة. بدون بطاقة بنكية. ألغِ متى شئت.','14 jours d\'essai complet. Sans CB. Annulez quand vous voulez.','14-day full trial. No credit card. Cancel anytime.')}</p>
     </div>
 
     <div class="auth-trial-banner">
@@ -2713,7 +2717,7 @@ function renderRegisterForm(L) {
         </div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">${L('اسم المؤسسة','Entreprise')} <span class="auth-required">*</span></label>
+        <label class="auth-label">${L('اسم المؤسسة','Entreprise','Company Name')} <span class="auth-required">*</span></label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
           <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة البناء الحديث','Entreprise BTP')}" autocomplete="organization">
@@ -2743,7 +2747,7 @@ function renderRegisterForm(L) {
 
     <!-- حقل كود التحقق - يظهر بعد إرسال الكود -->
     <div class="auth-field" id="otpField" style="display:none">
-      <label class="auth-label">🔐 ${L('كود التحقق','Code de vérification')} <span class="auth-required">*</span></label>
+      <label class="auth-label">🔐 ${L('كود التحقق','Code de vérification','Verification Code')} <span class="auth-required">*</span></label>
       <div class="auth-input-wrap">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <input class="auth-input" id="regOtp" type="text" maxlength="6" placeholder="XXXXXX" dir="ltr"
@@ -2753,14 +2757,14 @@ function renderRegisterForm(L) {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">
         <span id="otpTimer" style="font-size:.72rem;color:var(--dim)"></span>
         <button type="button" onclick="sendVerificationCode(true)" style="font-size:.72rem;color:#D4AF37;background:none;border:none;cursor:pointer;padding:0">
-          🔄 ${L('إعادة إرسال','Renvoyer')}
+          🔄 ${L('إعادة إرسال','Renvoyer','Resend')}
         </button>
       </div>
     </div>
 
     <div class="auth-grid-2">
       <div class="auth-field">
-        <label class="auth-label">${L('كلمة المرور','Mot de passe')} <span class="auth-required">*</span></label>
+        <label class="auth-label">${L('كلمة المرور','Mot de passe','Password')} <span class="auth-required">*</span></label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <input class="auth-input" id="regPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="new-password" oninput="checkPassStrength(this.value)">
@@ -2777,7 +2781,7 @@ function renderRegisterForm(L) {
         <div class="auth-pass-label" id="passStrengthLabel"></div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">${L('الولاية','Wilaya')}</label>
+        <label class="auth-label">${L('الولاية','Wilaya','Wilaya')}</label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           <select class="auth-input auth-select" id="regWilaya">
@@ -2787,7 +2791,7 @@ function renderRegisterForm(L) {
         </div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">${L('رقم الهاتف','Téléphone')} <span class="auth-required">*</span></label>
+        <label class="auth-label">${L('رقم الهاتف','Téléphone','Phone Number')} <span class="auth-required">*</span></label>
         <div style="display:flex;gap:.4rem;align-items:stretch">
           <div style="background:rgba(232,184,75,.08);border:1.5px solid rgba(232,184,75,.25);border-radius:11px;padding:0 .8rem;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:.82rem;font-weight:700;color:#E8B84B;flex-shrink:0;min-width:64px">
             +213
@@ -2816,13 +2820,13 @@ function renderRegisterForm(L) {
 
     <button class="auth-submit auth-submit-gold btn-trial" onclick="doRegister()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-      <span>${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer')}</span>
+      <span>${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer','Create Account & Start Free')}</span>
     </button>
 
     <div class="auth-bottom-text">
-      ${L('لديك حساب بالفعل؟','Vous avez déjà un compte ?')}
+      ${L('لديك حساب بالفعل؟','Vous avez déjà un compte ?','Already have an account?')}
       <button type="button" class="auth-link auth-link-strong" onclick="switchAuthMode('login')">
-        ${L('تسجيل الدخول','Se connecter')}
+        ${L('تسجيل الدخول','Se connecter','Sign In')}
       </button>
     </div>
   `;
@@ -3255,7 +3259,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
     padding:1rem;
   `;
 
-  const _L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
+  const _L = (ar, fr, en) => I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr;
   overlay.innerHTML = `
     <div style="
       max-width:520px;width:100%;
@@ -3403,7 +3407,7 @@ function showWelcomeRobot(userName, daysLeft) {
       
       <!-- Welcome text -->
       <div style="font-size:1.6rem;font-weight:900;color:var(--text,#fff);margin-bottom:.5rem">
-        ${I18N.currentLang==='ar' ? `مرحباً ${firstName}! 👋` : `Bienvenue ${firstName}! 👋`}
+        ${I18N.currentLang==='ar' ? `مرحباً ${firstName}! 👋` : I18N.currentLang==='en' ? `Welcome, ${firstName}! 👋` : `Bienvenue ${firstName}! 👋`}
       </div>
       <div style="font-size:.9rem;color:var(--dim,#8899aa);margin-bottom:1.5rem;line-height:1.6">
         ${I18N.currentLang==='ar'
@@ -3418,10 +3422,10 @@ function showWelcomeRobot(userName, daysLeft) {
         padding:1rem;margin-bottom:1.5rem;text-align:right;
       ">
         ${[
-          ['📊', I18N.currentLang==='ar'?'لوحة تحكم ذكية بمؤشرات صحة المؤسسة':'Tableau de bord intelligent'],
-          ['💰', I18N.currentLang==='ar'?'إدارة مالية كاملة ومتكاملة':'Gestion financière complète'],
-          ['👷', I18N.currentLang==='ar'?'متابعة العمال والحضور والرواتب':'Suivi des employés et salaires'],
-          ['🤖', I18N.currentLang==='ar'?'مساعد ذكاء اصطناعي خاص بك':'Assistant IA personnel'],
+          ['📊', I18N.currentLang==='ar'?'لوحة تحكم ذكية بمؤشرات صحة المؤسسة':I18N.currentLang==='en'?'Smart Dashboard with health indicators':'Tableau de bord intelligent'],
+          ['💰', I18N.currentLang==='ar'?'إدارة مالية كاملة ومتكاملة':I18N.currentLang==='en'?'Complete financial management':'Gestion financière complète'],
+          ['👷', I18N.currentLang==='ar'?'متابعة العمال والحضور والرواتب':I18N.currentLang==='en'?'Worker tracking, attendance & payroll':'Suivi des employés et salaires'],
+          ['🤖', I18N.currentLang==='ar'?'مساعد ذكاء اصطناعي خاص بك':I18N.currentLang==='en'?'Your personal AI assistant':'Assistant IA personnel'],
         ].map(([icon, text]) => `
           <div style="display:flex;align-items:center;gap:.6rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04)">
             <span style="font-size:1.1rem">${icon}</span>
@@ -3440,12 +3444,12 @@ function showWelcomeRobot(userName, daysLeft) {
         box-shadow:0 4px 20px rgba(52,195,143,0.3);
         transition:transform .2s;
       " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-        ${I18N.currentLang==='ar' ? '🚀 ابدأ الآن!' : '🚀 Commencer maintenant!'}
+        ${I18N.currentLang==='ar' ? '🚀 ابدأ الآن!' : I18N.currentLang==='en' ? '🚀 Start Now!' : '🚀 Commencer maintenant!'}
       </button>
       
       <!-- Days counter bottom -->
       <div style="margin-top:.8rem;font-size:.72rem;color:var(--dim,#667)">
-        ${I18N.currentLang==='ar' ? `⏱️ التجربة المجانية تنتهي بعد ${daysLeft} يوم` : `⏱️ Essai gratuit se termine dans ${daysLeft} jours`}
+        ${I18N.currentLang==='ar' ? `⏱️ التجربة المجانية تنتهي بعد ${daysLeft} يوم` : I18N.currentLang==='en' ? `⏱️ Free trial ends in ${daysLeft} days` : `⏱️ Essai gratuit se termine dans ${daysLeft} jours`}
       </div>
     </div>
   `;
@@ -4390,7 +4394,7 @@ Pages.dashboard = function() {
       const statusBadge = isExpired
         ? `<span style="background:#F04E6A18;border:1px solid #F04E6A44;color:#F04E6A;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⛔ ${L('منتهي','Expiré')}</span>`
         : isActive
-          ? `<span style="background:#34C38F18;border:1px solid #34C38F44;color:#34C38F;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">✅ ${L('نشط','Actif')}</span>`
+          ? `<span style="background:#34C38F18;border:1px solid #34C38F44;color:#34C38F;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">✅ ${L('نشط','Actif','Active')}</span>`
           : `<span style="background:#E8B84B18;border:1px solid #E8B84B44;color:#E8B84B;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⏳ ${L('تجريبي','Essai')}</span>`;
 
       return `
@@ -5051,9 +5055,9 @@ Pages.projects = function() {
     </div>`;
   }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🏗️</div><div class="empty-title">${L('لا توجد مشاريع بعد','Aucun projet')}</div><div class="empty-text">${L('أضف مشروعك الأول للبدء','Ajoutez votre premier projet')}</div></div>`;
 
-  return layoutHTML('projects',L('المشاريع','Projets'),`
+  return layoutHTML('projects',L('المشاريع','Projets','Projects'),`
     <div class="page-header">
-      <div><div class="page-title">🏗️ ${L('المشاريع','Projets')}</div><div class="page-sub">${total} ${L('مشروع','projet(s)')}</div></div>
+      <div><div class="page-title">🏗️ ${L('المشاريع','Projets','Projects')}</div><div class="page-sub">${total} ${L('مشروع','projet(s)')}</div></div>
       <div class="page-actions"><button class="btn btn-gold" data-modal-open="addProjectModal">+ ${L('مشروع جديد','Nouveau projet')}</button></div>
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
@@ -5069,7 +5073,7 @@ Pages.projects = function() {
       </div>
       <select class="form-select" id="projStatusFilter" onchange="filterProjects()" style="width:auto;min-width:130px">
         <option value="">${L('كل الحالات','Tous statuts')}</option>
-        <option value="active">${L('نشط','Actif')}</option>
+        <option value="active">${L('نشط','Actif','Active')}</option>
         <option value="completed">${L('مكتمل','Terminé')}</option>
         <option value="delayed">${L('متأخر','En retard')}</option>
         <option value="paused">${L('متوقف','Pausé')}</option>
@@ -5090,7 +5094,7 @@ Pages.projects = function() {
         <div class="form-group"><label class="form-label">${L('نوع المشروع *','Type de projet *')}</label><select class="form-select" id="pType"><option value="">${L('اختر نوع المشروع...','Choisir un type...')}</option>${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group">
             <label class="form-label">🇩🇿 ${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label>
             <input class="form-input" id="pClient" placeholder="${L('بلدية تيزي وزو...','Commune / Société...')}">
@@ -5121,9 +5125,9 @@ Pages.projects = function() {
         <div class="form-group"><label class="form-label">${L('نوع المشروع','Type de projet')}</label><select class="form-select" id="epType"><option value="">${L('اختر...','Choisir...')}</option>${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus">
-            <option value="active">${L('نشط','Actif')}</option>
+            <option value="active">${L('نشط','Actif','Active')}</option>
             <option value="completed">${L('مكتمل','Terminé')}</option>
             <option value="delayed">${L('متأخر','En retard')}</option>
             <option value="paused">${L('متوقف','Pausé')}</option>
@@ -6138,7 +6142,7 @@ Pages.equipment = function() {
   const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
 
   const statusMap = {
-    active:      { label:L('نشط','Actif'),       col:'var(--green)' },
+    active:      { label:L('نشط','Actif','Active'),       col:'var(--green)' },
     maintenance: { label:L('صيانة','Maintenance'),col:'var(--gold)'  },
     idle:        { label:L('خامل','Inactif'),     col:'var(--dim)'   },
   };
@@ -6273,7 +6277,7 @@ Pages.equipment = function() {
             <option value="⚙️">⚙️ ${L('مضخة','Pompe')}</option><option value="🔩">🔩 ${L('معدة أخرى','Autre')}</option>
           </select></div>
           <div class="form-group"><label class="form-label">${L('الحالة','État')}</label><select class="form-select" id="eStatus">
-            <option value="active">${L('نشط','Actif')}</option>
+            <option value="active">${L('نشط','Actif','Active')}</option>
             <option value="maintenance">${L('صيانة','Maintenance')}</option>
             <option value="idle">${L('خامل','Inactif')}</option>
           </select></div>
@@ -6627,7 +6631,7 @@ Pages.subscription = function() {
         <div style="text-align:center">
           <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('الحالة','Statut')}</div>
           <span class="badge ${subStatus==='active'?'badge-active':''}" style="font-size:.82rem">
-            ${subStatus==='active'?'✅ '+L('نشط','Actif'):subStatus==='trial'?'⏳ '+L('تجريبي','Essai'):'⚠️ '+L('منتهي','Expiré')}
+            ${subStatus==='active'?'✅ '+L('نشط','Actif','Active'):subStatus==='trial'?'⏳ '+L('تجريبي','Essai'):'⚠️ '+L('منتهي','Expiré')}
           </span>
         </div>
         <div style="text-align:center">
@@ -7344,8 +7348,8 @@ Pages.settings = function() {
             <input class="form-input" id="setNameFr" value="${escHtml(tenant?.name_fr||'')}" placeholder="Entreprise BTP Moderne" dir="ltr">
             <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('يُستخدم في الفواتير والوثائق عند التبديل للفرنسية','Utilisé dans les documents en mode français')}</div>
           </div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone','Phone Number')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <button class="btn btn-gold" onclick="saveTenantSettings()">💾 ${L('حفظ التغييرات','Sauvegarder')}</button>
         </div>
 
@@ -7459,7 +7463,7 @@ Pages.settings = function() {
               <div style="font-size:1.1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.7rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;margin-top:.8rem">
-              <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
+              <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets','Projects')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
               <div><span style="color:var(--dim)">👷 ${L('العمال','Ouvriers')}:</span> <strong>${plan?.max_workers===-1?L('غير محدود','Illimité'):(plan?.max_workers||0)}</strong></div>
               <div><span style="color:var(--dim)">🚜 ${L('المعدات','Équipements')}:</span> <strong>${plan?.max_equipment===-1?L('غير محدود','Illimité'):(plan?.max_equipment||0)}</strong></div>
               <div><span style="color:var(--dim)">📧 ${L('إيميلات/شهر','Emails/mois')}:</span> <strong>${plan?.max_emails===-1?L('غير محدود','Illimité'):(plan?.max_emails||0)}</strong></div>
@@ -9244,7 +9248,7 @@ Pages.admin = function() {
     const wCount=workers.filter(w=>w.tenant_id===t.id).length;
     const adminUser = users.find(u=>u.tenant_id===t.id && !u.is_admin);
     const subStatus = t.subscription_status;
-    const subLbl = subStatus==='active'? L('نشط','Actif') : subStatus==='trial'? L('تجريبي','Essai') : L('منتهي','Expiré');
+    const subLbl = subStatus==='active'? L('نشط','Actif','Active') : subStatus==='trial'? L('تجريبي','Essai') : L('منتهي','Expiré');
     const subCls = subStatus==='active'?'badge-active':subStatus==='trial'?'badge-paused':'badge-delayed';
     const planColors = ['var(--blue)','var(--gold)','var(--purple)'];
     const planIdx = plans.findIndex(p=>p.id===t.plan_id);
@@ -9271,7 +9275,7 @@ Pages.admin = function() {
       <td>${(()=>{
         const isPending = !t.is_active && t.subscription_status==='pending';
         const cls = t.is_active ? 'badge-active' : isPending ? 'badge-paused' : 'badge-delayed';
-        const lbl = t.is_active ? L('نشط','Actif') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
+        const lbl = t.is_active ? L('نشط','Actif','Active') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
         return `<span class="badge ${cls}">${lbl}</span>`;
       })()}</td>
       <td>
@@ -9519,7 +9523,7 @@ Pages.admin = function() {
           </div>
           <div class="table-wrap" style="border:none;border-radius:0">
             <table>
-              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>📧 الإيميلات</th><th>${L('المشاريع','Projets')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
+              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe','Password')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>📧 الإيميلات</th><th>${L('المشاريع','Projets','Projects')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>
@@ -9535,7 +9539,7 @@ Pages.admin = function() {
               return `<tr><td style="font-weight:700">${escHtml(u.full_name)}</td>
                 <td style="font-family:monospace;font-size:.82rem;direction:ltr;text-align:right">${escHtml(u.email)}</td>
                 <td>${escHtml(tenant?.name||'—')}</td>
-                <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td></tr>`;
+                <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif','Active'):L('موقوف','Suspendu')}</span></td></tr>`;
             }).join('')}</tbody>
           </table></div>
         </div>
@@ -9731,7 +9735,7 @@ Pages.admin = function() {
                   ${isUpgrade && n.status==='pending' ? `
                     <button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id||0})">✅ ${L('موافقة','Approuver')}</button>
                     <button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ ${L('رفض','Rejeter')}</button>` : ''}
-                  <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})" title="${L('إخفاء','Masquer')}">✕</button>
+                  <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})" title="${L('إخفاء','Masquer','Hide')}">✕</button>
                 </div>
               </td>
             </tr>`;
@@ -9814,7 +9818,7 @@ Pages.admin = function() {
                 <input class="form-input" id="ejs_tmpl_admin" value="${escHtml(cfg.TEMPLATE_ADMIN)}" dir="ltr" style="font-family:monospace;font-size:.82rem" placeholder="template_xxxxxxx">
               </div>
               <div class="form-group">
-                <label class="form-label" style="font-size:.75rem">Template ID — ${L('كلمة المرور','Mot de passe')}</label>
+                <label class="form-label" style="font-size:.75rem">Template ID — ${L('كلمة المرور','Mot de passe','Password')}</label>
                 <input class="form-input" id="ejs_tmpl_user" value="${escHtml(cfg.TEMPLATE_USER)}" dir="ltr" style="font-family:monospace;font-size:.82rem" placeholder="template_xxxxxxx">
               </div>
               <div class="form-group" style="grid-column:1/-1">
@@ -10261,7 +10265,7 @@ Pages.admin = function() {
             <div class="modal-title">🏢 ${L('إضافة مؤسسة جديدة','Ajouter une nouvelle entreprise')}</div>
             <div class="form-group"><label class="form-label">${L('اسم الشركة','Nom de l\'entreprise')} *</label><input class="form-input" id="atName" placeholder="${L('مؤسسة المقاولة...','Entreprise BTP...')}"></div>
             <div class="form-group"><label class="form-label">${L('بريد المسؤول','Email administrateur')} *</label><input class="form-input" id="atEmail" type="email" placeholder="admin@company.dz" dir="ltr"></div>
-            <div class="form-group"><label class="form-label">${L('كلمة المرور','Mot de passe')} *</label><input class="form-input" id="atPass" type="password" dir="ltr"></div>
+            <div class="form-group"><label class="form-label">${L('كلمة المرور','Mot de passe','Password')} *</label><input class="form-input" id="atPass" type="password" dir="ltr"></div>
             <div class="form-group"><label class="form-label">${L('اسم المسؤول','Nom de l\'administrateur')} *</label><input class="form-input" id="atAdmin" placeholder="${L('محمد...','Mohamed...')}"></div>
             <div class="form-group"><label class="form-label">${L('الخطة','Plan')}</label><select class="form-select" id="atPlan">${plans.map(p=>`<option value="${p.id}">${p.name} — ${fmt(p.price)} ${L('دج/شهر','DA/mois')}</option>`).join('')}</select></div>
             <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addTenant()">💾 ${L('إنشاء المؤسسة','Créer l\'entreprise')}</button></div>
@@ -10282,7 +10286,7 @@ Pages.project_detail = function() {
   const pid = App.params.id;
   const tid = Auth.getUser().tenant_id;
   const p = DB.get('projects').find(pr=>pr.id===pid && pr.tenant_id===tid);
-  if (!p) return layoutHTML('projects', L('تفاصيل المشروع','Détails du projet'),`<div class="empty"><div class="empty-icon">🏗️</div><div class="empty-title">${L('المشروع غير موجود','Projet introuvable')}</div><button class="btn btn-ghost" data-nav="projects">${L('العودة','Retour')}</button></div>`);
+  if (!p) return layoutHTML('projects', L('تفاصيل المشروع','Détails du projet'),`<div class="empty"><div class="empty-icon">🏗️</div><div class="empty-title">${L('المشروع غير موجود','Projet introuvable')}</div><button class="btn btn-ghost" data-nav="projects">${L('العودة','Retour','Back')}</button></div>`);
 
   const workers = DB.get('workers').filter(w=>w.project_id===pid);
   const equip = DB.get('equipment').filter(e=>e.project_id===pid);
@@ -10299,7 +10303,7 @@ Pages.project_detail = function() {
     <div class="page-header" style="flex-wrap:wrap">
       <div>
         <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.3rem">
-          <button class="btn btn-ghost btn-sm" data-nav="projects">← ${L('العودة','Retour')}</button>
+          <button class="btn btn-ghost btn-sm" data-nav="projects">← ${L('العودة','Retour','Back')}</button>
           ${statusBadge(p.status)}
         </div>
         <div class="page-title">${escHtml(p.name)}</div>
@@ -10433,8 +10437,8 @@ Pages.project_detail = function() {
         <div class="modal-title">✏️ ${L('تعديل المشروع','Modifier le projet')}</div><input type="hidden" id="epId">
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus"><option value="active">${L('نشط','Actif')}</option><option value="completed">${L('مكتمل','Terminé')}</option><option value="delayed">${L('متأخر','En retard')}</option><option value="paused">${L('متوقف','Pausé')}</option></select></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus"><option value="active">${L('نشط','Actif','Active')}</option><option value="completed">${L('مكتمل','Terminé')}</option><option value="delayed">${L('متأخر','En retard')}</option><option value="paused">${L('متوقف','Pausé')}</option></select></div>
           <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('المرحلة','Phase')}</label><select class="form-select" id="epPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
@@ -13863,7 +13867,7 @@ function editTenantPlan(tenantId) {
       </div>
       <div class="form-group"><label class="form-label">${L('حالة الاشتراك','Statut abonnement')}</label>
         <select class="form-select" id="editSubStatus">
-          <option value="active" ${t.subscription_status==='active'?'selected':''}>${L('نشط','Actif')}</option>
+          <option value="active" ${t.subscription_status==='active'?'selected':''}>${L('نشط','Actif','Active')}</option>
           <option value="trial" ${t.subscription_status==='trial'?'selected':''}>${L('تجريبي','Essai')}</option>
           <option value="expired" ${t.subscription_status==='expired'?'selected':''}>${L('منتهي','Expiré')}</option>
         </select>
@@ -14115,7 +14119,7 @@ async function addTenant() {
     { val: name,  label: L('اسم المؤسسة','Nom de l\'entreprise'), type: 'required' },
     { val: admin, label: L('الاسم الكامل','Nom complet'),          type: 'required' },
     { val: email, label: L('البريد الإلكتروني','Email'),           type: 'email'    },
-    { val: pass,  label: L('كلمة المرور','Mot de passe'),          type: 'required' },
+    { val: pass,  label: L('كلمة المرور','Mot de passe','Password'),          type: 'required' },
   ])) return;
 
   // منع التسجيل المزدوج محلياً
@@ -15281,6 +15285,7 @@ function sidebarHTML(active='') {
       <div style="display:flex;gap:.4rem;margin-bottom:.4rem">
         <button onclick="I18N.setLang('ar')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='ar'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='ar'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='ar'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">AR عربي</button>
         <button onclick="I18N.setLang('fr')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='fr'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='fr'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='fr'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">FR</button>
+        <button onclick="I18N.setLang('en')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='en'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='en'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='en'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">EN</button>
       </div>
       <!-- ⚡ Realtime Badge -->
       <div style="margin-bottom:.4rem">
@@ -16762,7 +16767,7 @@ Pages.suppliers = function() {
             <input class="form-input" id="supEmail" type="email" placeholder="contact@fournisseur.dz" dir="ltr">
           </div>
           <div class="form-group">
-            <label class="form-label">📍 ${L('الولاية','Wilaya')}</label>
+            <label class="form-label">📍 ${L('الولاية','Wilaya','Wilaya')}</label>
             <select class="form-select" id="supWilaya">
               <option value="">— ${L('اختر الولاية','Choisir wilaya')} —</option>
               ${WILAYAS.map(w=>`<option value="${escHtml(w)}">${escHtml(w)}</option>`).join('')}
@@ -17102,7 +17107,7 @@ Pages.supplier_detail = function() {
               [L('الهاتف','Tél.'), s.phone||'—'],
               [L('هاتف 2','Tél. 2'), s.phone2||'—'],
               [L('البريد','Email'), s.email||'—'],
-              [L('الولاية','Wilaya'), s.wilaya||'—'],
+              [L('الولاية','Wilaya','Wilaya'), s.wilaya||'—'],
               [L('العنوان','Adresse'), s.address||'—'],
             ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem">
               <span style="color:var(--dim)">${k}</span>
@@ -18139,7 +18144,7 @@ Pages.invoices = function() {
 
 function addInvLine() {
   if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لإضافة سطر فاتورة','Permission refusée : facture')); return; }
-  const L_fn = (ar, fr) => I18N.currentLang==='ar'?ar:fr;
+  const L_fn = (ar, fr, en) => I18N.currentLang==='ar'?ar:(I18N.currentLang==='en'&&en)?en:fr;
   const row = document.createElement('div');
   row.className='inv-line-row';
   row.style='display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:.4rem;align-items:center;margin-bottom:.4rem';
@@ -18804,7 +18809,7 @@ function deleteObligation(oblId, supplierId) {
 function exportSuppliersCSV() {
   const tid = Auth.getUser().tenant_id;
   const suppliers = (DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid);
-  const header = [L('الاسم','Nom'),L('النشاط','Activité'),L('الهاتف','Téléphone'),'NIF','RC',L('الولاية','Wilaya'),'Email',L('التقييم','Évaluation'),L('الملاحظات','Notes')];
+  const header = [L('الاسم','Nom'),L('النشاط','Activité'),L('الهاتف','Téléphone'),'NIF','RC',L('الولاية','Wilaya','Wilaya'),'Email',L('التقييم','Évaluation'),L('الملاحظات','Notes')];
   const rows = suppliers.map(s=>[s.name,s.activity||'',s.phone||'',s.nif||'',s.rc||'',s.wilaya||'',s.email||'',(s.rating||0)+'/5',s.notes||'']);
   const csv = [header,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
@@ -20577,7 +20582,7 @@ function exportReportPDF() {
     const pRev = txs.filter(t=>t.project_id===p.id&&t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
     const pExp = txs.filter(t=>t.project_id===p.id&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
     const statusColors = {active:'#34C38F',completed:'#4A90E2',delayed:'#F04E6A',paused:'#8892A4'};
-    const statusLabels = {active:L('نشط','Actif'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','Pausé')};
+    const statusLabels = {active:L('نشط','Actif','Active'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','Pausé')};
     return `<tr>
       <td>${escHtml(p.name)}</td>
       <td>${escHtml(p.wilaya||'—')}</td>
@@ -20640,7 +20645,7 @@ function exportReportPDF() {
 <table>
   <thead><tr>
     <th>${L('اسم المشروع','Nom du projet')}</th>
-    <th>${L('الولاية','Wilaya')}</th>
+    <th>${L('الولاية','Wilaya','Wilaya')}</th>
     <th style="text-align:center">${L('الحالة','Statut')}</th>
     <th style="text-align:center">${L('التقدم','Avancement')}</th>
     <th style="text-align:right">${L('الميزانية','Budget')}</th>
@@ -23166,7 +23171,7 @@ function showMobileMode() {
   overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;background:#09120A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem';
   const btns = [
     { icon:'👷', label:L('الحضور','Pointage'),    page:'attendance', color:'#34C38F' },
-    { icon:'🏗️', label:L('المشاريع','Projets'),   page:'projects',   color:'#4A90E2' },
+    { icon:'🏗️', label:L('المشاريع','Projets','Projects'),   page:'projects',   color:'#4A90E2' },
     { icon:'💵', label:L('الرواتب','Salaires'),    page:'salary',     color:'#E8B84B' },
     { icon:'📦', label:L('المخزون','Stock'),        page:'materials',  color:'#9B6DFF' },
     { icon:'📄', label:L('الوثائق','Documents'),    page:'dz_documents', color:'#F04E6A' },
