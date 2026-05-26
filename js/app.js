@@ -19142,6 +19142,19 @@ body{font-family:'${_if}',Arial,sans-serif;color:#1a1a1a;background:#e8eaed;padd
 /* Toolbar */
 .no-print{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap}
 .tb{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_if}',Arial,sans-serif}
+/* Customize Panel */
+.cust-panel{position:fixed;top:0;right:0;width:280px;height:100vh;background:#1a1a2e;border-left:2px solid rgba(255,255,255,.1);z-index:2000;overflow-y:auto;padding:12px;box-shadow:-4px 0 20px rgba(0,0,0,.4);display:none;flex-direction:column;gap:8px}
+.cust-panel.open{display:flex}
+.cust-ph{display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px}
+.cust-pg{display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,.05);padding:8px;border-radius:6px}
+.cust-pg label{color:#ccc;font-size:11px;font-weight:700}
+.cust-pg input,.cust-pg select{width:100%;padding:5px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:12px}
+.csw{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.csw div{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.2s}
+.csw div.on,.csw div:hover{border-color:#fff}
+.hdiv{height:1px;background:rgba(255,255,255,.1);margin:2px 0}
+.rbtn{background:rgba(255,100,100,.15);color:#ff8080;border:1px solid rgba(255,100,100,.3);padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700}
+.sbtn{background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700}
 /* Page */
 .page{background:#fff;max-width:820px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow:hidden}
 .inv-header{background:#fff;border-bottom:3px solid ${_ic};padding:28px 36px;display:flex;justify-content:space-between;align-items:center}
@@ -19186,7 +19199,57 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
 <div class="no-print">
   <button class="tb" style="background:${_ic};color:#fff" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
   <button class="tb" style="background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='Facture_${inv.number}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button class="tb" id="custBtn" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="toggleCust()">⚙️ ${isAr?'تخصيص':'Personnaliser'}</button>
   <button class="tb" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
+</div>
+
+<!-- Panel تخصيص -->
+<div id="custPanel" style="display:none;position:fixed;top:0;right:0;width:270px;height:100vh;background:#1a1a2e;border-left:2px solid rgba(255,255,255,.12);z-index:2000;overflow-y:auto;padding:12px;box-shadow:-6px 0 24px rgba(0,0,0,.5)">
+  <div style="display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:700;margin-bottom:10px">
+    <span>⚙️ ${isAr?'تخصيص الفاتورة':'Personnaliser'}</span>
+    <button onclick="toggleCust()" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:18px">✕</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
+    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">🔤 ${isAr?'الخط':'Police'}</label>
+    <select id="spF" onchange="custApply()" style="width:100%;padding:5px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff">
+      ${['Cairo','Tajawal','Arial',"'Times New Roman'",'Tahoma'].map(f=>`<option value="${f}" ${_if===f?'selected':''}>${f.replace(/'/g,'')}</option>`).join('')}
+    </select>
+  </div>
+  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
+    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_iz}px</strong></label>
+    <input type="range" id="spSz" min="10" max="18" step="1" value="${_iz}" style="width:100%;accent-color:${_ic}" oninput="document.getElementById('spSzL').textContent=this.value+'px';custApply()">
+  </div>
+  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
+    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:8px">🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
+        `<div onclick="custSetColor('${c}',this)" title="${n}" data-color="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${_ic===c?'#fff':'transparent'};transition:.15s"></div>`
+      ).join('')}
+      <input type="color" id="spCC" value="${_ic}" style="width:26px;height:26px;padding:0;border:none;cursor:pointer;border-radius:50%;background:none" oninput="custSetColor(this.value,null)">
+    </div>
+  </div>
+  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
+    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">📐 ${isAr?'الهوامش':'Marges'}</label>
+    <select id="spM" onchange="custApply()" style="width:100%;padding:5px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff">
+      ${[['8mm',isAr?'ضيق':'Étroit'],['12mm',isAr?'عادي':'Normal'],['18mm',isAr?'واسع':'Large']].map(([v,l])=>
+        `<option value="${v}" ${_im===v?'selected':''}>${v} — ${l}</option>`
+      ).join('')}
+    </select>
+  </div>
+  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
+    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">💧 ${isAr?'واترمارك':'Filigrane'}</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="text" id="spWm" value="" placeholder="${isAr?'سري، مسودة...':'CONFIDENTIEL...'}" oninput="custApply()" style="flex:1;padding:5px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff">
+      <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:#ccc;white-space:nowrap">
+        <input type="checkbox" id="spSwm" style="accent-color:${_ic}" onchange="custApply()">
+        ${isAr?'تفعيل':'Activer'}
+      </label>
+    </div>
+  </div>
+  <button onclick="custSave()" style="width:100%;background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
+  <button onclick="if(confirm('${isAr?'إعادة الإعدادات؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}" style="width:100%;background:rgba(255,80,80,.15);color:#ff8080;border:1px solid rgba(255,80,80,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+  </div>
 </div>
 
 <div style="margin-top:52px;padding:20px;background:#e8eaed">
@@ -19197,8 +19260,7 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
     <div style="display:flex;align-items:center;gap:18px">
       ${logoHTML}
       <div>
-        <div class="brand-name">▦ SmartStruct</div>
-        <div class="brand-sub">${escHtml(tenant?.name || '')}</div>
+        <div class="brand-name">${escHtml(tenant?.name || '')}</div>
         ${tenant?.nif ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>` : ''}
         ${tenant?.nis ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>` : ''}
         ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
@@ -19273,16 +19335,63 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
 
   <!-- Footer -->
   <div class="inv-footer">
-    <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة':'Plateforme BTP'}</span>
+    <span>${escHtml(tenant?.name||'')}</span>
     <span class="gold-text">${escHtml(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
   </div>
 
+
 </div>
 </div>
+<script>
+var _custColor='${_ic}';
+function toggleCust(){
+  var p=document.getElementById('custPanel');
+  var b=document.getElementById('custBtn');
+  var open=p.style.display==='flex'||p.style.display==='block';
+  p.style.display=open?'none':'flex';
+  p.style.flexDirection='column';
+  p.style.gap='8px';
+  if(b){b.style.background=open?'rgba(255,255,255,.1)':'rgba(184,144,47,.35)';}
+}
+function custSetColor(c,el){
+  _custColor=c;
+  document.querySelectorAll('#custPanel div[data-color]').forEach(function(d){d.style.borderColor='transparent';});
+  if(el)el.style.borderColor='#fff';
+  var cc=document.getElementById('spCC');if(cc)cc.value=c;
+  custApply();
+}
+function custApply(){
+  var f=document.getElementById('spF').value;
+  var sz=document.getElementById('spSz').value;
+  var mg=document.getElementById('spM').value;
+  var wm=document.getElementById('spWm').value;
+  var swm=document.getElementById('spSwm').checked;
+  var pg=document.querySelector('.page');
+  if(pg){pg.style.fontFamily=f+',Arial,sans-serif';pg.style.fontSize=sz+'px';}
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_custColor;e.style.color='#fff';e.style.webkitPrintColorAdjust='exact';});
+  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_custColor;});
+  document.querySelectorAll('.brand-name,.gold-text,.inv-num').forEach(function(e){e.style.color=_custColor;});
+  document.querySelectorAll('.total-row.main').forEach(function(e){e.style.background=_custColor;});
+  document.querySelectorAll('.inv-header').forEach(function(e){e.style.borderBottomColor=_custColor;});
+  document.querySelectorAll('.inv-footer').forEach(function(e){e.style.borderTopColor=_custColor;});
+  document.querySelectorAll('.stamp-box').forEach(function(e){e.style.borderColor=_custColor;e.style.color=_custColor;});
+  var wmEl=document.getElementById('custWMText');
+  if(wmEl){wmEl.textContent=wm;wmEl.parentElement.style.display=(swm&&wm)?'flex':'none';}
+  var si='_cssl';var st=document.getElementById(si)||document.createElement('style');st.id=si;
+  st.textContent='@media print{@page{margin:'+mg+'}body{font-size:'+sz+'px!important;font-family:'+f+',Arial,sans-serif!important}thead th{background:'+_custColor+'!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.gold-bar{background:'+_custColor+'!important}.brand-name,.gold-text{color:'+_custColor+'!important}.total-row.main{background:'+_custColor+'!important}}';
+  if(!document.getElementById(si))document.head.appendChild(st);
+}
+function custSave(){
+  var s={fontFamily:document.getElementById('spF').value,fontSize:Number(document.getElementById('spSz').value),margin:document.getElementById('spM').value,accentColor:_custColor,watermark:document.getElementById('spWm').value,showWatermark:document.getElementById('spSwm').checked};
+  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch(e){}}}catch(e){}
+  alert('${isAr?'✅ تم حفظ الإعدادات':'✅ Paramètres sauvegardés'}');
+}
+</script>
+<div id="custWMText" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:90px;font-weight:900;color:rgba(184,144,47,.07);pointer-events:none;z-index:-1;white-space:nowrap"></div>
 </body></html>`;
 }
 
-function exportInvoicePDF(id) {
+function exportInvoicePDFid) {
   // الحل الأفضل: نفتح نافذة الطباعة الجميلة، ثم نطلق print()
   // المتصفح سيعطي المستخدم خيار "Save as PDF" تلقائياً
   // النتيجة: PDF بنفس جودة العرض، مع دعم كامل للعربية والشعار
