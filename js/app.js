@@ -19192,7 +19192,65 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
   @page{margin:${_im}}
   thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-</style></head>
+</style>
+<script>
+var _custColor='${_ic}';
+function toggleCust(){
+  var p=document.getElementById('custPanel');
+  var b=document.getElementById('custBtn');
+  if(!p)return;
+  var open=p.style.display==='flex'||p.style.display==='block';
+  p.style.display=open?'none':'flex';
+  p.style.flexDirection='column';
+  p.style.gap='8px';
+  if(b){b.style.background=open?'rgba(255,255,255,.1)':'rgba(184,144,47,.45)';}
+}
+function custSetColor(c,el){
+  _custColor=c;
+  document.querySelectorAll('#custPanel div[data-color]').forEach(function(d){d.style.borderColor='transparent';});
+  if(el)el.style.borderColor='#fff';
+  var cc=document.getElementById('spCC');if(cc)cc.value=c;
+  custApply();
+}
+function custApply(){
+  var fEl=document.getElementById('spF');
+  var szEl=document.getElementById('spSz');
+  var mgEl=document.getElementById('spM');
+  var wmEl2=document.getElementById('spWm');
+  var swmEl=document.getElementById('spSwm');
+  var f=fEl?fEl.value:'Cairo';
+  var sz=szEl?szEl.value:'${_iz}';
+  var mg=mgEl?mgEl.value:'${_im}';
+  var wm=wmEl2?wmEl2.value:'';
+  var swm=swmEl?swmEl.checked:false;
+  var pg=document.querySelector('.page');
+  if(pg){pg.style.fontFamily=f+',Arial,sans-serif';pg.style.fontSize=sz+'px';}
+  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_custColor;e.style.color='#fff';e.style.webkitPrintColorAdjust='exact';});
+  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_custColor;});
+  document.querySelectorAll('.brand-name,.gold-text,.inv-num').forEach(function(e){e.style.color=_custColor;});
+  document.querySelectorAll('.total-row.main').forEach(function(e){e.style.background=_custColor;});
+  document.querySelectorAll('.inv-header').forEach(function(e){e.style.borderBottomColor=_custColor;});
+  document.querySelectorAll('.inv-footer').forEach(function(e){e.style.borderTopColor=_custColor;});
+  document.querySelectorAll('.stamp-box').forEach(function(e){e.style.borderColor=_custColor;e.style.color=_custColor;});
+  var wmEl=document.getElementById('custWMText');
+  if(wmEl){wmEl.textContent=wm;wmEl.style.display=(swm&&wm)?'block':'none';}
+  var si='_cssl';var st=document.getElementById(si)||document.createElement('style');st.id=si;
+  st.textContent='@media print{@page{margin:'+mg+'}body{font-size:'+sz+'px!important;font-family:'+f+',Arial,sans-serif!important}thead th{background:'+_custColor+'!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.gold-bar{background:'+_custColor+'!important}.brand-name,.gold-text{color:'+_custColor+'!important}.total-row.main{background:'+_custColor+'!important}}';
+  if(!document.getElementById(si))document.head.appendChild(st);
+}
+function custSave(){
+  var fEl=document.getElementById('spF');
+  var szEl=document.getElementById('spSz');
+  var mgEl=document.getElementById('spM');
+  var wmEl=document.getElementById('spWm');
+  var swmEl=document.getElementById('spSwm');
+  var s={fontFamily:fEl?fEl.value:'Cairo',fontSize:szEl?Number(szEl.value):13,margin:mgEl?mgEl.value:'12mm',accentColor:_custColor,watermark:wmEl?wmEl.value:'',showWatermark:swmEl?swmEl.checked:false};
+  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch(e){}}}catch(e){}
+  var btn=document.querySelector('#custPanel .save-btn');
+  if(btn){var o=btn.textContent;btn.textContent='✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';btn.style.background='rgba(39,174,96,.5)';setTimeout(function(){btn.textContent=o;btn.style.background='rgba(39,174,96,.2)';},2000);}
+}
+</script>
+</head>
 <body>
 
 <!-- Toolbar -->
@@ -19247,7 +19305,7 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
       </label>
     </div>
   </div>
-  <button onclick="custSave()" style="width:100%;background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
+  <button onclick="custSave()" class="save-btn" style="width:100%;background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
   <button onclick="if(confirm('${isAr?'إعادة الإعدادات؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}" style="width:100%;background:rgba(255,80,80,.15);color:#ff8080;border:1px solid rgba(255,80,80,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
   </div>
 </div>
@@ -19342,51 +19400,6 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
 
 </div>
 </div>
-<script>
-var _custColor='${_ic}';
-function toggleCust(){
-  var p=document.getElementById('custPanel');
-  var b=document.getElementById('custBtn');
-  var open=p.style.display==='flex'||p.style.display==='block';
-  p.style.display=open?'none':'flex';
-  p.style.flexDirection='column';
-  p.style.gap='8px';
-  if(b){b.style.background=open?'rgba(255,255,255,.1)':'rgba(184,144,47,.35)';}
-}
-function custSetColor(c,el){
-  _custColor=c;
-  document.querySelectorAll('#custPanel div[data-color]').forEach(function(d){d.style.borderColor='transparent';});
-  if(el)el.style.borderColor='#fff';
-  var cc=document.getElementById('spCC');if(cc)cc.value=c;
-  custApply();
-}
-function custApply(){
-  var f=document.getElementById('spF').value;
-  var sz=document.getElementById('spSz').value;
-  var mg=document.getElementById('spM').value;
-  var wm=document.getElementById('spWm').value;
-  var swm=document.getElementById('spSwm').checked;
-  var pg=document.querySelector('.page');
-  if(pg){pg.style.fontFamily=f+',Arial,sans-serif';pg.style.fontSize=sz+'px';}
-  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_custColor;e.style.color='#fff';e.style.webkitPrintColorAdjust='exact';});
-  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_custColor;});
-  document.querySelectorAll('.brand-name,.gold-text,.inv-num').forEach(function(e){e.style.color=_custColor;});
-  document.querySelectorAll('.total-row.main').forEach(function(e){e.style.background=_custColor;});
-  document.querySelectorAll('.inv-header').forEach(function(e){e.style.borderBottomColor=_custColor;});
-  document.querySelectorAll('.inv-footer').forEach(function(e){e.style.borderTopColor=_custColor;});
-  document.querySelectorAll('.stamp-box').forEach(function(e){e.style.borderColor=_custColor;e.style.color=_custColor;});
-  var wmEl=document.getElementById('custWMText');
-  if(wmEl){wmEl.textContent=wm;wmEl.parentElement.style.display=(swm&&wm)?'flex':'none';}
-  var si='_cssl';var st=document.getElementById(si)||document.createElement('style');st.id=si;
-  st.textContent='@media print{@page{margin:'+mg+'}body{font-size:'+sz+'px!important;font-family:'+f+',Arial,sans-serif!important}thead th{background:'+_custColor+'!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.gold-bar{background:'+_custColor+'!important}.brand-name,.gold-text{color:'+_custColor+'!important}.total-row.main{background:'+_custColor+'!important}}';
-  if(!document.getElementById(si))document.head.appendChild(st);
-}
-function custSave(){
-  var s={fontFamily:document.getElementById('spF').value,fontSize:Number(document.getElementById('spSz').value),margin:document.getElementById('spM').value,accentColor:_custColor,watermark:document.getElementById('spWm').value,showWatermark:document.getElementById('spSwm').checked};
-  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch(e){}}}catch(e){}
-  alert('${isAr?'✅ تم حفظ الإعدادات':'✅ Paramètres sauvegardés'}');
-}
-</script>
 <div id="custWMText" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:90px;font-weight:900;color:rgba(184,144,47,.07);pointer-events:none;z-index:-1;white-space:nowrap"></div>
 </body></html>`;
 }
