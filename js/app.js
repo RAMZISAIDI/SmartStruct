@@ -1449,6 +1449,7 @@ const App = {
       app.innerHTML = render();
       this.bindEvents();
       this.animateBars();
+      if (this.currentPage === 'invoices') setTimeout(function(){ if(typeof initDzsGrid==='function') initDzsGrid(); }, 120);
       if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
       if (['landing','about','contact'].includes(this.currentPage) && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
@@ -18057,87 +18058,6 @@ Pages.invoices = function() {
   </div>
 </div>
 
-<script>
-(function initDzsGrid(){
-  // خريطة أنواع الوثائق
-  const META = {};
-  if(typeof DZ_DOC_CATALOG !== 'undefined'){
-    DZ_DOC_CATALOG.forEach(sec => sec.docs.forEach(d=>{
-      META[d.key]={icon:d.icon, ar:d.name.ar, fr:d.name.fr};
-    }));
-  }
-  const lbl = (ar,fr) => {try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;}};
-  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-  const tid = Auth.getUser().tenant_id;
-  let allDocs = (DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id===tid);
-  let activeFilter = sessionStorage.getItem('dzs_filter')||'all';
-
-  // زر مسح الكل
-  const clearBtn = document.getElementById('dzsClearBtn');
-  if(clearBtn && allDocs.length > 0) clearBtn.style.display='';
-
-  // فلتر
-  const bar = document.getElementById('dzsFilterBar');
-  if(bar){
-    const usedKeys = [...new Set(allDocs.map(d=>d.doc_type).filter(Boolean))];
-    const mkBtn = (key, label, count) => {
-      const b = document.createElement('button');
-      b.className = 'btn btn-sm ' + (activeFilter===key?'btn-gold':'btn-ghost');
-      b.textContent = label + ' (' + count + ')';
-      b.onclick = () => { sessionStorage.setItem('dzs_filter',key); initDzsGrid(); };
-      return b;
-    };
-    bar.innerHTML='';
-    bar.appendChild(mkBtn('all', lbl('الكل','Tout'), allDocs.length));
-    usedKeys.forEach(k=>{
-      const m=META[k];
-      const name = m ? (lbl(m.ar,m.fr)) : k;
-      const icon = m ? m.icon+' ' : '';
-      bar.appendChild(mkBtn(k, icon+name, allDocs.filter(d=>d.doc_type===k).length));
-    });
-  }
-
-  // الوثائق المفلترة
-  const shown = activeFilter==='all' ? allDocs : allDocs.filter(d=>d.doc_type===activeFilter);
-  const grid  = document.getElementById('dzsGrid');
-  const empty = document.getElementById('dzsEmpty');
-  if(!grid) return;
-
-  if(shown.length===0){
-    grid.style.display='none';
-    if(empty) empty.style.display='';
-    return;
-  }
-  grid.style.display='';
-  if(empty) empty.style.display='none';
-
-  grid.innerHTML = shown.map(doc => {
-    const m = META[doc.doc_type];
-    const icon  = m ? m.icon  : '📄';
-    const tname = m ? lbl(m.ar,m.fr) : (doc.doc_type||'—');
-    // أبرز الحقول
-    const f = doc.fields||{};
-    const snippet = Object.keys(f).slice(0,5).map(k=>{
-      const v=String(f[k]||'').trim();
-      return v && v.length<60 ? '<span style="color:var(--text)">'+esc(v.substring(0,35))+'</span>' : '';
-    }).filter(Boolean).join(' <span style="color:var(--dim)">·</span> ');
-
-    return \`<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(232,184,75,.5)'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="font-size:.66rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">\${icon} \${esc(tname)}</div>
-      <div style="font-size:.88rem;font-weight:800;line-height:1.3">\${esc(doc.doc_title||tname)}</div>
-      <div style="font-size:.7rem;color:var(--dim)">📅 \${doc.date||''}</div>
-      \${snippet ? \`<div style="font-size:.7rem;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:.35rem;margin-top:.1rem">\${snippet}</div>\` : ''}
-      <div style="display:flex;gap:.35rem;margin-top:auto;padding-top:.45rem">
-        <button class="btn btn-gold btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReopen(\${doc.id})" title="\${lbl('تعديل وإعادة توليد','Modifier & regénérer')}">✏️ \${lbl('تعديل','Modifier')}</button>
-        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReprint(\${doc.id})" title="\${lbl('إعادة طباعة','Réimprimer')}">🖨️ \${lbl('طباعة','Imprimer')}</button>
-        <button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="dzsPrintPDF(\${doc.id})" title="PDF">📥 PDF</button>
-        <button class="btn btn-red btn-sm" style="font-size:.72rem" onclick="dzsDelete(\${doc.id})" title="\${lbl('حذف','Supprimer')}">🗑️</button>
-      </div>
-    </div>\`;
-  }).join('');
-})();
-</script>
 
   `);
 };
@@ -19439,26 +19359,112 @@ function printInvoiceWindow(id, autoPrint = false) {
   const ps     = getPrintSettings ? getPrintSettings() : {};
   const _ic    = ps.accentColor || '#B8902F';
   const _if    = ps.fontFamily  || 'Cairo';
-  const _im    = ps.margin      || '12mm';
-  const _iz    = ps.fontSize    || 13;
+  const fmt2   = n => Number(n||0).toLocaleString(isAr?'ar-DZ':'fr-DZ');
+  const da     = isAr ? 'دج' : 'DA';
+  const esc    = s => String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const logoHTML = logo ? `<img src="${logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;padding:3px">` : '';
 
-  // بناء HTML الفاتورة
-  const invHtml = buildInvoiceHTML(inv, tenant, proj, items, tvaRate, amountHT, tvaAmount, isAr, isPaid, logo, _ic, _if, _im, _iz);
+  // بناء body الفاتورة فقط (بدون html/head/body tags)
+  const bodyHtml = `
+<div class="page" style="background:#fff;max-width:820px;margin:0 auto;overflow:hidden;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+
+  <div style="background:#fff;border-bottom:3px solid ${_ic};padding:28px 36px;display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;align-items:center;gap:18px">
+      ${logoHTML}
+      <div>
+        <div style="font-size:22px;font-weight:900;color:${_ic}">${esc(tenant?.name||'')}</div>
+        ${tenant?.nif ? `<div style="font-size:10px;color:#666;margin-top:2px">NIF: ${esc(tenant.nif)}</div>` : ''}
+        ${tenant?.nis ? `<div style="font-size:10px;color:#666">NIS: ${esc(tenant.nis)}</div>` : ''}
+        ${tenant?.rc_number ? `<div style="font-size:10px;color:#666">RC: ${esc(tenant.rc_number)}</div>` : ''}
+      </div>
+    </div>
+    <div style="text-align:${isAr?'left':'right'}">
+      <div style="font-size:28px;font-weight:900;color:#1a1a1a;letter-spacing:2px">${isAr?'فاتورة':'FACTURE'}</div>
+      <div style="font-size:13px;color:${_ic};font-weight:700;margin-top:4px">${esc(inv.number)}</div>
+    </div>
+  </div>
+
+  <div style="height:3px;background:${_ic}"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;padding:20px 36px;gap:16px;border-bottom:1px solid #f0f0f0">
+    <div style="padding:12px;border:1px solid #f0e8d0;border-radius:8px">
+      <div style="font-size:10px;color:#999;font-weight:700;text-transform:uppercase;margin-bottom:5px">${isAr?'تاريخ الإصدار':'Date émission'}</div>
+      <div style="font-size:13px;font-weight:700">${inv.date||''}</div>
+      ${inv.due_date?`<div style="font-size:11px;color:#666;margin-top:2px">${isAr?'الاستحقاق':'Échéance'}: ${inv.due_date}</div>`:''}
+    </div>
+    <div style="padding:12px;border:1px solid #f0e8d0;border-radius:8px">
+      <div style="font-size:10px;color:#999;font-weight:700;text-transform:uppercase;margin-bottom:5px">${isAr?'العميل':'Client'}</div>
+      <div style="font-size:13px;font-weight:700">${esc(inv.client||'—')}</div>
+      ${proj?`<div style="font-size:11px;color:#666;margin-top:2px">🏗️ ${esc(proj.name)}</div>`:''}
+    </div>
+    <div style="padding:12px;border:1px solid #f0e8d0;border-radius:8px">
+      <div style="font-size:10px;color:#999;font-weight:700;text-transform:uppercase;margin-bottom:5px">${isAr?'الحالة':'Statut'}</div>
+      <div style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:${isPaid?'#d4f5e4':'#fff3cd'};color:${isPaid?'#0a6e3f':'#856404'};border:1px solid ${isPaid?'#a8d5b5':'#ffc107'}">
+        ${inv.status==='paid'?(isAr?'✅ مدفوعة':'✅ Payée'):inv.status==='partial'?(isAr?'🔶 جزئية':'🔶 Partiel'):(isAr?'⏳ معلقة':'⏳ En attente')}
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:24px 36px">
+    <div style="font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📋 ${isAr?'تفاصيل الفاتورة':'Détails de la facture'}</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:${isAr?'right':'left'}">${isAr?'البيان':'Désignation'}</th>
+        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:center">${isAr?'الكمية':'Qté'}</th>
+        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:center">${isAr?'سعر الوحدة':'P.U. (DA)'}</th>
+        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:center">${isAr?'الإجمالي HT':'Total HT'}</th>
+      </tr></thead>
+      <tbody>
+        ${items.map((item,i)=>`<tr style="background:${i%2===0?'#fafaf7':'#fff'}">
+          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px">${esc(item.desc||item.designation||'')}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px;text-align:center">${item.qty||1}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px;text-align:center">${fmt2(item.price||item.unit_price||0)} ${da}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px;text-align:center;font-weight:700">${fmt2(item.total||0)} ${da}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="padding:16px 36px 24px;display:flex;justify-content:flex-${isAr?'start':'end'}">
+    <div style="min-width:260px">
+      <div style="display:flex;justify-content:space-between;padding:6px 12px;font-size:13px"><span>${isAr?'المجموع HT':'Sous-total HT'}</span><span>${fmt2(amountHT)} ${da}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 12px;font-size:13px"><span>TVA (${tvaRate}%)</span><span>${fmt2(tvaAmount)} ${da}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;font-size:15px;font-weight:900;background:${_ic};color:#fff;border-radius:6px;margin-top:6px">
+        <span>${isAr?'المجموع TTC':'TOTAL TTC'}</span><span>${fmt2(inv.amount)} ${da}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;padding:20px 36px;border-top:1px solid #f0f0f0">
+    <div style="font-size:10px;color:#bbb;line-height:1.7">
+      <strong>${isAr?'ملاحظات قانونية':'Mentions légales'}</strong><br>
+      TVA: ${tvaRate}% ${tenant?.nif?'| NIF: '+esc(tenant.nif):''}${tenant?.nis?' | NIS: '+esc(tenant.nis):''}<br>
+      ${tenant?.rc_number?'RC: '+esc(tenant.rc_number)+' | ':''}${esc(tenant?.address||'')}
+    </div>
+    <div style="width:140px;height:80px;border:2px solid ${_ic};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:${_ic};font-weight:700;opacity:.5;text-align:center">
+      ${isAr?'الختم\nوالتوقيع':'Cachet\net Signature'}
+    </div>
+  </div>
+
+  <div style="background:#f8f5ee;border-top:2px solid ${_ic};padding:10px 36px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:10px;color:#666">${esc(tenant?.name||'')}</span>
+    <span style="font-size:10px;color:${_ic};font-weight:700">${esc(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
+  </div>
+
+</div>`;
+
+  // استخدم _buildPrintShell مثل باقي الوثائق — يوفر toolbar + customize panel كاملان
+  const fullHtml = _buildPrintShell({
+    title: (isAr?'فاتورة':'Facture') + ' ' + inv.number,
+    bodyHtml,
+    isAr,
+    onPrint: autoPrint
+  });
 
   const win = window.open('', '_blank');
   if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); return; }
-  win.document.write(invHtml);
+  win.document.write(fullHtml);
   win.document.close();
-  win.document.title = (isAr?'فاتورة':'Facture') + ' ' + inv.number;
-
-  if (autoPrint) {
-    win.addEventListener('load', function() {
-      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
-    });
-    if (win.document.readyState === 'complete') {
-      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
-    }
-  }
 }
 
 Pages.inventory = function() {
@@ -22797,6 +22803,90 @@ window.dzsReprint = function(id) {
 window.dzsPrintPDF = function(id) {
   // نفس آلية dzsReprint — يُفعّل توليد PDF عبر زر التوليد
   window.dzsReprint(id);
+};
+
+// ════════════════════════════════════════════════════════
+// initDzsGrid — تهيئة قسم الوثائق في صفحة الفواتير
+// تُستدعى بعد render (لأن innerHTML لا يُنفّذ script tags)
+// ════════════════════════════════════════════════════════
+window.initDzsGrid = function() {
+  var META = {};
+  if(typeof DZ_DOC_CATALOG !== 'undefined'){
+    DZ_DOC_CATALOG.forEach(function(sec){ sec.docs.forEach(function(d){
+      META[d.key]={icon:d.icon, ar:d.name.ar, fr:d.name.fr};
+    });});
+  }
+  var lbl = function(ar,fr){ try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;} };
+  var esc = function(s){ return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); };
+
+  var user = Auth.getUser();
+  if(!user) return;
+  var tid = user.tenant_id;
+  var allDocs = (DB.get('dz_generated_docs')||[]).filter(function(d){return d.tenant_id===tid;});
+  var activeFilter = sessionStorage.getItem('dzs_filter')||'all';
+
+  var clearBtn = document.getElementById('dzsClearBtn');
+  if(clearBtn) clearBtn.style.display = allDocs.length > 0 ? '' : 'none';
+
+  var bar = document.getElementById('dzsFilterBar');
+  if(bar){
+    var usedKeys = [];
+    allDocs.forEach(function(d){ if(d.doc_type && usedKeys.indexOf(d.doc_type)===-1) usedKeys.push(d.doc_type); });
+    var mkBtn = function(key, label, count) {
+      var b = document.createElement('button');
+      b.className = 'btn btn-sm ' + (activeFilter===key?'btn-gold':'btn-ghost');
+      b.textContent = label + ' (' + count + ')';
+      b.onclick = function(){ sessionStorage.setItem('dzs_filter',key); window.initDzsGrid(); };
+      return b;
+    };
+    bar.innerHTML='';
+    bar.appendChild(mkBtn('all', lbl('الكل','Tout'), allDocs.length));
+    usedKeys.forEach(function(k){
+      var m=META[k];
+      var name = m ? lbl(m.ar,m.fr) : k;
+      var icon = m ? m.icon+' ' : '';
+      bar.appendChild(mkBtn(k, icon+name, allDocs.filter(function(d){return d.doc_type===k;}).length));
+    });
+  }
+
+  var shown = activeFilter==='all' ? allDocs : allDocs.filter(function(d){return d.doc_type===activeFilter;});
+  var grid  = document.getElementById('dzsGrid');
+  var empty = document.getElementById('dzsEmpty');
+  if(!grid) return;
+
+  if(shown.length===0){
+    grid.style.display='none';
+    if(empty) empty.style.display='';
+    return;
+  }
+  grid.style.display='';
+  if(empty) empty.style.display='none';
+
+  grid.innerHTML = shown.map(function(doc) {
+    var m = META[doc.doc_type];
+    var icon  = m ? m.icon  : '📄';
+    var tname = m ? lbl(m.ar,m.fr) : (doc.doc_type||'—');
+    var f = doc.fields||{};
+    var snippetParts = [];
+    Object.keys(f).slice(0,5).forEach(function(k){
+      var v=String(f[k]||'').trim();
+      if(v && v.length<60) snippetParts.push('<span style="color:var(--text)">'+esc(v.substring(0,35))+'</span>');
+    });
+    var snippet = snippetParts.filter(Boolean).join(' <span style="color:var(--dim)">·</span> ');
+
+    return '<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem;transition:border-color .2s" onmouseenter="this.style.borderColor=\'rgba(232,184,75,.5)\'" onmouseleave="this.style.borderColor=\'var(--border)\'">'
+      +'<div style="font-size:.66rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">'+esc(icon)+' '+esc(tname)+'</div>'
+      +'<div style="font-size:.88rem;font-weight:800;line-height:1.3">'+esc(doc.doc_title||tname)+'</div>'
+      +'<div style="font-size:.7rem;color:var(--dim)">📅 '+(doc.date||'')+'</div>'
+      +(snippet ? '<div style="font-size:.7rem;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:.35rem;margin-top:.1rem">'+snippet+'</div>' : '')
+      +'<div style="display:flex;gap:.35rem;margin-top:auto;padding-top:.45rem">'
+      +'<button class="btn btn-gold btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReopen('+doc.id+')" title="'+lbl('تعديل وإعادة توليد','Modifier & regénérer')+'">✏️ '+lbl('تعديل','Modifier')+'</button>'
+      +'<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReprint('+doc.id+')" title="'+lbl('إعادة طباعة','Réimprimer')+'">🖨️ '+lbl('طباعة','Imprimer')+'</button>'
+      +'<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="dzsPrintPDF('+doc.id+')" title="PDF">📥 PDF</button>'
+      +'<button class="btn btn-red btn-sm" style="font-size:.72rem" onclick="dzsDelete('+doc.id+')" title="'+lbl('حذف','Supprimer')+'">🗑️</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
 };
 
 // ════════════════════════════════════════════════════════════════════
