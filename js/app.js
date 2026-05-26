@@ -19391,7 +19391,7 @@ function custSave(){
 </body></html>`;
 }
 
-function exportInvoicePDFid) {
+function exportInvoicePDF(id) {
   // الحل الأفضل: نفتح نافذة الطباعة الجميلة، ثم نطلق print()
   // المتصفح سيعطي المستخدم خيار "Save as PDF" تلقائياً
   // النتيجة: PDF بنفس جودة العرض، مع دعم كامل للعربية والشعار
