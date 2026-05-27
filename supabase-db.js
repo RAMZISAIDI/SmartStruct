@@ -1630,6 +1630,8 @@ if (!navigator.onLine || !this._useSupabase) {
     const globalTables = ['plans','tenants','users'];
 
     // ═══ ① السحب من Supabase أولاً ═══
+    // جداول محلية فقط — لا توجد في Supabase
+    const LOCAL_ONLY = new Set(['subscription_invoices','suppliers','supplier_prices','supplier_obligations','supplier_purchases','leave_requests','worker_warnings','worker_overtime']);
     console.log('🔽 سحب البيانات من Supabase...');
     try {
       // الجداول العامة
@@ -1672,6 +1674,8 @@ if (!navigator.onLine || !this._useSupabase) {
       // الجداول الخاصة بالمؤسسة
       if (tid || isAdmin) {
         for (const t of tenantTables) {
+          // ✅ تجاهل الجداول المحلية فقط
+          if (LOCAL_ONLY.has(t)) continue;
           try {
             // المستخدم العادي: يسحب فقط بيانات مؤسسته
             // الأدمن: يسحب كل شيء
@@ -2194,6 +2198,9 @@ const SmartRealtime = (() => {
   /* ─── الانضمام لقناة جدول ──────────────────── */
   function _joinTable(table) {
     if (_joinedTopics.has(table)) return;
+    // لا نُضيف الجداول المحلية للـ Realtime
+    const _LOCAL_ONLY_RT = new Set(['subscription_invoices','suppliers','supplier_prices','supplier_obligations','supplier_purchases']);
+    if (_LOCAL_ONLY_RT.has(table)) return;
     _joinedTopics.add(table);
 
     // بناء filter للمؤسسة فقط (إذا توفّر tenant_id)

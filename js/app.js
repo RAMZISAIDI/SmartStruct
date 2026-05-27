@@ -11714,16 +11714,20 @@ async function pullAllTenantDataFromSupabase(tenantId) {
   }
 
   const TABLES = [
-    'tenants','users',
+    'tenants',
     'projects','workers','equipment','transactions','attendance',
     'materials','stock_movements','invoices','salary_records',
-    'kanban_tasks','documents','obligations','notes'
+    'kanban_tasks','documents','obligations','notes','users'
   ];
-  const TENANT_SCOPED = new Set(['tenants','users']); // تُجلب بـ id بدل tenant_id
+  const TENANT_SCOPED = new Set(['tenants']); // تُجلب بـ id=tenantId بدل tenant_id
+  const LOCAL_ONLY_TABLES = new Set(['subscription_invoices']); // جداول محلية فقط، لا تُجلب من Supabase
 
   for (const table of TABLES) {
     try {
-      // tenants/users تُجلب بـ id مباشر، بقية الجداول بـ tenant_id
+      // تجاهل الجداول المحلية فقط
+      if (LOCAL_ONLY_TABLES.has(table)) continue;
+
+      // tenants تُجلب بـ id مباشر، بقية الجداول بـ tenant_id
       const fetchUrl = TENANT_SCOPED.has(table)
         ? `${cfg.url}/rest/v1/${table}?id=eq.${tenantId}&select=*`
         : `${cfg.url}/rest/v1/${table}?tenant_id=eq.${tenantId}&select=*&order=id.asc`;
