@@ -17949,6 +17949,7 @@ Pages.invoices = function() {
             <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
               <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
+              ${canDo('write_invoices')?`<button class="btn btn-gold btn-sm" onclick="editInvoiceItem(${inv.id})" title="${L('تعديل الفاتورة','Modifier la facture')}">✏️</button>`:''}
               <button class="btn btn-ghost btn-sm" onclick="uploadInvoiceToDrive(${inv.id})" title="${L('رفع لـ Google Drive','Envoyer vers Drive')}">☁️</button>
               ${inv.status==='paid'?`<button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForInvoice('quittance',${inv.id})" title="${L('وصل تسديد PDF','Quittance PDF')}">🧾</button>`:''}
               ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة كلياً','Marquer payée')}">✅</button>`:''}
@@ -18185,6 +18186,110 @@ function addInvoiceItem() {
   Toast.success(L('✅ تم إضافة الفاتورة','✅ Facture créée avec succès'));
   App.navigate('invoices');
 }
+
+
+// ✅ تعديل فاتورة — يفتح modal الإضافة مملوءاً ببيانات الفاتورة الموجودة
+function editInvoiceItem(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لتعديل الفاتورة','Permission refusée')); return; }
+  const inv = DB.get('invoices').find(i => i.id === id);
+  if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
+  const modal = document.getElementById('addInvModal');
+  if (!modal) { App.navigate('invoices'); return; }
+  modal.classList.add('active');
+  const set = (eid, val) => { const el = document.getElementById(eid); if(el) el.value = val||''; };
+  set('invNum', inv.number); set('invClient', inv.client);
+  set('invClientNif', inv.client_nif||''); set('invDt', inv.date);
+  set('invDue', inv.due_date||''); set('invSt', inv.status||'pending');
+  set('invPaidDate', inv.paid_date||''); set('invPayMethod', inv.payment_method||'cash');
+  set('invPayRef', inv.payment_ref||''); set('invTVA', inv.tva_rate||19);
+  set('invDesc', inv.description||'');
+  const projSel = document.getElementById('invProj');
+  if(projSel && inv.project_id) projSel.value = inv.project_id;
+  const linesContainer = document.getElementById('invLines');
+  if(linesContainer && inv.items && inv.items.length) {
+    linesContainer.innerHTML = '';
+    inv.items.forEach(function(item) {
+      if(typeof addInvLine === 'function') addInvLine();
+      const rows = linesContainer.querySelectorAll('.inv-line-row');
+      const row = rows[rows.length-1];
+      if(row) {
+        const inputs = row.querySelectorAll('input');
+        if(inputs[0]) inputs[0].value = item.desc||item.designation||'';
+        if(inputs[1]) inputs[1].value = item.qty||1;
+        if(inputs[2]) inputs[2].value = item.price||item.unit_price||0;
+      }
+    });
+  }
+  const submitBtn = modal.querySelector('button[onclick*="addInvoiceItem"]');
+  if(submitBtn) {
+    submitBtn.textContent = L('💾 حفظ التعديلات','💾 Enregistrer les modifications');
+    submitBtn.setAttribute('onclick', 'updateInvoiceItem('+id+')');
+  }
+  const titleEl = modal.querySelector('.modal-title,h3,h2,h4');
+  if(titleEl) titleEl.textContent = L('تعديل الفاتورة','Modifier la facture')+' '+inv.number;
+}
+
+function updateInvoiceItem(id) {
+  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية','Permission refusée')); return; }
+  const num = document.getElementById('invNum')?.value?.trim();
+  const client = document.getElementById('invClient')?.value?.trim();
+  if(!num||!client) { Toast.error(L('أدخل رقم الفاتورة والعميل','Renseignez numéro et client')); return; }
+  const rows = document.querySelectorAll('#invLines .inv-line-row');
+  const items = [];
+  rows.forEach(function(r) {
+    const inputs = r.querySelectorAll('input');
+    const desc = inputs[0]?.value?.trim()||'';
+    const qty = parseFloat(inputs[1]?.value)||0;
+    const price = parseFloat(inputs[2]?.value)||0;
+    if(desc||qty||price) items.push({desc,qty,price,total:qty*price});
+  });
+  const tvaRate = Number(document.getElementById('invTVA')?.value)||19;
+  const totalHT = items.reduce(function(s,i){return s+i.total;},0);
+  const tva = Math.round(totalHT*tvaRate/100);
+  const ttc = totalHT+tva;
+  const st = document.getElementById('invSt')?.value||'pending';
+  const paidDate = document.getElementById('invPaidDate')?.value||'';
+  const invs = DB.get('invoices');
+  const idx = invs.findIndex(function(i){return i.id===id;});
+  if(idx<0) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
+  invs[idx] = Object.assign({}, invs[idx], {
+    number:num, client,
+    client_nif: document.getElementById('invClientNif')?.value||'',
+    project_id: Number(document.getElementById('invProj')?.value)||null,
+    amount: ttc>0?ttc:invs[idx].amount,
+    amount_ht: totalHT, tva_rate: tvaRate, tva_amount: tva,
+    date: document.getElementById('invDt')?.value||invs[idx].date,
+    due_date: document.getElementById('invDue')?.value||'',
+    paid_date: st==='paid'?(paidDate||todayStr()):paidDate,
+    status: st,
+    payment_method: document.getElementById('invPayMethod')?.value||'cash',
+    payment_ref: document.getElementById('invPayRef')?.value||'',
+    description: document.getElementById('invDesc')?.value||'',
+    items: items, _localUpdated: Date.now()
+  });
+  DB.set('invoices', invs);
+  sbSync('invoices', invs[idx], 'PATCH').catch(function(){});
+  try {
+    if(typeof DZArchive!=='undefined') {
+      var archived = DZArchive.list({kind:'invoice'}).find(function(d){return d.meta_data&&d.meta_data.invoiceId===id;});
+      if(archived) {
+        var docs = DB.get('documents');
+        var dIdx = docs.findIndex(function(d){return d.id===archived.id;});
+        if(dIdx>=0) {
+          docs[dIdx].meta_data = Object.assign({},docs[dIdx].meta_data,{amount:invs[idx].amount,status:st,client:client});
+          docs[dIdx].name = L('فاتورة رسمية','Facture Officielle')+' - '+num;
+          DB.set('documents', docs);
+        }
+      }
+    }
+  } catch(_) {}
+  Toast.success(L('تم تعديل الفاتورة','Facture modifiée'));
+  document.getElementById('addInvModal')?.classList.remove('active');
+  App.navigate('invoices');
+}
+
+window.editInvoiceItem = editInvoiceItem;
+window.updateInvoiceItem = updateInvoiceItem;
 
 function deleteInvoiceItem(id) {
   if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لحذف الفاتورة','Permission refusée : facture')); return; }
@@ -19382,6 +19487,29 @@ function printInvoiceWindow(id, autoPrint = false) {
   const tenant = Auth.getTenant();
   const proj   = DB.get('projects').find(p => p.id === inv?.project_id);
   if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
+
+  // ✅ حفظ تلقائي في DZArchive (مرة واحدة فقط — لا تكرار)
+  if (!autoPrint) {
+    try {
+      if (typeof DZArchive !== 'undefined' && DZArchive.save) {
+        const existingArchived = DZArchive.list({ kind: 'invoice' })
+          .find(d => d.meta_data && d.meta_data.invoiceId === id);
+        if (!existingArchived) {
+          DZArchive.save('invoice', {
+            number:      inv.number,
+            invoiceId:   id,
+            projectId:   inv.project_id,
+            client:      inv.client,
+            amount:      inv.amount,
+            date:        inv.date,
+            status:      inv.status,
+            description: inv.description,
+          });
+          console.log(`📁 [DZArchive] فاتورة محفوظة: ${inv.number}`);
+        }
+      }
+    } catch(e) { console.warn('[printInvoiceWindow] archive failed:', e.message); }
+  }
 
   const tvaRate   = inv.tva_rate   || tenant?.tva_rate || 19;
   const amountHT  = inv.amount_ht  || Math.round(Number(inv.amount) / (1 + tvaRate / 100));
@@ -22861,49 +22989,72 @@ window.dzsPrintPDF = function(id) {
 // تُستدعى بعد render (لأن innerHTML لا يُنفّذ script tags)
 // ════════════════════════════════════════════════════════
 window.initDzsGrid = function() {
-  var META = {};
-  if(typeof DZ_DOC_CATALOG !== 'undefined'){
-    DZ_DOC_CATALOG.forEach(function(sec){ sec.docs.forEach(function(d){
-      META[d.key]={icon:d.icon, ar:d.name.ar, fr:d.name.fr};
-    });});
-  }
-  var lbl = function(ar,fr){ try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;} };
-  var esc = function(s){ return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); };
+  var lbl = function(ar,fr){ try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;}};
+  var esc = function(s){ return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);});};
+  var fmt = function(n){ return Number(n||0).toLocaleString(); };
 
   var user = Auth.getUser();
   if(!user) return;
   var tid = user.tenant_id;
-  var allDocs = (DB.get('dz_generated_docs')||[]).filter(function(d){return d.tenant_id===tid;});
+
+  // ✅ نقرأ من documents (DZArchive) — يشمل الفواتير وكل الوثائق
+  var allDocs = (DB.get('documents')||[]).filter(function(d){
+    return d.tenant_id===tid && d.doc_kind;
+  }).sort(function(a,b){ return new Date(b.created_at||b.date)-new Date(a.created_at||a.date); });
+
   var activeFilter = sessionStorage.getItem('dzs_filter')||'all';
 
-  var clearBtn = document.getElementById('dzsClearBtn');
-  if(clearBtn) clearBtn.style.display = allDocs.length > 0 ? '' : 'none';
-
+  // ── شريط الفلاتر ──
   var bar = document.getElementById('dzsFilterBar');
   if(bar){
-    var usedKeys = [];
-    allDocs.forEach(function(d){ if(d.doc_type && usedKeys.indexOf(d.doc_type)===-1) usedKeys.push(d.doc_type); });
-    var mkBtn = function(key, label, count) {
-      var b = document.createElement('button');
-      b.className = 'btn btn-sm ' + (activeFilter===key?'btn-gold':'btn-ghost');
-      b.textContent = label + ' (' + count + ')';
-      b.onclick = function(){ sessionStorage.setItem('dzs_filter',key); window.initDzsGrid(); };
-      return b;
+    var cats = {};
+    allDocs.forEach(function(d){
+      var k = d.doc_kind||d.type||'other';
+      cats[k] = (cats[k]||0)+1;
+    });
+    var CAT_LABELS = {
+      invoice:lbl('🧾 فواتير','🧾 Factures'),
+      proforma:lbl('📋 بروفورما','📋 Proforma'),
+      devis:lbl('📊 كشوف تقديرية','📊 Devis'),
+      acompte:lbl('⏩ تسبيقات','⏩ Acomptes'),
+      def_invoice:lbl('🏁 فواتير نهائية','🏁 Factures déf.'),
+      situation:lbl('📈 وضعيات','📈 Situations'),
+      quittance:lbl('🧾 وصول تسديد','🧾 Quittances'),
+      paie:lbl('💼 كشوف رواتب','💼 Bulletins paie'),
+      cdd:lbl('📝 عقود CDD','📝 Contrats CDD'),
+      cdi:lbl('🔒 عقود CDI','🔒 Contrats CDI'),
+      cta:lbl('🤝 عقود CTA','🤝 Contrats CTA'),
+      attestation:lbl('📄 شهادات عمل','📄 Attestations'),
+      pv_ouverture:lbl('🚀 محاضر بدء','🚀 PV Ouverture'),
+      pv_reception_pro:lbl('🤝 استلام مؤقت','🤝 PV Réception P.'),
+      pv_reception_def:lbl('✅ استلام نهائي','✅ PV Réception D.'),
+      attachement:lbl('📐 مرفقات','📐 Attachements'),
+      commande:lbl('🛒 طلبات','🛒 Bons Commande'),
+      reception:lbl('📥 استلام','📥 Bons Réception'),
+      sortie:lbl('📤 خروج','📤 Bons Sortie'),
     };
     bar.innerHTML='';
-    bar.appendChild(mkBtn('all', lbl('الكل','Tout'), allDocs.length));
-    usedKeys.forEach(function(k){
-      var m=META[k];
-      var name = m ? lbl(m.ar,m.fr) : k;
-      var icon = m ? m.icon+' ' : '';
-      bar.appendChild(mkBtn(k, icon+name, allDocs.filter(function(d){return d.doc_type===k;}).length));
+    var mkBtn = function(key,label,count){
+      var b=document.createElement('button');
+      b.className='btn btn-sm '+(activeFilter===key?'btn-gold':'btn-ghost');
+      b.style.cssText='font-size:.72rem;padding:.3rem .7rem';
+      b.textContent=label+(count!==undefined?' ('+count+')':'');
+      b.onclick=function(){sessionStorage.setItem('dzs_filter',key);window.initDzsGrid();};
+      return b;
+    };
+    bar.appendChild(mkBtn('all',lbl('📂 الكل','📂 Tout'),allDocs.length));
+    Object.keys(cats).sort().forEach(function(k){
+      bar.appendChild(mkBtn(k, CAT_LABELS[k]||('📄 '+k), cats[k]));
     });
   }
 
-  var shown = activeFilter==='all' ? allDocs : allDocs.filter(function(d){return d.doc_type===activeFilter;});
+  var shown = activeFilter==='all' ? allDocs : allDocs.filter(function(d){return (d.doc_kind||d.type)===activeFilter;});
   var grid  = document.getElementById('dzsGrid');
   var empty = document.getElementById('dzsEmpty');
   if(!grid) return;
+
+  var clearBtn = document.getElementById('dzsClearBtn');
+  if(clearBtn) clearBtn.style.display = allDocs.length>0?'':'none';
 
   if(shown.length===0){
     grid.style.display='none';
@@ -22913,31 +23064,118 @@ window.initDzsGrid = function() {
   grid.style.display='';
   if(empty) empty.style.display='none';
 
-  grid.innerHTML = shown.map(function(doc) {
-    var m = META[doc.doc_type];
-    var icon  = m ? m.icon  : '📄';
-    var tname = m ? lbl(m.ar,m.fr) : (doc.doc_type||'—');
-    var f = doc.fields||{};
-    var snippetParts = [];
-    Object.keys(f).slice(0,5).forEach(function(k){
-      var v=String(f[k]||'').trim();
-      if(v && v.length<60) snippetParts.push('<span style="color:var(--text)">'+esc(v.substring(0,35))+'</span>');
-    });
-    var snippet = snippetParts.filter(Boolean).join(' <span style="color:var(--dim)">·</span> ');
+  grid.innerHTML = shown.map(function(doc){
+    var kind = doc.doc_kind || doc.type || 'other';
+    var isInvoice = kind==='invoice';
+    var meta = doc.meta_data || {};
+    var ICONS = {invoice:'🧾',proforma:'📋',devis:'📊',acompte:'⏩',def_invoice:'🏁',situation:'📈',
+      quittance:'🧾',paie:'💼',cdd:'📝',cdi:'🔒',cta:'🤝',attestation:'📄',
+      pv_ouverture:'🚀',pv_reception_pro:'🤝',pv_reception_def:'✅',
+      attachement:'📐',commande:'🛒',reception:'📥',sortie:'📤',suivi:'🚜'};
+    var icon = ICONS[kind]||'📄';
+    var typeName = (CAT_LABELS&&CAT_LABELS[kind]) ? CAT_LABELS[kind].replace(/^[^ ]+ /,'') : kind;
 
-    return '<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem;transition:border-color .2s" onmouseenter="this.style.borderColor=\'rgba(232,184,75,.5)\'" onmouseleave="this.style.borderColor=\'var(--border)\'">'
-      +'<div style="font-size:.66rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">'+esc(icon)+' '+esc(tname)+'</div>'
-      +'<div style="font-size:.88rem;font-weight:800;line-height:1.3">'+esc(doc.doc_title||tname)+'</div>'
-      +'<div style="font-size:.7rem;color:var(--dim)">📅 '+(doc.date||'')+'</div>'
-      +(snippet ? '<div style="font-size:.7rem;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:.35rem;margin-top:.1rem">'+snippet+'</div>' : '')
-      +'<div style="display:flex;gap:.35rem;margin-top:auto;padding-top:.45rem">'
-      +'<button class="btn btn-gold btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReopen('+doc.id+')" title="'+lbl('تعديل وإعادة توليد','Modifier & regénérer')+'">✏️ '+lbl('تعديل','Modifier')+'</button>'
-      +'<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReprint('+doc.id+')" title="'+lbl('إعادة طباعة','Réimprimer')+'">🖨️ '+lbl('طباعة','Imprimer')+'</button>'
-      +'<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="dzsPrintPDF('+doc.id+')" title="PDF">📥 PDF</button>'
-      +'<button class="btn btn-red btn-sm" style="font-size:.72rem" onclick="dzsDelete('+doc.id+')" title="'+lbl('حذف','Supprimer')+'">🗑️</button>'
+    // معلومات إضافية للفواتير
+    var extraInfo = '';
+    if(isInvoice){
+      var statusColor = meta.status==='paid'?'#2ecc71':meta.status==='partial'?'#f39c12':'#e74c3c';
+      var statusLabel = meta.status==='paid'?lbl('✅ مدفوعة','✅ Payée'):meta.status==='partial'?lbl('🔶 جزئي','🔶 Partiel'):lbl('⏳ معلقة','⏳ En attente');
+      extraInfo = '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">'
+        +'<span style="font-size:.85rem;font-weight:900;color:var(--gold)">'+esc(fmt(meta.amount))+' دج</span>'
+        +'<span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:'+statusColor+'22;color:'+statusColor+';font-weight:700">'+statusLabel+'</span>'
+        +'</div>'
+        +'<div style="font-size:.7rem;color:var(--dim)">👤 '+esc(meta.client||'—')+'</div>';
+    } else if(meta.totalTTC||meta.total_ttc) {
+      extraInfo = '<div style="font-size:.82rem;font-weight:800;color:var(--gold);margin-top:.2rem">'+fmt(meta.totalTTC||meta.total_ttc||0)+' دج</div>';
+    }
+
+    var projName = '';
+    if(meta.projectId||meta.project_id){
+      var pid = meta.projectId||meta.project_id;
+      var proj = (typeof DB!=='undefined'&&DB.get)?DB.get('projects').find(function(p){return p.id==pid;}):null;
+      if(proj) projName = '<div style="font-size:.68rem;color:var(--dim)">🏗️ '+esc(proj.name)+'</div>';
+    }
+
+    return '<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:.9rem;display:flex;flex-direction:column;gap:.35rem;transition:border-color .15s,transform .15s" '
+      +'onmouseenter="this.style.borderColor=\'rgba(232,184,75,.5)\';this.style.transform=\'translateY(-1px)\'" '
+      +'onmouseleave="this.style.borderColor=\'var(--border)\';this.style.transform=\'\">'      // نوع الوثيقة
+      +'<div style="display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:.62rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">'+icon+' '+esc(typeName)+'</span>'
+      +'<span style="font-size:.65rem;color:var(--dim)">📅 '+esc(doc.date||'')+'</span>'
+      +'</div>'
+
+      // رقم الوثيقة والاسم
+      +'<div style="font-size:.88rem;font-weight:900;line-height:1.2;color:var(--text)">'+esc(doc.doc_number||doc.name||'—')+'</div>'
+
+      // معلومات إضافية
+      +extraInfo
+      +projName
+
+      // أزرار الإجراءات
+      +'<div style="display:flex;gap:.3rem;margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border)">'
+      +(isInvoice
+        // أزرار الفاتورة: تعديل + طباعة + حذف
+        ? '<button class="btn btn-gold btn-sm" style="flex:1;font-size:.7rem" onclick="editInvoiceFromArchive('+doc.id+')" title="'+lbl('تعديل الفاتورة','Modifier la facture')+'">✏️ '+lbl('تعديل','Modifier')+'</button>'
+          +'<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.7rem" onclick="printInvoiceFromArchive('+doc.id+')" title="'+lbl('طباعة / PDF','Imprimer / PDF')+'">🖨️ PDF</button>'
+        // أزرار باقي الوثائق: تعديل وتوليد + طباعة
+        : '<button class="btn btn-gold btn-sm" style="flex:1;font-size:.7rem" onclick="if(typeof DZArchive!==\'undefined\')DZArchive.reopen('+doc.id+')" title="'+lbl('تعديل وإعادة توليد','Modifier & regénérer')+'">✏️ '+lbl('تعديل','Modifier')+'</button>'
+          +'<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.7rem" onclick="if(typeof DZArchive!==\'undefined\')DZArchive.reprint('+doc.id+')" title="'+lbl('إعادة طباعة','Réimprimer')+'">🖨️ '+lbl('طباعة','Imprimer')+'</button>'
+      )
+      +'<button class="btn btn-red btn-sm" style="font-size:.7rem;min-width:2rem" onclick="dzsDelete('+doc.id+')" title="'+lbl('حذف','Supprimer')+'">🗑️</button>'
       +'</div>'
       +'</div>';
   }).join('');
+
+  // تعريف CAT_LABELS في scope عالمي للكارت
+  window._dzsCatLabels = CAT_LABELS;
+};
+
+// ── دوال مساعدة لإجراءات الأرشيف ──
+
+// طباعة الفاتورة من الأرشيف
+window.printInvoiceFromArchive = function(docId) {
+  var doc = typeof DZArchive !== 'undefined' ? DZArchive.get(docId) : null;
+  if(!doc) { if(typeof Toast!=='undefined') Toast.error(L('الوثيقة غير موجودة','Document introuvable')); return; }
+  var invId = doc.meta_data && doc.meta_data.invoiceId;
+  if(!invId) { if(typeof Toast!=='undefined') Toast.error(L('الفاتورة الأصلية غير موجودة','Facture originale introuvable')); return; }
+  if(typeof printInvoiceWindow==='function') printInvoiceWindow(invId, false);
+};
+
+// تعديل الفاتورة من الأرشيف (ينتقل لصفحة الفواتير ويفتح تعديل)
+window.editInvoiceFromArchive = function(docId) {
+  var doc = typeof DZArchive !== 'undefined' ? DZArchive.get(docId) : null;
+  if(!doc) { if(typeof Toast!=='undefined') Toast.error(L('الوثيقة غير موجودة','Document introuvable')); return; }
+  var invId = doc.meta_data && doc.meta_data.invoiceId;
+  if(!invId) { if(typeof Toast!=='undefined') Toast.error(L('الفاتورة الأصلية غير موجودة','Facture originale introuvable')); return; }
+  // انتقل لصفحة الفواتير وافتح التعديل
+  if(typeof App!=='undefined') App.navigate('invoices');
+  setTimeout(function(){
+    // حاول فتح نموذج التعديل
+    var editFn = window.editInvoiceItem || window.openEditInvoice;
+    if(typeof editFn==='function') editFn(invId);
+    else if(typeof Toast!=='undefined') Toast.info(L('ابحث عن الفاتورة وعدّلها ثم أعد الطباعة','Trouvez la facture et modifiez-la'));
+  }, 500);
+};
+
+// حذف وثيقة من الأرشيف
+window.dzsDelete = function(docId) {
+  if(!confirm(L('حذف هذه الوثيقة من الأرشيف؟','Supprimer ce document de l\'archive ?'))) return;
+  if(typeof DZArchive!=='undefined' && DZArchive.delete) {
+    DZArchive.delete(docId);
+    if(typeof Toast!=='undefined') Toast.success(L('تم حذف الوثيقة','Document supprimé'));
+    if(typeof initDzsGrid==='function') setTimeout(initDzsGrid, 100);
+  }
+};
+
+// إعادة فتح وثيقة للتعديل والتوليد (غير الفواتير)
+window.dzsReopen = function(docId) {
+  if(typeof DZArchive!=='undefined') DZArchive.reopen(docId);
+};
+window.dzsReprint = function(docId) {
+  if(typeof DZArchive!=='undefined') DZArchive.reprint(docId);
+};
+window.dzsPrintPDF = function(docId) {
+  if(typeof DZArchive!=='undefined') DZArchive.reprint(docId);
 };
 
 // ════════════════════════════════════════════════════════════════════

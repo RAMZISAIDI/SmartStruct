@@ -3045,6 +3045,8 @@ const DZ_DOC_REGISTRY = {
   reception:        { category: 'logistics',  label: { ar:'وصل استلام', fr:'Bon Réception' },         fn: 'bonReception',     prefix: 'BR',      icon: '📥' },
   sortie:           { category: 'logistics',  label: { ar:'وصل خروج', fr:'Bon Sortie' },              fn: 'bonSortie',        prefix: 'BS',      icon: '📤' },
   suivi:            { category: 'logistics',  label: { ar:'بطاقة تتبع عتاد', fr:'Suivi Équipement' }, fn: 'ficheSuiviEquip',  prefix: 'FSE',     icon: '🚜' },
+  // ✅ الفواتير الرسمية — تُحفظ تلقائياً عند طباعة الفاتورة من قسم الفواتير
+  invoice:          { category: 'finance',    label: { ar:'فاتورة رسمية', fr:'Facture Officielle' },    fn: 'reopenInvoice',    prefix: 'INV',     icon: '🧾' },
 };
 
 window.DZ_DOC_REGISTRY = DZ_DOC_REGISTRY;
@@ -3134,6 +3136,17 @@ window.DZArchive = {
     if (!doc) { if (typeof Toast !== 'undefined') Toast.error('الوثيقة غير موجودة'); return false; }
     const reg = DZ_DOC_REGISTRY[doc.doc_kind];
     if (!reg) { if (typeof Toast !== 'undefined') Toast.error('نوع وثيقة غير معروف'); return false; }
+    // ✅ الفواتير الرسمية: تُعاد بـ printInvoiceWindow مباشرة
+    if (doc.doc_kind === 'invoice') {
+      const invId = doc.meta_data && doc.meta_data.invoiceId;
+      if (invId && typeof printInvoiceWindow === 'function') {
+        printInvoiceWindow(invId, false);
+        if (typeof Toast !== 'undefined') Toast.success('🖨️ تم فتح الفاتورة للطباعة');
+      } else if (typeof Toast !== 'undefined') {
+        Toast.error('الفاتورة الأصلية غير موجودة');
+      }
+      return true;
+    }
     const fn = window.DZDocs[reg.fn];
     if (typeof fn !== 'function') return false;
     const opts = Object.assign({}, doc.meta_data || {}, reg.extraArgs || {});
@@ -3148,6 +3161,26 @@ window.DZArchive = {
       if (typeof Toast !== 'undefined') Toast.error('فشل: ' + e.message);
       return false;
     }
+  },
+
+  reopen(id) {
+    // يفتح نموذج تعديل الفاتورة الأصلية (إذا ما زالت موجودة)
+    const doc = this.get(id);
+    if (!doc) { if (typeof Toast !== 'undefined') Toast.error('الوثيقة غير موجودة'); return false; }
+    if (doc.doc_kind === 'invoice') {
+      const invId = doc.meta_data && doc.meta_data.invoiceId;
+      if (invId) {
+        if (typeof App !== 'undefined') App.navigate('invoices');
+        setTimeout(function() {
+          const editFn = window.editInvoiceItem || window.openEditInvoice;
+          if (typeof editFn === 'function') editFn(invId);
+          else if (typeof Toast !== 'undefined') Toast.info('افتح الفاتورة وعدّلها ثم أعد الطباعة');
+        }, 400);
+        return true;
+      }
+    }
+    // باقي الوثائق: reprint مع فتح نموذج التعديل
+    return this.reprint(id);
   },
 
   delete(id) {
