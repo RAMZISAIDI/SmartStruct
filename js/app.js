@@ -1,6 +1,32 @@
 'use strict';
 
 // ════════════════════════════════════════════════════════════════════
+// openPrintWindow — Blob URL بدل document.write لضمان تنفيذ scripts
+// ════════════════════════════════════════════════════════════════════
+function openPrintWindow(html, title, autoPrint) {
+  try {
+    var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    var bUrl = URL.createObjectURL(blob);
+    var win  = window.open(bUrl, '_blank', 'width=960,height=1100');
+    if (!win) {
+      try { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); } catch(_) {}
+      URL.revokeObjectURL(bUrl);
+      return null;
+    }
+    if (autoPrint) {
+      win.addEventListener('load', function(){
+        setTimeout(function(){ try{ win.focus(); win.print(); }catch(e){} }, 800);
+      });
+    }
+    setTimeout(function(){ URL.revokeObjectURL(bUrl); }, 60000);
+    return win;
+  } catch(e) {
+    console.error('openPrintWindow:', e);
+    return null;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
 //  Global helpers (تُعرَّف الدوال الفعلية لاحقاً في الملف، هذه stubs آمنة)
 // ════════════════════════════════════════════════════════════════════
 window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
@@ -5641,7 +5667,7 @@ function _spSave(){
   setTimeout(function(){URL.revokeObjectURL(u);},1500);
 }
 function _spReset(){
-  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){
+  if(confirm(document.documentElement.dir==='rtl'?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?')){
     localStorage.removeItem('sbtp_print_settings');location.reload();
   }
 }
@@ -5660,17 +5686,15 @@ function _spSaveSettings(){
   try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}
   if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}}
   var btn=document.querySelector('.save-btn');
-  if(btn){var t=btn.textContent;btn.textContent='✅ ${isAr?'تم!':'Sauvé!'}';btn.style.background='#27ae60';
+  if(btn){var t=btn.textContent;btn.textContent='✅ '+(document.documentElement.dir==='rtl'?'تم!':'Sauvé!');btn.style.background='#27ae60';
     setTimeout(function(){btn.textContent=t;btn.style.background='';},2000);}
 }
 </script>
 </body></html>`;
 
-  const w = window.open('', '_blank');
-  if (!w) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
-  w.document.write(html);
-  w.document.close();
-}
+    var w = openPrintWindow(html, '', false);
+  if (!w) return;
+  }
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
@@ -7244,11 +7268,8 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 </html>`;
 
   // فتح في نافذة جديدة
-  const w = window.open('', '_blank');
+  const w = openPrintWindow(html, `Rapport_IA_${tenant.name}_${reportId}`, false);
   if (w) {
-    w.document.write(html);
-    w.document.close();
-    w.document.title = `Rapport_IA_${tenant.name}_${reportId}`;
     Toast.success(L('✨ تم توليد التقرير الذكي بنجاح!','✨ Rapport IA généré avec succès!'));
 
     // حفظ في الأرشيف
@@ -11693,34 +11714,50 @@ async function pullAllTenantDataFromSupabase(tenantId) {
   }
 
   const TABLES = [
+    'tenants','users',
     'projects','workers','equipment','transactions','attendance',
     'materials','stock_movements','invoices','salary_records',
     'kanban_tasks','documents','obligations','notes'
   ];
+  const TENANT_SCOPED = new Set(['tenants','users']); // تُجلب بـ id بدل tenant_id
 
   for (const table of TABLES) {
     try {
-      const r = await fetch(
-        `${cfg.url}/rest/v1/${table}?tenant_id=eq.${tenantId}&select=*&order=id.asc`,
-        { headers: sbH }
-      );
+      // tenants/users تُجلب بـ id مباشر، بقية الجداول بـ tenant_id
+      const fetchUrl = TENANT_SCOPED.has(table)
+        ? `${cfg.url}/rest/v1/${table}?id=eq.${tenantId}&select=*`
+        : `${cfg.url}/rest/v1/${table}?tenant_id=eq.${tenantId}&select=*&order=id.asc`;
+      const r = await fetch(fetchUrl, { headers: sbH });
       if (!r.ok) continue;
       const remote = await r.json();
       if (!Array.isArray(remote)) continue;
 
-      // ✅ دمج: نفضّل بيانات Supabase ونتجاهل السجلات المحذوفة محلياً
+      // ✅ FIX: دمج ذكي — يحمي التعديلات المحلية الأحدث من أن تُكتب فوقها
       const local = DB.get(table) || [];
-      const remoteIds = new Set(remote.map(r => r.id));
+      const localMap = new Map(local.map(l => [Number(l.id), l]));
       const deletedIds = new Set(_getLocalDeletedIds(table).map(i => Number(i)));
+      const remoteIds = new Set(remote.map(r => Number(r.id)));
 
-      // نستبعد من Supabase أي سجل محذوف محلياً لكن لم يصله الحذف بعد
-      const remoteFiltered = remote.filter(r => !deletedIds.has(Number(r.id)));
+      // للسجلات الموجودة في الاثنين: قارن updated_at واحتفظ بالأحدث
+      const remoteFiltered = remote
+        .filter(r => !deletedIds.has(Number(r.id)))
+        .map(r => {
+          const loc = localMap.get(Number(r.id));
+          if (!loc) return r; // سجل جديد من Supabase
+          // إذا البيانات المحلية أحدث (تعديل محلي لم يُرفع بعد) → احتفظ بالمحلي
+          const remoteTime = r.updated_at ? new Date(r.updated_at).getTime() : 0;
+          const localTime  = loc._localUpdated || 0; // طابع زمني نحفظه عند كل تعديل محلي
+          if (localTime > remoteTime + 2000) { // هامش 2 ثانية
+            console.log(`🔒 pull ${table} id=${r.id}: keeping local (newer by ${Math.round((localTime-remoteTime)/1000)}s)`);
+            return loc;
+          }
+          return r;
+        });
 
-      // نضيف السجلات المحلية التي لم تُرفع بعد (بشرط ألا تكون محذوفة)
-      const localOnly = local.filter(l => !remoteIds.has(l.id) && !deletedIds.has(Number(l.id)));
+      // السجلات المحلية فقط (لم تُرفع بعد)
+      const localOnly = local.filter(l => !remoteIds.has(Number(l.id)) && !deletedIds.has(Number(l.id)));
 
       const merged = [...remoteFiltered, ...localOnly];
-
       localStorage.setItem('sbtp5_' + table, JSON.stringify(merged));
       console.log(`📥 Pulled ${table}: ${remoteFiltered.length} remote + ${localOnly.length} local-only (skipped ${deletedIds.size} locally-deleted)`);
     } catch(e) {
@@ -12461,11 +12498,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0ede0}
 </div>
 </body></html>`;
 
-  const win = window.open('','_blank','width=900,height=700');
-  if (!win) { Toast.error(L('السماح بالنوافذ مطلوب','Autorisez les popups')); return; }
-  win.document.write(html);
-  win.document.close();
-}
+    var win = openPrintWindow(html, '', false);
+  if (!win) return;
+  }
 
 function updateEquipStatus(id,status) {
   if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لتعديل حالة المعدة','Permission refusée : équipement')); return; }
@@ -12628,7 +12663,9 @@ function saveTenantSettings() {
     phone:   document.getElementById('setPhone')?.value||t.phone,
     rc_number: document.getElementById('setRc')?.value||t.rc_number
   }:t);
-  DB.set('tenants',tenants);
+  // ✅ FIX: نضيف _localUpdated لمعرفة أن هذا تعديل محلي جديد
+  const now_ts = Date.now();
+  DB.set('tenants', tenants.map(t => t.id===tid ? {...t, _localUpdated: now_ts} : t));
   const updTenant = tenants.find(t=>t.id===tid);
   if (updTenant) sbSync('tenants', updTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل إعدادات الشركة','Modification paramètres société'), { icon: '⚙️' });
@@ -12646,7 +12683,8 @@ function saveLegalSettings() {
   const tva = document.getElementById('setTva')?.value||'19';
   const address = document.getElementById('setAddress')?.value||'';
   const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, rc_number, nif, nis, article_imp, rib, tva_rate: parseFloat(tva), address }:t);
-  DB.set('tenants', tenants);
+  const now_legal_ts = Date.now();
+  DB.set('tenants', tenants.map(t => t.id===tid ? {...t, _localUpdated: now_legal_ts} : t));
   const updLegalTenant = tenants.find(t=>t.id===tid);
   if (updLegalTenant) sbSync('tenants', updLegalTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل البيانات القانونية','Modification données légales'), { icon: '🔖' });
@@ -12670,7 +12708,8 @@ function changePassword() {
   if(newPass.length<8){Toast.error(L('كلمة المرور يجب أن تكون 8 أحرف على الأقل','Le mot de passe doit comporter au moins 8 caractères'));return;}
   const user=Auth.getUser();
   if(user.password!==current){Toast.error(L('كلمة المرور الحالية غير صحيحة','Mot de passe actuel incorrect'));return;}
-  const users=DB.get('users').map(u=>u.id===user.id?{...u,password:newPass}:u);
+  const now_pw_ts = Date.now();
+  const users=DB.get('users').map(u=>u.id===user.id?{...u,password:newPass,_localUpdated:now_pw_ts}:u);
   DB.set('users',users); user.password=newPass; sessionStorage.setItem('sbtp_user',JSON.stringify(user));
   sbSync('users', {id:user.id, password:newPass}, 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تغيير كلمة المرور','✅ Mot de passe modifié avec succès'));
@@ -13321,12 +13360,9 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
 </div>
 </body></html>`;
 
-  const win = window.open('', '_blank');
-  if (!win) { Toast.error('السماح بالنوافذ المنبثقة'); return; }
-  win.document.write(html);
-  win.document.close();
-  win.document.title = `تقرير — ${tenant.name}`;
-}
+    var win = openPrintWindow(html, '', false);
+  if (!win) return;
+  }
 
 function adminExportAllData() {
   if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
@@ -17595,12 +17631,9 @@ function printWorkerHistory(wid) {
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=1100,height=820');
-  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
-  win.document.write(html);
-  win.document.close();
-  win.document.title = `Relevé_${worker.full_name.replace(/\s+/g,'_')}.pdf`;
-}
+    var win = openPrintWindow(html, '', false);
+  if (!win) return;
+  }
 
 // ── تعديل أيام الحضور يدوياً ──
 function editSalaryDays(workerId, monthKey) {
@@ -19015,7 +19048,7 @@ function _shellSave(){
   }catch(e){alert('فشل الحفظ');}
 }
 function _shellReset(){
-  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}
+  if(confirm(document.documentElement.dir==='rtl'?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?')){localStorage.removeItem('sbtp_print_settings');location.reload();}
 }
 function _shellSaveSettings(){
   var s={
@@ -19037,7 +19070,7 @@ function _shellSaveSettings(){
     }
   }catch(e){}
   var b=document.querySelector('.sbtn');
-  if(b){var o=b.textContent;b.textContent='✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';b.style.background='#27ae60';setTimeout(function(){b.textContent=o;b.style.background='';},2000);}
+  if(b){var o=b.textContent;b.textContent='✅ '+(document.documentElement.dir==='rtl'?'تم الحفظ!':'Sauvegardé!');b.style.background='#27ae60';setTimeout(function(){b.textContent=o;b.style.background='';},2000);}
 }
 ${onPrint ? 'window.addEventListener("load",function(){setTimeout(function(){window.print();},800);});' : ''}
 </script>
@@ -19226,7 +19259,7 @@ function custSave(){
     </div>
   </div>
   <button onclick="custSave()" class="save-btn" style="width:100%;background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
-  <button onclick="if(confirm('${isAr?'إعادة الإعدادات؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}" style="width:100%;background:rgba(255,80,80,.15);color:#ff8080;border:1px solid rgba(255,80,80,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
+  <button onclick="if(confirm('+(document.documentElement.dir==="rtl"?"إعادة الإعدادات؟":"Réinitialiser?")+')){localStorage.removeItem('sbtp_print_settings');location.reload();}" style="width:100%;background:rgba(255,80,80,.15);color:#ff8080;border:1px solid rgba(255,80,80,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
   </div>
 </div>
 
@@ -19461,11 +19494,9 @@ function printInvoiceWindow(id, autoPrint = false) {
     onPrint: autoPrint
   });
 
-  const win = window.open('', '_blank');
-  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); return; }
-  win.document.write(fullHtml);
-  win.document.close();
-}
+    var win = openPrintWindow(fullHtml, '', false);
+  if (!win) return;
+  }
 
 Pages.inventory = function() {
   const tid = Auth.getUser().tenant_id;
@@ -19920,20 +19951,25 @@ function deleteDocItem(id){
 // ── تبديل وضع المظهر (داكن/فاتح) ──
 function setTheme(theme) {
   try {
+    var h = document.documentElement;
     if (theme === 'light') {
-      document.documentElement.classList.add('light');
+      h.classList.add('light');
     } else {
-      document.documentElement.classList.remove('light');
+      h.classList.remove('light');
     }
     localStorage.setItem('sbtp_theme', theme);
+    // تحديث زر الثيم مباشرة بدون إعادة navigate
+    var btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+      btn.textContent = theme === 'light' ? '🌙' : '☀️';
+      btn.title = theme === 'light'
+        ? L('تفعيل الوضع الداكن','Mode sombre')
+        : L('تفعيل الوضع الفاتح','Mode clair');
+    }
     if (typeof Toast !== 'undefined') {
       Toast.success(theme === 'light'
         ? L('☀️ تم تفعيل الوضع الفاتح','☀️ Mode clair activé')
         : L('🌙 تم تفعيل الوضع الداكن','🌙 Mode sombre activé'));
-    }
-    // إعادة رسم الصفحة الحالية لتحديث الأيقونة
-    if (typeof App !== 'undefined' && App.currentPage) {
-      App.navigate(App.currentPage);
     }
   } catch(e) { console.warn('setTheme failed:', e); }
 }
@@ -19941,18 +19977,30 @@ function setTheme(theme) {
 // ── تطبيق / إزالة الوضع الفاتح حسب الصفحة ──
 function _applyThemeForPage(page) {
   try {
-    const saved = localStorage.getItem('sbtp_theme');
+    var saved = localStorage.getItem('sbtp_theme');
+    var h = document.documentElement;
     if (['landing', 'login'].includes(page)) {
-      // Landing وLogin دائماً داكنتان — أزل light فوراً
-      document.documentElement.classList.remove('light');
+      // Landing وLogin دائماً داكنتان
+      h.classList.remove('light');
     } else {
       // باقي الصفحات — طبّق الثيم المحفوظ
       if (saved === 'light') {
-        document.documentElement.classList.add('light');
+        h.classList.add('light');
       } else {
-        document.documentElement.classList.remove('light');
+        h.classList.remove('light');
       }
     }
+    // تحديث زر الثيم في الـ toolbar
+    setTimeout(function() {
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        var isLight = h.classList.contains('light');
+        btn.textContent = isLight ? '🌙' : '☀️';
+        btn.title = isLight
+          ? (typeof L === 'function' ? L('تفعيل الوضع الداكن','Mode sombre') : 'Mode sombre')
+          : (typeof L === 'function' ? L('تفعيل الوضع الفاتح','Mode clair') : 'Mode clair');
+      }
+    }, 50);
   } catch(e) {}
 }
 
@@ -20788,9 +20836,8 @@ function exportReportPDF() {
 </div>
 </body></html>`;
 
-  const win = window.open('','_blank');
-  win.document.write(html);
-  win.document.close();
+    var win = openPrintWindow(html, '', false);
+  if (!win) return;
   Toast.success(L('✅ تم فتح تقرير PDF','✅ Rapport PDF ouvert'));
 }
 
@@ -21376,7 +21423,7 @@ Pages.bankReport = function() {
         <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك','Rapport financier prêt à soumettre à la banque')}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-gold" onclick="(function(){const w=window.open('','_blank');if(!w){alert('السماح بالنوافذ المنبثقة');return;}w.document.write(window._bankReportHTML);w.document.close();})()"}>
+        <button class="btn btn-gold" onclick="(function(){openPrintWindow(window._bankReportHTML,'',false);})()"}>
           🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}
         </button>
       </div>

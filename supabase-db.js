@@ -245,6 +245,10 @@ function _cleanForSupabase_INTERNAL(table, record) {
     clean[col] = v;
   }
 
+  // ✅ FIX: احذف الحقول الداخلية قبل الإرسال لـ Supabase
+  delete clean._localUpdated;
+  delete clean._fromSupabase;
+  delete clean._pendingSync;
   return clean;
 }
 

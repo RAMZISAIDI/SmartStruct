@@ -2,6 +2,27 @@
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
+<!-- ✅ FIX: تطبيق الثيم المحفوظ فوراً قبل أي CSS لمنع وميض تغيير المود عند التحديث -->
+<script>
+(function(){
+  try {
+    var t = localStorage.getItem('sbtp_theme');
+    var h = document.getElementById('htmlRoot') || document.documentElement;
+    // الصفحات الداكنة دائماً (login, landing) - لا نطبق light عليها
+    var path = window.location.hash || '';
+    var isAuthPage = path === '' || path === '#' || path === '#login' || path === '#landing' || !path.includes('#');
+    if (t === 'light' && !isAuthPage) {
+      h.classList.add('light');
+    } else {
+      h.classList.remove('light');
+    }
+    // حفظ اللغة أيضاً
+    var lang = localStorage.getItem('sbtp_lang') || 'ar';
+    h.setAttribute('lang', lang === 'fr' ? 'fr' : 'ar');
+    h.setAttribute('dir', lang === 'fr' ? 'ltr' : 'rtl');
+  } catch(e) {}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartStruct — إدارة مشاريع المقاولة</title>
 <meta name="description" content="SmartStruct — منصة ذكية لإدارة مشاريع البناء والمقاولات في الجزائر">
