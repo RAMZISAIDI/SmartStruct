@@ -1476,7 +1476,20 @@ const App = {
       this.bindEvents();
       this.animateBars();
       if (this.currentPage === 'invoices') setTimeout(function(){ if(typeof initDzsGrid==='function') initDzsGrid(); }, 120);
-      if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
+      if (this.currentPage === 'analytics') {
+        setTimeout(initAnalyticsCharts, 150);
+        // تسجيل وقت آخر تحديث للتحليلات (مرة في اليوم)
+        (function(){
+          var _u = Auth.getUser();
+          if (!_u) return;
+          var _k = 'analytics_last_run_' + _u.tenant_id;
+          var _last = localStorage.getItem(_k);
+          var _today = new Date().toISOString().split('T')[0];
+          if (!_last || _last.split('T')[0] !== _today) {
+            localStorage.setItem(_k, new Date().toISOString());
+          }
+        })();
+      }
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
       if (['landing','about','contact'].includes(this.currentPage) && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
       if (this.currentPage === 'login' && typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
@@ -4176,6 +4189,80 @@ function getProfitLabel(project) {
   return I18N.t('dash.profLoss') + ` ${Math.round(margin)}%`;
 }
 
+
+/* ══════════════════════════════════════════════════════
+   📁 Generated Documents Archive — أرشيف الوثائق المولّدة
+══════════════════════════════════════════════════════ */
+function saveGeneratedDoc(section, docInfo) {
+  try {
+    const user = Auth.getUser();
+    if (!user) return;
+    const key = 'gen_docs_' + section;
+    const docs = DB.get(key) || [];
+    docs.unshift({
+      id: Date.now(),
+      tenant_id: user.tenant_id,
+      createdAt: new Date().toISOString(),
+      ...docInfo
+    });
+    DB.set(key, docs.slice(0, 200));
+    if (typeof addNotification === 'function') {
+      const isAr = I18N.currentLang === 'ar';
+      const sectionLabels = {
+        workers: isAr ? 'العمال' : 'Employés',
+        salary:  isAr ? 'الرواتب' : 'Paie',
+        transactions: isAr ? 'المعاملات' : 'Transactions',
+        inventory: isAr ? 'المخزون' : 'Inventaire',
+        invoices: isAr ? 'الفواتير' : 'Factures'
+      };
+      addNotification(user.tenant_id,
+        isAr ? `📄 وثيقة جديدة — ${sectionLabels[section]||section}` : `📄 Document généré — ${sectionLabels[section]||section}`,
+        isAr ? (docInfo.title || 'وثيقة مولّدة') : (docInfo.titleFr || docInfo.title || 'Document généré'),
+        'info'
+      );
+    }
+  } catch(e) { console.warn('[GenDoc]', e.message); }
+}
+
+function renderGenDocsTable(section) {
+  const isAr = I18N.currentLang === 'ar';
+  const user = Auth.getUser();
+  if (!user) return '';
+  const docs = (DB.get('gen_docs_' + section) || []).filter(d => d.tenant_id === user.tenant_id);
+  if (!docs.length) return '';
+  const sectionLabels = {
+    workers: isAr ? 'الوثائق المولدة الخاصة بالعمال' : 'Documents générés — Employés',
+    salary:  isAr ? 'أرشيف وثائق الرواتب' : 'Archive documents de paie',
+    transactions: isAr ? 'سجل وثائق المعاملات' : 'Journal documents transactions',
+    inventory: isAr ? 'أرشيف وثائق المخزون' : 'Archive documents inventaire',
+    invoices: isAr ? 'أرشيف الفواتير المولدة' : 'Archive factures générées'
+  };
+  return `<div class="card" style="margin-top:1.5rem;border-color:rgba(74,144,226,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
+      <div style="font-size:.85rem;font-weight:800;color:var(--blue)">📁 ${sectionLabels[section]||section}</div>
+      <button onclick="(function(){DB.set('gen_docs_${section}',(DB.get('gen_docs_${section}')||[]).filter(d=>d.tenant_id!=='${user.tenant_id}'));App.navigate('${section === 'workers' ? 'workers' : section === 'salary' ? 'salary' : section === 'transactions' ? 'transactions' : section === 'inventory' ? 'inventory' : section}');})()" style="background:none;border:none;color:var(--dim);font-size:.7rem;cursor:pointer;font-family:'Tajawal',sans-serif">🗑️ ${isAr?'مسح الكل':'Tout effacer'}</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.75rem">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:.4rem .6rem;text-align:${isAr?'right':'left'};color:var(--dim);font-weight:700">${isAr?'الوثيقة':'Document'}</th>
+            <th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">${isAr?'تاريخ الإنشاء':'Date création'}</th>
+            <th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">${isAr?'النوع':'Type'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${docs.slice(0,20).map(d => `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+            <td style="padding:.4rem .6rem;color:var(--text);font-weight:600">📄 ${escHtml(d.title||d.name||'—')}</td>
+            <td style="padding:.4rem .6rem;text-align:center;color:var(--dim)">${d.createdAt ? new Date(d.createdAt).toLocaleDateString(isAr?'ar-DZ':'fr-DZ',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+            <td style="padding:.4rem .6rem;text-align:center"><span style="padding:2px 8px;border-radius:6px;background:rgba(74,144,226,.1);color:var(--blue);font-size:.68rem;font-weight:700">${escHtml(d.type||'—')}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 Pages.dashboard = function() {
   const user = Auth.getUser();
   const tid = user.tenant_id;
@@ -5697,6 +5784,12 @@ function _spSaveSettings(){
   }
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
+  // أرشفة تلقائية
+  saveGeneratedDoc('workers', {
+    title: isAr ? 'قائمة العمال — طباعة' : 'Liste des ouvriers — impression',
+    titleFr: 'Liste des ouvriers — impression',
+    type: isAr ? 'قائمة' : 'Liste'
+  });
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
@@ -5761,6 +5854,31 @@ function printAttendance() {
   });
   const present = dayAtt.filter(a=>a.status==='present').length;
   const absent  = workers.length - present;
+  // ── أرشفة تلقائية عند الطباعة ──
+  try {
+    const _tid4 = Auth.getUser()?.tenant_id;
+    const _attArchive = DB.get('attendance_print_archive') || [];
+    _attArchive.unshift({
+      id: Date.now(),
+      tenant_id: _tid4,
+      date: selDate,
+      dateLabel,
+      printedAt: new Date().toISOString(),
+      present,
+      absent,
+      total: workers.length,
+      rate: workers.length ? Math.round(present/workers.length*100) : 0
+    });
+    DB.set('attendance_print_archive', _attArchive.slice(0, 100));
+    if (typeof addNotification === 'function') {
+      addNotification(_tid4,
+        isAr ? `📅 تم أرشفة سجل الحضور — ${dateLabel}` : `📅 Registre archivé — ${dateLabel}`,
+        isAr ? `حضور: ${present} / غياب: ${absent} / المجموع: ${workers.length}` : `Présents: ${present} / Absents: ${absent} / Total: ${workers.length}`,
+        'info'
+      );
+    }
+  } catch(_e) { console.warn('[AttArchive]', _e.message); }
+
   smartPrint({
     title:    isAr ? 'سجل الحضور والغياب' : 'Registre de Présence',
     subtitle: dateLabel,
@@ -5784,6 +5902,13 @@ function printAttendance() {
 
 function printSalary() {
   const isAr = I18N.currentLang === 'ar';
+  // أرشفة تلقائية
+  const _sm = sessionStorage.getItem('salary_month') || new Date().toISOString().slice(0,7);
+  saveGeneratedDoc('salary', {
+    title: isAr ? 'كشف الرواتب — ' + _sm : 'Fiche de paie — ' + _sm,
+    titleFr: 'Fiche de paie — ' + _sm,
+    type: isAr ? 'كشف رواتب' : 'Bulletin de paie'
+  });
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
   const selectedMonthKey = sessionStorage.getItem('salary_month') || new Date().toISOString().slice(0,7);
@@ -5826,6 +5951,11 @@ function printSalary() {
 
 function printTransactions() {
   const isAr = I18N.currentLang === 'ar';
+  saveGeneratedDoc('transactions', {
+    title: isAr ? 'تقرير المعاملات المالية' : 'Rapport des transactions financières',
+    titleFr: 'Rapport des transactions financières',
+    type: isAr ? 'تقرير مالي' : 'Rapport financier'
+  });
   const tid = Auth.getUser().tenant_id;
   const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
@@ -5863,6 +5993,11 @@ function printTransactions() {
 
 function printInventory() {
   const isAr = I18N.currentLang === 'ar';
+  saveGeneratedDoc('inventory', {
+    title: isAr ? 'تقرير المخزون' : "Rapport de l'inventaire",
+    titleFr: "Rapport de l'inventaire",
+    type: isAr ? 'جرد مخزني' : 'Inventaire'
+  });
   const tid = Auth.getUser().tenant_id;
   const materials = DB.get('materials').filter(m=>m.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
@@ -6363,6 +6498,7 @@ Pages.equipment = function() {
         </div>
       </div>
     </div>
+    ${renderGenDocsTable('workers')}
   `);
 };
 Pages.transactions = function() {
@@ -6446,6 +6582,7 @@ Pages.transactions = function() {
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addTx()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
     </div>
+    ${renderGenDocsTable('transactions')}
   `);
 };
 
@@ -6696,6 +6833,31 @@ Pages.subscription = function() {
       🔒 ${L('الدفع آمن 100% عبر Chargily Pay — يدعم EDAHABIA (بريد الجزائر) و CIB (SATIM)','Paiement 100% sécurisé via Chargily Pay — Supporte EDAHABIA et CIB (SATIM)')}
       <br>📧 ${L('للدعم:','Support:')} contact@smartstruct.dz
     </div>
+    <!-- تاريخ طباعة سجل الحضور — أرشيف الطباعات السابقة -->
+    ${(()=>{
+      const _isAr2 = I18N.currentLang === 'ar';
+      const _tid2 = Auth.getUser()?.tenant_id;
+      const _arc = (DB.get('attendance_print_archive')||[]).filter(d=>d.tenant_id===_tid2);
+      if (!_arc.length) return '';
+      return '<div class="card" style="margin-top:1.5rem;border-color:rgba(74,144,226,.2)">'
+        + '<div style="font-size:.85rem;font-weight:800;color:var(--blue);margin-bottom:.8rem">📋 ' + (_isAr2?'سجل طباعات الحضور والغياب':'Historique des impressions de présence') + '</div>'
+        + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.75rem">'
+        + '<thead><tr style="border-bottom:1px solid var(--border)">'
+        + '<th style="padding:.4rem .6rem;text-align:' + (_isAr2?'right':'left') + ';color:var(--dim);font-weight:700">' + (_isAr2?'التاريخ':'Date') + '</th>'
+        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'حضور':'Présents') + '</th>'
+        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'غياب':'Absents') + '</th>'
+        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'النسبة':'Taux') + '</th>'
+        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'وقت الطباعة':'Imprimé le') + '</th>'
+        + '</tr></thead><tbody>'
+        + _arc.slice(0,20).map(d => '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+          + '<td style="padding:.4rem .6rem;font-weight:600">' + escHtml(d.dateLabel||d.date||'—') + '</td>'
+          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--green)">' + (d.present||0) + '</td>'
+          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--red)">' + (d.absent||0) + '</td>'
+          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--gold);font-weight:700">' + (d.rate||0) + '%</td>'
+          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-size:.7rem">' + (d.printedAt ? new Date(d.printedAt).toLocaleString(_isAr2?'ar-DZ':'fr-DZ',{dateStyle:'short',timeStyle:'short'}) : '—') + '</td>'
+          + '</tr>').join('')
+        + '</tbody></table></div></div>';
+    })()}
   `);
 };
 
@@ -6731,6 +6893,7 @@ Pages.reports = function() {
 
   const allProjs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const isFiltered = !!(dateFrom||dateTo||projId||txType);
+  const isGenerated = !!(window._reportsState && window._reportsState._generated);
 
   return layoutHTML('reports','التقارير',`
     <div class="page-header">
@@ -6773,11 +6936,13 @@ Pages.reports = function() {
             <option value="expense" ${txType==='expense'?'selected':''}>${L('مصاريف','Dépenses')}</option>
           </select>
         </div>
-        <div style="display:flex;gap:.4rem">
-          ${isFiltered?`<button class="btn btn-ghost btn-sm" onclick="window._reportsState={};App.navigate('reports')" style="width:100%">
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
+          ${isFiltered?`<button class="btn btn-ghost btn-sm" onclick="window._reportsState={};App.navigate('reports')">
             ✕ ${L('مسح الفلاتر','Effacer')}</button>`:''}
-          ${isFiltered?`<span style="font-size:.7rem;color:var(--gold);padding:.3rem .5rem;background:rgba(232,184,75,.1);border-radius:6px;white-space:nowrap;align-self:center">
-            ${L('مُفلتَر','Filtré')} ✓</span>`:''}
+          <button class="btn btn-gold btn-sm" onclick="window._reportsState=(window._reportsState||{});window._reportsState._generated=true;App.navigate('reports')">
+            📊 ${L('توليد التقرير','Générer le rapport')}
+          </button>
+          ${isGenerated?`<span style="font-size:.7rem;color:var(--green);padding:.3rem .5rem;background:rgba(52,195,143,.1);border-radius:6px;white-space:nowrap">✓ ${L('تم التوليد','Généré')}</span>`:''}
         </div>
       </div>
       ${isFiltered?`<div style="margin-top:.6rem;font-size:.75rem;color:var(--dim)">
@@ -6786,7 +6951,14 @@ Pages.reports = function() {
         ${projId?L('— مشروع محدد','— projet sélectionné'):''}
       </div>`:''}
     </div>
-    <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
+    
+    ${!isGenerated ? `<div style="text-align:center;padding:3rem 1rem;color:var(--dim);background:rgba(255,255,255,.02);border:1px dashed var(--border);border-radius:16px;margin:1rem 0">
+      <div style="font-size:3rem;margin-bottom:.8rem">📊</div>
+      <div style="font-size:1rem;font-weight:800;margin-bottom:.5rem">${L('اضغط «توليد التقرير» لعرض نتائج التحليل','Cliquez «Générer le rapport» pour afficher les résultats')}</div>
+      <div style="font-size:.82rem;color:var(--dim);opacity:.8">${L('حدد الفلاتر المناسبة (تاريخ، مشروع، نوع) ثم اضغط الزر','Sélectionnez vos filtres puis cliquez le bouton')}</div>
+    </div>` : ''}
+    ${isGenerated ? `
+    <div id="reportContent"><div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
       <div style="position:absolute;top:-30px;${I18N.currentLang==='ar'?'left':'right'}:-30px;width:140px;height:140px;background:radial-gradient(circle,rgba(155,109,255,.15),transparent);border-radius:50%"></div>
       <div style="font-size:3.2rem;flex-shrink:0;position:relative;z-index:1">🤖</div>
       <div style="flex:1;min-width:280px;position:relative;z-index:1">
@@ -6831,6 +7003,7 @@ Pages.reports = function() {
     <div class="card"><div style="font-weight:800;margin-bottom:1rem">💼 ربحية المشاريع</div><div class="table-wrap"><table><thead><tr><th>المشروع</th><th>الميزانية</th><th>المُنفَق</th><th>التقدم</th><th>الحالة</th></tr></thead>
       <tbody>${projs.map(p=>`<tr><td><span style="font-weight:700">${escHtml(p.name)}</span></td><td style="font-family:monospace;font-size:.82rem">${fmt(p.budget)}</td><td style="font-family:monospace;font-size:.82rem;color:${p.total_spent>p.budget?'var(--red)':'var(--green)'}">${fmt(p.total_spent)}</td><td><div style="display:flex;align-items:center;gap:.5rem"><div class="progress-bar" style="flex:1"><div class="progress-fill" style="background:${p.color}" data-width="${p.progress}"></div></div><span style="font-size:.75rem;font-weight:700">${p.progress}%</span></div></td><td>${statusBadge(p.status)}</td></tr>`).join('')}</tbody>
     </table></div></div>
+  ` : ''}
   `);
 };
 
@@ -15022,21 +15195,42 @@ function topbarHTMLv5(title) {
 function buildNotifPanel() {
   const user = Auth.getUser();
   if (!user) return '';
-  // إشعارات طلبات التسجيل الجديدة (new_account) تُعرض فقط لـ Super Admin — لا تظهر لأدمن المؤسسة
-  const notifs = DB.get('notifications').filter(n => {
+  // إشعارات طلبات التسجيل الجديدة (new_account) تُعرض فقط لـ Super Admin
+  const allNotifs = DB.get('notifications').filter(n => {
     if (n.type === 'new_account' && !user.is_admin) return false;
     return n.tenant_id === user.tenant_id;
-  }).slice(0, 8);
-  if (!notifs.length) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد إشعارات','Aucune notification')}</div></div>`;
-  return `<div class="notif-panel" id="notifPanel" style="display:none">
-    <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center">
-      <span>${L('الإشعارات','Notifications')}</span>
+  });
+
+  // تجميع الإشعارات حسب الأهمية
+  const systemAlerts  = allNotifs.filter(n => n.type === 'danger' || n.type === 'warn' || n.type === 'warning');
+  const aiSummaries   = allNotifs.filter(n => n.type === 'ai' || n.type === 'ai_smart_report' || n.type === 'ai_analysis');
+  const dataUpdates   = allNotifs.filter(n => !['danger','warn','warning','ai','ai_smart_report','ai_analysis'].includes(n.type));
+
+  const renderGroup = (groupLabel, groupIcon, items, color) => {
+    if (!items.length) return '';
+    const unreadItems = items.filter(n => !n.read);
+    return `<div style="padding:.45rem .8rem .2rem;font-size:.66rem;font-weight:800;color:${color};text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:.3rem">
+      ${groupIcon} ${groupLabel}${unreadItems.length ? ` <span style="background:${color};color:#fff;border-radius:8px;padding:1px 6px;font-size:.6rem">${unreadItems.length}</span>` : ''}
+    </div>
+    ${items.slice(0,4).map(n=>`<div class="notif-item ${n.read?'':'unread'}" onclick="markNotifRead(${n.id})" style="cursor:pointer">
+      <div style="font-size:.8rem;font-weight:700;color:${n.read?'var(--dim)':'var(--text)'}">${n.type==='danger'||n.type==='warn'||n.type==='warning'?'🚨':n.type.startsWith('ai')?'🤖':'🔔'} ${escHtml(n.title)}</div>
+      <div style="font-size:.72rem;color:var(--dim);margin-top:.1rem;line-height:1.4">${escHtml(n.message||'')}</div>
+      ${n.date?`<div style="font-size:.62rem;color:var(--dim);margin-top:.1rem;opacity:.6">${n.date}</div>`:''}
+    </div>`).join('')}`;
+  };
+
+  const hasAny = allNotifs.length > 0;
+  if (!hasAny) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد إشعارات','Aucune notification')}</div></div>`;
+
+  return `<div class="notif-panel" id="notifPanel" style="display:none;max-height:420px;overflow-y:auto">
+    <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--card-bg,#0e1720);z-index:2">
+      <span>🔔 ${L('الإشعارات','Notifications')} <span style="font-size:.65rem;color:var(--dim);font-weight:400">(${allNotifs.filter(n=>!n.read).length} ${L('جديد','nouveau')})</span></span>
       <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--blue);font-size:.72rem;cursor:pointer;font-family:'Tajawal',sans-serif">${L('تحديد كمقروء','Tout marquer lu')}</button>
     </div>
-    ${notifs.map(n=>`<div class="notif-item ${n.read?'':'unread'}" onclick="markNotifRead(${n.id})">
-      <div style="font-size:.82rem;font-weight:700">${n.type==='warn'?'⚠️':n.type==='danger'?'🚨':'ℹ️'} ${escHtml(n.title)}</div>
-      <div style="font-size:.74rem;color:var(--dim)">${escHtml(n.message)}</div>
-    </div>`).join('')}
+    ${renderGroup(L('تنبيهات النظام','Alertes système'), '🚨', systemAlerts, 'var(--red)')}
+    ${renderGroup(L('ملخصات الذكاء الاصطناعي','Résumés IA'), '🤖', aiSummaries, '#9B6DFF')}
+    ${renderGroup(L('تحديثات البيانات','Mises à jour'), 'ℹ️', dataUpdates, 'var(--blue)')}
+    ${allNotifs.length > 8 ? `<div style="padding:.5rem 1rem;text-align:center;font-size:.7rem;color:var(--dim);border-top:1px solid var(--border)">${allNotifs.length} ${L('إشعار إجمالاً','notifications au total')}</div>` : ''}
   </div>`;
 }
 
@@ -15272,7 +15466,7 @@ function sidebarHTML(active='') {
 
     // ── Docs & Reports Section ──
     const docLinks = [
-      navLink('documents','📁',__('nav.documents')),
+      // documents nav removed — docs distributed per section
       navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
       navLink('archive','📂',L('أرشيف الوثائق','Archive documents')),
       navLink('reports','📈',__('nav.reports')),
@@ -15636,6 +15830,7 @@ Pages.gantt = function() {
         if(s){ const td=${todayOff}*${DAY_W}; s.scrollLeft=Math.max(0,td-s.clientWidth/2); }
       },100);
     </script>
+    </div>
   `);
 };
 
@@ -15666,6 +15861,21 @@ Pages.analytics = function() {
         <div class="page-sub">${L('مؤشرات الأداء الاحترافية وتوصيات الذكاء الاصطناعي','KPIs professionnels et recommandations IA')}</div>
       </div>
       <div class="page-actions">
+        ${(()=>{
+          const _lastKey = 'analytics_last_run_' + tid;
+          const _lastVal = localStorage.getItem(_lastKey);
+          let _lastLbl = L('لم يُحدَّث بعد','Pas encore mis à jour');
+          if (_lastVal) {
+            const _d = new Date(_lastVal);
+            const _isToday = _d.toDateString() === new Date().toDateString();
+            _lastLbl = _isToday
+              ? L('آخر تحديث: اليوم','Dernière MàJ: aujourd\'hui') + ', ' + _d.toLocaleTimeString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{hour:'2-digit',minute:'2-digit'})
+              : L('آخر تحديث:','Dernière MàJ:') + ' ' + _d.toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{day:'numeric',month:'short'});
+          }
+          return '<div style="font-size:.68rem;color:var(--dim);display:flex;align-items:center;gap:.4rem;padding:.3rem .7rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;white-space:nowrap">'
+            + '<span style="color:var(--gold)">🕐</span><span>' + _lastLbl + '</span></div>';
+        })()}
+        <button class="btn btn-ghost btn-sm" onclick="(function(){var k='analytics_last_run_'+Auth.getUser().tenant_id;localStorage.setItem(k,new Date().toISOString());App.navigate('analytics');Toast.success(L('تم تحديث التحليلات','Analyses actualisées'));})()">🔄 ${L('تحديث','Actualiser')}</button>
         <button class="btn btn-blue btn-sm" onclick="openAIAdvisor()" title="${L('استشر المحلل الذكي','Consulter l\'IA')}">🤖 ${L('المحلل الذكي','Conseiller IA')}</button>
         <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ PDF</button>
       </div>
@@ -17401,6 +17611,7 @@ Pages.salary = function() {
         </div>`;
       }).join('')}
     </div>
+    ${renderGenDocsTable('salary')}
   `);
 };
 
@@ -17544,7 +17755,7 @@ function printWorkerHistory(wid) {
 <body>
 <div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
   <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
-  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=document.title+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
+  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=document.title+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()"><!-- Save to PC button removed — use Print only -->
   <button class="btn-close" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
 <div style="margin-top:52px">
@@ -17947,7 +18158,7 @@ Pages.invoices = function() {
             <td style="font-size:.8rem;color:${isOverdue?'var(--red)':'var(--dim)'};font-weight:${isOverdue?'700':'400'}">${inv.due_date?fmtDate(inv.due_date):'—'}</td>
             <td>${statusBadge}</td>
             <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
-              <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
+              <!-- PDF download removed — use Print button instead -->
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
               ${canDo('write_invoices')?`<button class="btn btn-gold btn-sm" onclick="editInvoiceItem(${inv.id})" title="${L('تعديل الفاتورة','Modifier la facture')}">✏️</button>`:''}
               <button class="btn btn-ghost btn-sm" onclick="uploadInvoiceToDrive(${inv.id})" title="${L('رفع لـ Google Drive','Envoyer vers Drive')}">☁️</button>
@@ -18097,6 +18308,7 @@ Pages.invoices = function() {
 </div>
 
 
+    ${renderGenDocsTable('invoices')}
   `);
 };
 
@@ -19490,6 +19702,14 @@ function printInvoiceWindow(id, autoPrint = false) {
 
   // ✅ حفظ تلقائي في DZArchive (مرة واحدة فقط — لا تكرار)
   if (!autoPrint) {
+    // أرشفة في قائمة الفواتير المولدة أسفل الصفحة
+    if (typeof saveGeneratedDoc === 'function') {
+      saveGeneratedDoc('invoices', {
+        title: (inv.number || 'فاتورة') + ' — ' + (inv.client || ''),
+        titleFr: (inv.number || 'Facture') + ' — ' + (inv.client || ''),
+        type: I18N.currentLang === 'ar' ? 'فاتورة' : 'Facture'
+      });
+    }
     try {
       if (typeof DZArchive !== 'undefined' && DZArchive.save) {
         const existingArchived = DZArchive.list({ kind: 'invoice' })
@@ -19718,6 +19938,7 @@ Pages.inventory = function() {
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="confirmStockMoveV5()">✅ تأكيد</button></div>
       </div>
     </div>
+    ${renderGenDocsTable('inventory')}
   `);
 };
 function addMaterialItem(){
@@ -21555,7 +21776,21 @@ Pages.bankReport = function() {
         <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك','Rapport financier prêt à soumettre à la banque')}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-gold" onclick="(function(){openPrintWindow(window._bankReportHTML,'',false);})()"}>
+        ${(()=>{
+          const _bk = 'bank_report_last_update_' + tid;
+          const _bv = localStorage.getItem(_bk);
+          let _blbl = L('لم يُحدَّث بعد','Pas encore mis à jour');
+          if (_bv) {
+            const _bd = new Date(_bv);
+            _blbl = _bd.toLocaleString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{dateStyle:'short',timeStyle:'short'});
+          }
+          return '<div style="font-size:.68rem;color:var(--dim);display:flex;align-items:center;gap:.3rem;padding:.3rem .7rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;white-space:nowrap">'
+            + '<span style="color:var(--gold)">🕐</span><span>' + _blbl + '</span></div>';
+        })()}
+        <button class="btn btn-ghost btn-sm" onclick="(function(){localStorage.setItem('bank_report_last_update_'+Auth.getUser().tenant_id,new Date().toISOString());App.navigate('bank_report');Toast.success(L('تم تحديث بيانات التقرير البنكي','Données rapport actualisées'));})()">
+          🔄 ${L('تحديث معلومات التقرير','Actualiser les données')}
+        </button>
+        <button class="btn btn-gold" onclick="(function(){openPrintWindow(window._bankReportHTML,'',false);})()">
           🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}
         </button>
       </div>
