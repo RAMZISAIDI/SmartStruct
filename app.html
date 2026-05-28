@@ -70,14 +70,15 @@
 <link rel="stylesheet" href="css/main.css?v=1779272139">
 <link rel="stylesheet" href="css/light-mode.css?v=4">
 <script>
-  // تطبيق الوضع المحفوظ — لكن ليس في صفحة Landing
+  // تطبيق الوضع المحفوظ فوراً — لمنع وميض تغيير الثيم عند التحديث
   (function(){
     try {
       var saved = localStorage.getItem('sbtp_theme');
-      // Landing تُعرف بـ hash أو بغياب أي user session
-      var isLanding = !localStorage.getItem('sbtp5_user');
-      if (saved === 'light' && !isLanding) {
-        document.documentElement.classList.add('light');
+      var h = document.documentElement;
+      if (saved === 'light') {
+        h.classList.add('light');
+      } else {
+        h.classList.remove('light');
       }
     } catch(e){}
   })();

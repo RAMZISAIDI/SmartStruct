@@ -1392,7 +1392,7 @@ const App = {
   params: {},
   navigate(page, params={}) {
     this.currentPage = page; this.params = params;
-    if (typeof _applyThemeForPage === 'function') _applyThemeForPage(page);
+    // لا نطبق الثيم هنا — render() سيُطبّقه بعد حل الصفحة الفعلية
     this.render();
     window.scrollTo(0,0);
   },
@@ -1470,6 +1470,9 @@ const App = {
       simulator:Pages.simulator, bank_report:Pages.bankReport,
       audit_log:Pages.auditLog, obligations:Pages.obligations,
       dz_documents:Pages.dz_documents, archive:Pages.archive, about:Pages.about, contact:Pages.contact };
+    // تطبيق الثيم بعد حل الصفحة الفعلية (لا قبلها)
+    if (typeof _applyThemeForPage === 'function') _applyThemeForPage(this.currentPage);
+
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
@@ -20619,10 +20622,13 @@ function _applyThemeForPage(page) {
   try {
     var saved = localStorage.getItem('sbtp_theme');
     var h = document.documentElement;
-    if (['landing', 'login'].includes(page)) {
-      // Landing وLogin دائماً داكنتان
+    // إذا كان مستخدم مُسجَّل دخوله، لا نُجبر الوضع الداكن حتى على login/landing
+    // (تحديث الصفحة يبدأ بـ 'login' مؤقتاً قبل إعادة التوجيه — لا نمس الثيم)
+    var userLoggedIn = !!(typeof Auth !== 'undefined' && Auth.getUser && Auth.getUser());
+    if (['landing', 'login'].includes(page) && !userLoggedIn) {
+      // صفحات المصادقة الفعلية — دائماً داكنة
       h.classList.remove('light');
-    } else {
+    } else if (!['landing', 'login'].includes(page)) {
       // باقي الصفحات — طبّق الثيم المحفوظ
       if (saved === 'light') {
         h.classList.add('light');
@@ -20630,6 +20636,7 @@ function _applyThemeForPage(page) {
         h.classList.remove('light');
       }
     }
+    // إذا كان المستخدم مُسجَّلاً وصفحة login مؤقتة — لا نلمس الثيم أبداً
     // تحديث زر الثيم في الـ toolbar
     setTimeout(function() {
       var btn = document.getElementById('themeToggleBtn');
