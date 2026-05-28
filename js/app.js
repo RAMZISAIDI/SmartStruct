@@ -4240,7 +4240,7 @@ function renderGenDocsTable(section) {
   return `<div class="card" style="margin-top:1.5rem;border-color:rgba(74,144,226,.2)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
       <div style="font-size:.85rem;font-weight:800;color:var(--blue)">📁 ${sectionLabels[section]||section}</div>
-      <button onclick="(function(){DB.set('gen_docs_${section}',(DB.get('gen_docs_${section}')||[]).filter(d=>d.tenant_id!=='${user.tenant_id}'));App.navigate('${section === 'workers' ? 'workers' : section === 'salary' ? 'salary' : section === 'transactions' ? 'transactions' : section === 'inventory' ? 'inventory' : section}');})()" style="background:none;border:none;color:var(--dim);font-size:.7rem;cursor:pointer;font-family:'Tajawal',sans-serif">🗑️ ${isAr?'مسح الكل':'Tout effacer'}</button>
+      <button onclick="clearGenDocs('${section}')" style="background:none;border:none;color:var(--dim);font-size:.7rem;cursor:pointer;font-family:'Tajawal',sans-serif">🗑️ ${isAr?'مسح الكل':'Tout effacer'}</button>
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.75rem">
@@ -5298,6 +5298,21 @@ Pages.projects = function() {
  * updateSyncPill(state, detail)
  * state: 'synced' | 'syncing' | 'error' | 'offline' | 'pending'
  */
+function clearGenDocs(section) {
+  const user = Auth.getUser();
+  if (!user) return;
+  const key = 'gen_docs_' + section;
+  const existing = DB.get(key) || [];
+  const filtered = existing.filter(d => d.tenant_id !== user.tenant_id);
+  DB.set(key, filtered);
+  // Navigate back to same page to refresh
+  const pageMap = {
+    workers: 'workers', salary: 'salary', transactions: 'transactions',
+    inventory: 'inventory', invoices: 'invoices'
+  };
+  App.navigate(pageMap[section] || section);
+}
+
 function updateSyncPill(state, detail = '') {
   const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
   const pill  = document.getElementById('syncPill');
