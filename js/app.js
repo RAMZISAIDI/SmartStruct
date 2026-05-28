@@ -6259,6 +6259,7 @@ Pages.workers = function() {
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="saveWorker()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
     </div>
+    ${renderGenDocsTable('workers')}
   `);
 };
 
@@ -6498,7 +6499,6 @@ Pages.equipment = function() {
         </div>
       </div>
     </div>
-    ${renderGenDocsTable('workers')}
   `);
 };
 Pages.transactions = function() {
