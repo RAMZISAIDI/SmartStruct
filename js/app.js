@@ -16530,6 +16530,266 @@ function initAnalyticsCharts() {
 /* ════════════════════════════════════════════════════════════
    👤 WORKER PROFILE — ملف العامل التفصيلي
 ════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════
+   🖨️ printWorkerTab — طباعة تبويب العامل المحدد
+══════════════════════════════════════════════════════ */
+function printWorkerTab(wid, tab) {
+  const isAr = I18N.currentLang === 'ar';
+  const tid  = Auth.getUser()?.tenant_id;
+  const tenant = Auth.getTenant() || {};
+  const worker = (DB.get('workers')||[]).find(w=>w.id===wid && w.tenant_id===tid);
+  if (!worker) { Toast.error(isAr?'العامل غير موجود':'Ouvrier introuvable'); return; }
+
+  const att      = (DB.get('attendance')||[]).filter(a=>a.worker_id===wid);
+  const leaves   = (DB.get('leave_requests')||[]).filter(l=>l.worker_id===wid);
+  const warnings = (DB.get('worker_warnings')||[]).filter(w=>w.worker_id===wid);
+  const overtime = (DB.get('worker_overtime')||[]).filter(o=>o.worker_id===wid);
+  const salRecs  = (DB.get('salary_records')||[]).filter(r=>r.worker_id===wid);
+  const projects = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid);
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString(isAr?'ar-DZ':'fr-DZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  const fmtN = n => Number(n||0).toLocaleString('fr-DZ');
+
+  // ── حساب إحصاءات الحضور
+  const presentDays = att.filter(a=>a.status==='present').length;
+  const absentDays  = att.filter(a=>a.status==='absent').length;
+  const halfDays    = att.filter(a=>a.status==='halfday').length;
+  const totalAtt    = presentDays + absentDays + halfDays;
+  const attRate     = totalAtt>0 ? Math.round((presentDays+halfDays*.5)/totalAtt*100) : 0;
+
+  // ── حساب الإجازات
+  const approvedLeaves = leaves.filter(l=>l.status==='approved');
+  const usedLeaveDays  = approvedLeaves.reduce((s,l)=>s+Number(l.days||0),0);
+  const remainLeave    = Math.max(0, 30 - usedLeaveDays);
+
+  // ── ترويسة مشتركة
+  const header = `
+    <div class="hdr">
+      <div>
+        <div style="font-size:1.4rem;font-weight:900;color:#C49030">${escHtml(tenant.name||'المؤسسة')}</div>
+        <div style="font-size:.75rem;color:#666;margin-top:2px">${escHtml(tenant.address||'')} ${tenant.phone?'• '+escHtml(tenant.phone):''}</div>
+      </div>
+      <div style="text-align:${isAr?'left':'right'}">
+        <div style="font-size:.7rem;color:#888">${dateStr}</div>
+        <div style="font-size:.7rem;color:#888;margin-top:3px">${isAr?'رقم التعريف':'Réf'}: WRK-${wid}</div>
+      </div>
+    </div>
+    <div class="worker-info">
+      <div class="avatar">${worker.full_name.split(' ').map(p=>p[0]).join('').substring(0,2).toUpperCase()}</div>
+      <div>
+        <div style="font-size:1.05rem;font-weight:800">${escHtml(worker.full_name)}</div>
+        <div style="font-size:.8rem;color:#555;margin-top:2px">${escHtml(worker.role||'—')} • ${escHtml(projects.find(p=>p.id===worker.project_id)?.name||'—')}</div>
+        <div style="font-size:.75rem;color:#777;margin-top:3px">${isAr?'الأجر اليومي':'Salaire/j'}: <strong style="color:#C49030">${fmtN(worker.daily_salary)} ${isAr?'دج':'DA'}</strong></div>
+      </div>
+    </div>`;
+
+  // ── بناء محتوى كل تبويب
+  let tabTitle = '';
+  let tabBody  = '';
+
+  if (tab === 'info') {
+    tabTitle = isAr ? 'ملف العامل الشخصي' : 'Fiche personnelle de l\'employé';
+    const fields = [
+      [isAr?'الاسم الكامل':'Nom complet',          worker.full_name],
+      [isAr?'الاسم بالفرنسية':'Nom en français',    worker.full_name_fr||'—'],
+      [isAr?'المهنة / المنصب':'Poste',              worker.role||'—'],
+      [isAr?'الهاتف':'Téléphone',                  worker.phone||'—'],
+      ['NIF / رقم الهوية',                          worker.national_id||'—'],
+      [isAr?'رقم CNAS':'N° CNAS',                  worker.cnas_number||'—'],
+      [isAr?'تاريخ الميلاد':'Date de naissance',   worker.dob?new Date(worker.dob).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'],
+      [isAr?'نوع العقد':'Type de contrat',          worker.contract_type||'—'],
+      [isAr?'تاريخ التعيين':'Date d\'embauche',     worker.hire_date?new Date(worker.hire_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'],
+      [isAr?'تاريخ انتهاء العقد':'Fin du contrat',  worker.contract_end?new Date(worker.contract_end).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'],
+      [isAr?'الحالة الاجتماعية':'Situation familiale', worker.marital_status==='married'?(isAr?'متزوج':'Marié'):(isAr?'أعزب':'Célibataire')],
+      [isAr?'عدد الأطفال':'Nombre d\'enfants',     worker.children_count||0],
+      [isAr?'الأجر الشهري الأساسي':'Salaire mensuel brut', fmtN(worker.monthly_base||worker.daily_salary*26)+' '+(isAr?'دج':'DA')],
+      [isAr?'العنوان':'Adresse',                   worker.address||'—'],
+      [isAr?'جهة الاتصال للطوارئ':'Contact urgence', worker.emergency_contact||'—'],
+    ];
+    tabBody = `<table><tbody>${fields.map(([k,v])=>`<tr><td class="lbl">${k}</td><td class="val">${escHtml(String(v))}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  else if (tab === 'attendance') {
+    tabTitle = isAr ? 'سجل الحضور والغياب' : 'Registre de présence';
+    const months = [...new Set(att.map(a=>(a.date||'').substring(0,7)))].sort().reverse().slice(0,12);
+    tabBody = `
+      <div class="kpis">
+        <div class="kpi"><span class="kval" style="color:#27ae60">${presentDays}</span><span class="klab">${isAr?'أيام حضور':'Jours présent'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#e74c3c">${absentDays}</span><span class="klab">${isAr?'أيام غياب':'Jours absent'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#f39c12">${halfDays}</span><span class="klab">${isAr?'أيام نصف':'Demi-jours'}</span></div>
+        <div class="kpi"><span class="kval" style="color:${attRate>=85?'#27ae60':attRate>=70?'#f39c12':'#e74c3c'}">${attRate}%</span><span class="klab">${isAr?'نسبة الحضور':'Taux présence'}</span></div>
+      </div>
+      <table>
+        <thead><tr><th>${isAr?'الشهر':'Mois'}</th><th>${isAr?'حضور':'Présents'}</th><th>${isAr?'نصف':'½ jours'}</th><th>${isAr?'غياب':'Absents'}</th><th>${isAr?'المجموع':'Total'}</th><th>${isAr?'النسبة':'Taux'}</th></tr></thead>
+        <tbody>${months.length===0?`<tr><td colspan="6" style="text-align:center;padding:1rem;color:#888">${isAr?'لا يوجد سجل حضور':'Aucun pointage enregistré'}</td></tr>`:months.map(m=>{
+          const mA=att.filter(a=>(a.date||'').startsWith(m));
+          const p=mA.filter(a=>a.status==='present').length;
+          const h=mA.filter(a=>a.status==='halfday').length;
+          const ab=mA.filter(a=>a.status==='absent').length;
+          const r=mA.length>0?Math.round((p+h*.5)/mA.length*100):0;
+          return `<tr><td style="font-weight:700">${m}</td><td style="color:#27ae60;font-weight:700">${p}</td><td style="color:#f39c12">${h}</td><td style="color:#e74c3c;font-weight:700">${ab}</td><td>${mA.length}</td><td style="font-weight:800;color:${r>=85?'#27ae60':r>=70?'#f39c12':'#e74c3c'}">${r}%</td></tr>`;
+        }).join('')}</tbody>
+      </table>`;
+  }
+
+  else if (tab === 'leaves') {
+    tabTitle = isAr ? 'سجل الإجازات' : 'Registre des congés';
+    const typeLabel = t => ({annual:isAr?'سنوية':'Annuel',sick:isAr?'مرضية':'Maladie',maternity:isAr?'أمومة':'Maternité',unpaid:isAr?'بدون أجر':'Sans solde',other:isAr?'أخرى':'Autre'}[t]||t);
+    const stLabel   = s => s==='approved'?(isAr?'مُعتمد':'Approuvé'):s==='rejected'?(isAr?'مرفوض':'Refusé'):(isAr?'بانتظار':'En attente');
+    tabBody = `
+      <div class="kpis">
+        <div class="kpi"><span class="kval" style="color:#3498db">${usedLeaveDays}</span><span class="klab">${isAr?'أيام مُستهلكة':'Jours utilisés'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#C49030">${remainLeave}</span><span class="klab">${isAr?'رصيد متبقٍ':'Solde restant'}</span></div>
+        <div class="kpi"><span class="kval">${leaves.length}</span><span class="klab">${isAr?'إجمالي الطلبات':'Total demandes'}</span></div>
+      </div>
+      <table>
+        <thead><tr><th>${isAr?'النوع':'Type'}</th><th>${isAr?'من':'Du'}</th><th>${isAr?'إلى':'Au'}</th><th>${isAr?'الأيام':'Jours'}</th><th>${isAr?'السبب':'Motif'}</th><th>${isAr?'الحالة':'Statut'}</th></tr></thead>
+        <tbody>${leaves.length===0?`<tr><td colspan="6" style="text-align:center;padding:1rem;color:#888">${isAr?'لا توجد طلبات إجازة':'Aucune demande de congé'}</td></tr>`:
+          leaves.sort((a,b)=>b.id-a.id).map(l=>`<tr>
+            <td>${typeLabel(l.type)}</td>
+            <td style="font-size:.8rem">${l.start_date?new Date(l.start_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
+            <td style="font-size:.8rem">${l.end_date?new Date(l.end_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
+            <td style="font-weight:800;color:#C49030">${l.days}</td>
+            <td style="font-size:.78rem;color:#666">${escHtml(l.reason||'—')}</td>
+            <td><span style="padding:2px 8px;border-radius:5px;font-size:.75rem;font-weight:700;background:${l.status==='approved'?'#d5f5e3':l.status==='rejected'?'#fadbd8':'#fef9e7'};color:${l.status==='approved'?'#1e8449':l.status==='rejected'?'#c0392b':'#9a7d0a'}">${stLabel(l.status)}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  else if (tab === 'salary') {
+    tabTitle = isAr ? 'سجل الرواتب' : 'Registre des salaires';
+    const totalPaid = salRecs.reduce((s,r)=>s+Number(r.amount||0)+Number(r.allowances||0)-Number(r.deductions||0),0);
+    tabBody = `
+      <div class="kpis">
+        <div class="kpi"><span class="kval" style="color:#C49030">${fmtN(worker.daily_salary)}</span><span class="klab">${isAr?'أجر يومي (دج)':'Salaire/j (DA)'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#27ae60">${fmtN(totalPaid)}</span><span class="klab">${isAr?'إجمالي المدفوع (دج)':'Total versé (DA)'}</span></div>
+        <div class="kpi"><span class="kval">${salRecs.length}</span><span class="klab">${isAr?'عدد الكشوفات':'Bulletins'}</span></div>
+      </div>
+      <table>
+        <thead><tr><th>${isAr?'الشهر':'Mois'}</th><th>${isAr?'الإجمالي':'Brut'}</th><th>${isAr?'العلاوات':'Primes'}</th><th>${isAr?'الخصومات':'Déductions'}</th><th>${isAr?'الصافي':'Net'}</th><th>${isAr?'تاريخ الصرف':'Date paiement'}</th></tr></thead>
+        <tbody>${salRecs.length===0?`<tr><td colspan="6" style="text-align:center;padding:1rem;color:#888">${isAr?'لا يوجد سجل رواتب':'Aucun bulletin de salaire'}</td></tr>`:
+          salRecs.sort((a,b)=>(b.month_key||'').localeCompare(a.month_key||'')).map(r=>{
+            const net=Number(r.amount||0)+Number(r.allowances||0)-Number(r.deductions||0);
+            return `<tr>
+              <td style="font-weight:700">${r.month_key||'—'}</td>
+              <td>${fmtN(r.amount)} ${isAr?'دج':'DA'}</td>
+              <td style="color:#27ae60">${r.allowances?'+'+fmtN(r.allowances)+' '+(isAr?'دج':'DA'):'—'}</td>
+              <td style="color:#e74c3c">${r.deductions?'-'+fmtN(r.deductions)+' '+(isAr?'دج':'DA'):'—'}</td>
+              <td style="font-weight:800;color:#C49030">${fmtN(net)} ${isAr?'دج':'DA'}</td>
+              <td style="font-size:.78rem;color:#666">${r.paid_date?new Date(r.paid_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  else if (tab === 'warnings') {
+    tabTitle = isAr ? 'سجل الإنذارات' : 'Registre des avertissements';
+    const typeLabel = t => ({verbal:isAr?'شفوي':'Verbal',written:isAr?'كتابي رسمي':'Écrit officiel',final:isAr?'إنذار نهائي':'Final'}[t]||t);
+    tabBody = `
+      <div class="kpis">
+        <div class="kpi"><span class="kval" style="color:#e74c3c">${warnings.length}</span><span class="klab">${isAr?'إجمالي الإنذارات':'Total avertissements'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#e67e22">${warnings.filter(w=>w.type==='written').length}</span><span class="klab">${isAr?'كتابية':'Écrits'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#c0392b">${warnings.filter(w=>w.type==='final').length}</span><span class="klab">${isAr?'نهائية':'Finaux'}</span></div>
+      </div>
+      ${warnings.length===0
+        ? `<div style="text-align:center;padding:2rem;color:#888;font-size:.9rem">✅ ${isAr?'لا توجد إنذارات مسجلة':'Aucun avertissement enregistré'}</div>`
+        : warnings.sort((a,b)=>b.id-a.id).map(w=>{
+            const col = w.type==='written'?'#e67e22':w.type==='final'?'#c0392b':'#f39c12';
+            return `<div style="border:1px solid #ddd;border-left:4px solid ${col};border-radius:6px;padding:.8rem 1rem;margin-bottom:.6rem;background:#fafafa">
+              <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
+                <span style="font-weight:700;color:${col}">⚠️ ${typeLabel(w.type)}</span>
+                <span style="font-size:.75rem;color:#888">${w.date?new Date(w.date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</span>
+              </div>
+              <div style="font-size:.85rem">${escHtml(w.reason||'—')}</div>
+              ${w.action?`<div style="font-size:.75rem;color:#666;margin-top:.3rem">📋 ${isAr?'الإجراء':'Action'}: ${escHtml(w.action)}</div>`:''}
+            </div>`;
+          }).join('')
+      }`;
+  }
+
+  else if (tab === 'overtime') {
+    tabTitle = isAr ? 'سجل الساعات الإضافية' : 'Registre des heures supplémentaires';
+    const totalHrs = overtime.reduce((s,o)=>s+Number(o.hours||0),0);
+    const totalAmt = overtime.reduce((s,o)=>s+Number(o.amount||0),0);
+    tabBody = `
+      <div class="kpis">
+        <div class="kpi"><span class="kval" style="color:#C49030">${totalHrs}h</span><span class="klab">${isAr?'إجمالي الساعات':'Total heures'}</span></div>
+        <div class="kpi"><span class="kval" style="color:#27ae60">${fmtN(totalAmt)}</span><span class="klab">${isAr?'إجمالي المبلغ (دج)':'Montant total (DA)'}</span></div>
+        <div class="kpi"><span class="kval">${overtime.length}</span><span class="klab">${isAr?'عدد السجلات':'Enregistrements'}</span></div>
+      </div>
+      <table>
+        <thead><tr><th>${isAr?'التاريخ':'Date'}</th><th>${isAr?'الساعات':'Heures'}</th><th>${isAr?'النسبة':'Taux'}</th><th>${isAr?'المبلغ':'Montant'}</th><th>${isAr?'المشروع':'Projet'}</th></tr></thead>
+        <tbody>${overtime.length===0?`<tr><td colspan="5" style="text-align:center;padding:1rem;color:#888">${isAr?'لا توجد ساعات إضافية':'Aucune heure supplémentaire'}</td></tr>`:
+          overtime.sort((a,b)=>b.id-a.id).map(o=>`<tr>
+            <td>${o.date?new Date(o.date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
+            <td style="font-weight:800;color:#C49030">${o.hours}h</td>
+            <td>${o.rate||125}%</td>
+            <td style="color:#27ae60;font-weight:700">${fmtN(o.amount)} ${isAr?'دج':'DA'}</td>
+            <td style="font-size:.78rem;color:#666">${escHtml(projects.find(p=>p.id===o.project_id)?.name||'—')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ── بناء HTML الطباعة الكامل
+  const printHTML = `<!DOCTYPE html>
+<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
+<head>
+<meta charset="UTF-8">
+<title>${tabTitle} — ${escHtml(worker.full_name)}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:${isAr?"'Cairo','Tajawal',Arial":"'Segoe UI',Arial"}, sans-serif; background:#f0f2f5; color:#111; direction:${isAr?'rtl':'ltr'}; font-size:13px; }
+  .sheet { background:#fff; max-width:800px; margin:0 auto; padding:2rem; }
+  .hdr { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:1rem; border-bottom:3px solid #C49030; margin-bottom:1.2rem; }
+  .worker-info { display:flex; align-items:center; gap:1rem; background:#f8f9fa; border-radius:10px; padding:.8rem 1rem; margin-bottom:1.2rem; }
+  .avatar { width:48px;height:48px;border-radius:50%;background:#C49030;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.1rem;flex-shrink:0; }
+  .doc-title { background:#C49030; color:#fff; border-radius:8px; padding:.5rem 1.2rem; margin-bottom:1.2rem; font-size:.95rem; font-weight:800; display:inline-block; }
+  .kpis { display:flex; gap:.8rem; flex-wrap:wrap; margin-bottom:1.2rem; }
+  .kpi { flex:1; min-width:100px; text-align:center; background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:.6rem .5rem; }
+  .kval { display:block; font-size:1.3rem; font-weight:900; font-family:monospace; }
+  .klab { display:block; font-size:.68rem; color:#666; margin-top:.2rem; }
+  table { width:100%; border-collapse:collapse; font-size:.82rem; }
+  th { background:#C49030; color:#fff; padding:.5rem .7rem; text-align:${isAr?'right':'left'}; font-weight:700; }
+  td { padding:.45rem .7rem; border-bottom:1px solid #eee; }
+  tr:nth-child(even) td { background:#f9f9f9; }
+  .lbl { color:#555; font-weight:600; width:40%; background:#f5f5f5; }
+  .val { font-weight:700; }
+  .footer { margin-top:2rem; padding-top:1rem; border-top:1px solid #ddd; text-align:center; font-size:.7rem; color:#888; }
+  @media print { body{background:#fff} .sheet{max-width:100%;padding:1rem} @page{margin:15mm} }
+</style>
+</head>
+<body>
+<div class="sheet">
+  ${header}
+  <div class="doc-title">📋 ${tabTitle}</div>
+  ${tabBody}
+  <div class="footer">
+    ${escHtml(tenant.name||'')} • ${dateStr} • SmartStruct © 2025
+    — ${isAr?'وثيقة مولّدة تلقائياً':'Document généré automatiquement'}
+  </div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  // ── فتح نافذة الطباعة
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) { Toast.error(isAr?'يرجى السماح بالنوافذ المنبثقة':'Autoriser les popups'); return; }
+  w.document.write(printHTML);
+  w.document.close();
+
+  // ── حفظ في أرشيف الوثائق
+  saveGeneratedDoc('workers', {
+    title: tabTitle + ' — ' + worker.full_name,
+    type: isAr ? 'طباعة ملف عامل' : 'Impression dossier'
+  });
+}
+
 Pages.worker_profile = function() {
   const tid = Auth.getUser().tenant_id;
   const wid = Number(App.params.id);
@@ -16582,6 +16842,18 @@ Pages.worker_profile = function() {
         <button class="btn btn-ghost btn-sm" onclick="editWorker(${worker.id})">✏️ ${L('تعديل','Modifier')}</button>
         <button class="btn btn-gold btn-sm" data-modal-open="leaveModal">+ ${L('طلب إجازة','Congé')}</button>
         <button class="btn btn-ghost btn-sm" data-modal-open="warnModal">⚠️ ${L('إنذار','Avertissement')}</button>
+        ${(()=>{
+          const _pt = App.params.tab||'info';
+          const _printLabels = {
+            info:       L('طباعة ملف العامل','Imprimer fiche'),
+            attendance: L('طباعة سجل الحضور','Imprimer présence'),
+            leaves:     L('طباعة الإجازات','Imprimer congés'),
+            salary:     L('طباعة الرواتب','Imprimer salaires'),
+            warnings:   L('طباعة الإنذارات','Imprimer avertissements'),
+            overtime:   L('طباعة الإضافي','Imprimer heures sup.'),
+          };
+          return '<button class="btn btn-ghost btn-sm" onclick="printWorkerTab(' + wid + ',\'' + _pt + '\')" title="' + (_printLabels[_pt]||'طباعة') + '">🖨️ ' + L('طباعة','Imprimer') + '</button>';
+        })()}
       </div>
     </div>
 
