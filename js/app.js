@@ -1657,7 +1657,7 @@ function topbarHTML(breadcrumb) {
           onblur="this.style.borderColor='rgba(255,255,255,.1)'">
       </div>
     </div>
-  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:nowrap;justify-content:flex-end">
+  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:nowrap;justify-content:flex-end;direction:ltr">
 
       <!-- ① جرس الإشعارات + بادج — ثابت دائماً -->
       <div style="position:relative;flex-shrink:0">
@@ -15196,7 +15196,7 @@ function topbarHTMLv5(title) {
       <button class="hamburger">☰</button>
       <span class="topbar-breadcrumb">SmartStruct / <strong>${escHtml(title)}</strong></span>
     </div>
-    <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:nowrap;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:nowrap;flex-shrink:0;direction:ltr">
 
       <!-- ① جرس Admin — ثابت -->
       ${user?.is_admin ? `<div onclick="openAdminNotifTab()" style="position:relative;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:1rem">🛎${adminResetPending>0?`<span style="position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;border-radius:50%;width:14px;height:14px;font-size:.52rem;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg)">${adminResetPending>99?'99+':adminResetPending}</span>`:''}</div>` : ''}

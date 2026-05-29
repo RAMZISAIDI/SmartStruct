@@ -48,7 +48,8 @@ body{font-family:'Tajawal',sans-serif;background:var(--bg);color:var(--text);lin
 
 
 /* ===== TOPBAR ===== */
-.topbar{height:58px;background:rgba(6,10,16,0.8);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.8rem;position:sticky;top:0;z-index:300;overflow:visible}
+.topbar{height:58px;background:rgba(6,10,16,0.8);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.8rem;position:sticky;top:0;z-index:300;overflow:visible;direction:rtl}
+.topbar > *:last-child { direction: ltr; }
 .topbar-breadcrumb{font-size:0.82rem;color:var(--muted)}
 .topbar-user{display:flex;align-items:center;gap:0.5rem}
 .topbar-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#E8B84B,#C49030);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:900;color:#09120A;cursor:pointer}
@@ -1377,8 +1378,11 @@ tbody tr:hover td{background:rgba(255,255,255,0.03)}
 [dir="ltr"] .sidebar::before    { left: auto; right: 0; }
 
 /* ── Topbar ── */
-[dir="ltr"] .topbar             { flex-direction: row; }
+[dir="ltr"] .topbar             { flex-direction: row; direction: ltr; }
 [dir="ltr"] .topbar-breadcrumb  { direction: ltr; text-align: left; }
+/* ✅ حاوية أيقونات اليمين — ثابتة LTR دائماً بغض النظر عن اتجاه الصفحة */
+.topbar [style*="justify-content:flex-end"],
+.topbar [style*="flex-shrink:0;direction:ltr"] { direction: ltr !important; }
 
 /* ── Page header & actions ── */
 [dir="ltr"] .page-header        { direction: ltr; }
