@@ -277,6 +277,8 @@ const SupabaseClient = {
 
   async _request(method, path, body = null, params = '') {
     if (!this._url || !this._key) throw new Error('Supabase غير مُهيَّأ');
+    // ✅ منع طلبات بـ key فارغ أو قصير (يتسبب في CORS error من Supabase)
+    if (!this._key || this._key.length < 10) throw new Error('Supabase key غير صالح');
     const url = `${this._url}/rest/v1/${path}${params ? '?' + params : ''}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this._timeout);
@@ -291,6 +293,12 @@ const SupabaseClient = {
         throw new Error(err.message || err.details || `HTTP ${resp.status}`);
       }
       return text ? JSON.parse(text) : [];
+    } catch(fetchErr) {
+      // ✅ التعامل مع CORS/network errors بهدوء (لا crash)
+      if (fetchErr.name === 'TypeError' && fetchErr.message.includes('fetch')) {
+        throw new Error('خطأ شبكة — تحقق من إعدادات Supabase (CORS/URL)');
+      }
+      throw fetchErr;
     } finally {
       clearTimeout(timer);
     }
@@ -2360,12 +2368,26 @@ const SmartRealtime = (() => {
     /** بدء الاتصال */
     start(tenantId) {
       if (_running) return;
+      // ✅ تحقق من صحة tenantId — لا نبدأ بـ null أو قيم عددية مشبوهة
+      const _validTid = tenantId && String(tenantId).length > 2 ? tenantId : null;
       _running  = true;
-      _tenantId = tenantId || null;
+      _tenantId = _validTid;
 
-      // Supabase 2025: polling mode مباشرة
-      _startPollingFallback();
-      console.log('⚡ Realtime: polling mode نشط');
+      // ✅ تأخير بسيط لضمان تحميل Supabase key قبل بدء الـ polling
+      setTimeout(() => {
+        if (typeof SupabaseClient !== 'undefined' && SupabaseClient._key && SupabaseClient._key.length > 10) {
+          _startPollingFallback();
+          console.log('⚡ Realtime: polling mode نشط');
+        } else {
+          // إعادة المحاولة بعد ثانية إضافية
+          setTimeout(() => {
+            if (typeof SupabaseClient !== 'undefined' && SupabaseClient._key && SupabaseClient._key.length > 10) {
+              _startPollingFallback();
+              console.log('⚡ Realtime: polling mode نشط (retry)');
+            }
+          }, 2000);
+        }
+      }, 500);
     },
 
     /** إيقاف الاتصال */
@@ -2507,6 +2529,11 @@ const SmartRealtime = (() => {
       if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
       if (!_tenantId) return;
       if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
+      // ✅ تحقق من صحة الـ API key قبل أي طلب (يمنع CORS error بسبب key فارغ)
+      if (!SupabaseClient._key || SupabaseClient._key.length < 10) return;
+      // ✅ تحقق من أن tenant_id ليس قيمة افتراضية خاطئة
+      const _tCheck = typeof Auth !== 'undefined' && Auth.getUser ? Auth.getUser() : null;
+      if (!_tCheck || !_tCheck.tenant_id) return;
 
       try {
         // ✅ الأدمن يسحب كل الإشعارات، المستخدم العادي يسحب إشعارات مؤسسته فقط
