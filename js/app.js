@@ -1657,34 +1657,54 @@ function topbarHTML(breadcrumb) {
           onblur="this.style.borderColor='rgba(255,255,255,.1)'">
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-      ${subBadge}
-      <!-- زر وضع الميدان -->
-      <button onclick="showMobileMode()" title="${L('وضع الميدان','Mode Terrain')}"
-        style="padding:5px 10px;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:8px;color:#34C38F;cursor:pointer;font-size:.75rem;font-weight:700;white-space:nowrap">
-        📱 ${L('الميدان','Terrain')}
-      </button>
-      ${alertCount>0?`<div class="notif-bell" title="${alertCount} ${L('مشروع يقترب من تجاوز الميزانية','projet(s) approche(nt) du dépassement de budget')}" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
-      <!-- زر تبديل المود — بجانب جرس الإشعارات مباشرةً -->
+  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:nowrap;justify-content:flex-end">
+
+      <!-- ① جرس الإشعارات + بادج — ثابت دائماً -->
+      <div style="position:relative;flex-shrink:0">
+        ${buildNotifPanel()}
+        <button onclick="toggleNotifPanel(this)" title="${L('الإشعارات','Notifications')}"
+          style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;position:relative">
+          🔔
+          ${(()=>{const u=Auth.getUser();if(!u)return '';const unread=(DB.get('notifications')||[]).filter(n=>n.tenant_id===u.tenant_id&&!n.read);return unread.length?'<span style="position:absolute;top:1px;right:1px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg)"></span>':''})()}
+        </button>
+      </div>
+
+      <!-- ② تنبيه الميزانية — حاوية ثابتة العرض لا تُزيح -->
+      <div style="width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        ${alertCount>0?`<button title="${alertCount} ${L('مشروع يقترب من الميزانية','projet(s) proche(s) du dépassement')}" onclick="App.navigate('reports')" style="position:relative;width:32px;height:32px;border-radius:50%;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem">⚠️<span style="position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;border-radius:50%;width:14px;height:14px;font-size:.52rem;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg)">${alertCount}</span></button>`:''}
+      </div>
+
+      <!-- ③ بادج الاشتراك — يأتي قبل الأيقونات الثابتة لمنع الإزاحة -->
+      <div style="flex-shrink:0;min-width:fit-content;display:flex;align-items:center">
+        ${subBadge||''} 
+      </div>
+
+      <!-- ④ زر تبديل المود — ثابت دائماً -->
       <button id="themeToggleBtn"
         title="${L('تبديل المظهر','Changer apparence')}"
         onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
-        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
-               background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;line-height:1;
-               display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
+        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
         onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
         onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
         ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
       </button>
-      <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
-      ${I18N.langSwitcherHTML()}
-      <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
+
+      <!-- ⑤ حالة المزامنة — ثابتة دائماً -->
+      <div id="syncPill"
+        title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}"
+        style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;flex-shrink:0;white-space:nowrap"
+        onclick="window.PQ?window.PQ.show():void(0)">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
         <span id="syncLabel">${L('متزامن','Sync')}</span>
       </div>
-      <div class="topbar-user">
-        <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">${initial}</div>
+
+      <!-- ⑥ أفاتار المستخدم — ثابت في الأقصى -->
+      <div class="topbar-user" style="flex-shrink:0">
+        <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">
+          ${initial}
+        </div>
       </div>
+
     </div>
   </header>`;
 }
@@ -15176,35 +15196,40 @@ function topbarHTMLv5(title) {
       <button class="hamburger">☰</button>
       <span class="topbar-breadcrumb">SmartStruct / <strong>${escHtml(title)}</strong></span>
     </div>
-    <div class="topbar-user" style="position:relative">
-      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}"
-        style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s;margin-${I18N.currentLang==='ar'?'left':'right'}:.5rem"
-        onclick="App.navigate('settings')">
-        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
-        <span id="syncLabel">${L('متزامن','Synchronisé')}</span>
-      </div>
-      <div id="notifPanelWrap" style="position:relative">
-        ${user?.is_admin ? `
-          <div class="notif-bell" onclick="openAdminNotifTab()" title="${L('طلبات إعادة تعيين كلمة المرور','Demandes de réinitialisation MDP')}" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
-            🛎️${adminResetPending>0?`<span class="notif-count">${adminResetPending>99?'99+':adminResetPending}</span>`:''}
-          </div>
-        ` : ''}
-        <div class="notif-bell" onclick="toggleNotifPanel(this)" id="notifBell" style="cursor:pointer;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1rem;transition:var(--transition);position:relative">
-          🔔${unread>0?`<span class="notif-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--red);border-radius:50%;border:2px solid var(--bg)"></span>`:''}
-        </div>
+    <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:nowrap;flex-shrink:0">
+
+      <!-- ① جرس Admin — ثابت -->
+      ${user?.is_admin ? `<div onclick="openAdminNotifTab()" style="position:relative;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:1rem">🛎${adminResetPending>0?`<span style="position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;border-radius:50%;width:14px;height:14px;font-size:.52rem;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg)">${adminResetPending>99?'99+':adminResetPending}</span>`:''}</div>` : ''}
+
+      <!-- ② جرس الإشعارات — ثابت -->
+      <div style="position:relative;flex-shrink:0">
         ${buildNotifPanel()}
+        <button onclick="toggleNotifPanel(this)" id="notifBell"
+          style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;position:relative;transition:var(--transition);flex-shrink:0">
+          🔔${unread>0?`<span style="position:absolute;top:3px;right:3px;width:8px;height:8px;background:var(--red);border-radius:50%;border:2px solid var(--bg)"></span>`:''}
+        </button>
       </div>
-      <!-- زر تبديل المود — بجانب جرس الإشعارات -->
+
+      <!-- ③ زر تبديل المود — ثابت -->
       <button id="themeToggleBtn"
         title="${L('تبديل المظهر','Changer apparence')}"
         onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
-        style="width:34px;height:34px;border-radius:50%;border:1px solid var(--border2);
-               background:rgba(255,255,255,.05);cursor:pointer;font-size:1rem;line-height:1;
-               display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
+        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:rgba(255,255,255,.05);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
         onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
         onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='var(--border2)'">
         ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
       </button>
+
+      <!-- ④ حالة المزامنة — ثابتة -->
+      <div id="syncPill"
+        title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}"
+        style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;flex-shrink:0;white-space:nowrap;transition:all .3s"
+        onclick="window.PQ?window.PQ.show():App.navigate('settings')">
+        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
+        <span id="syncLabel">${L('متزامن','Sync')}</span>
+      </div>
+
+      <!-- ⑤ أفاتار — ثابت -->
       ${avatarHtml(user?.full_name, user?.avatar_color || '#E8B84B', 32)}
     </div>
   </header>`;
@@ -23353,9 +23378,18 @@ function setupConnBadge() {
     document.documentElement.dir = savedLang === 'fr' ? 'ltr' : 'rtl';
     App.render();
     setupConnBadge();
-    // إخفاء شاشة التحميل بعد نجاح التشغيل
-    const __ldr = document.getElementById('appLoader');
-    if (__ldr) __ldr.style.display = 'none';
+    // إخفاء شاشة التحميل بعد أن يستقر الـ DOM كاملاً (requestAnimationFrame مزدوج)
+    // هذا يضمن أن الـ Navbar يُرسم بشكل صحيح قبل أن يراه المستخدم
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        const __ldr = document.getElementById('appLoader');
+        if (__ldr) {
+          __ldr.style.transition = 'opacity .25s ease';
+          __ldr.style.opacity = '0';
+          setTimeout(function(){ if (__ldr) __ldr.style.display = 'none'; }, 260);
+        }
+      });
+    });
   } catch(e) {
     console.error('❌ SmartStruct Boot Error:', e);
     // عرض رسالة خطأ واضحة بدلاً من شاشة فارغة
