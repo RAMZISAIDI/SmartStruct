@@ -1645,17 +1645,7 @@ function topbarHTML(breadcrumb) {
     <div style="display:flex;align-items:center;gap:.8rem;flex:1">
       <button class="hamburger">☰</button>
       <div class="topbar-breadcrumb">SmartStruct <span style="opacity:.3">›</span> ${breadcrumb}</div>
-      <!-- البحث العالمي -->
-      <div style="position:relative;margin:0 .5rem;flex:1;max-width:260px;display:flex;align-items:center">
-        <span style="position:absolute;right:8px;font-size:14px;color:rgba(255,255,255,.35);pointer-events:none">🔍</span>
-        <input id="globalSearchInp" type="text"
-          placeholder="${L('بحث عالمي...','Recherche...')}"
-          style="width:100%;padding:5px 28px 5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text);font-size:.78rem;font-family:inherit;outline:none"
-          oninput="globalSearch(this.value)"
-          onkeydown="if(event.key==='Escape'){this.value='';document.getElementById('globalSearchResults')?.remove();}"
-          onfocus="this.style.borderColor='rgba(232,184,75,.5)'" 
-          onblur="this.style.borderColor='rgba(255,255,255,.1)'">
-      </div>
+
     </div>
   <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:nowrap;justify-content:flex-end;direction:ltr">
 
