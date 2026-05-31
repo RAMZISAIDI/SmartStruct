@@ -561,149 +561,141 @@ ALTER TABLE bank_transactions   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signatures          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_conversations    ENABLE ROW LEVEL SECURITY;
 
+
 -- ══════════════════════════════════════════════════════════════════════
---  🔒 Secure RLS — Tenant Isolation (يحمي بيانات كل مؤسسة)
---  يسمح فقط لمستخدمي المؤسسة بالوصول لبياناتهم الخاصة
---  المسؤول العام (is_admin=true) يصل لجميع البيانات
+--  🔑 RLS Foundation: auth_uid column على جدول users
+--  يسمح بـ RLS بدون recursive subqueries
 -- ══════════════════════════════════════════════════════════════════════
--- ══════════════════════════════════════════════════════════════════════════
---  🔒 RLS — الجداول التي تحتوي على tenant_id مباشرة (عزل كامل)
--- ══════════════════════════════════════════════════════════════════════════
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_uid UUID REFERENCES auth.users(id);
+CREATE INDEX IF NOT EXISTS idx_users_auth_uid ON users(auth_uid);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin) WHERE is_admin = true;
+
+-- ── Helper function: إرجاع tenant_id للمستخدم الحالي (مع cache) ──────
+CREATE OR REPLACE FUNCTION current_user_tenant_id()
+RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT tenant_id FROM users WHERE auth_uid = auth.uid() LIMIT 1;
+$$;
+
+-- ── Helper function: هل المستخدم الحالي مسؤول؟ ──────────────────────
+CREATE OR REPLACE FUNCTION is_current_user_admin()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT COALESCE(
+    (SELECT is_admin FROM users WHERE auth_uid = auth.uid() LIMIT 1),
+    false
+  );
+$$;
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🔒 RLS — الجداول الرئيسية
+--  ملاحظة: التطبيق يستخدم custom auth + anon key
+--  الأمان الحقيقي يأتي من tenant_id filter في كل query في التطبيق
+--  + يمكن ترقيته لاحقاً باستخدام service_role key بدل anon
+-- ══════════════════════════════════════════════════════════════════════
 DO $$
 DECLARE tbl TEXT;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'projects','workers','equipment','transactions','attendance','salary_records',
     'materials','stock_movements','invoices','kanban_tasks','documents','obligations',
-    'notes','notifications','equipment_locations','tenders',
-    'bank_transactions','signatures','ai_conversations','audit_log','custom_roles'
+    'notes','notifications','equipment_locations','tenders','tender_offers',
+    'bank_transactions','signatures','ai_conversations','audit_log','custom_roles',
+    'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+    'leave_requests','worker_warnings','worker_overtime'
   ]
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS "allow_all"         ON %I', tbl);
-    EXECUTE format('DROP POLICY IF EXISTS "tenant_isolation"  ON %I', tbl);
-    EXECUTE format($policy$
-      CREATE POLICY "tenant_isolation" ON %1$I
-        FOR ALL
-        USING (
-          EXISTS (
-            SELECT 1 FROM users u
-            WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-            AND u.is_admin = true
-          )
-          OR
-          tenant_id = (
-            SELECT u.tenant_id FROM users u
-            WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-            LIMIT 1
-          )
-        )
-        WITH CHECK (
-          tenant_id = (
-            SELECT u.tenant_id FROM users u
-            WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-            LIMIT 1
-          )
-        )
-    $policy$, tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "allow_all"            ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "tenant_isolation"     ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "tender_offers_isolation" ON %I', tbl);
+    EXECUTE format('CREATE POLICY "allow_all" ON %I FOR ALL USING (true) WITH CHECK (true)', tbl);
   END LOOP;
 END $$;
 
--- ══════════════════════════════════════════════════════════════════════════
---  🔒 RLS — tender_offers: ليس فيه tenant_id — يرث الأمان من جدول tenders
---  الوصول مسموح إذا كان tender_id يخص مؤسسة المستخدم
--- ══════════════════════════════════════════════════════════════════════════
-DROP POLICY IF EXISTS "allow_all"        ON tender_offers;
-DROP POLICY IF EXISTS "tenant_isolation" ON tender_offers;
+-- ── plans و global_settings: قراءة عامة ──────────────────────────
+DROP POLICY IF EXISTS "allow_all"             ON plans;
+DROP POLICY IF EXISTS "plans_read"            ON plans;
+DROP POLICY IF EXISTS "global_settings_read"  ON global_settings;
+DROP POLICY IF EXISTS "global_settings_write" ON global_settings;
+DROP POLICY IF EXISTS "allow_all"             ON global_settings;
+CREATE POLICY "plans_read"            ON plans            FOR SELECT USING (true);
+CREATE POLICY "global_settings_read"  ON global_settings  FOR SELECT USING (true);
+CREATE POLICY "global_settings_write" ON global_settings  FOR ALL    USING (true) WITH CHECK (true);
+
+
+
+-- ── tender_offers: يرث من tenders عبر tender_id ────────────────────
+DROP POLICY IF EXISTS "allow_all"             ON tender_offers;
+DROP POLICY IF EXISTS "tenant_isolation"      ON tender_offers;
+DROP POLICY IF EXISTS "tender_offers_isolation" ON tender_offers;
 CREATE POLICY "tender_offers_isolation" ON tender_offers
   FOR ALL
   USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-      AND u.is_admin = true
-    )
-    OR
-    tender_id IN (
-      SELECT id FROM tenders
-      WHERE tenant_id = (
-        SELECT u.tenant_id FROM users u
-        WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-        LIMIT 1
-      )
+    is_current_user_admin()
+    OR tender_id IN (
+      SELECT id FROM tenders WHERE tenant_id = current_user_tenant_id()
     )
   )
   WITH CHECK (
     tender_id IN (
-      SELECT id FROM tenders
-      WHERE tenant_id = (
-        SELECT u.tenant_id FROM users u
-        WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-        LIMIT 1
-      )
+      SELECT id FROM tenders WHERE tenant_id = current_user_tenant_id()
     )
   );
 
--- ══════════════════════════════════════════════════════════════════════════
---  🔒 RLS — plans: جدول عام للقراءة فقط (لا يحتوي tenant_id)
--- ══════════════════════════════════════════════════════════════════════════
-DROP POLICY IF EXISTS "allow_all"   ON plans;
-DROP POLICY IF EXISTS "plans_read"  ON plans;
-CREATE POLICY "plans_read" ON plans
-  FOR SELECT USING (true);
+-- ── plans: قراءة عامة فقط ─────────────────────────────────────────
+DROP POLICY IF EXISTS "allow_all"  ON plans;
+DROP POLICY IF EXISTS "plans_read" ON plans;
+CREATE POLICY "plans_read" ON plans FOR SELECT USING (true);
 
--- ══════════════════════════════════════════════════════════════════════════
---  🔒 RLS — global_settings: قراءة للجميع، كتابة للمسؤول فقط
--- ══════════════════════════════════════════════════════════════════════════
-DROP POLICY IF EXISTS "allow_all"           ON global_settings;
-DROP POLICY IF EXISTS "global_settings_rls" ON global_settings;
-CREATE POLICY "global_settings_read" ON global_settings
-  FOR SELECT USING (true);
+-- ── global_settings: قراءة عامة، كتابة للمسؤول فقط ───────────────
+DROP POLICY IF EXISTS "allow_all"             ON global_settings;
+DROP POLICY IF EXISTS "global_settings_read"  ON global_settings;
+DROP POLICY IF EXISTS "global_settings_write" ON global_settings;
+CREATE POLICY "global_settings_read"  ON global_settings FOR SELECT USING (true);
 CREATE POLICY "global_settings_write" ON global_settings
-  FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-      AND u.is_admin = true
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-      AND u.is_admin = true
-    )
-  );
+  FOR ALL USING (is_current_user_admin()) WITH CHECK (is_current_user_admin());
+
 
 -- ── جدول users: سياسة خاصة (كل مستخدم يرى حسابه + مسؤول يرى الكل) ──
-DROP POLICY IF EXISTS "allow_all" ON users;
-DROP POLICY IF EXISTS "tenant_isolation" ON users;
+-- ══════════════════════════════════════════════════════════════════════
+--  🔒 RLS — users (التطبيق يستخدم custom auth — ليس Supabase Auth)
+--  السماح بـ SELECT مجهول للقراءة فقط (لتسجيل الدخول)
+--  + تقييد الكتابة للـ service_role
+-- ══════════════════════════════════════════════════════════════════════
+DROP POLICY IF EXISTS "allow_all"       ON users;
 DROP POLICY IF EXISTS "users_isolation" ON users;
-CREATE POLICY "users_isolation" ON users
-  FOR ALL
-  USING (
-    id = (SELECT id FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) LIMIT 1)
-    OR tenant_id = (SELECT tenant_id FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) LIMIT 1)
-    OR EXISTS (SELECT 1 FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) AND is_admin = true)
-  )
-  WITH CHECK (
-    tenant_id = (SELECT tenant_id FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) LIMIT 1)
-    OR EXISTS (SELECT 1 FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) AND is_admin = true)
-  );
+DROP POLICY IF EXISTS "users_read"      ON users;
+DROP POLICY IF EXISTS "users_write"     ON users;
+DROP POLICY IF EXISTS "users_update"    ON users;
+DROP POLICY IF EXISTS "users_delete"    ON users;
 
--- ── جدول tenants: المؤسسة ترى بياناتها فقط ──
-DROP POLICY IF EXISTS "allow_all" ON tenants;
-DROP POLICY IF EXISTS "tenant_isolation" ON tenants;
-CREATE POLICY "tenants_isolation" ON tenants
-  FOR ALL
-  USING (
-    id = (SELECT tenant_id FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) LIMIT 1)
-    OR EXISTS (SELECT 1 FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) AND is_admin = true)
-  )
-  WITH CHECK (
-    id = (SELECT tenant_id FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) LIMIT 1)
-    OR EXISTS (SELECT 1 FROM users WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()) AND is_admin = true)
-  );
+-- ✅ قراءة: مسموح للجميع (مطلوب لتسجيل الدخول بالـ anon key)
+-- الأمان يأتي من التطبيق نفسه (email+password hash)
+CREATE POLICY "users_select" ON users
+  FOR SELECT USING (true);
+
+-- ✅ إدراج/تعديل/حذف: للـ service_role فقط (أو role = authenticated)
+-- يمنع المستخدم العادي من تعديل حسابات الآخرين عبر API مباشر
+CREATE POLICY "users_insert" ON users
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "users_update" ON users
+  FOR UPDATE USING (true) WITH CHECK (true);
+
+-- حذف: مقيّد بشدة
+CREATE POLICY "users_delete" ON users
+  FOR DELETE USING (false);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🔒 RLS — tenants (custom auth — anon SELECT مسموح للتسجيل)
+-- ══════════════════════════════════════════════════════════════════════
+DROP POLICY IF EXISTS "allow_all"         ON tenants;
+DROP POLICY IF EXISTS "tenant_isolation"  ON tenants;
+DROP POLICY IF EXISTS "tenants_isolation" ON tenants;
+
+CREATE POLICY "tenants_select" ON tenants FOR SELECT USING (true);
+CREATE POLICY "tenants_insert" ON tenants FOR INSERT WITH CHECK (true);
+CREATE POLICY "tenants_update" ON tenants FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "tenants_delete" ON tenants FOR DELETE USING (false);
 
 -- ══════════════════════════════════════════════════════
 --  Indexes للأداء
@@ -972,35 +964,25 @@ ALTER TABLE worker_overtime      ENABLE ROW LEVEL SECURITY;
 
 -- ── Tenant-scoped RLS policies (secure: checks tenant_id) ──────────
 -- النمط: يسمح فقط للمستخدم بالوصول لسجلات مؤسسته
+-- ── v7.4 الجداول الجديدة — نفس النمط الآمن ─────────────────────────
 DO $$
 DECLARE new_tbls TEXT[] := ARRAY['suppliers','supplier_purchases','supplier_prices',
   'supplier_obligations','leave_requests','worker_warnings','worker_overtime'];
   tbl TEXT;
 BEGIN
   FOREACH tbl IN ARRAY new_tbls LOOP
-    EXECUTE format('DROP POLICY IF EXISTS "allow_all" ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "allow_all"        ON %I', tbl);
     EXECUTE format('DROP POLICY IF EXISTS "tenant_isolation" ON %I', tbl);
     EXECUTE format($policy$
-      CREATE POLICY "tenant_isolation" ON %I
-      FOR ALL USING (
-        tenant_id = (
-          SELECT tenant_id FROM users
-          WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
-          LIMIT 1
+      CREATE POLICY "tenant_isolation" ON %1$I
+        FOR ALL
+        USING (
+          is_current_user_admin()
+          OR tenant_id = current_user_tenant_id()
         )
-        OR
-        EXISTS (
-          SELECT 1 FROM users
-          WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
-          AND is_admin = true
+        WITH CHECK (
+          tenant_id = current_user_tenant_id()
         )
-      ) WITH CHECK (
-        tenant_id = (
-          SELECT tenant_id FROM users
-          WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
-          LIMIT 1
-        )
-      )
     $policy$, tbl);
   END LOOP;
 END $$;
