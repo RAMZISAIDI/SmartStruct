@@ -11661,27 +11661,10 @@ async function doLogin() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    // ── اختبار الاتصال السريع قبل المتابعة ──
-    if (sbUrl && sbKey) {
-      try {
-        const _pingRes = await fetch(`${sbUrl}/rest/v1/`, {
-          headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
-          signal: AbortSignal.timeout(5000)
-        });
-        if (!_pingRes.ok && _pingRes.status === 401) {
-          showErrMsg(L(
-            '🔑 مفتاح Supabase منتهي الصلاحية أو خاطئ — يرجى تحديث الإعدادات من لوحة الأدمن',
-            '🔑 Clé Supabase expirée ou invalide — mettez à jour les paramètres'
-          ));
-          resetBtn(); return;
-        }
-      } catch (_pingErr) {
-        if (!navigator.onLine) {
-          showErrMsg(L('📡 لا يوجد اتصال بالإنترنت', '📡 Pas de connexion internet'));
-          resetBtn(); return;
-        }
-        // Continue anyway — ping failure might be CORS or network glitch
-      }
+    // ── اختبار الاتصال (offline check فقط) ──
+    if (!navigator.onLine) {
+      showErrMsg(L('📡 لا يوجد اتصال بالإنترنت', '📡 Pas de connexion internet'));
+      resetBtn(); return;
     }
 
     // ── قبل كل شيء: تحقق من حساب الأدمن محلياً (is_admin=true لا يحتاج Supabase) ──
@@ -11735,10 +11718,15 @@ async function doLogin() {
       const _status = uRes.status;
       const _errBody = await uRes.json().catch(() => ({}));
       const _errMsg = _errBody?.message || _errBody?.error || '';
-      if (_status === 401 || _status === 403) {
+      if (_status === 401) {
         throw new Error(L(
-          `❌ خطأ في مفتاح Supabase (${_status}) — يرجى التحقق من الإعدادات في لوحة الأدمن`,
-          `❌ Clé Supabase invalide (${_status}) — vérifiez les paramètres admin`
+          '🔑 مفتاح Supabase غير صالح — يرجى التحقق من anon key في الإعدادات',
+          '🔑 Clé Supabase invalide — vérifiez la clé anon dans les paramètres'
+        ));
+      } else if (_status === 403) {
+        throw new Error(L(
+          '🚫 تم رفض الوصول (403) — تحقق من سياسات RLS في Supabase',
+          '🚫 Accès refusé (403) — vérifiez les politiques RLS'
         ));
       } else if (_status === 0 || !navigator.onLine) {
         throw new Error(L('❌ لا يوجد اتصال بالإنترنت', '❌ Pas de connexion internet'));
