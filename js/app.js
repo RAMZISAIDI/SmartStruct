@@ -2714,6 +2714,20 @@ function renderLoginForm(L) {
 
     <div class="auth-divider"><span>${L('أو','ou')}</span></div>
 
+    <!-- مؤشر حالة Supabase -->
+    ${(()=>{
+      let _hasCfg = false;
+      try {
+        if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) _hasCfg = true;
+        else {
+          const _sc = JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}');
+          if (_sc.url && _sc.anonKey) _hasCfg = true;
+        }
+      } catch(_e){}
+      if (_hasCfg) return '<div style="margin-bottom:.7rem;padding:.5rem .9rem;background:rgba(108,197,154,.07);border:1px solid rgba(108,197,154,.25);border-radius:8px;font-size:.75rem;color:#6CC59A;display:flex;align-items:center;gap:.5rem"><span>✅</span><span>' + L('متصل بقاعدة البيانات','Connecté à la base de données') + '</span></div>';
+      return '<div style="margin-bottom:.7rem;padding:.6rem .9rem;background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.3);border-radius:8px;font-size:.75rem;color:#E8B84B;display:flex;align-items:center;gap:.5rem"><span>⚙️</span><span>' + L('Supabase غير مُعدَّل — اذهب للإعدادات','Supabase non configuré — paramètres requis') + '</span></div>';
+    })()}
+
     <button class="auth-demo-btn" onclick="document.getElementById('loginEmail').value='demo@algerie-construction.dz';document.getElementById('loginPass').value='Demo@1234';">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       ${L('ملء بيانات الحساب التجريبي','Remplir compte démo')}
@@ -11647,6 +11661,29 @@ async function doLogin() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
+    // ── اختبار الاتصال السريع قبل المتابعة ──
+    if (sbUrl && sbKey) {
+      try {
+        const _pingRes = await fetch(`${sbUrl}/rest/v1/`, {
+          headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!_pingRes.ok && _pingRes.status === 401) {
+          showErrMsg(L(
+            '🔑 مفتاح Supabase منتهي الصلاحية أو خاطئ — يرجى تحديث الإعدادات من لوحة الأدمن',
+            '🔑 Clé Supabase expirée ou invalide — mettez à jour les paramètres'
+          ));
+          resetBtn(); return;
+        }
+      } catch (_pingErr) {
+        if (!navigator.onLine) {
+          showErrMsg(L('📡 لا يوجد اتصال بالإنترنت', '📡 Pas de connexion internet'));
+          resetBtn(); return;
+        }
+        // Continue anyway — ping failure might be CORS or network glitch
+      }
+    }
+
     // ── قبل كل شيء: تحقق من حساب الأدمن محلياً (is_admin=true لا يحتاج Supabase) ──
     const localAllUsers = DB.get('users') || [];
     const localAdmin = localAllUsers.find(u =>
@@ -11694,7 +11731,21 @@ async function doLogin() {
 
     // ── 1. جلب المستخدم من Supabase ──
     const uRes = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, { headers: sbH });
-    if (!uRes.ok) throw new Error('فشل الاتصال بقاعدة البيانات');
+    if (!uRes.ok) {
+      const _status = uRes.status;
+      const _errBody = await uRes.json().catch(() => ({}));
+      const _errMsg = _errBody?.message || _errBody?.error || '';
+      if (_status === 401 || _status === 403) {
+        throw new Error(L(
+          `❌ خطأ في مفتاح Supabase (${_status}) — يرجى التحقق من الإعدادات في لوحة الأدمن`,
+          `❌ Clé Supabase invalide (${_status}) — vérifiez les paramètres admin`
+        ));
+      } else if (_status === 0 || !navigator.onLine) {
+        throw new Error(L('❌ لا يوجد اتصال بالإنترنت', '❌ Pas de connexion internet'));
+      } else {
+        throw new Error(`❌ خطأ ${_status}: ${_errMsg || 'فشل الاتصال بقاعدة البيانات'}`);
+      }
+    }
     const sbUsers = await uRes.json();
 
     if (!sbUsers.length) {
@@ -11881,7 +11932,17 @@ async function doLogin() {
   } catch(e) {
     console.error('❌ خطأ في تسجيل الدخول:', e.message);
     resetBtn();
-    showErrMsg('❌ حدث خطأ: ' + e.message);
+    console.error('[doLogin] Error:', e);
+    if (e.message && e.message.includes('Supabase غير مربوط')) {
+      showErrMsg(`⚙️ ${L(
+        'Supabase غير مُعدَّل — افتح الإعدادات من لوحة الأدمن وأدخل URL و Anon Key',
+        'Supabase non configuré — ouvrez les paramètres admin et entrez l\'URL et la clé'
+      )}`);
+    } else if (!navigator.onLine) {
+      showErrMsg(L('📡 لا يوجد اتصال بالإنترنت — تحقق من شبكتك', '📡 Pas de connexion internet'));
+    } else {
+      showErrMsg('❌ ' + (e.message || L('حدث خطأ غير متوقع', 'Une erreur inattendue s\'est produite')));
+    }
   }
 }
 
