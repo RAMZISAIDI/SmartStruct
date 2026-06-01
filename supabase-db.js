@@ -49,7 +49,7 @@ const SUPABASE_KEY = (function() {
   } catch(e) {}
   // 2. القيمة الافتراضية — ضع anon key الصحيح هنا (يبدأ بـ eyJhbGci)
   // احصل عليه من: Supabase Dashboard → Settings → API → anon public
-  return 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';  // ← عدّل هذا السطر
+  return 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ';  // ← عدّل هذا السطر
 })();
 
 // ─── LS_KEY: مفتاح localStorage الموحّد ────────────────
