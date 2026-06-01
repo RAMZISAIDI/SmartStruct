@@ -25,8 +25,32 @@
    ⚙️  إعداد Supabase — عدّل هذين السطرين فقط
    اذهب: Supabase Dashboard → Settings → API
 ══════════════════════════════════════════════════════ */
-const SUPABASE_URL     = 'https://udinbxcnehcevajhrral.supabase.co';
-const SUPABASE_KEY     = 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ';   // مفتاح anon/public
+// ══════════════════════════════════════════════════════════════════
+//  ⚠️  مطلوب: ضع مفتاحك الصحيح من Supabase Dashboard
+//  Supabase Dashboard → Settings → API
+//  انسخ: Project URL  +  anon public key (يبدأ بـ eyJhbGci...)
+//  ملاحظة: المفتاح الصحيح يبدأ دائماً بـ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+// ══════════════════════════════════════════════════════════════════
+const SUPABASE_URL = (function() {
+  // 1. من localStorage (إذا حُفظ من لوحة الإعدادات)
+  try {
+    const _lsCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (_lsCfg.url && _lsCfg.url.includes('supabase.co')) return _lsCfg.url;
+  } catch(e) {}
+  // 2. القيمة الافتراضية — عدّلها مباشرة هنا
+  return 'https://udinbxcnehcevajhrral.supabase.co';
+})();
+
+const SUPABASE_KEY = (function() {
+  // 1. من localStorage
+  try {
+    const _lsCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (_lsCfg.anonKey && _lsCfg.anonKey.startsWith('eyJ')) return _lsCfg.anonKey;
+  } catch(e) {}
+  // 2. القيمة الافتراضية — ضع anon key الصحيح هنا (يبدأ بـ eyJhbGci)
+  // احصل عليه من: Supabase Dashboard → Settings → API → anon public
+  return 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';  // ← عدّل هذا السطر
+})();
 
 // ─── LS_KEY: مفتاح localStorage الموحّد ────────────────
 const SB_LS_KEY = 'sbtp_supabase_config';

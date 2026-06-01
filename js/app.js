@@ -9351,6 +9351,39 @@ function switchAdminTab(tab) {
   });
   // ── مزامنة تلقائية عند فتح تبويب Supabase ──
   if (tab === 'supabase' && typeof DBHybrid !== 'undefined') {
+    // تحقق تلقائي من صحة الـ key عند فتح التبويب
+    setTimeout(async () => {
+      const _cfg = (()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}')}catch(e){return {}}})();
+      const _key = _cfg.anonKey || '';
+      const _badge = document.getElementById('sbStatusBadge');
+      if (!_badge) return;
+      if (!_key) {
+        _badge.textContent = '⚠️ لم يُدخَل المفتاح بعد';
+        _badge.style.color = '#E8B84B';
+      } else if (!_key.startsWith('eyJ')) {
+        _badge.textContent = '❌ مفتاح غير صحيح (يجب أن يبدأ بـ eyJhbGci)';
+        _badge.style.color = '#F04E6A';
+      } else {
+        _badge.textContent = '🟡 جاري التحقق...';
+        try {
+          const _r = await fetch(`${_cfg.url}/rest/v1/users?select=id&limit=1`, {
+            headers: { 'apikey': _key, 'Authorization': `Bearer ${_key}` },
+            signal: AbortSignal.timeout(4000)
+          });
+          if (_r.ok || _r.status === 406) {
+            _badge.textContent = '🟢 متصل — المفتاح صحيح';
+            _badge.style.color = '#34C38F';
+            _badge.style.background = 'rgba(52,195,143,0.1)';
+            _badge.style.borderColor = 'rgba(52,195,143,0.3)';
+          } else {
+            _badge.textContent = `❌ خطأ ${_r.status} — تحقق من الـ key`;
+            _badge.style.color = '#F04E6A';
+          }
+        } catch(_e) {
+          _badge.textContent = '🔴 تعذر الاتصال';
+        }
+      }
+    }, 300);
     // تحديث عداد Offline Queue فور فتح التبويب
     if (DBHybrid._updateAdminSyncUI) setTimeout(() => DBHybrid._updateAdminSyncUI(), 50);
   }
@@ -10276,6 +10309,19 @@ Pages.admin = function() {
             </div>
             <div style="display:grid;grid-template-columns:1fr;gap:.7rem;margin-bottom:1rem">
               <div class="form-group" style="margin:0">
+                <!-- تعليمات للمفتاح الصحيح -->
+                ${(()=>{
+                  const _k = (()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return '';}})();
+                  if (_k && _k.startsWith('eyJ')) return ''; // المفتاح صحيح
+                  return '<div style="margin-bottom:.8rem;padding:.7rem .9rem;background:rgba(232,100,74,.07);border:1px solid rgba(232,100,74,.3);border-radius:8px;font-size:.78rem;line-height:1.6">'
+                    + '<strong style="color:#F04E6A">⚠️ ' + L('المفتاح الحالي غير صحيح','Clé actuelle invalide') + '</strong><br>'
+                    + L('احصل على المفتاح الصحيح من:','Obtenez la clé correcte depuis:') + '<br>'
+                    + '<code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:.72rem;direction:ltr;display:inline-block;margin-top:3px">'
+                    + 'Supabase Dashboard → Settings → API → <strong>anon public</strong>'
+                    + '</code><br>'
+                    + '<span style="color:var(--dim);font-size:.7rem">' + L('المفتاح يبدأ دائماً بـ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9','La clé commence toujours par eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9') + '</span>'
+                    + '</div>';
+                })()}
                 <label class="form-label" style="font-size:.75rem">🔗 Project URL</label>
                 <input class="form-input" id="sbUrlInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
                   placeholder="https://xxxxxxxxxxxx.supabase.co"
@@ -11159,6 +11205,13 @@ function saveSupabaseConfigInline() {
   const key = (document.getElementById('sbKeyInput')?.value || '').trim();
   if (!url || !key) { Toast.error(L('❌ أدخل URL والـ Key كاملين','❌ Saisir URL et Key complets')); return; }
   if (!url.includes('supabase.co')) { Toast.error(L('❌ URL غير صحيح — يجب أن يحتوي على supabase.co','❌ URL invalide — doit contenir supabase.co')); return; }
+  if (!key.startsWith('eyJ')) {
+    Toast.error(L(
+      '❌ Anon Key خاطئ — يجب أن يبدأ بـ eyJhbGci\nاحصل عليه من: Supabase → Settings → API → anon public',
+      '❌ Anon Key invalide — doit commencer par eyJhbGci\nObtenir depuis: Supabase → Settings → API → anon public'
+    ));
+    return;
+  }
 
   const cfg = { url, anonKey: key };
   localStorage.setItem('sbtp_supabase_config', JSON.stringify(cfg));
