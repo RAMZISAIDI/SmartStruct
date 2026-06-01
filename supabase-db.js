@@ -49,7 +49,7 @@ const SUPABASE_KEY = (function() {
   } catch(e) {}
   // 2. القيمة الافتراضية — ضع anon key الصحيح هنا (يبدأ بـ eyJhbGci)
   // احصل عليه من: Supabase Dashboard → Settings → API → anon public
-  return 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ';  // ← عدّل هذا السطر
+  return 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';  // ← عدّل هذا السطر
 })();
 
 // ─── LS_KEY: مفتاح localStorage الموحّد ────────────────
@@ -64,13 +64,13 @@ const SUPABASE_CONFIG = {
 
   /** هل الإعدادات جاهزة؟ */
   get isConfigured() {
-    return !!(this.url && this.anonKey);
+    return !!(this.url && this.anonKey && this.anonKey.startsWith('eyJ'));
   },
 
   /** تحميل الإعدادات (الكود → localStorage → فارغ) */
   load() {
-    // 1. المضمّن في الكود (أعلى أولوية)
-    if (SUPABASE_URL && SUPABASE_KEY) {
+    // 1. المضمّن في الكود (أعلى أولوية) — لكن فقط إذا كان JWT صحيح
+    if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_KEY.startsWith('eyJ')) {
       this.url     = SUPABASE_URL;
       this.anonKey = SUPABASE_KEY;
       return true;
@@ -79,6 +79,11 @@ const SUPABASE_CONFIG = {
     try {
       const saved = JSON.parse(localStorage.getItem(SB_LS_KEY) || '{}');
       if (saved.url && saved.anonKey) {
+        // ✅ تحقق أن الـ key بصيغة JWT صحيحة (يبدأ بـ eyJ)
+        if (!saved.anonKey.startsWith('eyJ')) {
+          console.warn('⚠️ Supabase: مفتاح غير صالح في localStorage (يجب أن يبدأ بـ eyJhbGci) — تم تجاهله');
+          return false;
+        }
         this.url     = saved.url;
         this.anonKey = saved.anonKey;
         return true;
@@ -89,6 +94,14 @@ const SUPABASE_CONFIG = {
 
   /** حفظ الإعدادات وتحديث الذاكرة */
   save(url, anonKey) {
+    // ✅ تحقق من صحة الـ key قبل الحفظ
+    if (anonKey && !anonKey.startsWith('eyJ')) {
+      console.error('⛔ Supabase.save(): مفتاح غير صالح — يجب أن يبدأ بـ eyJhbGci\nاحصل عليه من Supabase → Settings → API → anon public');
+      if (typeof Toast !== 'undefined') {
+        Toast.error('❌ Anon Key خاطئ — يجب أن يبدأ بـ eyJhbGci\nاذهب: Supabase → Settings → API');
+      }
+      return;
+    }
     this.url     = url     || '';
     this.anonKey = anonKey || '';
     try {
@@ -521,7 +534,13 @@ const SupabaseClient = {
       clearTimeout(timer);
       // 502/503 = مشكلة مؤقتة في Supabase — نعتبره "متصل" لتجنب تكرار إعادة الاتصال
       if (resp.status === 502 || resp.status === 503) return true;
-      if (resp.status === 401 || resp.status === 403) return false;
+      if (resp.status === 401) {
+        // 401 = مفتاح خاطئ — لا فائدة من إعادة المحاولة
+        console.warn('⛔ Supabase: 401 Unauthorized — تحقق من anon key في الإعدادات');
+        this._reconnectAttempts = 10; // أوقف الـ retry loop
+        return false;
+      }
+      if (resp.status === 403) return false;
       return resp.ok;
     } catch (e) {
       // CORS أو شبكة منقطعة → false بهدوء
@@ -656,6 +675,19 @@ const DBHybrid = {
   _scheduleReconnect() {
     if (this._reconnectTimer) return;
     if (!SUPABASE_CONFIG.isConfigured) return;
+
+    // ✅ لا تعيد المحاولة إذا كان الـ key غير صحيح (ليس JWT)
+    const _cfgKey = SUPABASE_CONFIG.anonKey || '';
+    if (_cfgKey && !_cfgKey.startsWith('eyJ')) {
+      console.warn('⛔ Supabase: مفتاح غير صحيح — أوقف إعادة المحاولة. يجب أن يبدأ بـ eyJhbGci');
+      return;
+    }
+
+    // ✅ حد أقصى للمحاولات (10) لتجنب infinite retry
+    if (this._reconnectAttempts >= 10) {
+      console.warn('⛔ Supabase: تجاوز الحد الأقصى لمحاولات الاتصال (10) — تم الإيقاف');
+      return;
+    }
 
     const delay = Math.min(
       this._reconnectBaseDelay * Math.pow(2, this._reconnectAttempts),
@@ -2777,4 +2809,19 @@ window.AutoSync = {
     return result;
   };
   console.log('🪝 AutoSync hook مُثبَّت على DBHybrid.set');
+})();
+
+/* ══════════════════════════════════════════════════════════════════
+   🧹 تنظيف تلقائي: حذف أي مفتاح Supabase غير صالح من localStorage
+   يعمل مرة واحدة عند تحميل الصفحة
+══════════════════════════════════════════════════════════════════ */
+(function cleanInvalidSupabaseKey() {
+  try {
+    const _stored = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (_stored.anonKey && !_stored.anonKey.startsWith('eyJ')) {
+      console.warn('🧹 Supabase: حذف مفتاح غير صالح من localStorage:', _stored.anonKey.substring(0, 20) + '...');
+      _stored.anonKey = '';
+      localStorage.setItem('sbtp_supabase_config', JSON.stringify(_stored));
+    }
+  } catch(e) {}
 })();
