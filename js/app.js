@@ -2724,25 +2724,7 @@ function renderLoginForm(L) {
           if (_sc.url && _sc.anonKey) _hasCfg = true;
         }
       } catch(_e){}
-      // تحقق إضافي: هل الـ key المخزن صحيح؟
-      let _keyOk = false;
-      try {
-        const _kc = JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}');
-        _keyOk = !!(_kc.anonKey && _kc.anonKey.startsWith('eyJ'));
-      } catch(e){}
-
-      if (_hasCfg && _keyOk) {
-        return '<div style="margin-bottom:.7rem;padding:.5rem .9rem;background:rgba(108,197,154,.07);border:1px solid rgba(108,197,154,.25);border-radius:8px;font-size:.75rem;color:#6CC59A;display:flex;align-items:center;gap:.5rem"><span>✅</span><span>' + L('متصل بقاعدة البيانات','Connecté à la base de données') + '</span></div>';
-      }
-      if (_hasCfg && !_keyOk) {
-        // مفتاح مخزن لكن خاطئ
-        return '<div style="margin-bottom:.7rem;padding:.65rem .9rem;background:rgba(240,78,106,.07);border:1px solid rgba(240,78,106,.35);border-radius:8px;font-size:.76rem;color:#F04E6A;line-height:1.6">'
-          + '<div style="font-weight:700;margin-bottom:.2rem">❌ ' + L('مفتاح Supabase غير صالح — يرجى التحقق من anon key في الإعدادات','Clé Supabase invalide — vérifiez la clé anon') + '</div>'
-          + '<button onclick="clearInvalidSupabaseKey()" '
-          + 'style="background:rgba(240,78,106,.15);border:1px solid rgba(240,78,106,.4);color:#F04E6A;border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:inherit;margin-top:2px">'
-          + L('🗑️ مسح المفتاح الخاطئ','🗑️ Effacer la clé') + '</button>'
-          + '</div>';
-      }
+      if (_hasCfg) return '<div style="margin-bottom:.7rem;padding:.5rem .9rem;background:rgba(108,197,154,.07);border:1px solid rgba(108,197,154,.25);border-radius:8px;font-size:.75rem;color:#6CC59A;display:flex;align-items:center;gap:.5rem"><span>✅</span><span>' + L('متصل بقاعدة البيانات','Connecté à la base de données') + '</span></div>';
       return '<div style="margin-bottom:.7rem;padding:.6rem .9rem;background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.3);border-radius:8px;font-size:.75rem;color:#E8B84B;display:flex;align-items:center;gap:.5rem"><span>⚙️</span><span>' + L('Supabase غير مُعدَّل — اذهب للإعدادات','Supabase non configuré — paramètres requis') + '</span></div>';
     })()}
 
