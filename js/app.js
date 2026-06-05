@@ -3989,7 +3989,7 @@ async function doRegister() {
     // 5. حفظ في localStorage بـ setSilent (تجنب مزامنة مكررة لأن السجلات موجودة في Supabase)
     const localTenants = DB.get('tenants') || [];
     const localUsers   = DB.get('users')   || [];
-    const localNotifs  = DB.get('notifications') || [];
+    const localNotifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
 
     // تجنب الإضافة المكررة محلياً (في حال أُعيد التسجيل بنفس البريد)
     if (!localTenants.find(t => t.id === sbTenant.id)) {
@@ -4704,7 +4704,7 @@ function requestPlanUpgrade(companyNameOpt) {
   const plan = Auth.getPlan() || {};
 
   // سجّل الطلب في قاعدة البيانات
-  const adminNotifs = DB.get('notifications') || [];
+  const adminNotifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const alreadyPending = adminNotifs.find(n => n.type === 'upgrade_request' && n.tenant_id === tenant.id && n.status === 'pending');
   if (alreadyPending) {
     if (typeof Toast !== 'undefined') Toast.warn(L('⏳ طلبك مرسل بالفعل — ينتظر موافقة المسؤول','⏳ Demande déjà envoyée — en attente d\'approbation'));
@@ -4952,13 +4952,16 @@ function getProfitLabel(project) {
 Pages.dashboard = function() {
   const user = Auth.getUser();
   const tid = user.tenant_id;
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
-  const workers  = DB.get('workers').filter(w => w.tenant_id===tid);
-  const equip    = DB.get('equipment').filter(e => e.tenant_id===tid);
-  const invoices = DB.get('invoices').filter(i => i.tenant_id===tid);
-  const materials= DB.get('materials').filter(m => m.tenant_id===tid);
-  const txs      = DB.get('transactions').filter(t => t.tenant_id===tid);
-  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const equip = (function(){const _s=new Set();return (DB.get('equipment').filter(e => e.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const invoices = (function(){const _s=new Set();return (DB.get('invoices').filter(i => i.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const materials = (function(){const _s=new Set();return (DB.get('materials').filter(m => m.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const attendance = (function(){const _s=new Set();return (DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id))).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const revenue  = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense  = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const totalBudget = projects.reduce((s,p)=>s+Number(p.budget),0);
@@ -5102,9 +5105,9 @@ Pages.dashboard = function() {
   }
 
   // ✅ مؤشرات BTP الاحترافية
-  const invoicesData = DB.get('invoices').filter(i => i.tenant_id === tid);
+  const invoicesData = (function(){const _s=new Set();return (DB.get('invoices').filter(i => i.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const materialsData = DB.get('materials').filter(m => m.tenant_id === tid);
-  const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id === tid);
+  const salaryRecsData = (function(){const _s=new Set();return (DB.get('salary_records').filter(s => s.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const btp = calcBTPMetrics(projects, txs, workers, attendance, invoicesData, materialsData, equip, salaryRecsData);
 
   return layoutHTML('dashboard','لوحة التحكم',`
@@ -5724,8 +5727,15 @@ Pages.dashboard = function() {
 Pages.projects = function() {
   const tid = Auth.getUser().tenant_id;
   const plan = Auth.getPlan();
-  const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const workers  = DB.get('workers');
+  // ✅ dedup بالـ ID قبل العرض — يمنع ظهور المشروع مرتين عند race condition مع Realtime
+  const _rawProjects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
+  const _seenIds = new Set();
+  const projects = _rawProjects.filter(p => {
+    if (_seenIds.has(p.id)) return false;
+    _seenIds.add(p.id);
+    return true;
+  });
+  const workers = (function(){const _s=new Set();return (DB.get('workers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const total=projects.length, active=projects.filter(p=>p.status==='active').length;
   const completed=projects.filter(p=>p.status==='completed').length, delayed=projects.filter(p=>p.status==='delayed').length;
 
@@ -6377,7 +6387,7 @@ function _spSaveSettings(){
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
   const contractLabels = {
     daily:    isAr?'يومي':'Journalier',
@@ -6420,8 +6430,8 @@ function printWorkers() {
 function printAttendance() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
-  const att = DB.get('attendance').filter(a=>a.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const att = (function(){const _s=new Set();return (DB.get('attendance').filter(a=>a.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const selDate = sessionStorage.getItem('att_date') || todayStr();
   const dayAtt = att.filter(a=>a.date===selDate);
   const dateLabel = new Date(selDate+'T12:00').toLocaleDateString(isAr?'ar-DZ':'fr-DZ',{dateStyle:'full'});
@@ -6464,9 +6474,9 @@ function printAttendance() {
 function printSalary() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const selectedMonthKey = sessionStorage.getItem('salary_month') || new Date().toISOString().slice(0,7);
-  const salaryRecs = DB.get('salary_records').filter(s=>s.tenant_id===tid && s.month_key===selectedMonthKey);
+  const salaryRecs = (function(){const _s=new Set();return (DB.get('salary_records').filter(s=>s.tenant_id===tid && s.month_key===selectedMonthKey)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const monthLabel = new Date(selectedMonthKey+'-15').toLocaleDateString(isAr?'ar-DZ':'fr-DZ',{month:'long',year:'numeric'});
   const rows = workers.map(w => {
     const rec = salaryRecs.find(s=>s.worker_id===w.id);
@@ -6506,7 +6516,7 @@ function printSalary() {
 function printTransactions() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
   const sorted = [...txs].sort((a,b)=>new Date(b.date)-new Date(a.date));
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
@@ -6543,7 +6553,7 @@ function printTransactions() {
 function printInventory() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
-  const materials = DB.get('materials').filter(m=>m.tenant_id===tid);
+  const materials = (function(){const _s=new Set();return (DB.get('materials').filter(m=>m.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
   const totalVal = materials.reduce((s,m)=>s+Number(m.quantity||0)*Number(m.unit_price||0),0);
   smartPrint({
@@ -6584,7 +6594,7 @@ function printInventory() {
 function printEquipment() {
   const isAr = I18N.currentLang === 'ar';
   const tid = Auth.getUser().tenant_id;
-  const equip = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const equip = (function(){const _s=new Set();return (DB.get('equipment').filter(e=>e.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
   const statusLabel = { active: isAr?'نشط':'Actif', maintenance: isAr?'صيانة':'Maintenance', idle: isAr?'خامل':'Inactif' };
   const statusColor  = { active:'#0a6e3f', maintenance:'#8a6000', idle:'#555' };
@@ -6625,7 +6635,7 @@ function printEquipment() {
 
 Pages.workers = function() {
   const tid = Auth.getUser().tenant_id;
-  const workers  = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const plan = Auth.getPlan();
   const maxW = plan?.max_workers||-1;
@@ -6646,7 +6656,7 @@ Pages.workers = function() {
 
   // تقرير الغياب الشهري
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const att = DB.get('attendance')||[];
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const attThisMonth = att.filter(a=>(a.date||'').startsWith(thisMonth) && workers.find(w=>w.id===a.worker_id));
   const totalAtt = attThisMonth.length;
   const presentCount = attThisMonth.filter(a=>a.status==='present').length;
@@ -6836,7 +6846,7 @@ function _projectFilterBar(projects, pageKey, currentFilter) {
 
 Pages.equipment = function() {
   const tid      = Auth.getUser().tenant_id;
-  const allEquip = DB.get('equipment').filter(e=>e.tenant_id===tid);
+  const allEquip = (function(){const _s=new Set();return (DB.get('equipment').filter(e=>e.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const logs     = DB.get('equipment_logs')||[];
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
 
@@ -7046,7 +7056,7 @@ Pages.equipment = function() {
 };
 Pages.transactions = function() {
   const tid = Auth.getUser().tenant_id;
-  const allTxs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const allTxs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
 
   // فلتر المشروع
@@ -7131,9 +7141,9 @@ Pages.transactions = function() {
 /* ─── ATTENDANCE ─── */
 Pages.attendance = function() {
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w => w.tenant_id === tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p => p.tenant_id === tid && !p.is_archived);
-  const att = DB.get('attendance');
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const today = todayStr();
 
   // Selected date
@@ -7390,7 +7400,7 @@ Pages.reports = function() {
 
   let txs   = DB.get('transactions').filter(t=>t.tenant_id===tid);
   let projs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
 
   // ── تطبيق الفلاتر ──
   if (dateFrom) txs = txs.filter(t=>t.date && t.date>=dateFrom);
@@ -7524,14 +7534,14 @@ function generateAISmartReport() {
 
   // ═══ جمع كل البيانات ═══
   const projects   = DB.get('projects').filter(p => p.tenant_id === tid && !p.is_archived);
-  const workers    = DB.get('workers').filter(w => w.tenant_id === tid);
-  const txs        = DB.get('transactions').filter(t => t.tenant_id === tid);
-  const attendance = DB.get('attendance').filter(a => workers.find(w => w.id === a.worker_id));
-  const invoices   = DB.get('invoices').filter(i => i.tenant_id === tid);
-  const materials  = DB.get('materials').filter(m => m.tenant_id === tid);
-  const equipment  = DB.get('equipment').filter(e => e.tenant_id === tid);
-  const salaryRecs = DB.get('salary_records').filter(s => s.tenant_id === tid);
-  const documents  = DB.get('documents').filter(d => d.tenant_id === tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const attendance = (function(){const _s=new Set();return (DB.get('attendance').filter(a => workers.find(w => w.id === a.worker_id))).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const invoices = (function(){const _s=new Set();return (DB.get('invoices').filter(i => i.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const materials = (function(){const _s=new Set();return (DB.get('materials').filter(m => m.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const equipment = (function(){const _s=new Set();return (DB.get('equipment').filter(e => e.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const salaryRecs = (function(){const _s=new Set();return (DB.get('salary_records').filter(s => s.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const documents = (function(){const _s=new Set();return (DB.get('documents').filter(d => d.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
 
   // مؤشرات BTP
   const btp = calcBTPMetrics(projects, txs, workers, attendance, invoices, materials, equipment, salaryRecs);
@@ -7972,7 +7982,7 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
           meta_data: { overallScore, positives: positives.length, negatives: negatives.length, lacks: lacks.length, improvements: improvements.length },
           created_at: new Date().toISOString(),
         };
-        const docs = DB.get('documents') || [];
+        const docs = (function(){const _s=new Set();return (DB.get('documents')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
         docs.unshift(record);
         DB.set('documents', docs);
       }
@@ -9154,10 +9164,10 @@ function refreshTenantAnalytics() {
   if (!user || !user.tenant_id) return;
   const tid = user.tenant_id;
   const projects  = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
-  const workers   = DB.get('workers').filter(w => w.tenant_id===tid);
-  const equip     = DB.get('equipment').filter(e => e.tenant_id===tid);
-  const txs       = DB.get('transactions').filter(t => t.tenant_id===tid);
-  const attendance= DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const equip = (function(){const _s=new Set();return (DB.get('equipment').filter(e => e.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const attendance = (function(){const _s=new Set();return (DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id))).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   card.style.opacity = '0.4';
   card.style.transition = 'opacity .18s';
   setTimeout(() => {
@@ -9192,9 +9202,9 @@ function renderSmartAIAnalytics() {
   const tenants  = DB.get('tenants');
   const users    = DB.get('users').filter(u => !u.is_admin);
   const projects = DB.get('projects').filter(p => !p.is_archived);
-  const txs      = DB.get('transactions');
-  const workers  = DB.get('workers');
-  const equipment= DB.get('equipment');
+  const txs = (function(){const _s=new Set();return (DB.get('transactions')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const workers = (function(){const _s=new Set();return (DB.get('workers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const equipment = (function(){const _s=new Set();return (DB.get('equipment')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const now      = new Date();
   const monthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
@@ -10375,7 +10385,7 @@ Pages.admin = function() {
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
           // ✅ نعرض كل الإشعارات التي لم تُفعَّل بعد (pending) أو التي تحتاج إجراء
-          const allNotifs = DB.get('notifications') || [];
+          const allNotifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
           const notifs = allNotifs.filter(n =>
             n.status === 'pending' ||
             n.type === 'new_account' ||
@@ -10467,7 +10477,7 @@ Pages.admin = function() {
         <!-- ══ EmailJS Notifications System ══ -->
         ${(()=>{
           const cfg = getEmailJSConfig();
-          const allNotifs = DB.get('notifications') || [];
+          const allNotifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
           const sentNew   = allNotifs.filter(n=>n.type==='new_account').length;
           const sentReset = allNotifs.filter(n=>n.type==='reset_password').length;
           const last5     = allNotifs.slice(0,5);
@@ -10989,10 +10999,10 @@ Pages.project_detail = function() {
   const p = DB.get('projects').find(pr=>pr.id===pid && pr.tenant_id===tid);
   if (!p) return layoutHTML('projects', L('تفاصيل المشروع','Détails du projet'),`<div class="empty"><div class="empty-icon">🏗️</div><div class="empty-title">${L('المشروع غير موجود','Projet introuvable')}</div><button class="btn btn-ghost" data-nav="projects">${L('العودة','Retour')}</button></div>`);
 
-  const workers = DB.get('workers').filter(w=>w.project_id===pid);
-  const equip = DB.get('equipment').filter(e=>e.project_id===pid);
-  const txs = DB.get('transactions').filter(t=>t.project_id===pid);
-  const materials = DB.get('materials').filter(m=>m.project_id===pid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.project_id===pid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const equip = (function(){const _s=new Set();return (DB.get('equipment').filter(e=>e.project_id===pid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.project_id===pid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const materials = (function(){const _s=new Set();return (DB.get('materials').filter(m=>m.project_id===pid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const notes = DB.get('notes').filter(n=>n.project_id===pid).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
@@ -11155,7 +11165,7 @@ Pages.project_detail = function() {
 /* ─── MATERIALS PAGE ─── */
 Pages.materials = function() {
   const tid = Auth.getUser().tenant_id;
-  const materials = DB.get('materials').filter(m=>m.tenant_id===tid);
+  const materials = (function(){const _s=new Set();return (DB.get('materials').filter(m=>m.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const lowStock = materials.filter(m=>m.quantity<=m.min_quantity).length;
   const totalValue = materials.reduce((s,m)=>s+m.quantity*m.unit_price,0);
@@ -11226,7 +11236,7 @@ function filterProjects() {
   const ptype  = document.getElementById('projTypeFilter')?.value||'';
   const tid = Auth.getUser().tenant_id;
   const all = DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived);
-  const workers = DB.get('workers');
+  const workers = (function(){const _s=new Set();return (DB.get('workers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const filtered = all.filter(p=>{
     const matchSearch = !search || p.name.toLowerCase().includes(search) || (p.client_name||'').toLowerCase().includes(search) || (p.wilaya||'').toLowerCase().includes(search);
     const matchStatus = !status || p.status===status;
@@ -11531,7 +11541,26 @@ async function sbSync(table, record, method='POST') {
             const idx = local.findIndex(r => r.id === oldId);
             if (idx >= 0) {
               local[idx] = { ...local[idx], id: newId };
-              localStorage.setItem('sbtp5_' + table, JSON.stringify(local));
+              // ✅ استخدم setSilent لتجنب إعادة تشغيل _smartSync
+              if (typeof DBHybrid !== 'undefined' && DBHybrid.setSilent) {
+                DBHybrid.setSilent(table, local);
+              } else {
+                localStorage.setItem('sbtp5_' + table, JSON.stringify(local));
+              }
+              // ✅ سجّل الـ ID الجديد كـ "مرفوع بالفعل" لمنع Realtime من إضافته مجدداً
+              if (typeof DBHybrid !== 'undefined' && DBHybrid._markUploaded) {
+                DBHybrid._markUploaded(table, { ...local[idx] });
+              }
+              // ✅ أعلم SmartRealtime بالـ ID الجديد لتجاهل INSERT القادم
+              try {
+                const _pending = JSON.parse(localStorage.getItem('sbtp5_pending_real_ids') || '{}');
+                if (!_pending[table]) _pending[table] = [];
+                _pending[table].push({ newId, oldId, ts: Date.now() });
+                // احتفظ فقط بآخر 50 لكل جدول
+                if (_pending[table].length > 50) _pending[table].splice(0, _pending[table].length - 50);
+                localStorage.setItem('sbtp5_pending_real_ids', JSON.stringify(_pending));
+              } catch(_) {}
+              console.log('✅ sbSync: ID updated ' + oldId + ' → ' + newId + ' in ' + table);
             }
           } catch(e) { console.warn('ID re-sync failed:', e.message); }
         }
@@ -11936,7 +11965,7 @@ function exportMaterials() {
 /* ─── EXPORT FINANCIAL CSV ─── */
 function exportFinancialCSV() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projs = DB.get('projects');
   let csv = '\uFEFFالتاريخ,النوع,الوصف,الفئة,المبلغ,المشروع,طريقة الدفع\n';
   txs.forEach(t=>{ const proj=projs.find(p=>p.id===t.project_id); csv+=`"${t.date}","${t.type==='revenue'?'إيراد':'مصروف'}","${t.description}","${t.category}","${t.amount}","${proj?.name||'—'}","${t.payment_method||''}"\n`; });
@@ -11948,7 +11977,7 @@ function exportFinancialCSV() {
 // ✅ تصدير Excel (XLSX) باستخدام مكتبة SheetJS عبر CDN
 function exportFinancialXLSX() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projs = DB.get('projects');
 
   function doExport(XLSX) {
@@ -11994,7 +12023,7 @@ function exportFinancialXLSX() {
 
 function exportSalaryXLSX() {
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const records = DB.get('salary_records')||[];
 
   function doExport(XLSX) {
@@ -12027,8 +12056,8 @@ function exportSalaryXLSX() {
 /* ─── EXPORT MONTHLY ATTENDANCE CSV ─── */
 function exportAttendanceMonthly() {
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
-  const att = DB.get('attendance');
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const now = new Date();
   const year = now.getFullYear(), month = now.getMonth();
   const days = new Date(year, month+1, 0).getDate();
@@ -12313,6 +12342,25 @@ async function doLogin() {
 
     App.navigate(sbUser.is_admin ? 'admin' : 'dashboard');
     setTimeout(() => TrialManager.checkAndEnforce(), 200);
+
+    // ✅ تنظيف أي تكرار موجود في البيانات المحلية (one-time fix)
+    try {
+      const _TABLES_TO_DEDUP = ['projects','workers','equipment','transactions','attendance','invoices','materials','salary_records','kanban_tasks'];
+      _TABLES_TO_DEDUP.forEach(t => {
+        const items = JSON.parse(localStorage.getItem('sbtp5_' + t) || '[]');
+        if (!Array.isArray(items)) return;
+        const seen = new Set();
+        const deduped = items.filter(r => {
+          if (!r.id || seen.has(r.id)) return false;
+          seen.add(r.id);
+          return true;
+        });
+        if (deduped.length < items.length) {
+          localStorage.setItem('sbtp5_' + t, JSON.stringify(deduped));
+          console.log('🧹 dedup: أزال ' + (items.length - deduped.length) + ' تكرار من ' + t);
+        }
+      });
+    } catch(_dedup) {}
 
     // ⚡ تشغيل Realtime + AutoSync بعد تسجيل الدخول
     setTimeout(() => {
@@ -13187,7 +13235,7 @@ function addTx() {
     { val: amount, label: L('المبلغ','Montant'),     type: 'number'   },
     { val: desc,   label: L('الوصف','Description'), type: 'required' },
   ])) return;
-  const tid=Auth.getUser().tenant_id; const txs=DB.get('transactions');
+  const tid=Auth.getUser().tenant_id; const txs = (function(){const _s=new Set();return (DB.get('transactions')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const pid=Number(document.getElementById('txProject')?.value)||null;
   const type=document.getElementById('txType')?.value||'expense';
   const newTx = { id:DB.nextId('transactions'), tenant_id:tid, type, category:document.getElementById('txCat')?.value||'أخرى', amount:Number(amount), description:desc, project_id:pid, date:document.getElementById('txDate')?.value||todayStr(), payment_method:document.getElementById('txPayment')?.value||'cash', supplier:document.getElementById('txSupplier')?.value||'' };
@@ -13225,7 +13273,7 @@ function deleteTx(id) {
 }
 
 function saveAtt(wid, date, status) {
-  const att = DB.get('attendance');
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const tid = Auth.getUser()?.tenant_id;
   const idx = att.findIndex(a => a.worker_id === wid && a.date === date);
   if (idx >= 0) {
@@ -13495,7 +13543,7 @@ async function activateAccount(notifId, userId, tenantId) {
     }
 
     // تحديث الإشعار محلياً
-    const notifs = DB.get('notifications') || [];
+    const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
     const notifIdx = notifs.findIndex(n => n.id === notifId);
     if (notifIdx >= 0) {
       notifs[notifIdx].status = 'activated';
@@ -15043,7 +15091,7 @@ function submitForgotRequest() {
     msgEl.style.display='block'; msgEl.style.background='rgba(240,78,106,.1)'; msgEl.style.border='1px solid rgba(240,78,106,.3)'; msgEl.style.color='#f79fa9';
     msgEl.textContent=L('❌ لا يوجد حساب بهذا البريد الإلكتروني','❌ Aucun compte associé à cet email'); return;
   }
-  const notifs = DB.get('notifications') || [];
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const already = notifs.find(n => n.type === 'reset_password' && n.user_id === user.id && n.status === 'pending');
   if (already) {
     msgEl.style.display='block'; msgEl.style.background='rgba(232,184,75,.08)'; msgEl.style.border='1px solid rgba(232,184,75,.25)'; msgEl.style.color='var(--gold)';
@@ -15138,7 +15186,7 @@ function confirmResetPass() {
   if (idx < 0) { Toast.error(L('المستخدم غير موجود','Utilisateur introuvable')); return; }
   users[idx].password = newPass;
   DB.set('users', users);
-  const notifs = DB.get('notifications') || [];
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].status = 'done'; notifs[ni].read = true; }
   DB.set('notifications', notifs);
@@ -15229,7 +15277,7 @@ function downloadUpdatedHTML(apiKey, provider, model) {
 }
 
 function dismissNotif(notifId) {
-  const notifs = DB.get('notifications') || [];
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
   DB.set('notifications', notifs);
@@ -15315,7 +15363,7 @@ async function approveUpgrade(notifId, tenantId) {
   } catch(e) { console.warn('recordSubscriptionInvoice failed:', e); }
 
   // تحديث الإشعار
-  const notifs = DB.get('notifications') || [];
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) {
     notifs[ni].status = 'approved';
@@ -15332,7 +15380,7 @@ async function approveUpgrade(notifId, tenantId) {
 
 // ── رفض طلب الترقية ──
 async function rejectUpgrade(notifId) {
-  const notifs = DB.get('notifications') || [];
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const ni = notifs.findIndex(n => n.id === notifId);
   if (ni >= 0) {
     notifs[ni].status = 'rejected';
@@ -15633,7 +15681,7 @@ DB.init = function() {
 const _origTopbar = typeof topbarHTML === 'function' ? topbarHTML : null;
 function topbarHTMLv5(title) {
   const user = Auth.getUser();
-  const allNotifs = DB.get('notifications') || [];
+  const allNotifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const unread = allNotifs.filter(n => n.tenant_id === user?.tenant_id && !n.read).length;
   // Admin: عرض عدد الطلبات المعلقة (حسابات جديدة + إعادة كلمة مرور + ترقيات)
   const adminResetPending = user?.is_admin
@@ -15852,7 +15900,7 @@ async function _grantExtraTrialDays(days, planId) {
 }
 
 function addNotification(tid, title, message, type='info') {
-  const notifs = DB.get('notifications');
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   notifs.unshift({id:DB.nextId('notifications'),tenant_id:tid,title,message,read:false,date:todayStr(),type});
   DB.set('notifications', notifs);
 }
@@ -16001,8 +16049,11 @@ topbarHTML = topbarHTMLv5;
 /* ── KANBAN PAGE ── */
 Pages.kanban = function() {
   const tid = Auth.getUser().tenant_id;
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
-  const tasks = DB.get('kanban_tasks').filter(t => t.tenant_id===tid);
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
+  const tasks = (function(){const _s=new Set();return (DB.get('kanban_tasks').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const users = DB.get('users').filter(u => u.tenant_id===tid);
   const priorityColors = {high:'var(--red)',medium:'var(--orange)',low:'var(--dim)'};
   const priorityLabels = {high:'عالية',medium:'متوسطة',low:'منخفضة'};
@@ -16093,7 +16144,7 @@ function kanbanDrop(e, colKey) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
   if (!_dragTaskId) return;
-  const tasks = DB.get('kanban_tasks');
+  const tasks = (function(){const _s=new Set();return (DB.get('kanban_tasks')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const idx = tasks.findIndex(t => t.id === _dragTaskId);
   if (idx >= 0) { tasks[idx].col = colKey; DB.set('kanban_tasks', tasks); sbSync('kanban_tasks', tasks[idx], 'PATCH').catch(()=>{}); }
   _dragTaskId = null;
@@ -16105,7 +16156,7 @@ function addKanbanTask() {
   const title = document.getElementById('taskTitle')?.value?.trim();
   if (!title) { Toast.error('أدخل عنوان المهمة'); return; }
   const tid = Auth.getUser().tenant_id;
-  const tasks = DB.get('kanban_tasks');
+  const tasks = (function(){const _s=new Set();return (DB.get('kanban_tasks')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const newTask = {id:DB.nextId('kanban_tasks'),tenant_id:tid,title,project_id:Number(document.getElementById('taskProject')?.value)||null,priority:document.getElementById('taskPriority')?.value||'medium',assignee_id:Number(document.getElementById('taskAssignee')?.value)||null,due_date:document.getElementById('taskDue')?.value||null,col:document.getElementById('taskCol')?.value||'todo'};
   tasks.push(newTask);
   DB.set('kanban_tasks', tasks);
@@ -16129,7 +16180,10 @@ function quickAddTask(col) {
 /* ── GANTT PAGE ── */
 Pages.gantt = function() {
   const tid = Auth.getUser().tenant_id;
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
   const validP   = projects.filter(p => p.start_date && p.end_date);
   const noDateP  = projects.filter(p => !p.start_date || !p.end_date);
 
@@ -16292,14 +16346,17 @@ Pages.gantt = function() {
 /* ── ANALYTICS PAGE ── */
 Pages.analytics = function() {
   const tid = Auth.getUser().tenant_id;
-  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
-  const workers  = DB.get('workers').filter(w => w.tenant_id===tid);
-  const equip    = DB.get('equipment').filter(e => e.tenant_id===tid);
-  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
-  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const equip = (function(){const _s=new Set();return (DB.get('equipment').filter(e => e.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const attendance = (function(){const _s=new Set();return (DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id))).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const invoicesData = (function(){const _s=new Set();return (DB.get('invoices').filter(i => i.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
-  const salaryRecsData = DB.get('salary_records').filter(s => s.tenant_id===tid);
+  const salaryRecsData = (function(){const _s=new Set();return (DB.get('salary_records').filter(s => s.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
 
@@ -16648,11 +16705,14 @@ function generateAIInsights(btp, projects, txs, workers, invoices, materials) {
 // ════════════════════════════════════════════════════════════════════
 function openAIAdvisor() {
   const tid = Auth.getUser().tenant_id;
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
-  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
-  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
-  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
-  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const attendance = (function(){const _s=new Set();return (DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id))).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const invoicesData = (function(){const _s=new Set();return (DB.get('invoices').filter(i => i.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
   const equipData = DB.get('equipment').filter(e => e.tenant_id===tid);
   const salaryData = DB.get('salary_records').filter(s => s.tenant_id===tid);
@@ -16776,11 +16836,14 @@ function askAIAdvisor(question) {
 function generateAIAnswer(question) {
   const q = question.toLowerCase();
   const tid = Auth.getUser().tenant_id;
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
-  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
-  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
-  const attendance = DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id));
-  const invoicesData = DB.get('invoices').filter(i => i.tenant_id===tid);
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const attendance = (function(){const _s=new Set();return (DB.get('attendance').filter(a => workers.find(w=>w.id===a.worker_id))).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const invoicesData = (function(){const _s=new Set();return (DB.get('invoices').filter(i => i.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const materialsData = DB.get('materials').filter(m => m.tenant_id===tid);
   const equipData = DB.get('equipment').filter(e => e.tenant_id===tid);
   const salaryData = DB.get('salary_records').filter(s => s.tenant_id===tid);
@@ -16939,8 +17002,11 @@ function initAnalyticsCharts() {
     }
     return;
   }
-  const txs = DB.get('transactions').filter(t => t.tenant_id===tid);
-  const projects = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  // ✅ dedup المشاريع عند الـ render
+  const _rawPrj = DB.get('projects').filter(p => p.tenant_id===tid && !p.is_archived);
+  const _prjSeen = new Set();
+  const projects = _rawPrj.filter(p => { if(_prjSeen.has(p.id)) return false; _prjSeen.add(p.id); return true; });
   const now = new Date();
   const monthlyData = Array.from({length:6}, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth()-5+i, 1);
@@ -17946,8 +18012,8 @@ Pages.supplier_detail = function() {
 
 Pages.salary = function() {
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w => w.tenant_id===tid);
-  const att = DB.get('attendance');
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const records = DB.get('salary_records').filter(r => r.tenant_id===tid);
   const now = new Date();
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
@@ -18341,7 +18407,7 @@ function _saveSalaryDays(workerId, monthKey) {
   const present = Number(document.getElementById('_editPresent')?.value)||0;
   const halfday = Number(document.getElementById('_editHalf')?.value)||0;
   const tid = Auth.getUser().tenant_id;
-  const att = DB.get('attendance')||[];
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const worker = (DB.get('workers')||[]).find(w=>w.id===workerId);
   if (!worker) return;
 
@@ -18380,7 +18446,7 @@ function paySalary(wid, monthKey, amount) {
   records.push(newSalary);
   DB.set('salary_records', records);
   sbSync('salary_records', newSalary, 'POST').catch(()=>{});
-  const txs = DB.get('transactions');
+  const txs = (function(){const _s=new Set();return (DB.get('transactions')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const salTx = {id:DB.nextId('transactions'),tenant_id:tid,project_id:worker?.project_id||null,type:'expense',category:'رواتب العمال',amount,description:`راتب ${worker?.full_name||''} — ${monthKey}`,date:todayStr(),payment_method:'bank',worker_id:wid};
   txs.push(salTx);
   DB.set('transactions', txs);
@@ -18393,8 +18459,8 @@ function payAllSalaries(monthKey) {
   if (!canDo('write_salary')) { Toast.error(L('ليس لديك صلاحية لصرف الرواتب','Permission refusée : salaires')); return; }
   if (!confirm('صرف رواتب جميع العمال لهذا الشهر؟')) return;
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
-  const att = DB.get('attendance');
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const records = DB.get('salary_records');
   let paid = 0;
   workers.forEach(w => {
@@ -19311,7 +19377,7 @@ function saveSupplier() {
   if (!phone) { Toast.error(L('رقم الهاتف مطلوب','Téléphone requis')); return; }
 
   const tid = Auth.getUser().tenant_id;
-  const suppliers = DB.get('suppliers') || [];
+  const suppliers = (function(){const _s=new Set();return (DB.get('suppliers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const rec = {
     id:         DB.nextId('suppliers'),
     tenant_id:  tid,
@@ -19341,7 +19407,7 @@ function saveSupplier() {
 }
 
 function editSupplier(id) {
-  const suppliers = DB.get('suppliers')||[];
+  const suppliers = (function(){const _s=new Set();return (DB.get('suppliers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const s = suppliers.find(x=>x.id===id);
   if (!s) return;
   // نعيد فتح modal الإضافة محمّلاً بالبيانات
@@ -19349,7 +19415,7 @@ function editSupplier(id) {
 }
 
 function editSupplierNotes(id) {
-  const suppliers = DB.get('suppliers')||[];
+  const suppliers = (function(){const _s=new Set();return (DB.get('suppliers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const idx = suppliers.findIndex(x=>x.id===id);
   if (idx<0) return;
   const newNotes = prompt(L('تعديل الملاحظات:','Modifier les notes:'), suppliers[idx].notes||'');
@@ -19577,7 +19643,7 @@ function _saveGDriveClientId() {
 
 function exportInvoicesCSV() {
   const tid=Auth.getUser().tenant_id;
-  const invoices=DB.get('invoices').filter(i=>i.tenant_id===tid);
+  const invoices = (function(){const _s=new Set();return (DB.get('invoices').filter(i=>i.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const header=[L('الرقم','N° Facture'),L('العميل','Client'),L('المبلغ TTC','Montant TTC'),L('المبلغ HT','Montant HT'),L('TVA','TVA'),L('التاريخ','Date émission'),L('الاستحقاق','Échéance'),L('الحالة','Statut')];
   const rows=invoices.map(i=>[i.number,i.client,i.amount,i.amount_ht||'',i.tva_amount||'',i.date,i.due_date||'',i.status]);
   const csv=[header,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -20172,7 +20238,7 @@ function confirmStockMoveV5(){
 Pages.documents = function() {
 
   const tid = Auth.getUser().tenant_id;
-  const docs = DB.get('documents').filter(d=>d.tenant_id===tid);
+  const docs = (function(){const _s=new Set();return (DB.get('documents').filter(d=>d.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid&&!p.is_archived);
   const cats = [...new Set(docs.map(d=>d.category).filter(Boolean))];
   const docIconMap = {pdf:'📄',image:'🖼️',contract:'📋',drawing:'📐'};
@@ -20354,7 +20420,7 @@ function uploadDocItem(){
   const tid = user.tenant_id;
 
   const fileTemp = window._docFileTemp;
-  const docs = DB.get('documents');
+  const docs = (function(){const _s=new Set();return (DB.get('documents')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
 
   const newDoc = {
     id: DB.nextId('documents'),
@@ -20902,8 +20968,8 @@ function inviteUserV5(){
 Pages.compare = function() {
   const tid = Auth.getUser().tenant_id;
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const workers = DB.get('workers');
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
 
   const pOpts = projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
   let cmpHTML = '';
@@ -21219,8 +21285,8 @@ function exportReportPDF() {
   const tid = Auth.getUser().tenant_id;
   const tenant = Auth.getTenant();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const profit = revenue - expense;
@@ -21574,8 +21640,8 @@ Pages.bankReport = function() {
   const tid = Auth.getUser().tenant_id;
   const tenant = Auth.getTenant();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const revenue = txs.filter(t=>t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
   const expense  = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const totalBudget = projects.reduce((s,p)=>s+Number(p.budget),0);
@@ -21919,7 +21985,7 @@ Pages.obligations = function() {
 
   const da = L('دج','DA');
   const tid = Auth.getUser().tenant_id;
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid && p.status === 'active');
   const obls = DB.get('obligations_'+tid) || [];
 
@@ -22239,9 +22305,9 @@ const SmartAI = {
       const tid = user.tenant_id;
       const tenant = Auth.getTenant() || {};
       const projects = DB.get('projects').filter(p => p.tenant_id === tid && !p.is_archived);
-      const workers = DB.get('workers').filter(w => w.tenant_id === tid);
-      const txs = DB.get('transactions').filter(t => t.tenant_id === tid);
-      const att = DB.get('attendance');
+      const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+      const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id === tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+      const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
       const today = new Date().toISOString().split('T')[0];
       const revenue = txs.filter(t => t.type === 'revenue').reduce((s, t) => s + Number(t.amount), 0);
       const expense = txs.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
@@ -22667,8 +22733,8 @@ Pages.ai_analysis = function() {
 
   const ctx = SmartAI.getContext();
   const projects = DB.get('projects').filter(p => p.tenant_id === Auth.getUser().tenant_id && !p.is_archived);
-  const txs = DB.get('transactions').filter(t => t.tenant_id === Auth.getUser().tenant_id);
-  const workers = DB.get('workers').filter(w => w.tenant_id === Auth.getUser().tenant_id);
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t => t.tenant_id === Auth.getUser().tenant_id)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w => w.tenant_id === Auth.getUser().tenant_id)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
 
   // تحليل كل مشروع
   const projectInsights = projects.map(p => {
@@ -22700,7 +22766,7 @@ Pages.ai_analysis = function() {
   if (revenue > 0 && (revenue - expense) / revenue < 0.1) recommendations.push({ icon: '📉', priority: 'متوسطة', text: 'هامش الربح الإجمالي أقل من 10% — راجع تسعير خدماتك' });
   if (workers.length > 0) {
     const today = new Date().toISOString().split('T')[0];
-    const att = DB.get('attendance');
+    const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
     const presentToday = att.filter(a => a.date === today && a.status === 'present').length;
     const rate = Math.round(presentToday / workers.length * 100);
     if (rate < 70) recommendations.push({ icon: '👷', priority: 'متوسطة', text: `معدل الحضور اليوم منخفض: ${rate}% — تحقق من غياب العمال` });
@@ -22907,8 +22973,8 @@ function checkOnboarding() {
   const shownOnce = localStorage.getItem('sbtp_onboarding_shown_'+tid);
   if (shownOnce) return;
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
-  const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
-  const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
+  const workers = (function(){const _s=new Set();return (DB.get('workers').filter(w=>w.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
+  const txs = (function(){const _s=new Set();return (DB.get('transactions').filter(t=>t.tenant_id===tid)).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   if (projects.length > 0 && workers.length > 0 && txs.length > 0) {
     localStorage.setItem('sbtp_onboarded_'+tid, '1');
     return;
@@ -23232,7 +23298,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const colKey = lastCol.dataset.col;
       const taskId = parseInt(touchTask.dataset.taskId);
       if (colKey && taskId) {
-        const tasks = DB.get('kanban_tasks');
+        const tasks = (function(){const _s=new Set();return (DB.get('kanban_tasks')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
         const idx = tasks.findIndex(t => t.id === taskId);
         if (idx >= 0 && tasks[idx].col !== colKey) {
           tasks[idx].col = colKey;
@@ -23856,7 +23922,7 @@ function getGPSLocation(callback) {
 
 function saveAttWithGPS(wid, date, status) {
   getGPSLocation(coords => {
-    const att = DB.get('attendance') || [];
+    const att = (function(){const _s=new Set();return (DB.get('attendance')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
     const tid = Auth.getUser().tenant_id;
     const existing = att.find(a => a.worker_id===wid && a.date===date);
     if (existing) {
@@ -23876,7 +23942,7 @@ function saveAttWithGPS(wid, date, status) {
 //  إرسال إشعار لمستخدم أو مؤسسة (تُستخدم من الأدمن)
 // ════════════════════════════════════════════════════════════════════
 function sendNotification({ title, message, type='info', tenant_id=null, user_id=null, link=null }) {
-  const notifs = DB.get('notifications') || [];
+  const notifs = (function(){const _s=new Set();return (DB.get('notifications')||[]).filter(r=>{if(!r.id||_s.has(r.id))return false;_s.add(r.id);return true;})})();
   const n = {
     id:         DB.nextId('notifications'),
     title:      title || '',

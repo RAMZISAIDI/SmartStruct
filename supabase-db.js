@@ -1683,15 +1683,22 @@ if (!navigator.onLine || !this._useSupabase) {
               // دمج مع المحلي (المحلي الذي ليس له id في البعيد = جديد لم يُرفع)
               const local = this.get(t) || [];
               const remoteIds = new Set(filteredRemote.map(r => Number(r.id)));
-              const localUnsynced = local.filter(r =>
-                !remoteIds.has(Number(r.id)) &&
-                (isAdmin || Number(r.tenant_id) === Number(tid)) &&
-                // ✅ استبعاد المحذوفة من المحلي
-                (t !== 'tenants' || !deletedTids.has(Number(r.id))) &&
-                (!r.tenant_id || !deletedTids.has(Number(r.tenant_id))) &&
-                // ✅ استبعاد أي سجل تم حذفه مسبقاً من Supabase
-                !deletedIds.has(String(r.id))
-              );
+
+              // ✅ دالة fingerprint لكشف التكرار عبر الـ IDs المؤقتة
+              const _fp = r => [r.tenant_id, r.name, r.start_date||'', r.budget||0, r.email||'', r.phone||''].join('|');
+              const remoteFPs = new Set(filteredRemote.map(_fp));
+
+              const localUnsynced = local.filter(r => {
+                if (remoteIds.has(Number(r.id))) return false; // موجود بنفس ID
+                if (!isAdmin && Number(r.tenant_id) !== Number(tid)) return false;
+                if (t === 'tenants' && deletedTids.has(Number(r.id))) return false;
+                if (r.tenant_id && deletedTids.has(Number(r.tenant_id))) return false;
+                if (deletedIds.has(String(r.id))) return false; // محذوف من Supabase
+                // ✅ إذا كان ID مؤقت (timestamp) وله مقابل في Remote بنفس البيانات → استبعده (مرفوع بالفعل)
+                const isTemp = Number(r.id) > 1_000_000_000_000;
+                if (isTemp && remoteFPs.has(_fp(r))) return false;
+                return true;
+              });
               // ✅ Supabase هو المصدر الحقيقي — remote يحكم
               const merged = [...filteredRemote, ...localUnsynced];
               localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
@@ -2228,8 +2235,48 @@ const SmartRealtime = (() => {
 
       let updated;
       if (eventType === 'INSERT') {
-        const exists = current.find(r => r.id === newRecord.id);
-        updated = exists ? current : [...current, newRecord];
+        // ── مكافحة التكرار: فحص بالـ ID أولاً ──
+        const existsById = current.find(r => r.id === newRecord.id);
+        // ── فحص إضافي: هل هذا ID وصل من sbSync للتو؟ (يحمي من race condition) ──
+        let _isKnownNewId = false;
+        try {
+          const _pr = JSON.parse(localStorage.getItem('sbtp5_pending_real_ids') || '{}');
+          const _list = (_pr[table] || []).filter(e => Date.now() - e.ts < 30000); // 30 ثانية
+          _isKnownNewId = _list.some(e => e.newId === newRecord.id);
+          if (_isKnownNewId) {
+            // نظّف هذا الـ entry
+            _pr[table] = _list.filter(e => e.newId !== newRecord.id);
+            localStorage.setItem('sbtp5_pending_real_ids', JSON.stringify(_pr));
+          }
+        } catch(_) {}
+        if (existsById || _isKnownNewId) {
+          // السجل موجود بالفعل (بالـ ID الحقيقي أو ثبّتناه من sbSync) → تحديث فقط
+          updated = _isKnownNewId && !existsById
+            ? current.map(r => r.id === newRecord.id ? { ...r, ...newRecord } : r)
+            : current;
+        } else {
+          // ── فحص ثانٍ: هل يوجد سجل بـ ID مؤقت (timestamp) لنفس البيانات؟
+          // يحدث عند: DB.set() → sbSync() → Realtime يرجع ID الجديد
+          // بينما المحلي لا يزال يحمل الـ ID المؤقت
+          const isTempLocal = r => r.id && Number(r.id) > 1_000_000_000_000;
+          const fingerprint = rec => [
+            rec.tenant_id, rec.name,
+            rec.start_date || '', rec.budget || 0,
+            rec.email || '', rec.phone || '',
+            rec.wilaya || '', rec.project_type || ''
+          ].join('|');
+          const newFP = fingerprint(newRecord);
+          const dupByFP = current.find(r => isTempLocal(r) && fingerprint(r) === newFP);
+          if (dupByFP) {
+            // ← استبدل السجل المؤقت بالسجل الحقيقي من Supabase (يصحح الـ ID أيضاً)
+            updated = current.map(r => (r === dupByFP ? { ...r, ...newRecord } : r));
+            // حدّث localStorage بالـ ID الجديد فوراً
+            try { localStorage.setItem(lsKey, JSON.stringify(updated)); } catch(_) {}
+            // نجاح — لا حاجة لإضافة سجل جديد
+          } else {
+            updated = [...current, newRecord];
+          }
+        }
       } else if (eventType === 'UPDATE') {
         updated = current.map(r => r.id === newRecord.id ? { ...r, ...newRecord } : r);
         if (!updated.find(r => r.id === newRecord.id)) updated.push(newRecord);
