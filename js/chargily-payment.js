@@ -100,7 +100,10 @@ const ChargilyPayment = (() => {
       },
     };
 
-    // ملاحظة: customer غير مدعوم في /checkouts endpoint — نمرر البيانات في metadata فقط
+    // إضافة بريد المستخدم إن وُجد
+    if (userEmail) {
+      payload.customer = { email: userEmail, name: tenantName };
+    }
 
     const res = await fetch(`${CONFIG.API_BASE}/checkouts`, {
       method: 'POST',
@@ -182,6 +185,49 @@ const ChargilyPayment = (() => {
           sessionStorage.setItem('sbtp_user', JSON.stringify(stored));
         }
       } catch(_) {}
+
+      // ── إشعار الأدمين: تم الاشتراك ──
+      try {
+        const plans = [null,'Starter','Professionnel','Entreprise'];
+        const planName = plans[planId] || ('خطة ' + planId);
+        // جلب اسم المؤسسة
+        let tenantName = '—';
+        try {
+          const stored = JSON.parse(sessionStorage.getItem('sbtp_user') || '{}');
+          tenantName = stored?.tenant?.name || tenantName;
+        } catch(_) {}
+
+        // حفظ الإشعار في notifications
+        const adminNotifs = (typeof DB !== 'undefined' && DB.get) ? (DB.get('notifications') || []) : [];
+        adminNotifs.unshift({
+          id: Date.now(),
+          type: 'new_subscription',
+          title: '💳 اشتراك جديد — ' + tenantName,
+          body: `المؤسسة "${tenantName}" اشتركت في خطة "${planName}" — تم التفعيل تلقائياً ✅`,
+          tenant_id: tenantId,
+          tenant_name: tenantName,
+          plan_id: planId,
+          plan_name: planName,
+          date: now.toISOString(),
+          status: 'info',
+          read: false
+        });
+        if (typeof DB !== 'undefined' && DB.set) DB.set('notifications', adminNotifs);
+
+        // إرسال بريد للمسؤول
+        if (typeof EMAILJS !== 'undefined' && EMAILJS.notifyNewAccount) {
+          const stored2 = JSON.parse(sessionStorage.getItem('sbtp_user') || '{}');
+          EMAILJS.notifyNewAccount({
+            name: stored2?.user?.full_name || '—',
+            email: stored2?.user?.email || '—',
+            company: tenantName,
+            wilaya: stored2?.tenant?.wilaya || '—',
+            subject: '💳 اشتراك جديد مدفوع — ' + tenantName + ' (' + planName + ')'
+          }).catch(() => {});
+        }
+      } catch(_notify) {
+        console.warn('Admin notification error:', _notify);
+      }
 
       return true;
     } catch(e) {

@@ -1,32 +1,6 @@
 'use strict';
 
 // ════════════════════════════════════════════════════════════════════
-// openPrintWindow — Blob URL بدل document.write لضمان تنفيذ scripts
-// ════════════════════════════════════════════════════════════════════
-function openPrintWindow(html, title, autoPrint) {
-  try {
-    var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    var bUrl = URL.createObjectURL(blob);
-    var win  = window.open(bUrl, '_blank', 'width=960,height=1100');
-    if (!win) {
-      try { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); } catch(_) {}
-      URL.revokeObjectURL(bUrl);
-      return null;
-    }
-    if (autoPrint) {
-      win.addEventListener('load', function(){
-        setTimeout(function(){ try{ win.focus(); win.print(); }catch(e){} }, 800);
-      });
-    }
-    setTimeout(function(){ URL.revokeObjectURL(bUrl); }, 60000);
-    return win;
-  } catch(e) {
-    console.error('openPrintWindow:', e);
-    return null;
-  }
-}
-
-// ════════════════════════════════════════════════════════════════════
 //  Global helpers (تُعرَّف الدوال الفعلية لاحقاً في الملف، هذه stubs آمنة)
 // ════════════════════════════════════════════════════════════════════
 window.openModal  = function(id) { var m=document.getElementById(id); if(m) m.classList.add('show'); };
@@ -40,28 +14,19 @@ window.closeModal = function(id) { var m=document.getElementById(id); if(m) m.cl
 //  SmartStruct — Logo SVG Generator
 // ══════════════════════════════════════════
 function ssLogo(size=22, dark=false) {
-  // ── الشعار الرسمي — يطابق logo-mark.svg المستخدم في الصفحة الرئيسية ──
-  const uid = 'ssG' + size + (dark?'d':'');
-  const c1 = '#F5D07A', c2 = '#E8B84B', c3 = '#C49030';
-  const txt = dark ? '#09120A' : '#09120A';
-  const bg1 = dark ? 'rgba(255,255,255,0.9)' : `url(#${uid})`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="${size}" height="${size}" style="border-radius:${Math.round(size*0.229)}px;display:block;box-shadow:0 1px 0 rgba(255,255,255,0.4) inset,0 4px 12px rgba(232,184,75,0.3)">
+  const c1 = dark ? '#09120A' : '#F5D07A';
+  const c2 = dark ? '#09120A' : '#C49030';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="${size}" height="${size}">
     <defs>
-      <linearGradient id="${uid}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="ssG${size}" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="${c1}"/>
-        <stop offset="50%" stop-color="${c2}"/>
-        <stop offset="100%" stop-color="${c3}"/>
+        <stop offset="100%" stop-color="${c2}"/>
       </linearGradient>
     </defs>
-    <rect x="0" y="0" width="48" height="48" rx="11" ry="11" fill="${bg1}"/>
-    <rect x="0" y="0" width="48" height="1" rx="0.5" fill="rgba(255,255,255,0.5)"/>
-    <rect x="0" y="45" width="48" height="3" rx="1.5" fill="rgba(0,0,0,0.18)"/>
-    <g transform="translate(8,8)">
-      <rect x="0" y="0" width="5" height="32" rx="2.5" fill="${txt}" opacity="0.35"/>
-      <rect x="0" y="0" width="34" height="6" rx="3" fill="${txt}"/>
-      <rect x="0" y="13" width="24" height="6" rx="3" fill="${txt}" opacity="0.82"/>
-      <rect x="0" y="26" width="16" height="6" rx="3" fill="${txt}" opacity="0.6"/>
-    </g>
+    <rect x="4" y="5" width="28" height="5" rx="2.5" fill="url(#ssG${size})"/>
+    <rect x="4" y="15.5" width="20" height="5" rx="2.5" fill="url(#ssG${size})" opacity=".82"/>
+    <rect x="4" y="26" width="13" height="5" rx="2.5" fill="url(#ssG${size})" opacity=".6"/>
+    <rect x="4" y="5" width="5" height="26" rx="2.5" fill="url(#ssG${size})" opacity=".35"/>
   </svg>`;
 }
 
@@ -190,7 +155,7 @@ const Auth = {
     this.currentUser = null;
     sessionStorage.removeItem('sbtp_user');
     if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
-    window.location.replace('index.html');
+    App.navigate('landing');
   },
 
   async logout() {
@@ -211,7 +176,7 @@ const Auth = {
     this.currentUser = null;
     sessionStorage.removeItem('sbtp_user');
     if (typeof SmartRealtime !== 'undefined') SmartRealtime.stop();
-    window.location.replace('index.html');
+    App.navigate('landing');
   },
   load() {
     const u = sessionStorage.getItem('sbtp_user');
@@ -277,16 +242,11 @@ const Toast = {
 function fmt(n) { return Number(n||0).toLocaleString('fr-DZ'); }
 function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('ar-DZ'); }
 function statusBadge(s) {
-  const map = {
-    active:    { cls:'badge-active',    label: L('نشط','Actif','Active') },
-    completed: { cls:'badge-completed', label: L('مكتمل','Terminé') },
-    delayed:   { cls:'badge-delayed',   label: L('متأخر','En retard') },
-    paused:    { cls:'badge-paused',    label: L('متوقف','En pause') }
-  };
-  const entry = map[s] || { cls:'badge-paused', label:'—' };
-  return `<span class="badge ${entry.cls}">${entry.label}</span>`;
+  const map = { active:'badge-active نشط', completed:'badge-completed مكتمل', delayed:'badge-delayed متأخر', paused:'badge-paused متوقف' };
+  const [cls, label] = (map[s]||'badge-paused —').split(' ');
+  return `<span class="badge ${cls}">${label}</span>`;
 }
-function statusLabel(s) { return {active:L('نشط','Actif','Active'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','En pause')}[s]||s; }
+function statusLabel(s) { return {active:'نشط',completed:'مكتمل',delayed:'متأخر',paused:'متوقف'}[s]||s; }
 function escHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s)
@@ -315,39 +275,35 @@ const PHASES = [
   "أعمال الطاقة الشمسية","أعمال العزل والحماية",
   "تركيب المعدات","اختبار وتسليم","ضمان ومتابعة","الاستلام النهائي"
 ];
-// getProjectTypes() — دالة تُستدعى بعد تهيئة I18N لضمان الترجمة الصحيحة
-function getProjectTypes() {
-  return [
-    {value:'building',       label: `🏗️ ${L('بناء وإنشاء','Construction')}`,                  icon:'🏗️'},
-    {value:'electrical',     label: `⚡ ${L('كهرباء وتمديدات','Électricité & réseaux')}`,       icon:'⚡'},
-    {value:'plumbing',       label: `🚿 ${L('سباكة وصرف صحي','Plomberie & sanitaires')}`,       icon:'🚿'},
-    {value:'roads',          label: `🛣️ ${L('طرق وتهيئة','Routes & aménagement')}`,             icon:'🛣️'},
-    {value:'hvac',           label: `❄️ ${L('تكييف وتهوية','Climatisation & ventilation')}`,    icon:'❄️'},
-    {value:'telecom',        label: `📡 ${L('اتصالات وشبكات','Télécoms & réseaux')}`,           icon:'📡'},
-    {value:'painting',       label: `🎨 ${L('دهن وديكور','Peinture & décoration')}`,            icon:'🎨'},
-    {value:'metalworks',     label: `🔩 ${L('حدادة ومعادن','Ferronnerie & métaux')}`,           icon:'🔩'},
-    {value:'woodworks',      label: `🪵 ${L('نجارة وأبواب','Menuiserie & portes')}`,            icon:'🪵'},
-    {value:'flooring',       label: `🪟 ${L('أرضيات وبلاط','Revêtements & carrelage')}`,        icon:'🪟'},
-    {value:'renovation',     label: `🔧 ${L('ترميم وصيانة','Rénovation & maintenance')}`,       icon:'🔧'},
-    {value:'infrastructure', label: `🏛️ ${L('بنية تحتية','Infrastructure')}`,                  icon:'🏛️'},
-    {value:'landscaping',    label: `🌿 ${L('تهيئة خضراء وحدائق','Espaces verts & jardins')}`, icon:'🌿'},
-    {value:'demolition',     label: `💥 ${L('هدم وإزالة','Démolition & déblaiement')}`,         icon:'💥'},
-    {value:'waterproofing',  label: `💧 ${L('عزل وحماية','Étanchéité & protection')}`,          icon:'💧'},
-    {value:'solar',          label: `☀️ ${L('طاقة شمسية','Énergie solaire')}`,                 icon:'☀️'},
-    {value:'other',          label: `📋 ${L('أخرى','Autres')}`,                                 icon:'📋'},
-  ];
-}
+const PROJECT_TYPES = [
+  {value:'building', label:'🏗️ بناء وإنشاء', icon:'🏗️'},
+  {value:'electrical', label:'⚡ كهرباء وتمديدات', icon:'⚡'},
+  {value:'plumbing', label:'🚿 سباكة وصرف صحي', icon:'🚿'},
+  {value:'roads', label:'🛣️ طرق وتهيئة', icon:'🛣️'},
+  {value:'hvac', label:'❄️ تكييف وتهوية', icon:'❄️'},
+  {value:'telecom', label:'📡 اتصالات وشبكات', icon:'📡'},
+  {value:'painting', label:'🎨 دهن وديكور', icon:'🎨'},
+  {value:'metalworks', label:'🔩 حدادة ومعادن', icon:'🔩'},
+  {value:'woodworks', label:'🪵 نجارة وأبواب', icon:'🪵'},
+  {value:'flooring', label:'🪟 أرضيات وبلاط', icon:'🪟'},
+  {value:'renovation', label:'🔧 ترميم وصيانة', icon:'🔧'},
+  {value:'infrastructure', label:'🏛️ بنية تحتية', icon:'🏛️'},
+  {value:'landscaping', label:'🌿 تهيئة خضراء وحدائق', icon:'🌿'},
+  {value:'demolition', label:'💥 هدم وإزالة', icon:'💥'},
+  {value:'waterproofing', label:'💧 عزل وحماية', icon:'💧'},
+  {value:'solar', label:'☀️ طاقة شمسية', icon:'☀️'},
+  {value:'other', label:'📋 أخرى', icon:'📋'},
+];
 const COLORS = ['#4A90E2','#34C38F','#E8B84B','#F04E6A','#9B6DFF','#FF7043','#26C6DA','#AB47BC'];
 
 /* ══════════════════════════════════════════════════════
-   INTERNATIONALISATION — عربي / Français / English
+   INTERNATIONALISATION — عربي / Français
 ══════════════════════════════════════════════════════ */
 const I18N = {
-  currentLang: localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar',
+  currentLang: localStorage.getItem('sbtp_lang') || 'ar',
   setLang(lang) {
     this.currentLang = lang;
     localStorage.setItem('sbtp_lang', lang);
-    localStorage.setItem('ss_lang', lang); // sync with landing page i18n
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     App.render();
@@ -356,287 +312,276 @@ const I18N = {
   t(key) {
     const d = this.dict[key];
     if (!d) return key;
-    return d[this.currentLang] || d['en'] || d['ar'] || key;
-  },
-  langSwitcherHTML(style='') {
-    const cur = this.currentLang;
-    const btnStyle = (active) => active
-      ? 'padding:4px 9px;border-radius:6px;border:none;cursor:pointer;background:rgba(232,184,75,0.18);color:#E8B84B;box-shadow:inset 0 0 0 1px rgba(232,184,75,0.35);font-weight:700;'
-      : 'padding:4px 9px;border-radius:6px;border:none;cursor:pointer;background:transparent;color:var(--text-muted,#7E8595);font-weight:700;';
-    return `<div style="display:flex;align-items:center;gap:2px;background:rgba(255,255,255,0.05);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:2px;font-family:var(--mono,'JetBrains Mono',monospace);font-size:11px;letter-spacing:0.08em;${style}">
-      <button onclick="I18N.setLang('ar')" style="${btnStyle(cur==='ar')}">AR</button>
-      <button onclick="I18N.setLang('fr')" style="${btnStyle(cur==='fr')}">FR</button>
-      <button onclick="I18N.setLang('en')" style="${btnStyle(cur==='en')}">EN</button>
-    </div>`;
+    return d[this.currentLang] || d['ar'] || key;
   },
   dict: {
     // Navigation
-    'nav.dashboard': {ar:'لوحة التحكم', fr:'Tableau de bord', en:'Dashboard'},
-    'nav.projects': {ar:'المشاريع', fr:'Projets', en:'Projects'},
-    'nav.workers': {ar:'العمال', fr:'Ouvriers', en:'Workers'},
-    'nav.attendance': {ar:'الحضور', fr:'Présence', en:'Attendance'},
-    'nav.salary': {ar:'الرواتب', fr:'Salaires', en:'Payroll'},
-    'nav.equipment': {ar:'المعدات', fr:'Équipements', en:'Equipment'},
-    'nav.transactions': {ar:'المعاملات', fr:'Transactions', en:'Transactions'},
-    'nav.invoices': {ar:'الفواتير', fr:'Factures', en:'Invoices'},
-    'nav.inventory': {ar:'المخزون', fr:'Stock', en:'Stock'},
-    'nav.suppliers': {ar:'الموردون', fr:'Fournisseurs', en:'Suppliers'},
-    'nav.materials': {ar:'المواد', fr:'Matériaux', en:'Materials'},
-    'nav.documents': {ar:'الوثائق', fr:'Documents', en:'Documents'},
-    'nav.reports': {ar:'التقارير', fr:'Rapports', en:'Reports'},
-    'nav.analytics': {ar:'تحليلات', fr:'Analytiques', en:'Analytics'},
-    'nav.kanban': {ar:'Kanban', fr:'Kanban', en:'Kanban'},
-    'nav.gantt': {ar:'Gantt Chart', fr:'Diagramme Gantt', en:'Gantt Chart'},
-    'nav.team': {ar:'الفريق', fr:'Équipe', en:'Team'},
-    'nav.settings': {ar:'الإعدادات', fr:'Paramètres', en:'Settings'},
-    'nav.compare': {ar:'مقارنة المشاريع', fr:'Comparer projets', en:'Compare Projects'},
-    'nav.calendar': {ar:'التقويم', fr:'Calendrier', en:'Calendar'},
-    'nav.map': {ar:'خريطة الولايات', fr:'Carte wilayas', en:'Wilayas Map'},
+    'nav.dashboard':    {ar:'لوحة التحكم',    fr:'Tableau de bord'},
+    'nav.projects':     {ar:'المشاريع',        fr:'Projets'},
+    'nav.workers':      {ar:'العمال',          fr:'Ouvriers'},
+    'nav.attendance':   {ar:'الحضور',          fr:'Présence'},
+    'nav.salary':       {ar:'الرواتب',         fr:'Salaires'},
+    'nav.equipment':    {ar:'المعدات',         fr:'Équipements'},
+    'nav.transactions': {ar:'المعاملات',       fr:'Transactions'},
+    'nav.invoices':     {ar:'الفواتير',        fr:'Factures'},
+    'nav.inventory':    {ar:'المخزون',         fr:'Stock'},
+    'nav.suppliers':    {ar:'الموردون',        fr:'Fournisseurs'},
+    'nav.materials':    {ar:'المواد',          fr:'Matériaux'},
+    'nav.documents':    {ar:'الوثائق',         fr:'Documents'},
+    'nav.reports':      {ar:'التقارير',        fr:'Rapports'},
+    'nav.analytics':    {ar:'تحليلات',         fr:'Analytiques'},
+    'nav.kanban':       {ar:'Kanban',           fr:'Kanban'},
+    'nav.gantt':        {ar:'Gantt Chart',      fr:'Diagramme Gantt'},
+    'nav.team':         {ar:'الفريق',          fr:'Équipe'},
+    'nav.settings':     {ar:'الإعدادات',       fr:'Paramètres'},
+    'nav.compare':      {ar:'مقارنة المشاريع', fr:'Comparer projets'},
+    'nav.calendar':     {ar:'التقويم',         fr:'Calendrier'},
+    'nav.map':          {ar:'خريطة الولايات',  fr:'Carte wilayas'},
     // Sections
-    'section.main': {ar:'الرئيسية', fr:'Principal', en:'Main'},
-    'section.projects': {ar:'المشاريع', fr:'Projets', en:'Projects'},
-    'section.hr': {ar:'الموارد البشرية', fr:'Ressources humaines', en:'Human Resources'},
-    'section.finance': {ar:'المالية', fr:'Finance', en:'Finance'},
-    'section.stock': {ar:'المواد', fr:'Stock', en:'Stock'},
-    'section.docs': {ar:'الوثائق والتقارير', fr:'Docs & Rapports', en:'Documents & Reports'},
-    'section.account': {ar:'الحساب', fr:'Compte', en:'Account'},
+    'section.main':     {ar:'الرئيسية',        fr:'Principal'},
+    'section.projects': {ar:'المشاريع',        fr:'Projets'},
+    'section.hr':       {ar:'الموارد البشرية', fr:'Ressources humaines'},
+    'section.finance':  {ar:'المالية',         fr:'Finance'},
+    'section.stock':    {ar:'المواد',          fr:'Stock'},
+    'section.docs':     {ar:'الوثائق والتقارير',fr:'Docs & Rapports'},
+    'section.account':  {ar:'الحساب',         fr:'Compte'},
     // Common actions
-    'action.add': {ar:'إضافة', fr:'Ajouter', en:'Add'},
-    'action.edit': {ar:'تعديل', fr:'Modifier', en:'Edit'},
-    'action.delete': {ar:'حذف', fr:'Supprimer', en:'Delete'},
-    'action.save': {ar:'حفظ', fr:'Enregistrer', en:'Save'},
-    'action.cancel': {ar:'إلغاء', fr:'Annuler', en:'Cancel'},
-    'action.export': {ar:'تصدير', fr:'Exporter', en:'Export'},
-    'action.print': {ar:'طباعة', fr:'Imprimer', en:'Print'},
-    'action.search': {ar:'بحث', fr:'Rechercher', en:'Search'},
-    'action.close': {ar:'إغلاق', fr:'Fermer', en:'Close'},
-    'action.details': {ar:'تفاصيل', fr:'Détails', en:'Details'},
-    'action.back': {ar:'العودة', fr:'Retour', en:'Back'},
+    'action.add':       {ar:'إضافة',           fr:'Ajouter'},
+    'action.edit':      {ar:'تعديل',           fr:'Modifier'},
+    'action.delete':    {ar:'حذف',             fr:'Supprimer'},
+    'action.save':      {ar:'حفظ',             fr:'Enregistrer'},
+    'action.cancel':    {ar:'إلغاء',           fr:'Annuler'},
+    'action.export':    {ar:'تصدير',           fr:'Exporter'},
+    'action.print':     {ar:'طباعة',           fr:'Imprimer'},
+    'action.search':    {ar:'بحث',             fr:'Rechercher'},
+    'action.close':     {ar:'إغلاق',           fr:'Fermer'},
+    'action.details':   {ar:'تفاصيل',          fr:'Détails'},
+    'action.back':      {ar:'العودة',          fr:'Retour'},
     // Status
-    'status.active': {ar:'نشط', fr:'Actif', en:'Active'},
-    'status.completed': {ar:'مكتمل', fr:'Terminé', en:'Completed'},
-    'status.delayed': {ar:'متأخر', fr:'En retard', en:'Delayed'},
-    'status.paused': {ar:'متوقف', fr:'Pausé', en:'Paused'},
+    'status.active':    {ar:'نشط',             fr:'Actif'},
+    'status.completed': {ar:'مكتمل',           fr:'Terminé'},
+    'status.delayed':   {ar:'متأخر',           fr:'En retard'},
+    'status.paused':    {ar:'متوقف',           fr:'Pausé'},
     // Common labels
-    'lbl.project': {ar:'المشروع', fr:'Projet', en:'Project'},
-    'lbl.budget': {ar:'الميزانية', fr:'Budget', en:'Budget'},
-    'lbl.spent': {ar:'المُنفَق', fr:'Dépensé', en:'Spent'},
-    'lbl.progress': {ar:'التقدم', fr:'Avancement', en:'Progress'},
-    'lbl.client': {ar:'العميل', fr:'Client', en:'Client'},
-    'lbl.wilaya': {ar:'الولاية', fr:'Wilaya', en:'Wilaya'},
-    'lbl.date': {ar:'التاريخ', fr:'Date', en:'Date'},
-    'lbl.amount': {ar:'المبلغ', fr:'Montant', en:'Amount'},
-    'lbl.worker': {ar:'العامل', fr:'Ouvrier', en:'Worker'},
-    'lbl.salary': {ar:'الأجر', fr:'Salaire', en:'Salary'},
-    'lbl.phone': {ar:'الهاتف', fr:'Téléphone', en:'Phone'},
-    'lbl.name': {ar:'الاسم', fr:'Nom', en:'Name'},
-    'lbl.type': {ar:'النوع', fr:'Type', en:'Type'},
-    'lbl.notes': {ar:'ملاحظات', fr:'Notes', en:'Notes'},
-    'lbl.total': {ar:'الإجمالي', fr:'Total', en:'Total'},
-    'lbl.revenue': {ar:'إيراد', fr:'Revenu', en:'Revenue'},
-    'lbl.expense': {ar:'مصروف', fr:'Dépense', en:'Expense'},
-    'lbl.profit': {ar:'الربح', fr:'Bénéfice', en:'Profit'},
-    'lbl.netProfit': {ar:'الربح الصافي', fr:'Bénéfice net', en:'Net Profit'},
-    'lbl.allWilayas': {ar:'كل الولايات', fr:'Toutes wilayas', en:'All Wilayas'},
-    'lbl.allStatus': {ar:'كل الحالات', fr:'Tous statuts', en:'All Statuses'},
-    'lbl.allTypes': {ar:'كل أنواع المشاريع', fr:'Tous types', en:'All Types'},
+    'lbl.project':      {ar:'المشروع',         fr:'Projet'},
+    'lbl.budget':       {ar:'الميزانية',       fr:'Budget'},
+    'lbl.spent':        {ar:'المُنفَق',        fr:'Dépensé'},
+    'lbl.progress':     {ar:'التقدم',          fr:'Avancement'},
+    'lbl.client':       {ar:'العميل',          fr:'Client'},
+    'lbl.wilaya':       {ar:'الولاية',         fr:'Wilaya'},
+    'lbl.date':         {ar:'التاريخ',         fr:'Date'},
+    'lbl.amount':       {ar:'المبلغ',          fr:'Montant'},
+    'lbl.worker':       {ar:'العامل',          fr:'Ouvrier'},
+    'lbl.salary':       {ar:'الأجر',           fr:'Salaire'},
+    'lbl.phone':        {ar:'الهاتف',          fr:'Téléphone'},
+    'lbl.name':         {ar:'الاسم',           fr:'Nom'},
+    'lbl.type':         {ar:'النوع',           fr:'Type'},
+    'lbl.notes':        {ar:'ملاحظات',         fr:'Notes'},
+    'lbl.total':        {ar:'الإجمالي',        fr:'Total'},
+    'lbl.revenue':      {ar:'إيراد',           fr:'Revenu'},
+    'lbl.expense':      {ar:'مصروف',           fr:'Dépense'},
+    'lbl.profit':       {ar:'الربح',           fr:'Bénéfice'},
+    'lbl.netProfit':    {ar:'الربح الصافي',    fr:'Bénéfice net'},
+    'lbl.allWilayas':   {ar:'كل الولايات',     fr:'Toutes wilayas'},
+    'lbl.allStatus':    {ar:'كل الحالات',      fr:'Tous statuts'},
+    'lbl.allTypes':     {ar:'كل أنواع المشاريع',fr:'Tous types'},
     // Pages titles
-    'page.projects': {ar:'🏗️ المشاريع', fr:'🏗️ Projets', en:'🏗️ Projects'},
-    'page.workers': {ar:'👷 العمال', fr:'👷 Ouvriers', en:'👷 Workers'},
-    'page.equipment': {ar:'🚜 المعدات', fr:'🚜 Équipements', en:'🚜 Equipment'},
-    'page.transactions': {ar:'💰 المعاملات المالية', fr:'💰 Transactions financières', en:'💰 Financial Transactions'},
-    'page.reports': {ar:'📈 التقارير', fr:'📈 Rapports', en:'📈 Reports'},
-    'page.settings': {ar:'⚙️ الإعدادات', fr:'⚙️ Paramètres', en:'⚙️ Settings'},
-    'page.compare': {ar:'📊 مقارنة المشاريع', fr:'📊 Comparaison de projets', en:'📊 Compare Projects'},
-    'page.calendar': {ar:'🗓️ تقويم المشاريع', fr:'🗓️ Calendrier des projets', en:'🗓️ Project Calendar'},
-    'page.map': {ar:'🗺️ خريطة المشاريع', fr:'🗺️ Carte des projets', en:'🗺️ Project Map'},
-    'page.backup': {ar:'💾 النسخ الاحتياطي', fr:'💾 Sauvegarde', en:'💾 Backup'},
+    'page.projects':    {ar:'🏗️ المشاريع',    fr:'🏗️ Projets'},
+    'page.workers':     {ar:'👷 العمال',       fr:'👷 Ouvriers'},
+    'page.equipment':   {ar:'🚜 المعدات',      fr:'🚜 Équipements'},
+    'page.transactions':{ar:'💰 المعاملات المالية', fr:'💰 Transactions financières'},
+    'page.reports':     {ar:'📈 التقارير',     fr:'📈 Rapports'},
+    'page.settings':    {ar:'⚙️ الإعدادات',   fr:'⚙️ Paramètres'},
+    'page.compare':     {ar:'📊 مقارنة المشاريع', fr:'📊 Comparaison de projets'},
+    'page.calendar':    {ar:'🗓️ تقويم المشاريع', fr:'🗓️ Calendrier des projets'},
+    'page.map':         {ar:'🗺️ خريطة المشاريع', fr:'🗺️ Carte des projets'},
+    'page.backup':      {ar:'💾 النسخ الاحتياطي', fr:'💾 Sauvegarde'},
     // Dashboard v9
-    'dash.healthScore': {ar:'مؤشر صحة المؤسسة', fr:'Score de santé', en:'Company Health Score'},
-    'dash.healthSub': {ar:'تقييم شامل للأداء المالي والتشغيلي', fr:'Évaluation globale des performances', en:'Overall financial & operational performance'},
-    'dash.activeProj': {ar:'مشاريع نشطة', fr:'Projets actifs', en:'Active Projects'},
-    'dash.forecastProfit': {ar:'ربح متوقع/شهر (دج)', fr:'Bénéfice prévu/mois (DA)', en:'Forecast Profit/Month (DZD)'},
-    'dash.atRisk': {ar:'مشاريع في خطر', fr:'Projets à risque', en:'Projects at Risk'},
-    'dash.netLiquidity': {ar:'صافي السيولة (دج)', fr:'Liquidité nette (DA)', en:'Net Liquidity (DZD)'},
+    'dash.healthScore':   {ar:'مؤشر صحة المؤسسة',      fr:'Score de santé'},
+    'dash.healthSub':     {ar:'تقييم شامل للأداء المالي والتشغيلي', fr:'Évaluation globale des performances'},
+    'dash.activeProj':    {ar:'مشاريع نشطة',            fr:'Projets actifs'},
+    'dash.forecastProfit':{ar:'ربح متوقع/شهر (دج)',     fr:'Bénéfice prévu/mois (DA)'},
+    'dash.atRisk':        {ar:'مشاريع في خطر',          fr:'Projets à risque'},
+    'dash.netLiquidity':  {ar:'صافي السيولة (دج)',       fr:'Liquidité nette (DA)'},
     'dash.todayPresence': {ar:'حضور اليوم',              fr:'Présence aujourd\'hui'},
-    'dash.budgetConsum': {ar:'استهلاك الميزانية الإجمالي', fr:'Consommation budget global', en:'Total Budget Consumption'},
-    'dash.riskPanel': {ar:'لوحة المخاطر الذكية', fr:'Tableau des risques IA', en:'Smart Risk Dashboard'},
-    'dash.noRisks': {ar:'لا مخاطر مكتشفة الآن', fr:'Aucun risque détecté', en:'No risks detected'},
-    'dash.forecastTitle': {ar:'توقعات الربح', fr:'Prévisions de bénéfice', en:'Profit Forecast'},
-    'dash.thisMonth': {ar:'هذا الشهر', fr:'Ce mois', en:'This Month'},
-    'dash.monthRevenue': {ar:'إيرادات الشهر', fr:'Revenus du mois', en:'Month Revenue'},
-    'dash.dailyBurn': {ar:'معدل الصرف اليومي', fr:'Taux de dépense journalier', en:'Daily Burn Rate'},
-    'dash.forecastExp': {ar:'مصاريف متوقعة نهاية الشهر', fr:'Dépenses prévues fin du mois', en:'Forecast Expenses (end of month)'},
-    'dash.forecastEnd': {ar:'ربح متوقع نهاية الشهر', fr:'Bénéfice prévu fin du mois', en:'Forecast Profit (end of month)'},
+    'dash.budgetConsum':  {ar:'استهلاك الميزانية الإجمالي', fr:'Consommation budget global'},
+    'dash.riskPanel':     {ar:'لوحة المخاطر الذكية',    fr:'Tableau des risques IA'},
+    'dash.noRisks':       {ar:'لا مخاطر مكتشفة الآن',   fr:'Aucun risque détecté'},
+    'dash.forecastTitle': {ar:'توقعات الربح',            fr:'Prévisions de bénéfice'},
+    'dash.thisMonth':     {ar:'هذا الشهر',               fr:'Ce mois'},
+    'dash.monthRevenue':  {ar:'إيرادات الشهر',           fr:'Revenus du mois'},
+    'dash.dailyBurn':     {ar:'معدل الصرف اليومي',       fr:'Taux de dépense journalier'},
+    'dash.forecastExp':   {ar:'مصاريف متوقعة نهاية الشهر', fr:'Dépenses prévues fin du mois'},
+    'dash.forecastEnd':   {ar:'ربح متوقع نهاية الشهر',   fr:'Bénéfice prévu fin du mois'},
     'dash.workerEff':     {ar:'كفاءة القوى العاملة',     fr:'Efficacité de la main-d\'œuvre'},
-    'dash.totalWorkers': {ar:'إجمالي عمال', fr:'Total ouvriers', en:'Total Workers'},
-    'dash.dailyCost': {ar:'تكلفة يومية إجمالية', fr:'Coût journalier total', en:'Total Daily Cost'},
+    'dash.totalWorkers':  {ar:'إجمالي عمال',             fr:'Total ouvriers'},
+    'dash.dailyCost':     {ar:'تكلفة يومية إجمالية',     fr:'Coût journalier total'},
     'dash.presentToday':  {ar:'حاضر اليوم',              fr:'Présent aujourd\'hui'},
-    'dash.cashflow': {ar:'التدفق النقدي (6 أشهر)', fr:'Flux de trésorerie (6 mois)', en:'Cash Flow (6 months)'},
-    'dash.revenues': {ar:'إيرادات', fr:'Revenus', en:'Revenues'},
-    'dash.expenses': {ar:'مصاريف', fr:'Dépenses', en:'Expenses'},
-    'dash.profitClass': {ar:'تصنيف ربحية المشاريع', fr:'Classification rentabilité', en:'Project Profitability'},
-    'dash.recentProj': {ar:'آخر المشاريع', fr:'Projets récents', en:'Recent Projects'},
-    'dash.viewAll': {ar:'عرض الكل ←', fr:'Voir tout →', en:'View All →'},
-    'dash.newProject': {ar:'+ مشروع جديد', fr:'+ Nouveau projet', en:'+ New Project'},
-    'dash.worker': {ar:'عامل', fr:'ouvrier(s)', en:'worker(s)'},
-    'dash.stable': {ar:'🟢 مستقر', fr:'🟢 Stable', en:'🟢 Stable'},
-    'dash.needsAttn': {ar:'🟡 تحتاج انتباه', fr:'🟡 Attention requise', en:'🟡 Needs Attention'},
-    'dash.danger': {ar:'🔴 خطر مالي', fr:'🔴 Danger financier', en:'🔴 Financial Risk'},
-    'dash.overrunWarn': {ar:'تجاوز متوقع', fr:'Dépassement prévu', en:'Expected overrun'},
-    'dash.noProjects': {ar:'لا توجد مشاريع بعد', fr:'Aucun projet encore', en:'No projects yet'},
-    'dash.alerts': {ar:'تنبيه', fr:'alerte(s)', en:'alert(s)'},
-    'dash.budgetPct': {ar:'مُستهلَك، تقدم', fr:'consommé, avancement', en:'consumed, progress'},
-    'dash.delayed': {ar:'متأخر', fr:'En retard', en:'Delayed'},
-    'dash.region': {ar:'الولاية:', fr:'Wilaya:', en:'Wilaya:'},
-    'dash.forecastOver': {ar:'تجاوز ميزانية متوقع', fr:'Dépassement budget prévu', en:'Budget overrun expected'},
-    'dash.totalBudget': {ar:'دج', fr:'DA', en:'DZD'},
-    'dash.profHigh': {ar:'🟢 مربح', fr:'🟢 Rentable', en:'🟢 Profitable'},
-    'dash.profMed': {ar:'🟡 متوسط', fr:'🟡 Moyen', en:'🟡 Medium'},
-    'dash.profLow': {ar:'🟠 ضعيف', fr:'🟠 Faible', en:'🟠 Low'},
-    'dash.profLoss': {ar:'🔴 خاسر', fr:'🔴 Déficitaire', en:'🔴 Loss'},
-    'dash.riskBudget70': {ar:'تجاوز 70% ميزانية قبل 50% تقدم', fr:'70% budget avant 50% avancement', en:'70% budget before 50% progress'},
-    'dash.riskConsumed': {ar:'مستهلك، تقدم', fr:'consommé, avancement', en:'consumed, progress'},
-    'dash.riskDelayed': {ar:'متأخر', fr:'En retard', en:'Delayed'},
-    'dash.riskWilaya': {ar:'الولاية:', fr:'Wilaya:', en:'Wilaya:'},
-    'dash.riskForecast': {ar:'توقع تجاوز ميزانية', fr:'Dépassement budget prévu', en:'Budget overrun expected'},
-    'dash.riskOverrun': {ar:'تجاوز متوقع:', fr:'Dépassement prévu:', en:'Expected overrun:'},
-    'dash.budgetConsumed': {ar:'% مستهلك', fr:'% consommé', en:'% consumed'},
+    'dash.cashflow':      {ar:'التدفق النقدي (6 أشهر)',  fr:'Flux de trésorerie (6 mois)'},
+    'dash.revenues':      {ar:'إيرادات',                 fr:'Revenus'},
+    'dash.expenses':      {ar:'مصاريف',                  fr:'Dépenses'},
+    'dash.profitClass':   {ar:'تصنيف ربحية المشاريع',   fr:'Classification rentabilité'},
+    'dash.recentProj':    {ar:'آخر المشاريع',            fr:'Projets récents'},
+    'dash.viewAll':       {ar:'عرض الكل ←',              fr:'Voir tout →'},
+    'dash.newProject':    {ar:'+ مشروع جديد',            fr:'+ Nouveau projet'},
+    'dash.worker':        {ar:'عامل',                    fr:'ouvrier(s)'},
+    'dash.stable':        {ar:'🟢 مستقر',                fr:'🟢 Stable'},
+    'dash.needsAttn':     {ar:'🟡 تحتاج انتباه',         fr:'🟡 Attention requise'},
+    'dash.danger':        {ar:'🔴 خطر مالي',             fr:'🔴 Danger financier'},
+    'dash.overrunWarn':   {ar:'تجاوز متوقع',             fr:'Dépassement prévu'},
+    'dash.noProjects':    {ar:'لا توجد مشاريع بعد',      fr:'Aucun projet encore'},
+    'dash.alerts':        {ar:'تنبيه',                   fr:'alerte(s)'},
+    'dash.budgetPct':     {ar:'مُستهلَك، تقدم',          fr:'consommé, avancement'},
+    'dash.delayed':       {ar:'متأخر',                   fr:'En retard'},
+    'dash.region':        {ar:'الولاية:',                fr:'Wilaya:'},
+    'dash.forecastOver':  {ar:'تجاوز ميزانية متوقع',    fr:'Dépassement budget prévu'},
+    'dash.totalBudget':   {ar:'دج',                      fr:'DA'},
+    'dash.profHigh':      {ar:'🟢 مربح',                 fr:'🟢 Rentable'},
+    'dash.profMed':       {ar:'🟡 متوسط',                fr:'🟡 Moyen'},
+    'dash.profLow':       {ar:'🟠 ضعيف',                 fr:'🟠 Faible'},
+    'dash.profLoss':      {ar:'🔴 خاسر',                 fr:'🔴 Déficitaire'},
+    'dash.riskBudget70':  {ar:'تجاوز 70% ميزانية قبل 50% تقدم', fr:'70% budget avant 50% avancement'},
+    'dash.riskConsumed':  {ar:'مستهلك، تقدم',            fr:'consommé, avancement'},
+    'dash.riskDelayed':   {ar:'متأخر',                   fr:'En retard'},
+    'dash.riskWilaya':    {ar:'الولاية:',                fr:'Wilaya:'},
+    'dash.riskForecast':  {ar:'توقع تجاوز ميزانية',     fr:'Dépassement budget prévu'},
+    'dash.riskOverrun':   {ar:'تجاوز متوقع:',            fr:'Dépassement prévu:'},
+    'dash.budgetConsumed':{ar:'% مستهلك',                fr:'% consommé'},
     // Settings
-    'set.company': {ar:'معلومات الشركة', fr:'Infos société', en:'Company Info'},
-    'set.companyName': {ar:'اسم الشركة', fr:'Nom de la société', en:'Company Name'},
-    'set.language': {ar:'اللغة', fr:'Langue', en:'Language'},
-    'set.langAr': {ar:'العربية', fr:'Arabe', en:'Arabic'},
-    'set.langFr': {ar:'الفرنسية', fr:'Français', en:'French'},
-    'set.backup': {ar:'النسخ الاحتياطي', fr:'Sauvegarde', en:'Backup'},
-    'set.exportAll': {ar:'تصدير جميع البيانات', fr:'Exporter toutes les données', en:'Export All Data'},
-    'set.importData': {ar:'استيراد البيانات', fr:'Importer des données', en:'Import Data'},
-    'set.saveChanges': {ar:'💾 حفظ التغييرات', fr:'💾 Sauvegarder', en:'💾 Save Changes'},
-    'set.password': {ar:'🔑 تغيير كلمة المرور', fr:'🔑 Changer mot de passe', en:'🔑 Change Password'},
+    'set.company':      {ar:'معلومات الشركة',  fr:'Infos société'},
+    'set.companyName':  {ar:'اسم الشركة',      fr:'Nom de la société'},
+    'set.language':     {ar:'اللغة',           fr:'Langue'},
+    'set.langAr':       {ar:'العربية',         fr:'Arabe'},
+    'set.langFr':       {ar:'الفرنسية',        fr:'Français'},
+    'set.backup':       {ar:'النسخ الاحتياطي', fr:'Sauvegarde'},
+    'set.exportAll':    {ar:'تصدير جميع البيانات', fr:'Exporter toutes les données'},
+    'set.importData':   {ar:'استيراد البيانات', fr:'Importer des données'},
+    'set.saveChanges':  {ar:'💾 حفظ التغييرات', fr:'💾 Sauvegarder'},
+    'set.password':     {ar:'🔑 تغيير كلمة المرور', fr:'🔑 Changer mot de passe'},
     // Compare
-    'cmp.title': {ar:'مقارنة المشاريع', fr:'Comparaison de projets', en:'Compare Projects'},
-    'cmp.select1': {ar:'المشروع الأول', fr:'Premier projet', en:'First Project'},
-    'cmp.select2': {ar:'المشروع الثاني', fr:'Deuxième projet', en:'Second Project'},
-    'cmp.compare': {ar:'قارن الآن', fr:'Comparer', en:'Compare Now'},
-    'cmp.budget': {ar:'الميزانية', fr:'Budget', en:'Budget'},
-    'cmp.spent': {ar:'المُنفَق', fr:'Dépensé', en:'Spent'},
-    'cmp.progress': {ar:'التقدم', fr:'Avancement', en:'Progress'},
-    'cmp.workers': {ar:'العمال', fr:'Ouvriers', en:'Workers'},
-    'cmp.duration': {ar:'المدة (يوم)', fr:'Durée (j)', en:'Duration (days)'},
-    'cmp.efficiency': {ar:'كفاءة الميزانية', fr:'Efficacité budget', en:'Budget Efficiency'},
+    'cmp.title':        {ar:'مقارنة المشاريع', fr:'Comparaison de projets'},
+    'cmp.select1':      {ar:'المشروع الأول',   fr:'Premier projet'},
+    'cmp.select2':      {ar:'المشروع الثاني',  fr:'Deuxième projet'},
+    'cmp.compare':      {ar:'قارن الآن',       fr:'Comparer'},
+    'cmp.budget':       {ar:'الميزانية',       fr:'Budget'},
+    'cmp.spent':        {ar:'المُنفَق',        fr:'Dépensé'},
+    'cmp.progress':     {ar:'التقدم',          fr:'Avancement'},
+    'cmp.workers':      {ar:'العمال',          fr:'Ouvriers'},
+    'cmp.duration':     {ar:'المدة (يوم)',      fr:'Durée (j)'},
+    'cmp.efficiency':   {ar:'كفاءة الميزانية', fr:'Efficacité budget'},
 
     // ── HR ──
-    'hr.leaves': {ar:'الإجازات', fr:'Congés', en:'Leave'},
-    'hr.leave.annual': {ar:'إجازة سنوية', fr:'Congé annuel', en:'Annual Leave'},
-    'hr.leave.sick': {ar:'إجازة مرضية', fr:'Congé maladie', en:'Sick Leave'},
-    'hr.leave.maternity': {ar:'إجازة أمومة', fr:'Congé maternité', en:'Maternity Leave'},
-    'hr.leave.unpaid': {ar:'إجازة بدون أجر', fr:'Congé sans solde', en:'Unpaid Leave'},
-    'hr.leave.other': {ar:'إجازة أخرى', fr:'Autre congé', en:'Other Leave'},
-    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant', en:'Remaining Leave Balance'},
+    'hr.leaves':        {ar:'الإجازات',              fr:'Congés'},
+    'hr.leave.annual':  {ar:'إجازة سنوية',           fr:'Congé annuel'},
+    'hr.leave.sick':    {ar:'إجازة مرضية',           fr:'Congé maladie'},
+    'hr.leave.maternity':{ar:'إجازة أمومة',          fr:'Congé maternité'},
+    'hr.leave.unpaid':  {ar:'إجازة بدون أجر',        fr:'Congé sans solde'},
+    'hr.leave.other':   {ar:'إجازة أخرى',            fr:'Autre congé'},
+    'hr.leave.balance': {ar:'رصيد الإجازة المتبقية', fr:'Solde congé restant'},
     'hr.leave.pending': {ar:'بانتظار الموافقة',       fr:'En attente d\'approbation'},
-    'hr.leave.approved': {ar:'مُعتمد', fr:'Approuvé', en:'Approved'},
-    'hr.leave.rejected': {ar:'مرفوض', fr:'Refusé', en:'Rejected'},
-    'hr.warning': {ar:'إنذار', fr:'Avertissement', en:'Warning'},
-    'hr.warning.verbal': {ar:'شفوي', fr:'Verbal', en:'Verbal'},
-    'hr.warning.written': {ar:'كتابي', fr:'Écrit', en:'Written'},
-    'hr.warning.final': {ar:'إنذار نهائي', fr:'Avertissement final', en:'Final Warning'},
-    'hr.overtime': {ar:'ساعات إضافية', fr:'Heures supplémentaires', en:'Overtime Hours'},
-    'hr.overtime.rate': {ar:'نسبة المكافأة', fr:'Taux de majoration', en:'Bonus Rate'},
-    'hr.profile': {ar:'الملف التفصيلي', fr:'Profil détaillé', en:'Detailed Profile'},
-    'hr.contract.end': {ar:'تاريخ انتهاء العقد', fr:'Date de fin de contrat', en:'Contract End Date'},
-    'hr.contract.expiring': {ar:'تنتهي عقودهم قريباً', fr:'Contrats bientôt expirés', en:'Expiring Contracts'},
-    'hr.absence.cost': {ar:'تكلفة الغياب', fr:'Coût des absences', en:'Absence Cost'},
-    'hr.allowances': {ar:'العلاوات', fr:'Primes', en:'Allowances'},
-    'hr.deductions': {ar:'الخصومات', fr:'Déductions', en:'Deductions'},
-    'hr.transport': {ar:'بدل نقل', fr:'Indemnité transport', en:'Transport Allowance'},
-    'hr.housing': {ar:'بدل إقامة', fr:'Indemnité logement', en:'Housing Allowance'},
-    'hr.productivity': {ar:'علاوة إنتاجية', fr:'Prime de productivité', en:'Productivity Bonus'},
+    'hr.leave.approved':{ar:'مُعتمد',                fr:'Approuvé'},
+    'hr.leave.rejected':{ar:'مرفوض',                 fr:'Refusé'},
+    'hr.warning':       {ar:'إنذار',                 fr:'Avertissement'},
+    'hr.warning.verbal':{ar:'شفوي',                  fr:'Verbal'},
+    'hr.warning.written':{ar:'كتابي',                fr:'Écrit'},
+    'hr.warning.final': {ar:'إنذار نهائي',           fr:'Avertissement final'},
+    'hr.overtime':      {ar:'ساعات إضافية',          fr:'Heures supplémentaires'},
+    'hr.overtime.rate': {ar:'نسبة المكافأة',         fr:'Taux de majoration'},
+    'hr.profile':       {ar:'الملف التفصيلي',        fr:'Profil détaillé'},
+    'hr.contract.end':  {ar:'تاريخ انتهاء العقد',    fr:'Date de fin de contrat'},
+    'hr.contract.expiring':{ar:'تنتهي عقودهم قريباً',fr:'Contrats bientôt expirés'},
+    'hr.absence.cost':  {ar:'تكلفة الغياب',          fr:'Coût des absences'},
+    'hr.allowances':    {ar:'العلاوات',              fr:'Primes'},
+    'hr.deductions':    {ar:'الخصومات',              fr:'Déductions'},
+    'hr.transport':     {ar:'بدل نقل',               fr:'Indemnité transport'},
+    'hr.housing':       {ar:'بدل إقامة',             fr:'Indemnité logement'},
+    'hr.productivity':  {ar:'علاوة إنتاجية',         fr:'Prime de productivité'},
 
     // ── Invoices ──
-    'inv.draft': {ar:'مسودة', fr:'Brouillon', en:'Draft'},
-    'inv.pending': {ar:'معلقة', fr:'En attente', en:'Pending'},
-    'inv.partial': {ar:'جزئية', fr:'Paiement partiel', en:'Partial'},
-    'inv.paid': {ar:'مدفوعة', fr:'Payée', en:'Paid'},
-    'inv.overdue': {ar:'متأخرة', fr:'En retard', en:'Overdue'},
-    'inv.confirm': {ar:'تأكيد الفاتورة', fr:'Confirmer la facture', en:'Confirm Invoice'},
-    'inv.partial.pay': {ar:'تسجيل دفع جزئي', fr:'Paiement partiel', en:'Record Partial Payment'},
+    'inv.draft':        {ar:'مسودة',               fr:'Brouillon'},
+    'inv.pending':      {ar:'معلقة',               fr:'En attente'},
+    'inv.partial':      {ar:'جزئية',               fr:'Paiement partiel'},
+    'inv.paid':         {ar:'مدفوعة',              fr:'Payée'},
+    'inv.overdue':      {ar:'متأخرة',              fr:'En retard'},
+    'inv.confirm':      {ar:'تأكيد الفاتورة',      fr:'Confirmer la facture'},
+    'inv.partial.pay':  {ar:'تسجيل دفع جزئي',      fr:'Paiement partiel'},
     'inv.aging':        {ar:'تقرير الذمم المدينة',  fr:'Rapport d\'aging'},
-    'inv.balance': {ar:'الرصيد المتبقي', fr:'Solde restant', en:'Remaining Balance'},
-    'inv.paid_amount': {ar:'المبلغ المدفوع', fr:'Montant payé', en:'Paid Amount'},
-    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive', en:'Upload to Google Drive'},
+    'inv.balance':      {ar:'الرصيد المتبقي',       fr:'Solde restant'},
+    'inv.paid_amount':  {ar:'المبلغ المدفوع',       fr:'Montant payé'},
+    'inv.upload.drive': {ar:'رفع لـ Google Drive', fr:'Envoyer sur Drive'},
 
     // ── Suppliers ──
-    'sup.prices': {ar:'قائمة الأسعار', fr:'Tarifs de référence', en:'Price List'},
-    'sup.obligations': {ar:'الالتزامات', fr:'Obligations', en:'Obligations'},
-    'sup.obl.invoice': {ar:'فاتورة آجلة', fr:'Facture à terme', en:'Deferred Invoice'},
-    'sup.obl.check': {ar:'شيك مستحق', fr:'Chèque à encaisser', en:'Check Due'},
-    'sup.obl.deposit': {ar:'ضمان/عربون', fr:'Caution/Acompte', en:'Deposit/Advance'},
-    'sup.obl.loan': {ar:'قرض/سلفة', fr:'Prêt/Avance', en:'Loan/Advance'},
-    'sup.obl.done': {ar:'تأشير كمنجز', fr:'Marquer accompli', en:'Mark as Done'},
+    'sup.prices':       {ar:'قائمة الأسعار',       fr:'Tarifs de référence'},
+    'sup.obligations':  {ar:'الالتزامات',          fr:'Obligations'},
+    'sup.obl.invoice':  {ar:'فاتورة آجلة',         fr:'Facture à terme'},
+    'sup.obl.check':    {ar:'شيك مستحق',           fr:'Chèque à encaisser'},
+    'sup.obl.deposit':  {ar:'ضمان/عربون',          fr:'Caution/Acompte'},
+    'sup.obl.loan':     {ar:'قرض/سلفة',            fr:'Prêt/Avance'},
+    'sup.obl.done':     {ar:'تأشير كمنجز',         fr:'Marquer accompli'},
     'sup.due':          {ar:'تاريخ الاستحقاق',     fr:'Date d\'échéance'},
-    'sup.ref': {ar:'المرجع', fr:'Référence', en:'Reference'},
+    'sup.ref':          {ar:'المرجع',              fr:'Référence'},
 
     // ── Filter ──
-    'filter.project': {ar:'تصفية بالمشروع', fr:'Filtrer par projet', en:'Filter by Project'},
-    'filter.all': {ar:'كل المشاريع', fr:'Tous les projets', en:'All Projects'},
-    'filter.clear': {ar:'إلغاء الفلتر', fr:'Effacer le filtre', en:'Clear Filter'},
+    'filter.project':   {ar:'تصفية بالمشروع',     fr:'Filtrer par projet'},
+    'filter.all':       {ar:'كل المشاريع',        fr:'Tous les projets'},
+    'filter.clear':     {ar:'إلغاء الفلتر',       fr:'Effacer le filtre'},
 
     // ── Print ──
-    'print.customize': {ar:'تخصيص الورقة', fr:'Personnaliser', en:'Customize'},
-    'print.font': {ar:'نوع الخط', fr:'Police', en:'Font'},
-    'print.fontSize': {ar:'حجم الخط', fr:'Taille police', en:'Font Size'},
-    'print.color': {ar:'اللون الرئيسي', fr:'Couleur principale', en:'Primary Color'},
-    'print.margin': {ar:'الهوامش', fr:'Marges', en:'Margins'},
-    'print.pageSize': {ar:'حجم الورق', fr:'Format papier', en:'Page Size'},
-    'print.orient': {ar:'الاتجاه', fr:'Orientation', en:'Orientation'},
-    'print.portrait': {ar:'عمودي', fr:'Portrait', en:'Portrait'},
-    'print.landscape': {ar:'أفقي', fr:'Paysage', en:'Landscape'},
-    'print.watermark': {ar:'نص خلفي', fr:'Filigrane', en:'Watermark'},
-    'print.lineHeight': {ar:'تباعد الأسطر', fr:'Interligne', en:'Line Height'},
-    'print.save': {ar:'حفظ الإعدادات', fr:'Sauvegarder paramètres', en:'Save Settings'},
-    'print.reset': {ar:'إعادة الإعدادات', fr:'Réinitialiser', en:'Reset'},
-    'print.savePC': {ar:'حفظ على الحاسوب', fr:'Enregistrer sur PC', en:'Save to PC'},
-    'print.showLogo': {ar:'إظهار الشعار', fr:'Afficher logo', en:'Show Logo'},
-    'print.showFooter': {ar:'إظهار الفوتر', fr:'Afficher pied de page', en:'Show Footer'},
-    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page', en:'Footer Text'},
-    'print.tableHeader': {ar:'لون رأس الجدول', fr:'Couleur en-tête tableau', en:'Table Header Color'},
-    'print.rowColor': {ar:'لون الصفوف', fr:'Couleur des lignes', en:'Row Color'},
-    'print.headingSize': {ar:'حجم العناوين', fr:'Taille des titres', en:'Heading Size'},
+    'print.customize':  {ar:'تخصيص الورقة',      fr:'Personnaliser'},
+    'print.font':       {ar:'نوع الخط',          fr:'Police'},
+    'print.fontSize':   {ar:'حجم الخط',          fr:'Taille police'},
+    'print.color':      {ar:'اللون الرئيسي',     fr:'Couleur principale'},
+    'print.margin':     {ar:'الهوامش',           fr:'Marges'},
+    'print.pageSize':   {ar:'حجم الورق',         fr:'Format papier'},
+    'print.orient':     {ar:'الاتجاه',           fr:'Orientation'},
+    'print.portrait':   {ar:'عمودي',             fr:'Portrait'},
+    'print.landscape':  {ar:'أفقي',              fr:'Paysage'},
+    'print.watermark':  {ar:'نص خلفي',           fr:'Filigrane'},
+    'print.lineHeight': {ar:'تباعد الأسطر',      fr:'Interligne'},
+    'print.save':       {ar:'حفظ الإعدادات',     fr:'Sauvegarder paramètres'},
+    'print.reset':      {ar:'إعادة الإعدادات',   fr:'Réinitialiser'},
+    'print.savePC':     {ar:'حفظ على الحاسوب',   fr:'Enregistrer sur PC'},
+    'print.showLogo':   {ar:'إظهار الشعار',      fr:'Afficher logo'},
+    'print.showFooter': {ar:'إظهار الفوتر',      fr:'Afficher pied de page'},
+    'print.footerText': {ar:'نص مخصص في الفوتر', fr:'Texte pied de page'},
+    'print.tableHeader':{ar:'لون رأس الجدول',    fr:'Couleur en-tête tableau'},
+    'print.rowColor':   {ar:'لون الصفوف',        fr:'Couleur des lignes'},
+    'print.headingSize':{ar:'حجم العناوين',      fr:'Taille des titres'},
 
     // ── Backup ──
-    'bak.export': {ar:'تصدير نسخة احتياطية', fr:'Exporter sauvegarde', en:'Export Backup'},
-    'bak.import': {ar:'استعادة من نسخة', fr:'Restaurer depuis', en:'Restore from Backup'},
-    'bak.exportExcel': {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel', en:'Export Transactions Excel'},
-    'bak.exportSalary': {ar:'تصدير الرواتب Excel', fr:'Exporter salaires Excel', en:'Export Payroll Excel'},
+    'bak.export':       {ar:'تصدير نسخة احتياطية',  fr:'Exporter sauvegarde'},
+    'bak.import':       {ar:'استعادة من نسخة',       fr:'Restaurer depuis'},
+    'bak.exportExcel':  {ar:'تصدير المعاملات Excel', fr:'Exporter transactions Excel'},
+    'bak.exportSalary': {ar:'تصدير الرواتب Excel',   fr:'Exporter salaires Excel'},
 
     // ── Auth ──
-    'auth.phone': {ar:'رقم الهاتف', fr:'Téléphone', en:'Phone Number'},
-    'auth.sendOtp': {ar:'إرسال كود', fr:'Envoyer code', en:'Send Code'},
-    'auth.otp': {ar:'كود التحقق', fr:'Code de vérification', en:'Verification Code'},
-    'auth.otpSent': {ar:'تم إرسال الكود إلى', fr:'Code envoyé à', en:'Code sent to'},
-    'auth.otpExpiry': {ar:'ينتهي خلال', fr:'Expire dans', en:'Expires in'},
-    'auth.resend': {ar:'إعادة إرسال', fr:'Renvoyer', en:'Resend'},
-    'auth.register': {ar:'إنشاء حساب مجاناً', fr:'Créer un compte gratuit', en:'Create Free Account'},
-    'auth.login': {ar:'تسجيل الدخول', fr:'Connexion', en:'Sign In'},
+    'auth.phone':       {ar:'رقم الهاتف',           fr:'Téléphone'},
+    'auth.sendOtp':     {ar:'إرسال كود',             fr:'Envoyer code'},
+    'auth.otp':         {ar:'كود التحقق',            fr:'Code de vérification'},
+    'auth.otpSent':     {ar:'تم إرسال الكود إلى',    fr:'Code envoyé à'},
+    'auth.otpExpiry':   {ar:'ينتهي خلال',            fr:'Expire dans'},
+    'auth.resend':      {ar:'إعادة إرسال',           fr:'Renvoyer'},
+    'auth.register':    {ar:'إنشاء حساب مجاناً',     fr:'Créer un compte gratuit'},
+    'auth.login':       {ar:'تسجيل الدخول',          fr:'Connexion'},
     'auth.company':     {ar:'اسم المؤسسة',           fr:'Nom de l\'entreprise'},
-    'auth.fullName': {ar:'الاسم الكامل', fr:'Nom complet', en:'Full Name'},
-    'auth.password': {ar:'كلمة المرور', fr:'Mot de passe', en:'Password'},
-    'auth.wilaya': {ar:'الولاية', fr:'Wilaya', en:'Wilaya'},
+    'auth.fullName':    {ar:'الاسم الكامل',          fr:'Nom complet'},
+    'auth.password':    {ar:'كلمة المرور',           fr:'Mot de passe'},
+    'auth.wilaya':      {ar:'الولاية',               fr:'Wilaya'},
     'auth.terms':       {ar:'أوافق على الشروط',      fr:'J\'accepte les conditions'},
-    'auth.trial': {ar:'14 يوم مجاناً', fr:'14 jours gratuits', en:'14 days free'},
-    'auth.noCard': {ar:'بدون بطاقة بنكية', fr:'Sans carte bancaire', en:'No credit card required'},
+    'auth.trial':       {ar:'14 يوم مجاناً',         fr:'14 jours gratuits'},
+    'auth.noCard':      {ar:'بدون بطاقة بنكية',      fr:'Sans carte bancaire'},
 
     // ── Drive ──
-    'drive.connect': {ar:'ربط Google Drive', fr:'Connecter Google Drive', en:'Connect Google Drive'},
-    'drive.connected': {ar:'متصل', fr:'Connecté', en:'Connected'},
-    'drive.files': {ar:'آخر الملفات المحفوظة', fr:'Derniers fichiers sauvegardés', en:'Recent Saved Files'},
-    'drive.clientId': {ar:'إعداد Client ID', fr:'Configuration Client ID', en:'Client ID Setup'},
+    'drive.connect':    {ar:'ربط Google Drive',      fr:'Connecter Google Drive'},
+    'drive.connected':  {ar:'متصل',                  fr:'Connecté'},
+    'drive.files':      {ar:'آخر الملفات المحفوظة',  fr:'Derniers fichiers sauvegardés'},
+    'drive.clientId':   {ar:'إعداد Client ID',       fr:'Configuration Client ID'},
 
     // ── Protection ──
-    'prot.unsaved': {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!', en:'Unsaved data!'},
-    'prot.syncFirst': {ar:'ارفع التعديلات ثم اخرج', fr:'Synchroniser puis quitter', en:'Sync changes then exit'},
-    'prot.exitAnyway': {ar:'اخرج بدون رفع', fr:'Quitter sans synchroniser', en:'Exit without saving'},
-    'prot.stay': {ar:'رجوع — لا أريد الخروج', fr:'Annuler', en:'Cancel'},
+    'prot.unsaved':     {ar:'بيانات لم تُرفع بعد!', fr:'Données non synchronisées!'},
+    'prot.syncFirst':   {ar:'ارفع التعديلات ثم اخرج',fr:'Synchroniser puis quitter'},
+    'prot.exitAnyway':  {ar:'اخرج بدون رفع',        fr:'Quitter sans synchroniser'},
+    'prot.stay':        {ar:'رجوع — لا أريد الخروج',fr:'Annuler'},
   }
 };
 // Shortcut
@@ -646,6 +591,8 @@ function __(key) { return I18N.t(key); }
 function applyDOMTranslation() {
   if (I18N.currentLang === 'ar') return;
   const lang = I18N.currentLang;
+
+  // ترجمة عناصر data-i18n
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     const val = I18N.t(key);
@@ -672,11 +619,7 @@ function applyDOMTranslation() {
   });
 }
 // Global bilingual helper — use L(ar, fr) anywhere without redefining const L in every page
-function L(ar, fr, en) {
-  if (I18N.currentLang === 'ar') return ar;
-  if (I18N.currentLang === 'en') return en || fr;
-  return fr;
-}
+function L(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; }
 
 // ── الحصول على اسم الكيان (مؤسسة/عامل/عميل) حسب اللغة الحالية ──
 // يدعم حقلين: name (عربي) و name_fr (فرنسي)
@@ -1112,7 +1055,7 @@ const ROLE_PERMISSIONS = {
     inventory:true, equipment:true, materials:true,
     suppliers:true, supplier_detail:true,
     documents:true, reports:true, bank_report:true, simulator:true,
-    obligations:true, audit_log:true, team:true, settings:true, subscription:true,
+    obligations:true, audit_log:true, team:true, settings:true,
     write_projects:true, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:true, write_equipment:true, write_documents:true,
@@ -1142,7 +1085,7 @@ const ROLE_PERMISSIONS = {
     inventory:'view', equipment:'view', materials:'view',
     suppliers:true, supplier_detail:true,
     documents:'view', reports:true, bank_report:true, simulator:true,
-    obligations:true, audit_log:'view', team:'view', settings:'view', subscription:true, subscription:true,
+    obligations:true, audit_log:'view', team:'view', settings:'view',
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:true, write_transactions:true, write_invoices:true,
     write_materials:false, write_equipment:false, write_documents:false,
@@ -1157,7 +1100,7 @@ const ROLE_PERMISSIONS = {
     inventory:false, equipment:false, materials:false,
     suppliers:false, supplier_detail:false,
     documents:false, reports:false, bank_report:false, simulator:false,
-    obligations:false, audit_log:false, team:'view', settings:'view', subscription:true,
+    obligations:false, audit_log:false, team:'view', settings:'view',
     write_projects:false, write_workers:true, write_attendance:true,
     write_salary:true, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
@@ -1172,7 +1115,7 @@ const ROLE_PERMISSIONS = {
     inventory:'view', equipment:'view', materials:'view',
     suppliers:'view', supplier_detail:'view',
     documents:'view', reports:'view', bank_report:false, simulator:'view',
-    obligations:'view', audit_log:false, team:'view', settings:'view', subscription:true,
+    obligations:'view', audit_log:false, team:'view', settings:'view',
     write_projects:false, write_workers:false, write_attendance:false,
     write_salary:false, write_transactions:false, write_invoices:false,
     write_materials:false, write_equipment:false, write_documents:false,
@@ -1194,7 +1137,7 @@ const PAGE_PERM_MAP = {
   dz_documents:'documents', archive:'documents',
   suppliers:'suppliers', supplier_detail:'suppliers',
   worker_profile:'workers',
-  subscription:'subscription',
+  subscription:'settings',
 };
 
 // ── Main permission check ─────────────────────────────
@@ -1388,22 +1331,16 @@ async function _doSyncBeforeExit(isWindowClose) {
 }
 
 const App = {
-  currentPage: 'login',
+  currentPage: 'landing',
   params: {},
   navigate(page, params={}) {
-    this.currentPage = page; this.params = params;
-    // لا نطبق الثيم هنا — render() سيُطبّقه بعد حل الصفحة الفعلية
-    this.render();
+    this.currentPage = page; this.params = params; this.render();
     window.scrollTo(0,0);
   },
   render() {
     const app = document.getElementById('app');
     const user = Auth.getUser();
-    if (!user && !['login'].includes(this.currentPage)) {
-      // لا يوجد مستخدم — أعد التوجيه إلى الصفحة الرئيسية
-      window.location.replace('index.html');
-      return;
-    }
+    if (!user && !['landing','login'].includes(this.currentPage)) this.currentPage = 'landing';
     if (user && this.currentPage === 'login') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
     if (user && this.currentPage === 'landing') this.currentPage = user.is_admin ? 'admin' : 'dashboard';
 
@@ -1424,12 +1361,19 @@ const App = {
       try {
         const tenant = (typeof Auth.getTenant === 'function') ? Auth.getTenant() : null;
         if (tenant && (TrialManager.isExpired(tenant) || tenant.subscription_status === 'expired' || tenant.is_active === false)) {
-          // تجنّب التكرار في نفس الجلسة
-          if (!sessionStorage.getItem('sbtp_trial_modal_shown')) {
-            sessionStorage.setItem('sbtp_trial_modal_shown', '1');
-            // اقفل في Supabase + اعرض modal
-            TrialManager.checkAndEnforce();
-            return; // أوقف الـ render — modal سيتعامل مع كل شيء
+          // ── الاشتراك منتهٍ: منع الدخول وتوجيه لصفحة الاشتراك ──
+          const _allowedExpired = ['landing','login','subscription'];
+          if (!_allowedExpired.includes(this.currentPage)) {
+            this.currentPage = 'subscription';
+            app.innerHTML = (typeof Pages.subscription === 'function') ? Pages.subscription() : '';
+            this.bindEvents();
+            if (typeof applyDOMTranslation === 'function') applyDOMTranslation();
+            // إظهار modal التنبيه في أول مرة فقط
+            if (!sessionStorage.getItem('sbtp_expired_warned')) {
+              sessionStorage.setItem('sbtp_expired_warned', '1');
+              setTimeout(() => TrialManager.checkAndEnforce(), 300);
+            }
+            return;
           }
         }
       } catch(_) {}
@@ -1470,29 +1414,12 @@ const App = {
       simulator:Pages.simulator, bank_report:Pages.bankReport,
       audit_log:Pages.auditLog, obligations:Pages.obligations,
       dz_documents:Pages.dz_documents, archive:Pages.archive, about:Pages.about, contact:Pages.contact };
-    // تطبيق الثيم بعد حل الصفحة الفعلية (لا قبلها)
-    if (typeof _applyThemeForPage === 'function') _applyThemeForPage(this.currentPage);
-
     const render = pages[this.currentPage];
     if (render) {
       app.innerHTML = render();
       this.bindEvents();
       this.animateBars();
-      if (this.currentPage === 'invoices') setTimeout(function(){ if(typeof initDzsGrid==='function') initDzsGrid(); }, 120);
-      if (this.currentPage === 'analytics') {
-        setTimeout(initAnalyticsCharts, 150);
-        // تسجيل وقت آخر تحديث للتحليلات (مرة في اليوم)
-        (function(){
-          var _u = Auth.getUser();
-          if (!_u) return;
-          var _k = 'analytics_last_run_' + _u.tenant_id;
-          var _last = localStorage.getItem(_k);
-          var _today = new Date().toISOString().split('T')[0];
-          if (!_last || _last.split('T')[0] !== _today) {
-            localStorage.setItem(_k, new Date().toISOString());
-          }
-        })();
-      }
+      if (this.currentPage === 'analytics') setTimeout(initAnalyticsCharts, 150);
       if (this.currentPage === 'simulator') setTimeout(runSimulator, 100);
       if (['landing','about','contact'].includes(this.currentPage) && typeof initLandingEffects === 'function') setTimeout(initLandingEffects, 60);
       if (this.currentPage === 'login' && typeof initAuthEffects === 'function') setTimeout(initAuthEffects, 60);
@@ -1511,7 +1438,7 @@ const App = {
   },
   bindEvents() {
     document.querySelectorAll('[data-nav]').forEach(el => {
-      el.addEventListener('click', e => { e.preventDefault(); const target = el.dataset.nav; if (target === 'landing') { window.location.replace('index.html'); } else { App.navigate(target); } });
+      el.addEventListener('click', e => { e.preventDefault(); App.navigate(el.dataset.nav); });
     });
     document.querySelectorAll('[data-modal-open]').forEach(el => {
       el.addEventListener('click', () => { const m = document.getElementById(el.dataset.modalOpen); if(m) m.classList.add('show'); });
@@ -1645,56 +1572,37 @@ function topbarHTML(breadcrumb) {
     <div style="display:flex;align-items:center;gap:.8rem;flex:1">
       <button class="hamburger">☰</button>
       <div class="topbar-breadcrumb">SmartStruct <span style="opacity:.3">›</span> ${breadcrumb}</div>
-
+      <!-- البحث العالمي -->
+      <div style="position:relative;margin:0 .5rem;flex:1;max-width:260px;display:flex;align-items:center">
+        <span style="position:absolute;right:8px;font-size:14px;color:rgba(255,255,255,.35);pointer-events:none">🔍</span>
+        <input id="globalSearchInp" type="text"
+          placeholder="${L('بحث عالمي...','Recherche...')}"
+          style="width:100%;padding:5px 28px 5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text);font-size:.78rem;font-family:inherit;outline:none"
+          oninput="globalSearch(this.value)"
+          onkeydown="if(event.key==='Escape'){this.value='';document.getElementById('globalSearchResults')?.remove();}"
+          onfocus="this.style.borderColor='rgba(232,184,75,.5)'" 
+          onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+      </div>
     </div>
-  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:nowrap;justify-content:flex-end;direction:ltr">
-
-      <!-- ① جرس الإشعارات + بادج — ثابت دائماً -->
-      <div style="position:relative;flex-shrink:0">
-        ${buildNotifPanel()}
-        <button onclick="toggleNotifPanel(this)" title="${L('الإشعارات','Notifications')}"
-          style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;position:relative">
-          🔔
-          ${(()=>{const u=Auth.getUser();if(!u)return '';const unread=(DB.get('notifications')||[]).filter(n=>n.tenant_id===u.tenant_id&&!n.read);return unread.length?'<span style="position:absolute;top:1px;right:1px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg)"></span>':''})()}
-        </button>
-      </div>
-
-      <!-- ② تنبيه الميزانية — حاوية ثابتة العرض لا تُزيح -->
-      <div style="width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
-        ${alertCount>0?`<button title="${alertCount} ${L('مشروع يقترب من الميزانية','projet(s) proche(s) du dépassement')}" onclick="App.navigate('reports')" style="position:relative;width:32px;height:32px;border-radius:50%;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem">⚠️<span style="position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;border-radius:50%;width:14px;height:14px;font-size:.52rem;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg)">${alertCount}</span></button>`:''}
-      </div>
-
-      <!-- ③ بادج الاشتراك — يأتي قبل الأيقونات الثابتة لمنع الإزاحة -->
-      <div style="flex-shrink:0;min-width:fit-content;display:flex;align-items:center">
-        ${subBadge||''} 
-      </div>
-
-      <!-- ④ زر تبديل المود — ثابت دائماً -->
-      <button id="themeToggleBtn"
-        title="${L('تبديل المظهر','Changer apparence')}"
-        onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
-        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.06);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
-        onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
-        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='var(--border)'">
-        ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+      ${subBadge}
+      <!-- زر وضع الميدان -->
+      <button onclick="showMobileMode()" title="${L('وضع الميدان','Mode Terrain')}"
+        style="padding:5px 10px;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);border-radius:8px;color:#34C38F;cursor:pointer;font-size:.75rem;font-weight:700;white-space:nowrap">
+        📱 ${L('الميدان','Terrain')}
       </button>
-
-      <!-- ⑤ حالة المزامنة — ثابتة دائماً -->
-      <div id="syncPill"
-        title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}"
-        style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;flex-shrink:0;white-space:nowrap"
-        onclick="window.PQ?window.PQ.show():void(0)">
+      ${alertCount>0?`<div class="notif-bell" title="${alertCount} مشروع يقترب من تجاوز الميزانية" onclick="App.navigate('reports')">🔔<span class="notif-dot"></span></div>`:''}
+      <button class="btn btn-ghost btn-sm" data-nav="landing" style="font-size:.75rem">🌐</button>
+      <button class="lang-toggle-btn" style="padding:.25rem .6rem;font-size:.72rem" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+        ${I18N.currentLang === 'ar' ? '🇫🇷' : '🇩🇿'}
+      </button>
+      <div id="syncPill" title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F" onclick="window.PQ?window.PQ.show():void(0)">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
         <span id="syncLabel">${L('متزامن','Sync')}</span>
       </div>
-
-      <!-- ⑥ أفاتار المستخدم — ثابت في الأقصى -->
-      <div class="topbar-user" style="flex-shrink:0">
-        <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">
-          ${initial}
-        </div>
+      <div class="topbar-user">
+        <div class="topbar-avatar" title="${escHtml(user?.full_name||'')}">${initial}</div>
       </div>
-
     </div>
   </header>`;
 }
@@ -1745,7 +1653,7 @@ function attTodayWidget(workers) {
   var todayAbsent   = todayAtt.filter(function(a) { return a.status === 'absent'; }).length;
   var todayUnmarked = workers.length - todayAtt.length;
   var pct = workers.length ? Math.round(todayPresent / workers.length * 100) : 0;
-  var L = function(ar, fr, en) { return I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr; };
+  var L = function(ar, fr) { return I18N.currentLang === 'ar' ? ar : fr; };
   var warnDiv = todayUnmarked > 0
     ? ('<div style="margin-top:.6rem;padding:.5rem .8rem;background:rgba(232,184,75,.06);border:1px solid rgba(232,184,75,.2);border-radius:8px;font-size:.75rem;color:var(--gold)">\u26a0\ufe0f '
        + todayUnmarked + ' ' + L('\u0639\u0627\u0645\u0644 \u0644\u0645 \u064a\u064f\u0633\u062c\u064e\u0651\u0644 \u062d\u0636\u0648\u0631\u0647 \u0627\u0644\u064a\u0648\u0645 \u2014 ', 'ouvrier(s) non enregistr\u00e9(s) \u2014 ') + '<span onclick="sessionStorage.setItem(\'att_date\',todayStr());App.navigate(\'attendance\')" style="cursor:pointer;text-decoration:underline">' + L('\u0633\u062c\u0651\u0644 \u0627\u0644\u0622\u0646','Enregistrer') + '</span></div>')
@@ -1841,7 +1749,7 @@ Pages.contact = function() {
 
     <!-- ═══ NAVBAR ═══ -->
     <nav class="ll-nav ll-scrolled">
-      <a class="ll-nav-logo" onclick="window.location.replace('index.html')" style="cursor:pointer">
+      <a class="ll-nav-logo" onclick="App.navigate('landing')" style="cursor:pointer">
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
@@ -1849,12 +1757,14 @@ Pages.contact = function() {
         </div>
       </a>
       <div class="ll-nav-links">
-        <a class="ll-nav-link" onclick="window.location.replace('index.html')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('landing')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
         <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
         <a class="ll-nav-link" style="color:var(--gold)">${L('تواصل معنا','Contact')}</a>
       </div>
       <div class="ll-nav-cta">
-        ${I18N.langSwitcherHTML()}
+        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+          ${isAr ? 'FR' : 'AR'}
+        </button>
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
           : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
@@ -1994,7 +1904,7 @@ Pages.contact = function() {
     <!-- ═══ FOOTER ═══ -->
     <footer class="ll-footer">
       <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
-        <button class="ll-nav-link" onclick="window.location.replace('index.html')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <button class="ll-nav-link" onclick="App.navigate('landing')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
         <button class="ll-nav-link" onclick="App.navigate('about')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('من نحن','À propos')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
@@ -2019,7 +1929,7 @@ Pages.about = function() {
 
     <!-- ═══ NAVBAR ═══ -->
     <nav class="ll-nav ll-scrolled" id="aboutNav">
-      <a class="ll-nav-logo" onclick="window.location.replace('index.html')" style="cursor:pointer">
+      <a class="ll-nav-logo" onclick="App.navigate('landing')" style="cursor:pointer">
         <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
         <div class="ll-nav-logo-text">
           <div class="ll-nav-logo-name">SmartStruct</div>
@@ -2027,12 +1937,14 @@ Pages.about = function() {
         </div>
       </a>
       <div class="ll-nav-links">
-        <a class="ll-nav-link" onclick="window.location.replace('index.html')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('landing')" style="cursor:pointer">${L('الرئيسية','Accueil')}</a>
         <a class="ll-nav-link ll-active" style="color:var(--gold)">${L('من نحن','À propos')}</a>
         <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
       </div>
       <div class="ll-nav-cta">
-        ${I18N.langSwitcherHTML()}
+        <button class="ll-lang-btn" onclick="I18N.setLang(isAr?'fr':'ar')">
+          ${isAr ? 'FR' : 'AR'}
+        </button>
         ${user
           ? `<button class="ll-btn ll-btn-gold ll-btn-sm" onclick="App.navigate('${user.is_admin?'admin':'dashboard'}')">→ ${L('لوحة التحكم','Dashboard')}</button>`
           : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
@@ -2224,7 +2136,7 @@ Pages.about = function() {
     <!-- ═══ FOOTER ═══ -->
     <footer class="ll-footer" style="border-top:1px solid rgba(255,255,255,.07)">
       <div class="ll-footer-bottom" style="justify-content:center;gap:2rem;flex-wrap:wrap">
-        <button class="ll-nav-link" onclick="window.location.replace('index.html')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
+        <button class="ll-nav-link" onclick="App.navigate('landing')" style="background:none;border:none;cursor:pointer;font-family:inherit">${L('الرئيسية','Accueil')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
         <button class="ll-nav-link ll-active" style="background:none;border:none;cursor:pointer;font-family:inherit;color:var(--gold)">${L('من نحن','À propos')}</button>
         <span style="color:rgba(255,255,255,.1)">|</span>
@@ -2238,12 +2150,847 @@ Pages.about = function() {
 
 // ═══ Pages.landing ═══
 Pages.landing = function() {
-  // الصفحة الرئيسية الجديدة في index.html — إعادة توجيه
-  if (window.location.pathname.indexOf('app.html') !== -1 || 
-      window.location.pathname.indexOf('index.html') === -1) {
-    window.location.replace('index.html');
-  }
-  return '<div style="display:none"></div>';
+  const user = Auth.getUser();
+  const isAr = I18N.currentLang === 'ar';
+
+  return `<div class="landing-page" id="landingRoot">
+    <!-- ═══ ATMOSPHERE LAYERS ═══ -->
+    <div class="ll-atmosphere"></div>
+    <div class="ll-particles" id="llParticles"></div>
+
+    <!-- ═══ NAVBAR ═══ -->
+    <nav class="ll-nav" id="llNav">
+      <a class="ll-nav-logo" data-nav="landing" onclick="event.preventDefault();window.scrollTo({top:0,behavior:'smooth'})">
+        <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+        <div class="ll-nav-logo-text">
+          <div class="ll-nav-logo-name">SmartStruct</div>
+          
+        </div>
+      </a>
+
+      <div class="ll-nav-links">
+        <a class="ll-nav-link" href="#ll-features">${L('المزايا','Fonctionnalités')}</a>
+        <a class="ll-nav-link" href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a>
+        <a class="ll-nav-link" href="#ll-pricing">${L('الأسعار','Tarifs')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('about')" style="cursor:pointer">${L('من نحن','À propos')}</a>
+        <a class="ll-nav-link" onclick="App.navigate('contact')" style="cursor:pointer">${L('تواصل معنا','Contact')}</a>
+      </div>
+
+      <div class="ll-nav-cta">
+        <button class="ll-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')" title="${L('Français','العربية')}">
+          ${isAr ? 'FR' : 'AR'}
+        </button>
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-sm" data-nav="${user.is_admin?'admin':'dashboard'}">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          : `<button class="ll-btn ll-btn-ghost ll-btn-sm" onclick="showLoginPanel()">${L('دخول','Connexion')}</button>
+             <button class="ll-btn ll-btn-gold ll-btn-sm" onclick="showRegisterPanel()">${L('جرّب مجاناً','Essai gratuit')}</button>`
+        }
+        <!-- Hamburger للموبايل -->
+        <button class="ll-hamburger" id="llHamburger" aria-label="${L('القائمة','Menu')}" onclick="(function(){const m=document.getElementById('llMobileMenu');m.style.display=m.style.display==='flex'?'none':'flex';})()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div id="llMobileMenu" style="display:none;position:fixed;inset:0;background:var(--bg,#09120A);z-index:9998;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem">
+      <button style="position:absolute;top:1.2rem;${isAr?'left':'right'}:1.2rem;background:none;border:none;color:var(--text,#fff);font-size:1.6rem;cursor:pointer" onclick="document.getElementById('llMobileMenu').style.display='none'">✕</button>
+      <a class="ll-nav-link" href="#ll-features" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('المزايا','Fonctionnalités')}</a>
+      <a class="ll-nav-link" href="#ll-showcase" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('عرض الواجهة','Aperçu')}</a>
+      <a class="ll-nav-link" href="#ll-pricing" onclick="document.getElementById('llMobileMenu').style.display='none'" style="font-size:1.4rem">${L('الأسعار','Tarifs')}</a>
+      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('about')" style="font-size:1.4rem;cursor:pointer">${L('من نحن','À propos')}</a>
+      <a class="ll-nav-link" onclick="document.getElementById('llMobileMenu').style.display='none';App.navigate('contact')" style="font-size:1.4rem;cursor:pointer">${L('تواصل معنا','Contact')}</a>
+      <div style="display:flex;flex-direction:column;gap:.7rem;width:200px;margin-top:1rem">
+        ${user
+          ? `<button class="ll-btn ll-btn-gold" data-nav="${user.is_admin?'admin':'dashboard'}" onclick="document.getElementById('llMobileMenu').style.display='none'" style="justify-content:center">→ ${L('لوحة التحكم','Tableau de bord')}</button>`
+          : `<button class="ll-btn ll-btn-gold" onclick="document.getElementById('llMobileMenu').style.display='none';showRegisterPanel()" style="justify-content:center">${L('جرّب مجاناً','Essai gratuit')}</button>
+             <button class="ll-btn ll-btn-ghost" onclick="document.getElementById('llMobileMenu').style.display='none';showLoginPanel()" style="justify-content:center">${L('دخول','Connexion')}</button>`
+        }
+      </div>
+    </div>
+
+    <!-- ═══ HERO ═══ -->
+    <section class="ll-hero">
+      <!-- خلفية مقاولاتية هندسية -->
+      <svg class="ll-hero-bg" viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.03"/>
+            <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0.01"/>
+          </linearGradient>
+          <!-- شبكة هندسية خفيفة -->
+          <pattern id="gridPat" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(232,184,75,0.07)" stroke-width="0.8"/>
+          </pattern>
+          <!-- خطوط قُطرية -->
+          <pattern id="diagPat" width="120" height="120" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="120" x2="120" y2="0" stroke="rgba(232,184,75,0.04)" stroke-width="1"/>
+          </pattern>
+        </defs>
+
+        <!-- طبقة شبكة -->
+        <rect width="1440" height="900" fill="url(#gridPat)"/>
+        <rect width="1440" height="900" fill="url(#diagPat)"/>
+
+        <!-- رافعة بناء — يمين (إحداثيات مصحّحة داخل viewBox 1440x900) -->
+        <g opacity="0.13" stroke="#e8b84b" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <!-- عمود الرافعة الرأسي: x=1280, من y=30 إلى y=820 -->
+          <line x1="1280" y1="30" x2="1280" y2="820"/>
+          <!-- ذراع أفقي رئيسي: يمتد يساراً من العمود -->
+          <line x1="1280" y1="80" x2="1060" y2="80"/>
+          <!-- ذراع ثقل الموازنة: يمتد يميناً -->
+          <line x1="1280" y1="80" x2="1380" y2="80"/>
+          <!-- حبل التعليق من طرف الذراع -->
+          <line x1="1065" y1="80" x2="1065" y2="260"/>
+          <!-- خطوط دعم مائلة -->
+          <line x1="1280" y1="120" x2="1090" y2="80"/>
+          <line x1="1280" y1="160" x2="1090" y2="80"/>
+          <!-- شبكة العمود (مزيكا) -->
+          <line x1="1270" y1="100" x2="1290" y2="100"/>
+          <line x1="1270" y1="140" x2="1290" y2="140"/>
+          <line x1="1270" y1="180" x2="1290" y2="180"/>
+          <line x1="1270" y1="220" x2="1290" y2="220"/>
+          <line x1="1270" y1="260" x2="1290" y2="260"/>
+          <line x1="1270" y1="300" x2="1290" y2="300"/>
+          <line x1="1270" y1="340" x2="1290" y2="340"/>
+          <line x1="1270" y1="380" x2="1290" y2="380"/>
+          <line x1="1270" y1="420" x2="1290" y2="420"/>
+          <line x1="1270" y1="460" x2="1290" y2="460"/>
+          <line x1="1270" y1="500" x2="1290" y2="500"/>
+          <line x1="1270" y1="540" x2="1290" y2="540"/>
+          <line x1="1270" y1="580" x2="1290" y2="580"/>
+          <line x1="1270" y1="620" x2="1290" y2="620"/>
+          <line x1="1270" y1="660" x2="1290" y2="660"/>
+          <line x1="1270" y1="700" x2="1290" y2="700"/>
+          <line x1="1270" y1="740" x2="1290" y2="740"/>
+          <line x1="1270" y1="780" x2="1290" y2="780"/>
+          <!-- قاعدة الرافعة -->
+          <line x1="1240" y1="820" x2="1320" y2="820"/>
+          <line x1="1250" y1="800" x2="1310" y2="800"/>
+          <!-- علبة الرفع (hook box) -->
+          <rect x="1048" y="255" width="34" height="26" rx="3" fill="rgba(232,184,75,0.08)"/>
+          <!-- خطاف الرافعة -->
+          <path d="M1065 281 Q1075 295 1065 305 Q1055 315 1060 325" stroke-width="2"/>
+          <!-- ثقل الموازنة يمين -->
+          <rect x="1330" y="70" width="50" height="20" rx="3" fill="rgba(232,184,75,0.08)"/>
+        </g>
+
+        <!-- مخطط هندسي — يسار أسفل -->
+        <g opacity="0.07" stroke="#e8b84b" stroke-width="1.5" fill="none" stroke-linecap="round" transform="translate(40, 480)">
+          <!-- مستطيل مبنى -->
+          <rect x="20" y="20" width="200" height="160" rx="2"/>
+          <!-- طوابق -->
+          <line x1="20" y1="73" x2="220" y2="73"/>
+          <line x1="20" y1="126" x2="220" y2="126"/>
+          <!-- نوافذ طابق 1 -->
+          <rect x="45" y="35" width="30" height="25" rx="1"/>
+          <rect x="95" y="35" width="30" height="25" rx="1"/>
+          <rect x="145" y="35" width="30" height="25" rx="1"/>
+          <!-- نوافذ طابق 2 -->
+          <rect x="45" y="88" width="30" height="25" rx="1"/>
+          <rect x="95" y="88" width="30" height="25" rx="1"/>
+          <rect x="145" y="88" width="30" height="25" rx="1"/>
+          <!-- باب -->
+          <rect x="90" y="135" width="40" height="45" rx="2"/>
+          <!-- خطوط قياس -->
+          <line x1="-15" y1="20" x2="-15" y2="180"/>
+          <line x1="-20" y1="20" x2="-10" y2="20"/>
+          <line x1="-20" y1="180" x2="-10" y2="180"/>
+          <line x1="20" y1="195" x2="220" y2="195"/>
+          <line x1="20" y1="190" x2="20" y2="200"/>
+          <line x1="220" y1="190" x2="220" y2="200"/>
+        </g>
+
+        <!-- نقاط زاوية هندسية — يسار أعلى -->
+        <g opacity="0.1" stroke="#e8b84b" stroke-width="1.5" fill="rgba(232,184,75,0.15)" transform="translate(60, 60)">
+          <circle cx="0" cy="0" r="4"/>
+          <circle cx="80" cy="0" r="4"/>
+          <circle cx="0" cy="80" r="4"/>
+          <line x1="0" y1="0" x2="80" y2="0"/>
+          <line x1="0" y1="0" x2="0" y2="80"/>
+          <line x1="4" y1="4" x2="30" y2="30"/>
+        </g>
+
+        <!-- خطوط ضوء في المنتصف -->
+        <ellipse cx="720" cy="420" rx="520" ry="300" fill="radial" opacity="0"/>
+        <radialGradient id="glowCenter" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" style="stop-color:#e8b84b;stop-opacity:0.04"/>
+          <stop offset="100%" style="stop-color:#e8b84b;stop-opacity:0"/>
+        </radialGradient>
+        <ellipse cx="720" cy="430" rx="600" ry="350" fill="url(#glowCenter)"/>
+      </svg>
+      <div class="ll-hero-badge">
+        <span class="ll-hero-badge-dot"></span>
+        ${L('تجربة مجانية 14 يوماً — بدون بطاقة بنكية','Essai gratuit 14 jours — sans carte bancaire')}
+      </div>
+
+      <h1 class="ll-hero-title">
+        ${L('إدارة مشاريع المقاولة','Gestion de projets')}<br>
+        <span class="ll-word-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
+      </h1>
+
+      <p class="ll-hero-sub">
+        ${L(
+          'منصة متكاملة لشركات المقاولة الجزائرية — من إدارة المشاريع والعمال إلى الفوترة والتوقعات المالية، مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون الجزائري (NIF/NIS/RC + TVA 19٪).',
+          'Plateforme complète pour les entreprises de BTP en Algérie — projets, ouvriers, facturation, prévisions financières, le tout propulsé par l\'IA et conforme à la loi algérienne (NIF/NIS/RC + TVA 19%).'
+        )}
+      </p>
+
+      <div class="ll-hero-actions">
+        ${user
+          ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
+               ${L('الذهاب للوحة التحكم','Tableau de bord')}
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+             </button>`
+          : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
+               ${L('ابدأ التجربة الآن','Commencer l\'essai')}
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+             </button>`
+        }
+        <a class="ll-btn ll-btn-ghost ll-btn-lg" href="#ll-showcase">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          ${L('شاهد العرض','Voir la démo')}
+        </a>
+      </div>
+
+      <div class="ll-hero-trust">
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ${L('27 جدول قاعدة بيانات','27 tables de BDD')}
+        </div>
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ${L('حماية بياناتك','Protection des données')}
+        </div>
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Row-Level Security
+        </div>
+        <div class="ll-trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ${L('دعم عربي كامل','Support arabe complet')}
+        </div>
+      </div>
+
+      <!-- ═══ 3D HERO SCENE ═══ -->
+      <div class="ll-scene">
+        <div class="ll-scene-glow"></div>
+        <div class="ll-scene-stage" id="llSceneStage">
+
+          <!-- Floating: Projects (top-right in LTR / top-left in RTL via auto reposition) -->
+          <div class="ll-float-card ll-fc-stat ll-fc-projects">
+            <div class="ll-fc-mini-icon ll-icon-projects">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">${L('المشاريع النشطة','Projets actifs')}</div>
+            <div class="ll-fc-mini-val">12</div>
+            <div class="ll-fc-mini-trend ll-trend-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              ${L('+3 هذا الشهر','+3 ce mois')}
+            </div>
+          </div>
+
+          <!-- Floating: Workers -->
+          <div class="ll-float-card ll-fc-stat ll-fc-workers">
+            <div class="ll-fc-mini-icon ll-icon-workers">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">${L('العمال الحاضرون','Ouvriers présents')}</div>
+            <div class="ll-fc-mini-val">87 / 92</div>
+            <div class="ll-fc-mini-trend ll-trend-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              ${L('نسبة 94٪','Taux 94%')}
+            </div>
+          </div>
+
+          <!-- Floating: Revenue -->
+          <div class="ll-float-card ll-fc-stat ll-fc-revenue">
+            <div class="ll-fc-mini-icon ll-icon-revenue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">${L('إيرادات الشهر','Revenus du mois')}</div>
+            <div class="ll-fc-mini-val">4.2M <span style="font-size:.7rem;color:var(--muted)">${L('دج','DA')}</span></div>
+            <div class="ll-fc-mini-trend ll-trend-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              +18.4٪
+            </div>
+          </div>
+
+          <!-- Floating: AI -->
+          <div class="ll-float-card ll-fc-stat ll-fc-ai">
+            <div class="ll-fc-mini-icon ll-icon-ai">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            </div>
+            <div class="ll-fc-mini-label">SmartAI</div>
+            <div class="ll-ai-typing">
+              <span class="ll-typing-dot"></span><span class="ll-typing-dot"></span><span class="ll-typing-dot"></span>
+              <span class="ll-ai-text">${L('يحلل بياناتك...','analyse en cours...')}</span>
+            </div>
+          </div>
+
+          <!-- Main dashboard card -->
+          <div class="ll-float-card ll-fc-main">
+            <div class="ll-fc-header">
+              <div class="ll-fc-title">
+                <div class="ll-fc-title-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#09120A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17l-5-5-4 4-4-4"/></svg>
+                </div>
+                ${L('لوحة التحكم','Tableau de bord')}
+              </div>
+              <div class="ll-fc-dots">
+                <span class="ll-fc-dot ll-active"></span><span class="ll-fc-dot"></span><span class="ll-fc-dot"></span>
+              </div>
+            </div>
+            <div class="ll-fc-stats">
+              <div class="ll-fc-stat-box">
+                <div class="ll-fc-stat-label">${L('إجمالي المشاريع','Total projets')}</div>
+                <div class="ll-fc-stat-val ll-gold">24</div>
+              </div>
+              <div class="ll-fc-stat-box">
+                <div class="ll-fc-stat-label">${L('معدل الإنجاز','Avancement')}</div>
+                <div class="ll-fc-stat-val ll-green">76%</div>
+              </div>
+              <div class="ll-fc-stat-box">
+                <div class="ll-fc-stat-label">${L('صافي الربح','Bénéfice net')}</div>
+                <div class="ll-fc-stat-val">1.8M</div>
+              </div>
+            </div>
+            <div class="ll-fc-chart">
+              <svg viewBox="0 0 500 120" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="llGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#E8B84B" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#E8B84B" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line class="ll-chart-grid" x1="0" y1="30" x2="500" y2="30"/>
+                <line class="ll-chart-grid" x1="0" y1="60" x2="500" y2="60"/>
+                <line class="ll-chart-grid" x1="0" y1="90" x2="500" y2="90"/>
+                <path class="ll-chart-area" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15 L500,120 L0,120 Z"/>
+                <path class="ll-chart-line" d="M0,90 L40,75 L80,82 L120,55 L160,62 L200,40 L240,48 L280,30 L320,35 L360,18 L400,25 L440,12 L480,20 L500,15"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="ll-scene-platform"></div>
+        </div>
+      </div>
+
+      <!-- ═══ STATS BAR ═══ -->
+      <div class="ll-stats-bar ll-reveal">
+        <div class="ll-stat-item">
+          <div class="ll-stat-number" data-count="27" data-suffix="+" class="ll-stat-num">0</div>
+          <div class="ll-stat-label">${L('جدول قاعدة بيانات','Tables de BDD')}</div>
+        </div>
+        <div class="ll-stat-item">
+          <div class="ll-stat-number" data-count="19" class="ll-stat-num">0</div>
+          <div class="ll-stat-label">${L('ميزة احترافية','Fonctionnalités pro')}</div>
+        </div>
+        <div class="ll-stat-item">
+          <div class="ll-stat-number"><span data-count="14" class="ll-stat-num">0</span> ${L('يوم','jours')}</div>
+          <div class="ll-stat-label">${L('تجربة مجانية','Essai gratuit')}</div>
+        </div>
+        <div class="ll-stat-item">
+          <div class="ll-stat-number">100<span style="font-size:1.5rem">٪</span></div>
+          <div class="ll-stat-label">${L('متوافق مع القانون الجزائري','Conforme loi algérienne')}</div>
+        </div>
+      </div>
+
+      <!-- شريط التقنيات المتحرك -->
+      <div class="ll-tech-strip" id="llTechStrip" style="margin-top:2.5rem;padding:.8rem 0;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden">
+      </div>
+    </section>
+
+    <!-- ═══ FEATURES ═══ -->
+    <section class="ll-section" id="ll-features">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('19 ميزة احترافية','19 fonctionnalités pro')}</span>
+        <h2 class="ll-section-title">${L('كل ما تحتاجه شركتك','Tout ce dont votre entreprise a besoin')}<br><span class="ll-gold">${L('في منصة واحدة','dans une seule plateforme')}</span></h2>
+        <p class="ll-section-desc">${L(
+          'من تشفير البيانات إلى توقعات السيولة، من توليد PDF إلى تتبع GPS — أدوات حقيقية لمشاكل حقيقية في قطاع البناء.',
+          'Du chiffrement aux prévisions de trésorerie, du PDF au GPS — des outils réels pour des problèmes réels du BTP.'
+        )}</p>
+      </div>
+
+      <div class="ll-features-grid">
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('تحليل','Analyse')}</span>
+          <div class="ll-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('تقارير EVM احترافية','Rapports EVM professionnels')}</h3>
+          <p class="ll-feature-desc">${L('مؤشرات الأداء الدولية: SPI · CPI · BCWP · EAC — معايير إدارة المشاريع العالمية مُكيَّفة للسوق الجزائرية.','Indicateurs internationaux : SPI · CPI · BCWP · EAC — normes mondiales adaptées au marché algérien.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('جديد','Nouveau')}</span>
+          <div class="ll-feature-icon ll-purple">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('SmartAI — مساعد ذكي','SmartAI — assistant IA')}</h3>
+          <p class="ll-feature-desc">${L('يحلّل مشاريعك ويكتب تقارير شهرية بالعربية مع توصيات قابلة للتنفيذ. مدعوم بـ Groq.','Analyse vos projets et rédige des rapports mensuels avec recommandations. Propulsé par Groq.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">PDF</span>
+          <div class="ll-feature-icon ll-red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('فواتير وعقود رسمية','Factures & contrats officiels')}</h3>
+          <p class="ll-feature-desc">${L('PDF احترافي مع NIF/NIS/RC، TVA 19٪، عقود عمل حسب القانون الجزائري، وتوقيع إلكتروني.','PDF pro avec NIF/NIS/RC, TVA 19%, contrats conformes & signature électronique.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('مالي','Finance')}</span>
+          <div class="ll-feature-icon ll-green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('توقعات السيولة 90 يوم','Prévisions cash 90 jours')}</h3>
+          <p class="ll-feature-desc">${L('منحنى رصيد متوقع للأشهر الثلاثة القادمة + تنبيهات استباقية + استيراد كشوف CCP/BNA/BEA.','Courbe de solde projetée + alertes proactives + import des relevés CCP/BNA/BEA.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('ميدان','Terrain')}</span>
+          <div class="ll-feature-icon ll-blue">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('تتبع GPS للمعدات','Suivi GPS du matériel')}</h3>
+          <p class="ll-feature-desc">${L('QR لكل معدة → مسح بالهاتف → تسجيل الموقع تلقائياً. وضع ميدان مبسط بـ 5 أزرار كبيرة.','QR par engin → scan → géolocalisation auto. Mode chantier à 5 gros boutons.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('إنتاجية','Productivité')}</span>
+          <div class="ll-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('بحث فوري شامل','Recherche globale instantanée')}</h3>
+          <p class="ll-feature-desc">${L('Ctrl+K → ابحث في كل البيانات: مشاريع، عمال، فواتير، ملاحظات. تصدير Excel بنقرة واحدة.','Ctrl+K → cherchez partout : projets, ouvriers, factures. Export Excel en un clic.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('عمال','RH')}</span>
+          <div class="ll-feature-icon ll-green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('إدارة العمال والرواتب','Gestion RH & paie')}</h3>
+          <p class="ll-feature-desc">${L('تسجيل الحضور والغياب، كشوف الرواتب التلقائية، تتبع الإضافي والسلف — كل شيء في مكان واحد.','Pointage, fiches de paie automatiques, heures sup & avances — tout centralisé.')}</p>
+        </div>
+
+        <div class="ll-feature-card ll-reveal" data-tilt>
+          <span class="ll-feature-tag">${L('مخزون','Stock')}</span>
+          <div class="ll-feature-icon ll-red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <h3 class="ll-feature-title">${L('مراقبة المواد والمخزون','Suivi matériaux & stock')}</h3>
+          <p class="ll-feature-desc">${L('تتبع دخول وخروج المواد لكل مشروع، تنبيهات نقص المخزون، وربط مباشر مع المصاريف.','Entrées/sorties par chantier, alertes rupture de stock, liaison directe aux dépenses.')}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SHOWCASE ═══ -->
+    <section class="ll-section" id="ll-showcase">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('واجهة عربية احترافية','Interface arabe professionnelle')}</span>
+        <h2 class="ll-section-title">${L('صُممت','Conçue')}<span class="ll-gold"> ${L('للسرعة والوضوح','pour vitesse & clarté')}</span></h2>
+        <p class="ll-section-desc">${L('واجهة RTL كاملة، 3 ثيمات (داكن، فاتح، ذهبي)، أيقونات واضحة، وتجربة سلسة على الهاتف والحاسوب.','RTL complet, 3 thèmes, icônes claires, expérience fluide sur mobile et desktop.')}</p>
+      </div>
+
+      <div class="ll-showcase ll-reveal">
+        <div class="ll-showcase-stage" id="llShowcaseStage">
+          <div class="ll-showcase-screen">
+            <div class="ll-showcase-toolbar">
+              <span class="ll-tb-dot ll-r"></span><span class="ll-tb-dot ll-y"></span><span class="ll-tb-dot ll-g"></span>
+              <span class="ll-tb-url">smartstruct.dz/dashboard</span>
+            </div>
+            <div class="ll-showcase-body">
+              <div class="ll-sc-sidebar">
+                <div class="ll-sc-nav ll-active">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                  <span>${L('لوحة التحكم','Tableau')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  <span>${L('المشاريع','Projets')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                  <span>${L('العمال','Ouvriers')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <span>${L('الفواتير','Factures')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                  <span>${L('التقارير','Rapports')}</span>
+                </div>
+                <div class="ll-sc-nav">
+                  <svg class="ll-sc-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
+                  <span>SmartAI</span>
+                </div>
+              </div>
+              <div class="ll-sc-content">
+                <div class="ll-sc-stats">
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('المشاريع','Projets')}</div><div class="ll-sc-stat-val">24</div></div>
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('العمال','Ouvriers')}</div><div class="ll-sc-stat-val">92</div></div>
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الإيرادات','Revenus')}</div><div class="ll-sc-stat-val">4.2M</div></div>
+                  <div class="ll-sc-stat-box"><div class="ll-sc-stat-label">${L('الربح','Bénéfice')}</div><div class="ll-sc-stat-val">1.8M</div></div>
+                </div>
+                <div class="ll-sc-graph">
+                  <svg viewBox="0 0 400 140" preserveAspectRatio="none">
+                    <rect x="20" y="80" width="20" height="50" rx="3" fill="rgba(232,184,75,0.3)"/>
+                    <rect x="55" y="60" width="20" height="70" rx="3" fill="rgba(232,184,75,0.5)"/>
+                    <rect x="90" y="70" width="20" height="60" rx="3" fill="rgba(232,184,75,0.4)"/>
+                    <rect x="125" y="40" width="20" height="90" rx="3" fill="rgba(232,184,75,0.6)"/>
+                    <rect x="160" y="55" width="20" height="75" rx="3" fill="rgba(232,184,75,0.5)"/>
+                    <rect x="195" y="30" width="20" height="100" rx="3" fill="rgba(232,184,75,0.7)"/>
+                    <rect x="230" y="20" width="20" height="110" rx="3" fill="#E8B84B"/>
+                    <rect x="265" y="50" width="20" height="80" rx="3" fill="rgba(232,184,75,0.5)"/>
+                    <rect x="300" y="35" width="20" height="95" rx="3" fill="rgba(232,184,75,0.6)"/>
+                    <rect x="335" y="15" width="20" height="115" rx="3" fill="#F5D07A"/>
+                    <path d="M30,90 Q70,70 100,80 T180,55 T260,40 T340,25" stroke="#E8B84B" stroke-width="2" fill="none" stroke-linecap="round" filter="drop-shadow(0 0 4px #E8B84B)"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ BENEFITS ═══ -->
+    <section class="ll-section" id="ll-benefits">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('حلول مصممة لقطاعك','Solutions sur mesure')}</span>
+        <h2 class="ll-section-title">${L('من الميدان إلى','Du chantier à la')}<span class="ll-gold"> ${L('غرفة الاجتماعات','salle de réunion')}</span></h2>
+        <p class="ll-section-desc">${L('SmartStruct يغطي كل أبعاد عمل شركة المقاولة الجزائرية — قانونياً، مالياً، وميدانياً.','SmartStruct couvre toutes les dimensions du BTP algérien — légal, financier, terrain.')}</p>
+      </div>
+
+      <div class="ll-benefits">
+
+        <!-- Row 1: PDF -->
+        <div class="ll-benefit-row ll-reveal">
+          <div class="ll-benefit-content">
+            <h3>${L('فواتير و','Factures &')}<span class="ll-gold">${L('عقود قانونية','contrats légaux')}</span> ${L('بنقرة واحدة','en un clic')}</h3>
+            <p>${L('توقَّف عن إعادة تنسيق نفس الفاتورة كل مرة. SmartStruct يولّد فواتير PDF احترافية متوافقة مع القانون الجزائري في ثوانٍ.','Cessez de reformater à chaque fois. SmartStruct génère des factures PDF pro conformes en quelques secondes.')}</p>
+            <ul class="ll-benefit-list">
+              <li><span class="ll-check">✓</span> ${L('NIF / NIS / RC تلقائياً في الترويسة','NIF / NIS / RC auto en en-tête')}</li>
+              <li><span class="ll-check">✓</span> ${L('TVA 19٪ محسوبة بدقة + مكان الختم','TVA 19% calculée + emplacement cachet')}</li>
+              <li><span class="ll-check">✓</span> ${L('عقود عمل حسب قانون العمل الجزائري','Contrats conformes au droit du travail')}</li>
+              <li><span class="ll-check">✓</span> ${L('توقيع إلكتروني عبر رابط فريد للعميل','Signature électronique via lien unique')}</li>
+            </ul>
+          </div>
+          <div class="ll-benefit-visual">
+            <div class="ll-benefit-stage">
+              <div class="ll-pdf-mockup">
+                <div class="ll-pdf-header">
+                  <div>
+                    <div class="ll-pdf-logo">${ssLogo(26, true)}</div>
+                  </div>
+                  <div style="text-align:${isAr?'right':'left'}">
+                    <div class="ll-pdf-co">${L('شركة الإنشاءات الجزائرية','Sté Constructions DZ')}</div>
+                    <div class="ll-pdf-co-sub">NIF: 0987 6543 21 · RC: 16/00-A123</div>
+                  </div>
+                  <div class="ll-pdf-num">
+                    ${L('فاتورة رقم','Facture N°')}
+                    <strong>INV-2026-0142</strong>
+                  </div>
+                </div>
+                <div class="ll-pdf-title">${L('تفاصيل الخدمات','Détails des prestations')}</div>
+                <div class="ll-pdf-line"><span>${L('أعمال خرسانة مسلحة','Béton armé')}</span><span>1,250,000 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-line"><span>${L('تركيب هيكل معدني','Structure métallique')}</span><span>875,000 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-line"><span>${L('أعمال البناء — المرحلة 2','Maçonnerie — Phase 2')}</span><span>620,000 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-line"><span>TVA 19٪</span><span>521,550 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-total"><span>${L('الإجمالي المستحق','Total dû')}</span><span>3,266,550 ${L('دج','DA')}</span></div>
+                <div class="ll-pdf-stamp">SmartStruct<br>VERIFIED</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: AI -->
+        <div class="ll-benefit-row ll-reverse ll-reveal">
+          <div class="ll-benefit-content">
+            <h3>${L('مساعدك الذكي يعمل','Votre IA travaille')} <span class="ll-gold">${L('معك 24/7','avec vous 24/7')}</span></h3>
+            <p>${L('SmartAI ليس chatbot عام — هو يعرف بياناتك، يحلل مشاريعك، ويعطيك توصيات قابلة للتنفيذ بالعربية.','SmartAI n\'est pas un chatbot générique — il connaît vos données et donne des recommandations concrètes.')}</p>
+            <ul class="ll-benefit-list">
+              <li><span class="ll-check">✓</span> ${L('تحليل ربحية كل مشروع على حدة','Analyse de rentabilité par projet')}</li>
+              <li><span class="ll-check">✓</span> ${L('تقارير شهرية احترافية تلقائية','Rapports mensuels pro automatiques')}</li>
+              <li><span class="ll-check">✓</span> ${L('تنبيهات للمخاطر المالية مبكراً','Alertes financières précoces')}</li>
+              <li><span class="ll-check">✓</span> ${L('14,400 سؤال يومياً مجاناً','14 400 questions/jour gratuites')}</li>
+            </ul>
+          </div>
+          <div class="ll-benefit-visual">
+            <div class="ll-benefit-stage">
+              <div class="ll-ai-mockup">
+                <div class="ll-ai-mock-header">
+                  <div class="ll-ai-avatar-mock">🤖</div>
+                  <div>
+                    <div class="ll-ai-mock-name">SmartAI</div>
+                    <div class="ll-ai-mock-status">${L('متصل — يحلّل بياناتك','En ligne — analyse en cours')}</div>
+                  </div>
+                </div>
+                <div class="ll-ai-mock-body">
+                  <div class="ll-ai-msg ll-user">${L('ما هو أفضل مشروع من حيث الربحية هذا الشهر؟','Quel projet est le plus rentable ce mois ?')}</div>
+                  <div class="ll-ai-msg ll-bot">${L('مشروع "فيلا حيدرة" حقق هامش ربح 28٪ — الأعلى بين مشاريعك. لكن انتبه: مشروع "مبنى وهران" متأخر 12 يوماً.','Le projet "Villa Hydra" a une marge de 28% — la plus élevée. Attention : "Immeuble Oran" a 12 jours de retard.')}</div>
+                  <div class="ll-ai-msg ll-user">${L('كم سأكسب نهاية الشهر؟','Combien à la fin du mois ?')}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+      </div>
+    </section>
+
+    <!-- ═══ PRICING ═══ -->
+    <section class="ll-section" id="ll-pricing">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('أسعار شفافة','Tarifs transparents')}</span>
+        <h2 class="ll-section-title">${L('اختر الخطة','Choisissez le plan')} <span class="ll-gold">${L('المناسبة لك','qui vous convient')}</span></h2>
+        <p class="ll-section-desc">${L('من المقاول الفردي إلى الشركات الكبرى — جميع الخطط تشمل التجربة المجانية 14 يوماً بدون بطاقة بنكية.','Du contractant individuel aux grandes entreprises — tous les plans incluent 14 jours d\'essai gratuit sans CB.')}</p>
+      </div>
+
+      <div class="ll-pricing-grid">
+        <!-- المبتدئ — للمقاولين الأفراد والشركات الناشئة -->
+        <div class="ll-price-card ll-reveal">
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">👷 ${L('للمقاول الفردي','Contractant individuel')}</div>
+          <div class="ll-price-name">${L('المبتدئ','Starter')}</div>
+          <div class="ll-price-tagline">${L('للشركات الناشئة والمقاولين الأفراد','Pour entrepreneurs individuels')}</div>
+          <div class="ll-price-amount">
+            <span class="ll-price-num">2,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
+          </div>
+          <ul class="ll-price-features">
+            <li><span class="ll-price-check">✓</span> ${L('حتى 3 مشاريع نشطة','Jusqu\'à 3 projets actifs')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 15 عامل','Jusqu\'à 15 ouvriers')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('فواتير PDF احترافية','Factures PDF pro')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('50 بريد إلكتروني/شهر','50 emails/mois')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('دعم بالبريد الإلكتروني','Support par email')}</li>
+          </ul>
+          ${user
+            ? `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
+            : `<button class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(1):showRegisterPanel()">💳 ${L('ادفع الآن — 2,900 دج','Payer — 2 900 DA')}</button>`
+          }
+        </div>
+
+        <!-- الاحترافي — للشركات المتوسطة (المُوصى به) -->
+        <div class="ll-price-card ll-featured ll-reveal">
+          <div class="ll-price-badge">⭐ ${L('الأكثر شيوعاً','Plus populaire')}</div>
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏢 ${L('للشركات المتوسطة','Entreprises moyennes')}</div>
+          <div class="ll-price-name">${L('الاحترافي','Professionnel')}</div>
+          <div class="ll-price-tagline">${L('للشركات النامية','Pour entreprises en croissance')}</div>
+          <div class="ll-price-amount">
+            <span class="ll-price-num ll-gold">7,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
+          </div>
+          <ul class="ll-price-features">
+            <li><span class="ll-price-check">✓</span> ${L('حتى 20 مشروع','Jusqu\'à 20 projets')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 100 عامل','Jusqu\'à 100 ouvriers')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('حتى 50 معدة','Jusqu\'à 50 équipements')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('SmartAI كامل + تقارير شهرية','SmartAI complet + rapports')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('500 بريد إلكتروني/شهر','500 emails/mois')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('دعم هاتفي ذو أولوية','Support prioritaire')}</li>
+          </ul>
+          ${user
+            ? `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" data-nav="${user.is_admin?'admin':'dashboard'}">${L('لوحة التحكم','Tableau de bord')}</button>`
+            : `<button class="ll-btn ll-btn-gold" style="width:100%;justify-content:center" onclick="(typeof ChargilyPayment!=='undefined')?ChargilyPayment.initiatePayment(2):showRegisterPanel()">💳 ${L('ادفع الآن — 7,900 دج','Payer — 7 900 DA')}</button>`
+          }
+        </div>
+
+        <!-- المؤسسي — للشركات الكبرى -->
+        <div class="ll-price-card ll-reveal">
+          <div style="font-size:.65rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:.5rem">🏛️ ${L('للمؤسسات الكبرى','Grandes entreprises')}</div>
+          <div class="ll-price-name">${L('المؤسسي','Entreprise')}</div>
+          <div class="ll-price-tagline">${L('للشركات الكبرى','Pour les grandes entreprises')}</div>
+          <div class="ll-price-amount">
+            <span class="ll-price-num">19,900</span>
+            <span class="ll-price-currency">${L('دج','DA')}</span>
+            <span class="ll-price-period">${L('/ شهرياً','/ mois')}</span>
+          </div>
+          <ul class="ll-price-features">
+            <li><span class="ll-price-check">✓</span> ${L('مشاريع غير محدودة','Projets illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('عمال غير محدودين','Ouvriers illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('معدات غير محدودة','Équipements illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('بريد إلكتروني غير محدود','Emails illimités')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('SLA + تدريب فريقك','SLA + formation équipe')}</li>
+            <li><span class="ll-price-check">✓</span> ${L('مدير حساب مخصص','Account manager dédié')}</li>
+          </ul>
+          <a class="ll-btn ll-btn-ghost" style="width:100%;justify-content:center" href="mailto:contact@smartstruct.dz">${L('تواصل معنا','Nous contacter')}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ قبل / بعد ═══ -->
+    <section class="ll-section" style="background:rgba(232,184,75,.03);border-top:1px solid rgba(232,184,75,.08);border-bottom:1px solid rgba(232,184,75,.08)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('الفرق الحقيقي','La vraie différence')}</span>
+        <h2 class="ll-section-title">${L('حياتك','Votre quotidien')} <span class="ll-gold">${L('قبل وبعد SmartStruct','avant & après SmartStruct')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:960px;margin:2.5rem auto 0" class="ll-reveal">
+        <div style="background:rgba(240,78,106,.05);border:1px solid rgba(240,78,106,.2);border-radius:16px;padding:2rem">
+          <div style="font-size:1.1rem;font-weight:900;color:#F04E6A;margin-bottom:1.2rem">😰 ${L('قبل','Avant')}</div>
+          ${[
+            L('دفاتر ورقية تضيع أو تتلف','Carnets papier perdus ou abîmés'),
+            L('Excel يتعطل عند آخر لحظة','Excel qui plante au dernier moment'),
+            L('فواتير بأخطاء جبائية مكلفة','Factures avec erreurs fiscales coûteuses'),
+            L('لا تعرف أين ذهب مال شركتك','Impossible de savoir où va l\'argent'),
+            L('ساعات في إعداد كشف الراتب','Des heures à préparer les fiches de paie'),
+            L('لا تعرف ربحية كل مشروع','Impossible de connaître la marge par projet'),
+          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--muted)"><span style="color:#F04E6A;flex-shrink:0">✗</span>${t}</div>`).join('')}
+        </div>
+        <div style="background:rgba(52,195,143,.05);border:1px solid rgba(52,195,143,.2);border-radius:16px;padding:2rem">
+          <div style="font-size:1.1rem;font-weight:900;color:#34C38F;margin-bottom:1.2rem">🚀 ${L('بعد SmartStruct','Avec SmartStruct')}</div>
+          ${[
+            L('كل البيانات في السحابة — لا تضيع أبداً','Toutes les données dans le cloud — jamais perdues'),
+            L('لوحة تحكم حية بالثانية','Dashboard live actualisé en temps réel'),
+            L('23 وثيقة رسمية بنقرة واحدة','23 documents officiels en un seul clic'),
+            L('تعرف أرباحك لحظة بلحظة','Vos bénéfices en temps réel'),
+            L('كشف راتب كامل في 10 ثوانٍ','Bulletin de paie complet en 10 secondes'),
+            L('تقرير AI ذكي شهري تلقائياً','Rapport IA mensuel automatique'),
+          ].map(t=>`<div style="display:flex;gap:.6rem;margin-bottom:.65rem;font-size:.82rem;color:var(--text)"><span style="color:#34C38F;flex-shrink:0">✓</span>${t}</div>`).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ أرقام التأثير ═══ -->
+    <section class="ll-section">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('بالأرقام','En chiffres')}</span>
+        <h2 class="ll-section-title">${L('توفير حقيقي في','Économies réelles de')} <span class="ll-gold">${L('الوقت والمال','temps & d\'argent')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;max-width:1050px;margin:2rem auto 0" class="ll-reveal">
+        ${[
+          {n:'23',u:'',s:L('وثيقة رسمية جاهزة للطباعة','documents officiels imprimables'),i:'📄',c:'#E8B84B'},
+          {n:'80',u:'%',s:L('توفير في وقت الإدارة','du temps administratif économisé'),i:'⏱️',c:'#34C38F'},
+          {n:'100',u:'%',s:L('توافق مع القانون الجزائري','conforme loi algérienne NIF/NIS'),i:'🏛️',c:'#4A90E2'},
+          {n:'14',u:'',s:L('يوم تجربة مجانية كاملة','jours d\'essai gratuit complet'),i:'🎁',c:'#9B6DFF'},
+          {n:'0',u:'',s:L('بيانات تضيع — ضمان مدى الحياة','donnée perdue — garanti à vie'),i:'🔒',c:'#FF7043'},
+          {n:'2',u:'',s:L('لغة — عربي وفرنسي كامل','langues — arabe & français complets'),i:'🌐',c:'#E8B84B'},
+        ].map(s=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:1.4rem;text-align:center;transition:transform .2s,border-color .2s" onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(232,184,75,.3)'" onmouseout="this.style.transform='';this.style.borderColor='rgba(255,255,255,.07)'">
+          <div style="font-size:1.7rem;margin-bottom:.4rem">${s.i}</div>
+          <div style="font-size:2.4rem;font-weight:900;color:${s.c};font-family:monospace;line-height:1">${s.n}<span style="font-size:1.1rem">${s.u}</span></div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:.4rem;line-height:1.5">${s.s}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ شهادات المقاولين ═══ -->
+    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('يقولون عنا','Ils en parlent')}</span>
+        <h2 class="ll-section-title">${L('مقاولون جزائريون','Des entrepreneurs algériens')} <span class="ll-gold">${L('وثقوا بنا','nous font confiance')}</span></h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:2.5rem" class="ll-reveal">
+        ${[
+          {name:L('محمد الصالح قاسمي','Mohamed Salah Kasmi'),role:L('مقاول بناء — الجزائر العاصمة','Entrepreneur BTP — Alger'),av:'👷',c:'#E8B84B',
+           t:L('"قبل SmartStruct كنت أضيع 3 ساعات يومياً في الورق. الآن كل شيء في هاتفي — الحضور، الرواتب، الفواتير. وفّرت أكثر من 300,000 دج في 3 أشهر."','"Avant SmartStruct, je perdais 3h/jour dans la paperasse. Maintenant tout est dans mon téléphone. J\'ai économisé plus de 300 000 DA en 3 mois grâce au suivi."')},
+          {name:L('فريدة بن يوسف','Farida Benyoucef'),role:L('مديرة مؤسسة إنجاز — وهران','Directrice Injaaz Ent. — Oran'),av:'👩‍💼',c:'#34C38F',
+           t:L('"أخيراً نظام يفهم العربية ويعمل مع القانون الجزائري. الفواتير مع NIF وNIS في دقيقة. حتى من لا يعرف الكمبيوتر يستخدمه."','"Enfin un système qui comprend l\'arabe et la loi algérienne. Factures avec NIF/NIS en une minute. Même les non-techniciens l\'utilisent facilement."')},
+          {name:L('عماد الدين تيزي','Imad Eddine Tizi'),role:L('مقاول ترميم — قسنطينة','Entrepreneur rénovation — Constantine'),av:'🏗️',c:'#4A90E2',
+           t:L('"استخدمت برامج أجنبية قبلاً — معقدة وبالإنجليزية. SmartStruct صُنع لنا نحن. محضر الاستلام، كشف الرواتب، العقود — كلها بالعربية بلمسة واحدة."','"J\'ai essayé des logiciels étrangers avant — trop complexes. SmartStruct est fait pour nous. PV, bulletins de paie, contrats — tout en arabe en un clic."')},
+        ].map(t=>`<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:1.8rem;display:flex;flex-direction:column;gap:.8rem">
+          <div style="color:#E8B84B;font-size:.9rem;letter-spacing:2px">★★★★★</div>
+          <p style="font-size:.83rem;color:var(--muted);line-height:1.8;font-style:italic;flex:1">${t.t}</p>
+          <div style="display:flex;align-items:center;gap:.8rem;padding-top:.8rem;border-top:1px solid rgba(255,255,255,.06)">
+            <div style="width:40px;height:40px;border-radius:50%;background:${t.c}22;border:1px solid ${t.c}44;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${t.av}</div>
+            <div><div style="font-weight:800;font-size:.84rem">${t.name}</div><div style="font-size:.7rem;color:${t.c};font-weight:600">${t.role}</div></div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ FAQ ═══ -->
+    <section class="ll-section" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06)">
+      <div class="ll-section-head ll-reveal">
+        <span class="ll-eyebrow">${L('أسئلة شائعة','FAQ')}</span>
+        <h2 class="ll-section-title">${L('كل ما تريد معرفته','Tout ce que vous voulez savoir')} <span class="ll-gold">?</span></h2>
+      </div>
+      <div style="max-width:720px;margin:2.5rem auto 0;display:flex;flex-direction:column;gap:.7rem" class="ll-reveal">
+        ${[
+          {q:L('هل يحتاج تثبيتاً؟','Faut-il l\'installer ?'),a:L('لا. SmartStruct يعمل من المتصفح مباشرة على أي جهاز — حاسوب، هاتف، تابلت. لا تثبيت ولا تحديثات يدوية.','Non. SmartStruct fonctionne directement depuis le navigateur sur n\'importe quel appareil. Pas d\'installation ni de mises à jour manuelles.')},
+          {q:L('هل بياناتي آمنة؟','Mes données sont-elles sécurisées ?'),a:L('نعم. بياناتك مُشفّرة PBKDF2+SHA-256، محفوظة في Supabase مع Row-Level Security. لا أحد غيرك يصل لها — حتى نحن.','Oui. Chiffrement PBKDF2+SHA-256, hébergement Supabase avec Row-Level Security. Personne d\'autre ne peut y accéder, même nous.')},
+          {q:L('هل يعمل بدون إنترنت؟','Fonctionne-t-il sans internet ?'),a:L('نعم. يحفظ البيانات محلياً ويتزامن تلقائياً عند عودة الإنترنت. مثالي للورشات في المناطق النائية.','Oui. Il sauvegarde localement et se synchronise automatiquement au retour de la connexion. Idéal pour les chantiers éloignés.')},
+          {q:L('هل هو متوافق مع القانون الجزائري؟','Est-il conforme à la loi algérienne ?'),a:L('100٪. كل الوثائق تحتوي NIF, NIS, RC, Article d\'Imposition وTVA 19٪. الرواتب تحتسب CNAS وIRG تلقائياً.','À 100%. Tous les documents incluent NIF, NIS, RC, Article d\'Imposition et TVA 19%. Les salaires calculent CNAS et IRG automatiquement.')},
+          {q:L('كيف أبدأ؟','Comment démarrer ?'),a:L('اضغط "ابدأ التجربة الآن"، سجّل اسمك وبريدك وكلمة مرور — في دقيقتين حسابك جاهز وتجربة 14 يوم مجانية تبدأ فوراً بدون بطاقة بنكية.','Cliquez "Commencer l\'essai", entrez votre nom, email et mot de passe — en 2 minutes votre compte est prêt et votre essai 14 jours commence immédiatement, sans carte bancaire.')},
+        ].map((f,i)=>`<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+          <button onclick="(function(b){var d=b.nextElementSibling,open=d.style.maxHeight&&d.style.maxHeight!=='0px';d.style.maxHeight=open?'0px':'300px';d.style.paddingTop=open?'0':'.8rem';d.style.paddingBottom=open?'0':'.9rem';b.querySelector('span:last-child').style.transform=open?'':'rotate(180deg)'})(this)"
+            style="width:100%;padding:.9rem 1.2rem;background:none;border:none;cursor:pointer;text-align:${isAr?'right':'left'};color:var(--text);font-family:inherit;font-size:.87rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:1rem">
+            <span>${f.q}</span><span style="color:var(--gold);transition:transform .25s;flex-shrink:0;font-size:.8rem">▼</span>
+          </button>
+          <div style="max-height:0;overflow:hidden;transition:all .3s;padding:0 1.2rem;font-size:.81rem;color:var(--muted);line-height:1.8">${f.a}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+
+    <!-- ═══ CTA ═══ -->
+    <div class="ll-cta ll-reveal">
+      <div class="ll-cta-content">
+        <h2 class="ll-cta-title">${L('جاهز لتحويل طريقة','Prêt à transformer la gestion')} <span class="ll-gold">${L('إدارة شركتك؟','de votre entreprise ?')}</span></h2>
+        <p class="ll-cta-desc">${L('14 يوم تجربة مجانية كاملة. لا بطاقة بنكية. لا التزام. فقط جرّب وقرّر.','14 jours d\'essai complet. Sans CB. Sans engagement. Testez et décidez.')}</p>
+        <div class="ll-hero-actions" style="justify-content:center">
+          ${user
+            ? `<button class="ll-btn ll-btn-gold ll-btn-lg" data-nav="${user.is_admin?'admin':'dashboard'}">
+                 ${L('الذهاب للوحة التحكم','Tableau de bord')}
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+               </button>`
+            : `<button class="ll-btn ll-btn-gold ll-btn-lg" onclick="showRegisterPanel()">
+                 ${L('ابدأ التجربة الآن','Commencer l\'essai')}
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'rotate(180deg)':'none'}"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+               </button>
+               <button class="ll-btn ll-btn-ghost ll-btn-lg" onclick="showLoginPanel()">${L('لدي حساب — دخول','J\'ai un compte')}</button>`
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="ll-footer">
+      <div class="ll-footer-grid">
+        <div>
+          <div class="ll-footer-brand">
+            <div class="ll-nav-logo-mark">${ssLogo(22)}</div>
+            <div class="ll-nav-logo-text">
+              <div class="ll-nav-logo-name">SmartStruct</div>
+              
+            </div>
+          </div>
+          <p class="ll-footer-desc">${L('منصة احترافية لإدارة مشاريع المقاولة والبناء في الجزائر — مدعومة بالذكاء الاصطناعي ومتوافقة مع القانون.','Plateforme pro pour la gestion de chantiers en Algérie — propulsée par l\'IA et conforme à la loi.')}</p>
+        </div>
+        <div class="ll-footer-col">
+          <h4>${L('المنتج','Produit')}</h4>
+          <ul>
+            <li><a href="#ll-features">${L('المزايا','Fonctionnalités')}</a></li>
+            <li><a href="#ll-pricing">${L('الأسعار','Tarifs')}</a></li>
+            <li><a href="#ll-showcase">${L('عرض الواجهة','Aperçu')}</a></li>
+            <li><a href="#ll-benefits">${L('الفوائد','Avantages')}</a></li>
+          </ul>
+        </div>
+        <div class="ll-footer-col">
+          <h4>${L('الشركة','Entreprise')}</h4>
+          <ul>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('about')">${L('من نحن','À propos')}</a></li>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('تواصل معنا','Contact')}</a></li>
+          </ul>
+        </div>
+        <div class="ll-footer-col">
+          <h4>${L('الدعم','Support')}</h4>
+          <ul>
+            <li><a href="#" onclick="event.preventDefault();App.navigate('contact')">${L('مركز التواصل','Centre contact')}</a></li>
+            <li><a href="mailto:support@smartstruct.dz">${L('الدعم التقني','Support technique')}</a></li>
+            <li><a href="mailto:contact@smartstruct.dz">${L('البريد الإلكتروني','Email')}</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="ll-footer-bottom">
+        <div>© 2026 SmartStruct — ${L('صُمم للشركات الجزائرية في قطاع البناء','Conçu pour les entreprises BTP algériennes')}</div>
+        <div>${L('صُنع بـ ♥ في الجزائر','Fait avec ♥ en Algérie')}</div>
+      </div>
+    </footer>
+  </div>`;
 };
 
 /* ─── Init dynamic effects after landing renders ─── */
@@ -2550,15 +3297,16 @@ Pages.login = function(mode) {
     <div class="auth-particles" id="authParticles"></div>
 
     <!-- Top controls -->
-    <div style="position:fixed;top:1rem;left:1rem;z-index:100;display:flex;align-items:center;gap:10px;">
-      <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour','Back')}" style="position:static;top:auto;right:auto;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'none':'rotate(180deg)'}">
-          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-        </svg>
-        <span>${L('العودة للموقع','Retour au site','Back to site')}</span>
-      </button>
-      ${I18N.langSwitcherHTML()}
-    </div>
+    <button class="auth-back-btn" data-nav="landing" title="${L('العودة','Retour')}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${isAr?'none':'rotate(180deg)'}">
+        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+      </svg>
+      <span>${L('العودة للموقع','Retour au site')}</span>
+    </button>
+
+    <button class="auth-lang-btn" onclick="I18N.setLang(I18N.currentLang==='ar'?'fr':'ar')">
+      ${isAr ? 'FR' : 'AR'}
+    </button>
 
     <!-- Main grid: Left brand panel + Right form -->
     <div class="auth-shell">
@@ -2579,12 +3327,12 @@ Pages.login = function(mode) {
 
           <div class="auth-trial-pill">
             <span class="auth-trial-dot"></span>
-            ${L('تجربة مجانية 14 يوم — بدون بطاقة بنكية','Essai gratuit 14j — sans CB','14-day free trial — no credit card')}
+            ${L('تجربة مجانية 14 يوم — بدون بطاقة بنكية','Essai gratuit 14j — sans CB')}
           </div>
 
           <h1 class="auth-brand-title">
-            ${L('أدِر شركتك','Gérez votre BTP','Manage Your Business')}<br>
-            <span class="auth-brand-title-gold">${L('بذكاءٍ احترافي','en intelligence pro','with Professional Intelligence')}</span>
+            ${L('أدِر شركتك','Gérez votre BTP')}<br>
+            <span class="auth-brand-title-gold">${L('بذكاءٍ احترافي','en intelligence pro')}</span>
           </h1>
 
           <p class="auth-brand-desc">${L(
@@ -2599,7 +3347,7 @@ Pages.login = function(mode) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div class="auth-mc-text">
-                <div class="auth-mc-label">${L('المشاريع','Projets','Projects')}</div>
+                <div class="auth-mc-label">${L('المشاريع','Projets')}</div>
                 <div class="auth-mc-val">+18.4%</div>
               </div>
             </div>
@@ -2608,7 +3356,7 @@ Pages.login = function(mode) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
               <div class="auth-mc-text">
-                <div class="auth-mc-label">${L('الإيرادات','Revenus','Revenue')}</div>
+                <div class="auth-mc-label">${L('الإيرادات','Revenus')}</div>
                 <div class="auth-mc-val">4.2M</div>
               </div>
             </div>
@@ -2618,16 +3366,16 @@ Pages.login = function(mode) {
               </div>
               <div class="auth-mc-text">
                 <div class="auth-mc-label">SmartAI</div>
-                <div class="auth-mc-val">${L('نشط','Actif','Active')}</div>
+                <div class="auth-mc-val">${L('نشط','Actif')}</div>
               </div>
             </div>
           </div>
 
           <ul class="auth-brand-features">
-            <li><span class="auth-feat-check">✓</span> ${L('27 جدول قاعدة بيانات + RLS','27 tables BDD + RLS','27 DB tables + RLS')}</li>
-            <li><span class="auth-feat-check">✓</span> ${L('فواتير PDF + توقيع إلكتروني','Factures PDF + signature','PDF Invoices + e-signature')}</li>
-            <li><span class="auth-feat-check">✓</span> ${L('SmartAI + توقعات السيولة','SmartAI + prévisions cash','SmartAI + cash flow forecasts')}</li>
-            <li><span class="auth-feat-check">✓</span> ${L('GPS للمعدات + وضع ميدان','GPS engins + mode chantier','Equipment GPS + field mode')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('27 جدول قاعدة بيانات + RLS','27 tables BDD + RLS')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('فواتير PDF + توقيع إلكتروني','Factures PDF + signature')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('SmartAI + توقعات السيولة','SmartAI + prévisions cash')}</li>
+            <li><span class="auth-feat-check">✓</span> ${L('GPS للمعدات + وضع ميدان','GPS engins + mode chantier')}</li>
           </ul>
         </div>
       </div>
@@ -2646,37 +3394,37 @@ Pages.login = function(mode) {
 };
 
 function renderLoginForm(L) {
-  if (!L) L = (ar, fr, en) => I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr;
+  if (!L) L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
   return `
     <!-- Mode tabs -->
     <div class="auth-tabs">
       <button class="auth-tab active" onclick="switchAuthMode('login')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        ${L('تسجيل الدخول','Connexion','Sign In')}
+        ${L('تسجيل الدخول','Connexion')}
       </button>
       <button class="auth-tab" onclick="switchAuthMode('register')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        ${L('إنشاء حساب','Inscription','Sign Up')}
+        ${L('إنشاء حساب','Inscription')}
       </button>
     </div>
 
     <div class="auth-heading">
-      <h2 class="auth-h-title">${L('مرحباً بعودتك 👋','Bon retour 👋','Welcome Back 👋')}</h2>
-      <p class="auth-h-sub">${L('سجّل دخولك للوصول إلى لوحة التحكم','Connectez-vous pour accéder à votre tableau de bord','Sign in to access your dashboard')}</p>
+      <h2 class="auth-h-title">${L('مرحباً بعودتك 👋','Bon retour 👋')}</h2>
+      <p class="auth-h-sub">${L('سجّل دخولك للوصول إلى لوحة التحكم','Connectez-vous pour accéder à votre tableau de bord')}</p>
     </div>
 
     <div id="loginError" style="display:none" class="auth-alert auth-alert-error">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <div>
-        <strong>${L('بيانات الدخول غير صحيحة','Identifiants incorrects','Incorrect credentials')}</strong>
+        <strong>${L('بيانات الدخول غير صحيحة','Identifiants incorrects')}</strong>
         <div style="font-size:.74rem;margin-top:3px;opacity:.85">
-          ${L('💡 جرّب الحساب التجريبي بالأسفل','💡 Essayez le compte démo ci-dessous','💡 Try the demo account below')}
+          ${L('💡 جرّب الحساب التجريبي بالأسفل','💡 Essayez le compte démo ci-dessous')}
         </div>
       </div>
     </div>
 
     <div class="auth-field">
-      <label class="auth-label">${L('البريد الإلكتروني','Adresse email','Email Address')}</label>
+      <label class="auth-label">${L('البريد الإلكتروني','Adresse email')}</label>
       <div class="auth-input-wrap">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         <input class="auth-input" id="loginEmail" type="email" placeholder="example@company.dz" dir="ltr" autocomplete="email">
@@ -2684,7 +3432,7 @@ function renderLoginForm(L) {
     </div>
 
     <div class="auth-field">
-      <label class="auth-label">${L('كلمة المرور','Mot de passe','Password')}</label>
+      <label class="auth-label">${L('كلمة المرور','Mot de passe')}</label>
       <div class="auth-input-wrap">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <input class="auth-input" id="loginPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
@@ -2701,12 +3449,12 @@ function renderLoginForm(L) {
         <span class="auth-checkbox-label">${L('تذكّرني','Se souvenir')}</span>
       </label>
       <button type="button" class="auth-link" onclick="showForgotModal()">
-        ${L('نسيت كلمة المرور؟','Mot de passe oublié ?','Forgot password?')}
+        ${L('نسيت كلمة المرور؟','Mot de passe oublié ?')}
       </button>
     </div>
 
     <button class="auth-submit auth-submit-gold" onclick="doLogin()">
-      <span>${L('تسجيل الدخول','Se connecter','Sign In')}</span>
+      <span>${L('تسجيل الدخول','Se connecter')}</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:${I18N.currentLang==='ar'?'rotate(180deg)':'none'}">
         <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
       </svg>
@@ -2714,52 +3462,38 @@ function renderLoginForm(L) {
 
     <div class="auth-divider"><span>${L('أو','ou')}</span></div>
 
-    <!-- مؤشر حالة Supabase -->
-    ${(()=>{
-      let _hasCfg = false;
-      try {
-        if (typeof SUPABASE_HARDCODED !== 'undefined' && SUPABASE_HARDCODED.url) _hasCfg = true;
-        else {
-          const _sc = JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}');
-          if (_sc.url && _sc.anonKey) _hasCfg = true;
-        }
-      } catch(_e){}
-      if (_hasCfg) return '<div style="margin-bottom:.7rem;padding:.5rem .9rem;background:rgba(108,197,154,.07);border:1px solid rgba(108,197,154,.25);border-radius:8px;font-size:.75rem;color:#6CC59A;display:flex;align-items:center;gap:.5rem"><span>✅</span><span>' + L('متصل بقاعدة البيانات','Connecté à la base de données') + '</span></div>';
-      return '<div style="margin-bottom:.7rem;padding:.6rem .9rem;background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.3);border-radius:8px;font-size:.75rem;color:#E8B84B;display:flex;align-items:center;gap:.5rem"><span>⚙️</span><span>' + L('Supabase غير مُعدَّل — اذهب للإعدادات','Supabase non configuré — paramètres requis') + '</span></div>';
-    })()}
-
     <button class="auth-demo-btn" onclick="document.getElementById('loginEmail').value='demo@algerie-construction.dz';document.getElementById('loginPass').value='Demo@1234';">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       ${L('ملء بيانات الحساب التجريبي','Remplir compte démo')}
     </button>
 
     <div class="auth-bottom-text">
-      ${L('ليس لديك حساب؟','Pas encore de compte ?','No account yet?')}
+      ${L('ليس لديك حساب؟','Pas encore de compte ?')}
       <button type="button" class="auth-link auth-link-strong" onclick="switchAuthMode('register')">
-        ${L('ابدأ تجربتك المجانية 14 يوم ←','Démarrer l\'essai gratuit →','Start your 14-day free trial →')}
+        ${L('ابدأ تجربتك المجانية 14 يوم ←','Démarrer l\'essai gratuit →')}
       </button>
     </div>
   `;
 }
 
 function renderRegisterForm(L) {
-  if (!L) L = (ar, fr, en) => I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr;
+  if (!L) L = (ar, fr) => I18N.currentLang === 'ar' ? ar : fr;
   return `
     <!-- Mode tabs -->
     <div class="auth-tabs">
       <button class="auth-tab" onclick="switchAuthMode('login')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        ${L('تسجيل الدخول','Connexion','Sign In')}
+        ${L('تسجيل الدخول','Connexion')}
       </button>
       <button class="auth-tab active" onclick="switchAuthMode('register')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        ${L('إنشاء حساب','Inscription','Sign Up')}
+        ${L('إنشاء حساب','Inscription')}
       </button>
     </div>
 
     <div class="auth-heading">
-      <h2 class="auth-h-title">${L('ابدأ مجاناً 🚀','Commencez gratuitement 🚀','Get Started Free 🚀')}</h2>
-      <p class="auth-h-sub">${L('14 يوماً تجربة كاملة. بدون بطاقة بنكية. ألغِ متى شئت.','14 jours d\'essai complet. Sans CB. Annulez quand vous voulez.','14-day full trial. No credit card. Cancel anytime.')}</p>
+      <h2 class="auth-h-title">${L('ابدأ مجاناً 🚀','Commencez gratuitement 🚀')}</h2>
+      <p class="auth-h-sub">${L('14 يوماً تجربة كاملة. بدون بطاقة بنكية. ألغِ متى شئت.','14 jours d\'essai complet. Sans CB. Annulez quand vous voulez.')}</p>
     </div>
 
     <div class="auth-trial-banner">
@@ -2784,7 +3518,7 @@ function renderRegisterForm(L) {
         </div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">${L('اسم المؤسسة','Entreprise','Company Name')} <span class="auth-required">*</span></label>
+        <label class="auth-label">${L('اسم المؤسسة','Entreprise')} <span class="auth-required">*</span></label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M9 13h2M9 17h2M13 9h2M13 13h2"/></svg>
           <input class="auth-input" id="regCompany" type="text" placeholder="${L('مؤسسة البناء الحديث','Entreprise BTP')}" autocomplete="organization">
@@ -2814,7 +3548,7 @@ function renderRegisterForm(L) {
 
     <!-- حقل كود التحقق - يظهر بعد إرسال الكود -->
     <div class="auth-field" id="otpField" style="display:none">
-      <label class="auth-label">🔐 ${L('كود التحقق','Code de vérification','Verification Code')} <span class="auth-required">*</span></label>
+      <label class="auth-label">🔐 ${L('كود التحقق','Code de vérification')} <span class="auth-required">*</span></label>
       <div class="auth-input-wrap">
         <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <input class="auth-input" id="regOtp" type="text" maxlength="6" placeholder="XXXXXX" dir="ltr"
@@ -2824,14 +3558,14 @@ function renderRegisterForm(L) {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">
         <span id="otpTimer" style="font-size:.72rem;color:var(--dim)"></span>
         <button type="button" onclick="sendVerificationCode(true)" style="font-size:.72rem;color:#D4AF37;background:none;border:none;cursor:pointer;padding:0">
-          🔄 ${L('إعادة إرسال','Renvoyer','Resend')}
+          🔄 ${L('إعادة إرسال','Renvoyer')}
         </button>
       </div>
     </div>
 
     <div class="auth-grid-2">
       <div class="auth-field">
-        <label class="auth-label">${L('كلمة المرور','Mot de passe','Password')} <span class="auth-required">*</span></label>
+        <label class="auth-label">${L('كلمة المرور','Mot de passe')} <span class="auth-required">*</span></label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <input class="auth-input" id="regPass" type="password" placeholder="••••••••" dir="ltr" autocomplete="new-password" oninput="checkPassStrength(this.value)">
@@ -2848,7 +3582,7 @@ function renderRegisterForm(L) {
         <div class="auth-pass-label" id="passStrengthLabel"></div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">${L('الولاية','Wilaya','Wilaya')}</label>
+        <label class="auth-label">${L('الولاية','Wilaya')}</label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           <select class="auth-input auth-select" id="regWilaya">
@@ -2858,7 +3592,7 @@ function renderRegisterForm(L) {
         </div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">${L('رقم الهاتف','Téléphone','Phone Number')} <span class="auth-required">*</span></label>
+        <label class="auth-label">${L('رقم الهاتف','Téléphone')} <span class="auth-required">*</span></label>
         <div style="display:flex;gap:.4rem;align-items:stretch">
           <div style="background:rgba(232,184,75,.08);border:1.5px solid rgba(232,184,75,.25);border-radius:11px;padding:0 .8rem;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:.82rem;font-weight:700;color:#E8B84B;flex-shrink:0;min-width:64px">
             +213
@@ -2887,13 +3621,13 @@ function renderRegisterForm(L) {
 
     <button class="auth-submit auth-submit-gold btn-trial" onclick="doRegister()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-      <span>${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer','Create Account & Start Free')}</span>
+      <span>${L('إنشاء الحساب والبدء مجاناً','Créer le compte et démarrer')}</span>
     </button>
 
     <div class="auth-bottom-text">
-      ${L('لديك حساب بالفعل؟','Vous avez déjà un compte ?','Already have an account?')}
+      ${L('لديك حساب بالفعل؟','Vous avez déjà un compte ?')}
       <button type="button" class="auth-link auth-link-strong" onclick="switchAuthMode('login')">
-        ${L('تسجيل الدخول','Se connecter','Sign In')}
+        ${L('تسجيل الدخول','Se connecter')}
       </button>
     </div>
   `;
@@ -3061,7 +3795,7 @@ async function doRegister() {
 
   const showErr = (msg) => {
     if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
-    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
+    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
   };
 
   // ── تحقق من الحقول ──
@@ -3102,7 +3836,7 @@ async function doRegister() {
   }
 
   // ── عرض حالة التحميل ──
-  if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = `⏳ ${L('جاري التسجيل...','Inscription en cours...')}`; }
+  if (btnReg) { btnReg.disabled = true; btnReg.innerHTML = '⏳ جاري التسجيل...'; }
   if (errEl) errEl.style.display = 'none';
 
   try {
@@ -3115,7 +3849,7 @@ async function doRegister() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    if (!sbUrl || !sbKey) throw new Error(L('Supabase غير مربوط — تواصل مع المسؤول', 'Supabase non configuré — contactez l\'administrateur'));
+    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
 
     const sbH = {
       'Content-Type': 'application/json',
@@ -3131,7 +3865,7 @@ async function doRegister() {
       if (existing.length) {
         // ✅ المستخدم موجود بالفعل — إذا كانت حالته pending أعرض شاشة الانتظار
         if (existing[0].account_status === 'pending') {
-          if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
+          if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
           showPendingActivationScreen(name.trim(), email, company.trim());
           return;
         }
@@ -3181,7 +3915,7 @@ async function doRegister() {
           }
         }
       }
-      throw new Error(L('فشل حفظ بيانات المؤسسة: ','Échec de la sauvegarde des données entreprise: ') + errText);
+      throw new Error('فشل حفظ بيانات المؤسسة: ' + errText);
     }
     const [sbTenant] = await tRes.json();
 
@@ -3214,11 +3948,11 @@ async function doRegister() {
       try { errJson = JSON.parse(errText); } catch(_) {}
       if (errJson.code === '23505') {
         // المستخدم موجود — أعرض شاشة الانتظار
-        if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
+        if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
         showPendingActivationScreen(name.trim(), email, company.trim());
         return;
       }
-      throw new Error(L('فشل حفظ بيانات المستخدم: ','Échec de la sauvegarde des données utilisateur: ') + errText);
+      throw new Error('فشل حفظ بيانات المستخدم: ' + errText);
     }
     const [sbUser] = await uRes.json();
 
@@ -3233,8 +3967,8 @@ async function doRegister() {
         body: JSON.stringify({
           // ✅ لا نمرر id — Supabase يولّده تلقائياً (SERIAL/BIGSERIAL)
           type: 'new_account',
-          title: L('🆕 طلب تسجيل جديد بانتظار الموافقة','🆕 Nouvelle demande d\'inscription en attente d\'approbation'),
-          body: `${L('مؤسسة','Entreprise')} "${company.trim()}" — ${name.trim()} (${email})${phone.trim()?' — 📞 '+('+213'+phone.trim().replace(/^0/,'').replace(/\s/g,'')):''} — 📍 ${wilaya}`,
+          title: '🆕 طلب تسجيل جديد بانتظار الموافقة',
+          body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email}) — ${wilaya}`,
           user_id: sbUser.id, tenant_id: sbTenant.id,
           date: now.toISOString(), read: false, status: 'pending',
           extra_data: encodedPass // ✅ كلمة مرور base64 مؤقتة للإيميل
@@ -3275,8 +4009,8 @@ async function doRegister() {
     if (sbNotif && !localNotifs.find(n => n.id === sbNotif.id)) {
       localNotifs.unshift({
         id: sbNotif.id, type: 'new_account',
-        title: L('🆕 طلب تسجيل جديد — بانتظار الموافقة','🆕 Nouvelle demande d\'inscription — en attente'),
-        body: `${L('مؤسسة','Entreprise')} "${company.trim()}" — ${name.trim()} (${email})`,
+        title: '🆕 طلب تسجيل جديد — بانتظار الموافقة',
+        body: `مؤسسة "${company.trim()}" — ${name.trim()} (${email})`,
         user_id: sbUser.id, tenant_id: sbTenant.id,
         date: now.toISOString(), read: false, status: 'pending'
       });
@@ -3301,7 +4035,7 @@ async function doRegister() {
     EMAILJS.sendWelcomeEmail({ name: name.trim(), email, company: company.trim(), wilaya }).catch(() => {});
 
     // 7. عرض شاشة الترحيب وانتظار الموافقة (بدون تسجيل دخول)
-    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = `🚀 ${L('إنشاء حساب مجاني','Créer un compte gratuit')}`; }
+    if (btnReg) { btnReg.disabled = false; btnReg.innerHTML = '🚀 إنشاء حساب مجاني'; }
     showPendingActivationScreen(name.trim(), email, company.trim());
 
   } catch(e) {
@@ -3326,7 +4060,6 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
     padding:1rem;
   `;
 
-  const _L = (ar, fr, en) => I18N.currentLang === 'ar' ? ar : (I18N.currentLang === 'en' && en) ? en : fr;
   overlay.innerHTML = `
     <div style="
       max-width:520px;width:100%;
@@ -3355,13 +4088,13 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
 
       <!-- عنوان الترحيب -->
       <div style="font-size:1.6rem;font-weight:900;color:#EDF2F7;margin-bottom:.4rem;line-height:1.3">
-        ${_L('أهلاً وسهلاً،','Bienvenue,')} ${escHtml(userName)}! 🌟
+        أهلاً وسهلاً، ${escHtml(userName)}! 🌟
       </div>
       <div style="font-size:.95rem;color:#8892A4;margin-bottom:.5rem">
-        ${_L('مؤسسة:','Entreprise:')} <strong style="color:#E8B84B">${escHtml(companyName||'')}</strong>
+        مؤسسة: <strong style="color:#E8B84B">${escHtml(companyName||'')}</strong>
       </div>
       <div style="font-size:.88rem;color:#6B7694;margin-bottom:2rem;line-height:1.6">
-        ${_L('تم استلام طلب تسجيلك بنجاح ✅',"Votre demande d'inscription a bien été reçue ✅")}
+        تم استلام طلب تسجيلك بنجاح ✅
       </div>
 
       <!-- كارت الحالة -->
@@ -3369,34 +4102,34 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.04));
         border:1px solid rgba(232,184,75,.25);
         border-radius:18px;padding:1.5rem 1.3rem;
-        margin-bottom:1.3rem;text-align:${I18N.currentLang==='ar'?'right':'left'};
+        margin-bottom:1.3rem;text-align:right;
       ">
-        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;justify-content:${I18N.currentLang==='ar'?'flex-end':'flex-start'}">
-          <span style="font-size:.9rem;font-weight:800;color:#E8B84B">⏳ ${_L('حسابك قيد المراجعة','Compte en cours de vérification')}</span>
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;justify-content:flex-end">
+          <span style="font-size:.9rem;font-weight:800;color:#E8B84B">⏳ حسابك قيد المراجعة</span>
           <span style="
             background:rgba(232,184,75,.15);color:#E8B84B;
             border:1px solid rgba(232,184,75,.3);
             border-radius:20px;padding:.15rem .7rem;
             font-size:.72rem;font-weight:700;
-          ">${_L('بانتظار الموافقة',"En attente d'approbation")}</span>
+          ">بانتظار الموافقة</span>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:.7rem">
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">✅</span>
-            <span>${_L('تم حفظ بيانات مؤسستك في النظام بنجاح','Les données de votre entreprise ont bien été enregistrées')}</span>
+            <span>تم حفظ بيانات مؤسستك في النظام بنجاح</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(74,144,226,.12);border:1px solid rgba(74,144,226,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">👑</span>
-            <span>${_L('سيقوم المسؤول بمراجعة طلبك في أقرب وقت',"L'administrateur examinera votre demande dans les plus brefs délais")}</span>
+            <span>سيقوم المسؤول بمراجعة طلبك في أقرب وقت</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">📧</span>
-            <span>${_L('ستصلك رسالة بريد إلكتروني فور تفعيل حسابك','Vous recevrez un email dès que votre compte sera activé')}</span>
+            <span>ستصلك رسالة بريد إلكتروني فور تفعيل حسابك</span>
           </div>
           <div style="display:flex;align-items:center;gap:.8rem;font-size:.83rem;color:#A0AABB">
             <span style="width:28px;height:28px;border-radius:50%;background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem">🚀</span>
-            <span>${_L('بعد التفعيل يمكنك الدخول والاستمتاع بـ 14 يوم مجاناً',"Après activation, profitez de 14 jours d'essai gratuit complet")}</span>
+            <span>بعد التفعيل يمكنك الدخول والاستمتاع بـ 14 يوم مجاناً</span>
           </div>
         </div>
       </div>
@@ -3411,7 +4144,7 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         flex-wrap:wrap;
       ">
         <span style="font-size:1.1rem">📬</span>
-        <span style="font-size:.82rem;color:#8892A4">${_L('سيُرسَل إيميل التفعيل إلى:',"L'email d'activation sera envoyé à :")}</span>
+        <span style="font-size:.82rem;color:#8892A4">سيُرسَل إيميل التفعيل إلى:</span>
         <strong style="font-size:.85rem;color:#4A90E2;direction:ltr;font-family:monospace">${escHtml(userEmail)}</strong>
       </div>
 
@@ -3430,11 +4163,11 @@ function showPendingActivationScreen(userName, userEmail, companyName) {
         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 30px rgba(232,184,75,.45)'"
         onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(232,184,75,.3)'"
       >
-        ${_L('← العودة لصفحة تسجيل الدخول','← Retour à la page de connexion')}
+        ← العودة لصفحة تسجيل الدخول
       </button>
 
       <div style="margin-top:1rem;font-size:.75rem;color:#4A5568">
-        ${_L('للاستفسار تواصل مع فريق الدعم','Pour toute question, contactez notre équipe support')}
+        للاستفسار تواصل مع فريق الدعم
       </div>
     </div>
   `;
@@ -3474,7 +4207,7 @@ function showWelcomeRobot(userName, daysLeft) {
       
       <!-- Welcome text -->
       <div style="font-size:1.6rem;font-weight:900;color:var(--text,#fff);margin-bottom:.5rem">
-        ${I18N.currentLang==='ar' ? `مرحباً ${firstName}! 👋` : I18N.currentLang==='en' ? `Welcome, ${firstName}! 👋` : `Bienvenue ${firstName}! 👋`}
+        ${I18N.currentLang==='ar' ? `مرحباً ${firstName}! 👋` : `Bienvenue ${firstName}! 👋`}
       </div>
       <div style="font-size:.9rem;color:var(--dim,#8899aa);margin-bottom:1.5rem;line-height:1.6">
         ${I18N.currentLang==='ar'
@@ -3489,10 +4222,10 @@ function showWelcomeRobot(userName, daysLeft) {
         padding:1rem;margin-bottom:1.5rem;text-align:right;
       ">
         ${[
-          ['📊', I18N.currentLang==='ar'?'لوحة تحكم ذكية بمؤشرات صحة المؤسسة':I18N.currentLang==='en'?'Smart Dashboard with health indicators':'Tableau de bord intelligent'],
-          ['💰', I18N.currentLang==='ar'?'إدارة مالية كاملة ومتكاملة':I18N.currentLang==='en'?'Complete financial management':'Gestion financière complète'],
-          ['👷', I18N.currentLang==='ar'?'متابعة العمال والحضور والرواتب':I18N.currentLang==='en'?'Worker tracking, attendance & payroll':'Suivi des employés et salaires'],
-          ['🤖', I18N.currentLang==='ar'?'مساعد ذكاء اصطناعي خاص بك':I18N.currentLang==='en'?'Your personal AI assistant':'Assistant IA personnel'],
+          ['📊', I18N.currentLang==='ar'?'لوحة تحكم ذكية بمؤشرات صحة المؤسسة':'Tableau de bord intelligent'],
+          ['💰', I18N.currentLang==='ar'?'إدارة مالية كاملة ومتكاملة':'Gestion financière complète'],
+          ['👷', I18N.currentLang==='ar'?'متابعة العمال والحضور والرواتب':'Suivi des employés et salaires'],
+          ['🤖', I18N.currentLang==='ar'?'مساعد ذكاء اصطناعي خاص بك':'Assistant IA personnel'],
         ].map(([icon, text]) => `
           <div style="display:flex;align-items:center;gap:.6rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04)">
             <span style="font-size:1.1rem">${icon}</span>
@@ -3511,12 +4244,12 @@ function showWelcomeRobot(userName, daysLeft) {
         box-shadow:0 4px 20px rgba(52,195,143,0.3);
         transition:transform .2s;
       " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-        ${I18N.currentLang==='ar' ? '🚀 ابدأ الآن!' : I18N.currentLang==='en' ? '🚀 Start Now!' : '🚀 Commencer maintenant!'}
+        ${I18N.currentLang==='ar' ? '🚀 ابدأ الآن!' : '🚀 Commencer maintenant!'}
       </button>
       
       <!-- Days counter bottom -->
       <div style="margin-top:.8rem;font-size:.72rem;color:var(--dim,#667)">
-        ${I18N.currentLang==='ar' ? `⏱️ التجربة المجانية تنتهي بعد ${daysLeft} يوم` : I18N.currentLang==='en' ? `⏱️ Free trial ends in ${daysLeft} days` : `⏱️ Essai gratuit se termine dans ${daysLeft} jours`}
+        ${I18N.currentLang==='ar' ? `⏱️ التجربة المجانية تنتهي بعد ${daysLeft} يوم` : `⏱️ Essai gratuit se termine dans ${daysLeft} jours`}
       </div>
     </div>
   `;
@@ -4125,14 +4858,14 @@ function calcBTPMetrics(projects, txs, workers, attendance, invoices, materials,
 
   // ⑭ تقييم صحي ذكي لكل مؤشر
   m.alerts = [];
-  if (m.cpi !== null && m.cpi < 0.9)        m.alerts.push({ icon:'💸', text: L('تجاوز التكلفة المقدرة (CPI<0.9)','Dépassement de coût (CPI<0.9)') });
-  if (m.spi !== null && m.spi < 0.85)       m.alerts.push({ icon:'⏰', text: L('تأخر زمني في المشاريع (SPI<0.85)','Retard de planning (SPI<0.85)') });
-  if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text: `${L('السيولة ستنفد خلال','Liquidité épuisée dans')} ${m.cashRunway} ${L('يوم','jours')}` });
-  if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text: `${L('متوسط التحصيل','Délai de recouvrement')} ${m.dso} ${L('يوم - بطيء','jours - lent')}` });
-  if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text: `${L('هامش ربح منخفض','Marge bénéficiaire faible')} (${m.grossMargin}%)` });
-  if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} ${L('مادة مخزون منخفض','matériau(x) stock bas')}` });
-  if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text: `${L('الأجور','Paie')} ${m.payrollRatio}% ${L('من الإيرادات','des revenus')}` });
-  if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text: `${L('فواتير غير محصلة','Factures impayées')}: ${fmt(Math.round(m.unpaidAmount))} ${L('دج','DA')}` });
+  if (m.cpi !== null && m.cpi < 0.9)        m.alerts.push({ icon:'💸', text:'تجاوز التكلفة المقدرة (CPI<0.9)' });
+  if (m.spi !== null && m.spi < 0.85)       m.alerts.push({ icon:'⏰', text:'تأخر زمني في المشاريع (SPI<0.85)' });
+  if (m.cashRunway !== null && m.cashRunway < 60 && m.cashRunway > 0) m.alerts.push({ icon:'🚨', text:`السيولة ستنفد خلال ${m.cashRunway} يوم` });
+  if (m.dso !== null && m.dso > 60)         m.alerts.push({ icon:'📋', text:`متوسط التحصيل ${m.dso} يوم - بطيء` });
+  if (m.grossMargin !== null && m.grossMargin < 10) m.alerts.push({ icon:'📉', text:`هامش ربح منخفض (${m.grossMargin}%)` });
+  if (m.lowStockCount > 0)                  m.alerts.push({ icon:'📦', text:`${m.lowStockCount} مادة مخزون منخفض` });
+  if (m.payrollRatio !== null && m.payrollRatio > 40) m.alerts.push({ icon:'👷', text:`الأجور ${m.payrollRatio}% من الإيرادات` });
+  if (m.unpaidAmount > 0)                   m.alerts.push({ icon:'💰', text:`فواتير غير محصلة: ${fmt(Math.round(m.unpaidAmount))} دج` });
 
   return m;
 }
@@ -4214,80 +4947,6 @@ function getProfitLabel(project) {
   if (margin > 5)  return I18N.t('dash.profMed')  + ` +${Math.round(margin)}%`;
   if (margin > 0)  return I18N.t('dash.profLow')  + ` +${Math.round(margin)}%`;
   return I18N.t('dash.profLoss') + ` ${Math.round(margin)}%`;
-}
-
-
-/* ══════════════════════════════════════════════════════
-   📁 Generated Documents Archive — أرشيف الوثائق المولّدة
-══════════════════════════════════════════════════════ */
-function saveGeneratedDoc(section, docInfo) {
-  try {
-    const user = Auth.getUser();
-    if (!user) return;
-    const key = 'gen_docs_' + section;
-    const docs = DB.get(key) || [];
-    docs.unshift({
-      id: Date.now(),
-      tenant_id: user.tenant_id,
-      createdAt: new Date().toISOString(),
-      ...docInfo
-    });
-    DB.set(key, docs.slice(0, 200));
-    if (typeof addNotification === 'function') {
-      const isAr = I18N.currentLang === 'ar';
-      const sectionLabels = {
-        workers: isAr ? 'العمال' : 'Employés',
-        salary:  isAr ? 'الرواتب' : 'Paie',
-        transactions: isAr ? 'المعاملات' : 'Transactions',
-        inventory: isAr ? 'المخزون' : 'Inventaire',
-        invoices: isAr ? 'الفواتير' : 'Factures'
-      };
-      addNotification(user.tenant_id,
-        isAr ? `📄 وثيقة جديدة — ${sectionLabels[section]||section}` : `📄 Document généré — ${sectionLabels[section]||section}`,
-        isAr ? (docInfo.title || 'وثيقة مولّدة') : (docInfo.titleFr || docInfo.title || 'Document généré'),
-        'info'
-      );
-    }
-  } catch(e) { console.warn('[GenDoc]', e.message); }
-}
-
-function renderGenDocsTable(section) {
-  const isAr = I18N.currentLang === 'ar';
-  const user = Auth.getUser();
-  if (!user) return '';
-  const docs = (DB.get('gen_docs_' + section) || []).filter(d => d.tenant_id === user.tenant_id);
-  if (!docs.length) return '';
-  const sectionLabels = {
-    workers: isAr ? 'الوثائق المولدة الخاصة بالعمال' : 'Documents générés — Employés',
-    salary:  isAr ? 'أرشيف وثائق الرواتب' : 'Archive documents de paie',
-    transactions: isAr ? 'سجل وثائق المعاملات' : 'Journal documents transactions',
-    inventory: isAr ? 'أرشيف وثائق المخزون' : 'Archive documents inventaire',
-    invoices: isAr ? 'أرشيف الفواتير المولدة' : 'Archive factures générées'
-  };
-  return `<div class="card" style="margin-top:1.5rem;border-color:rgba(74,144,226,.2)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
-      <div style="font-size:.85rem;font-weight:800;color:var(--blue)">📁 ${sectionLabels[section]||section}</div>
-      <button onclick="clearGenDocs('${section}')" style="background:none;border:none;color:var(--dim);font-size:.7rem;cursor:pointer;font-family:'Tajawal',sans-serif">🗑️ ${isAr?'مسح الكل':'Tout effacer'}</button>
-    </div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.75rem">
-        <thead>
-          <tr style="border-bottom:1px solid var(--border)">
-            <th style="padding:.4rem .6rem;text-align:${isAr?'right':'left'};color:var(--dim);font-weight:700">${isAr?'الوثيقة':'Document'}</th>
-            <th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">${isAr?'تاريخ الإنشاء':'Date création'}</th>
-            <th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">${isAr?'النوع':'Type'}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${docs.slice(0,20).map(d => `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
-            <td style="padding:.4rem .6rem;color:var(--text);font-weight:600">📄 ${escHtml(d.title||d.name||'—')}</td>
-            <td style="padding:.4rem .6rem;text-align:center;color:var(--dim)">${d.createdAt ? new Date(d.createdAt).toLocaleDateString(isAr?'ar-DZ':'fr-DZ',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
-            <td style="padding:.4rem .6rem;text-align:center"><span style="padding:2px 8px;border-radius:6px;background:rgba(74,144,226,.1);color:var(--blue);font-size:.68rem;font-weight:700">${escHtml(d.type||'—')}</span></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
 }
 
 Pages.dashboard = function() {
@@ -4484,119 +5143,23 @@ Pages.dashboard = function() {
       </div>
     </div>
 
-    <!-- ══ شريط الاشتراك تحت بطاقة المؤسسة ══ -->
-    ${(()=>{
-      // جلب بيانات المؤسسة المحدّثة من DB مباشرة (أدق من cache)
-      const dbTenants = DB.get('tenants') || [];
-      const t = dbTenants.find(x => x.id === tenant?.id) || tenant;
-      if (!t) return '';
-
-      const status    = t.subscription_status || 'trial';
-      const planNames = {1:L('المبتدئ 🌱','Starter 🌱'), 2:L('الاحترافي ⚡','Pro ⚡'), 3:L('المؤسسي 🏆','Enterprise 🏆')};
-      const planName  = planNames[t.plan_id] || L('تجربة مجانية','Essai gratuit');
-      const planEmoji = t.plan_id===3?'🏆':t.plan_id===2?'⚡':'🌱';
-      const isExpired = status==='expired' || t.is_active===false;
-      const isActive  = status==='active';
-      const isTrial   = status==='trial';
-
-      // ── حساب التاريخ والأيام ──
-      const fmt = d => { try { return new Date(d).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}); } catch(e){return '—';} };
-      const daysDiff = d => Math.max(0, Math.round((new Date(d)-new Date())/86400000));
-
-      let barColor = isExpired?'#F04E6A' : isActive?'#34C38F' : '#E8B84B';
-      let endDate  = '—', daysLeft = null, pct = 100;
-
-      // محاولة أكثر من حقل للتاريخ
-      const rawEnd = t.subscription_end || t.subscription_ends_at || t.trial_end || null;
-
-      if (isTrial) {
-        const te = t.trial_end || t.trial_ends_at;
-        if (te) {
-          daysLeft = daysDiff(te);
-          endDate  = fmt(te);
-          pct      = Math.min(100,Math.round(daysLeft/14*100));
-          barColor = daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
-        }
-      } else if (isActive) {
-        const se = t.subscription_end || t.subscription_ends_at;
-        if (se) {
-          daysLeft = daysDiff(se);
-          const ss = t.subscription_start;
-          const totalDays = ss ? Math.round((new Date(se)-new Date(ss))/86400000)||30 : 30;
-          pct      = Math.min(100,Math.round(daysLeft/totalDays*100));
-          endDate  = fmt(se);
-          barColor = daysLeft<=7?'#E8B84B':'#34C38F';
-        }
-      } else if (isExpired) {
-        pct=0;
-        if (rawEnd) endDate = fmt(rawEnd);
-      }
-
-      const statusBadge = isExpired
-        ? `<span style="background:#F04E6A18;border:1px solid #F04E6A44;color:#F04E6A;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⛔ ${L('منتهي','Expiré')}</span>`
-        : isActive
-          ? `<span style="background:#34C38F18;border:1px solid #34C38F44;color:#34C38F;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">✅ ${L('نشط','Actif','Active')}</span>`
-          : `<span style="background:#E8B84B18;border:1px solid #E8B84B44;color:#E8B84B;padding:2px 10px;border-radius:12px;font-size:.7rem;font-weight:700">⏳ ${L('تجريبي','Essai')}</span>`;
-
-      return `
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);
-                  border-radius:14px;padding:.8rem 1.2rem;margin-bottom:.3rem;
-                  display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap">
-
-        <!-- الأيقونة والخطة -->
-        <div style="display:flex;align-items:center;gap:.7rem;flex:1;min-width:180px">
-          <span style="font-size:1.5rem">${planEmoji}</span>
-          <div>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;flex-wrap:wrap">
-              <span style="font-weight:800;font-size:.9rem">${planName}</span>
-              ${statusBadge}
-            </div>
-            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;width:180px;max-width:100%">
-              <div style="height:4px;background:${barColor};border-radius:4px;width:${pct}%;transition:width 1.2s"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- تاريخ الانتهاء -->
-        <div style="display:flex;flex-direction:column;gap:.15rem;min-width:140px">
-          <span style="font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.3px">
-            ${isExpired ? L('⚠️ انتهت في','⚠️ Expiré le') : isTrial ? L('📅 انتهاء التجربة','📅 Fin essai') : L('📅 تاريخ الانتهاء','📅 Date expiration')}
-          </span>
-          <span style="font-size:.9rem;font-weight:800;color:${isExpired?'#F04E6A':barColor}">
-            ${endDate !== '—' ? endDate : `<span style="color:var(--dim);font-size:.75rem">${L('غير محدد — تحقق من لوحة الأدمن','Non défini')}</span>`}
-          </span>
-          ${daysLeft !== null && !isExpired ? `<span style="font-size:.7rem;color:var(--dim)">${daysLeft} ${L('يوم متبقي','jours restants')}</span>` : ''}
-        </div>
-
-        <!-- فاصل -->
-        <div style="width:1px;height:44px;background:rgba(255,255,255,.07);flex-shrink:0"></div>
-
-        <!-- زر -->
-        ${isExpired
-          ? `<button class="btn btn-gold" onclick="App.navigate('subscription')" style="font-size:.8rem">🚀 ${L('اشترك الآن','S\'abonner')}</button>`
-          : daysLeft !== null && daysLeft <= 7
-            ? `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.78rem">🔄 ${L('تجديد','Renouveler')}</button>`
-            : `<button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')" style="font-size:.72rem">💳 ${L('إدارة الاشتراك','Gérer')}</button>`}
-      </div>`;
-    })()}
-
     <!-- AI CEO DAILY SUMMARY -->
     <div class="ai-ceo-banner">
       <div class="ai-ceo-icon">🤖</div>
       <div style="flex:1">
-        <div class="ai-ceo-greeting">🌅 ${L('ملخص الذكاء الاصطناعي','Récapitulatif IA')} — ${new Date().toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{weekday:'long',day:'numeric',month:'long'})}</div>
+        <div class="ai-ceo-greeting">🌅 ملخص الذكاء الاصطناعي — ${new Date().toLocaleDateString('ar-DZ',{weekday:'long',day:'numeric',month:'long'})}</div>
         <div style="font-size:.88rem;font-weight:800;margin-bottom:.4rem">
-          ${risks.filter(r=>r.level==='danger').length > 0 ? `🔴 ${risks.filter(r=>r.level==='danger').length} ${L('مشروع في خطر','projet(s) en danger')}` : `✅ ${L('جميع المشاريع في وضع سليم','Tous les projets sont en bonne santé')}`}
-          ${totalBudget > 0 && totalSpent/totalBudget > 0.7 ? ` • 🟡 ${L('استهلاك الميزانية مرتفع','Consommation budget élevée')} ${Math.round(totalSpent/totalBudget*100)}%` : ''}
+          ${risks.filter(r=>r.level==='danger').length > 0 ? `🔴 ${risks.filter(r=>r.level==='danger').length} مشروع في خطر` : `✅ جميع المشاريع في وضع سليم`}
+          ${totalBudget > 0 && totalSpent/totalBudget > 0.7 ? ` • 🟡 استهلاك الميزانية مرتفع ${Math.round(totalSpent/totalBudget*100)}%` : ''}
         </div>
         <div class="ai-ceo-insights">
-          <span class="ai-ceo-chip ${forecastProfit >= 0 ? 'green' : 'red'}">💰 ${L('ربح متوقع','Bénéfice prévu')}: ${fmt(Math.round(forecastProfit))} ${L('دج','DA')}</span>
-          ${health.score >= 75 ? `<span class="ai-ceo-chip green">🏥 ${L('الصحة المالية ممتازة','Santé financière excellente')} ${health.score}/100</span>` 
-            : health.score >= 55 ? `<span class="ai-ceo-chip yellow">🏥 ${L('تحتاج اهتمام','Attention requise')} ${health.score}/100</span>`
-            : `<span class="ai-ceo-chip red">🏥 ${L('خطر مالي','Risque financier')} ${health.score}/100</span>`}
-          ${workers.length > 0 ? `<span class="ai-ceo-chip blue">👷 ${presentToday}/${workers.length} ${L('حاضر اليوم','présent(s) aujourd\'hui')}</span>` : ''}
-          ${projects.filter(p=>p.status==='active').length > 0 ? `<span class="ai-ceo-chip blue">🏗️ ${projects.filter(p=>p.status==='active').length} ${L('مشروع نشط','projet(s) actif(s)')}</span>` : ''}
-          ${risks.length > 0 ? `<span class="ai-ceo-chip ${risks.filter(r=>r.level==='danger').length>0?'red':'yellow'}">⚠️ ${risks.length} ${L('تنبيه','alerte(s)')}</span>` : ''}
+          <span class="ai-ceo-chip ${forecastProfit >= 0 ? 'green' : 'red'}">💰 ربح متوقع: ${fmt(Math.round(forecastProfit))} دج</span>
+          ${health.score >= 75 ? `<span class="ai-ceo-chip green">🏥 الصحة المالية ممتازة ${health.score}/100</span>` 
+            : health.score >= 55 ? `<span class="ai-ceo-chip yellow">🏥 تحتاج اهتمام ${health.score}/100</span>`
+            : `<span class="ai-ceo-chip red">🏥 خطر مالي ${health.score}/100</span>`}
+          ${workers.length > 0 ? `<span class="ai-ceo-chip blue">👷 ${presentToday}/${workers.length} حاضر اليوم</span>` : ''}
+          ${projects.filter(p=>p.status==='active').length > 0 ? `<span class="ai-ceo-chip blue">🏗️ ${projects.filter(p=>p.status==='active').length} مشروع نشط</span>` : ''}
+          ${risks.length > 0 ? `<span class="ai-ceo-chip ${risks.filter(r=>r.level==='danger').length>0?'red':'yellow'}">⚠️ ${risks.length} تنبيه</span>` : ''}
         </div>
       </div>
       <div class="ai-ceo-actions">
@@ -5168,7 +5731,7 @@ Pages.projects = function() {
 
   const cards = projects.map(p=>{
     const wCount=workers.filter(w=>w.project_id===p.id).length;
-    const pTypeObj = getProjectTypes().find(t=>t.value===p.project_type);
+    const pTypeObj = PROJECT_TYPES.find(t=>t.value===p.project_type);
     return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:16px;overflow:hidden;transition:all .28s cubic-bezier(.34,1.56,.64,1)" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform=''">
       <div style="height:3px;background:${p.color}"></div>
       <div style="padding:1.1rem 1.2rem">
@@ -5196,9 +5759,9 @@ Pages.projects = function() {
     </div>`;
   }).join('')||`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🏗️</div><div class="empty-title">${L('لا توجد مشاريع بعد','Aucun projet')}</div><div class="empty-text">${L('أضف مشروعك الأول للبدء','Ajoutez votre premier projet')}</div></div>`;
 
-  return layoutHTML('projects',L('المشاريع','Projets','Projects'),`
+  return layoutHTML('projects',L('المشاريع','Projets'),`
     <div class="page-header">
-      <div><div class="page-title">🏗️ ${L('المشاريع','Projets','Projects')}</div><div class="page-sub">${total} ${L('مشروع','projet(s)')}</div></div>
+      <div><div class="page-title">🏗️ ${L('المشاريع','Projets')}</div><div class="page-sub">${total} ${L('مشروع','projet(s)')}</div></div>
       <div class="page-actions"><button class="btn btn-gold" data-modal-open="addProjectModal">+ ${L('مشروع جديد','Nouveau projet')}</button></div>
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
@@ -5214,7 +5777,7 @@ Pages.projects = function() {
       </div>
       <select class="form-select" id="projStatusFilter" onchange="filterProjects()" style="width:auto;min-width:130px">
         <option value="">${L('كل الحالات','Tous statuts')}</option>
-        <option value="active">${L('نشط','Actif','Active')}</option>
+        <option value="active">${L('نشط','Actif')}</option>
         <option value="completed">${L('مكتمل','Terminé')}</option>
         <option value="delayed">${L('متأخر','En retard')}</option>
         <option value="paused">${L('متوقف','Pausé')}</option>
@@ -5225,17 +5788,17 @@ Pages.projects = function() {
       </select>
       <select class="form-select" id="projTypeFilter" onchange="filterProjects()" style="width:auto;min-width:160px">
         <option value="">${L('كل أنواع المشاريع','Tous types')}</option>
-        ${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}
+        ${PROJECT_TYPES.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}
       </select>
     </div>
     <div class="grid-cards" id="projGrid">${cards}</div>
     <div class="modal-overlay" id="addProjectModal">
       <div class="modal modal-lg">
         <div class="modal-title">🏗️ ${L('إضافة مشروع جديد','Ajouter un projet')}</div>
-        <div class="form-group"><label class="form-label">${L('نوع المشروع *','Type de projet *')}</label><select class="form-select" id="pType"><option value="">${L('اختر نوع المشروع...','Choisir un type...')}</option>${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">${L('نوع المشروع *','Type de projet *')}</label><select class="form-select" id="pType"><option value="">${L('اختر نوع المشروع...','Choisir un type...')}</option>${PROJECT_TYPES.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع *','Nom du projet *')}</label><input class="form-input" id="pName" placeholder="${L('اسم المشروع...','Construction...')}"></div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="pWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group">
             <label class="form-label">🇩🇿 ${L('اسم العميل / صاحب المشروع','Maître d\'ouvrage')}</label>
             <input class="form-input" id="pClient" placeholder="${L('بلدية تيزي وزو...','Commune / Société...')}">
@@ -5263,12 +5826,12 @@ Pages.projects = function() {
     <div class="modal-overlay" id="editProjectModal">
       <div class="modal modal-lg">
         <div class="modal-title">✏️ ${L('تعديل المشروع','Modifier le projet')}</div><input type="hidden" id="epId">
-        <div class="form-group"><label class="form-label">${L('نوع المشروع','Type de projet')}</label><select class="form-select" id="epType"><option value="">${L('اختر...','Choisir...')}</option>${getProjectTypes().map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">${L('نوع المشروع','Type de projet')}</label><select class="form-select" id="epType"><option value="">${L('اختر...','Choisir...')}</option>${PROJECT_TYPES.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}</select></div>
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
           <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus">
-            <option value="active">${L('نشط','Actif','Active')}</option>
+            <option value="active">${L('نشط','Actif')}</option>
             <option value="completed">${L('مكتمل','Terminé')}</option>
             <option value="delayed">${L('متأخر','En retard')}</option>
             <option value="paused">${L('متوقف','Pausé')}</option>
@@ -5325,21 +5888,6 @@ Pages.projects = function() {
  * updateSyncPill(state, detail)
  * state: 'synced' | 'syncing' | 'error' | 'offline' | 'pending'
  */
-function clearGenDocs(section) {
-  const user = Auth.getUser();
-  if (!user) return;
-  const key = 'gen_docs_' + section;
-  const existing = DB.get(key) || [];
-  const filtered = existing.filter(d => d.tenant_id !== user.tenant_id);
-  DB.set(key, filtered);
-  // Navigate back to same page to refresh
-  const pageMap = {
-    workers: 'workers', salary: 'salary', transactions: 'transactions',
-    inventory: 'inventory', invoices: 'invoices'
-  };
-  App.navigate(pageMap[section] || section);
-}
-
 function updateSyncPill(state, detail = '') {
   const isAr = typeof I18N !== 'undefined' ? I18N.currentLang === 'ar' : true;
   const pill  = document.getElementById('syncPill');
@@ -5796,7 +6344,7 @@ function _spSave(){
   setTimeout(function(){URL.revokeObjectURL(u);},1500);
 }
 function _spReset(){
-  if(confirm(document.documentElement.dir==='rtl'?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?')){
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){
     localStorage.removeItem('sbtp_print_settings');location.reload();
   }
 }
@@ -5815,23 +6363,19 @@ function _spSaveSettings(){
   try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}
   if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch{}}
   var btn=document.querySelector('.save-btn');
-  if(btn){var t=btn.textContent;btn.textContent='✅ '+(document.documentElement.dir==='rtl'?'تم!':'Sauvé!');btn.style.background='#27ae60';
+  if(btn){var t=btn.textContent;btn.textContent='✅ ${isAr?'تم!':'Sauvé!'}';btn.style.background='#27ae60';
     setTimeout(function(){btn.textContent=t;btn.style.background='';},2000);}
 }
 </script>
 </body></html>`;
 
-    var w = openPrintWindow(html, '', false);
-  if (!w) return;
-  }
+  const w = window.open('', '_blank');
+  if (!w) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
+  w.document.write(html);
+  w.document.close();
+}
 function printWorkers() {
   const isAr = I18N.currentLang === 'ar';
-  // أرشفة تلقائية
-  saveGeneratedDoc('workers', {
-    title: isAr ? 'قائمة العمال — طباعة' : 'Liste des ouvriers — impression',
-    titleFr: 'Liste des ouvriers — impression',
-    type: isAr ? 'قائمة' : 'Liste'
-  });
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
@@ -5896,31 +6440,6 @@ function printAttendance() {
   });
   const present = dayAtt.filter(a=>a.status==='present').length;
   const absent  = workers.length - present;
-  // ── أرشفة تلقائية عند الطباعة ──
-  try {
-    const _tid4 = Auth.getUser()?.tenant_id;
-    const _attArchive = DB.get('attendance_print_archive') || [];
-    _attArchive.unshift({
-      id: Date.now(),
-      tenant_id: _tid4,
-      date: selDate,
-      dateLabel,
-      printedAt: new Date().toISOString(),
-      present,
-      absent,
-      total: workers.length,
-      rate: workers.length ? Math.round(present/workers.length*100) : 0
-    });
-    DB.set('attendance_print_archive', _attArchive.slice(0, 100));
-    if (typeof addNotification === 'function') {
-      addNotification(_tid4,
-        isAr ? `📅 تم أرشفة سجل الحضور — ${dateLabel}` : `📅 Registre archivé — ${dateLabel}`,
-        isAr ? `حضور: ${present} / غياب: ${absent} / المجموع: ${workers.length}` : `Présents: ${present} / Absents: ${absent} / Total: ${workers.length}`,
-        'info'
-      );
-    }
-  } catch(_e) { console.warn('[AttArchive]', _e.message); }
-
   smartPrint({
     title:    isAr ? 'سجل الحضور والغياب' : 'Registre de Présence',
     subtitle: dateLabel,
@@ -5944,13 +6463,6 @@ function printAttendance() {
 
 function printSalary() {
   const isAr = I18N.currentLang === 'ar';
-  // أرشفة تلقائية
-  const _sm = sessionStorage.getItem('salary_month') || new Date().toISOString().slice(0,7);
-  saveGeneratedDoc('salary', {
-    title: isAr ? 'كشف الرواتب — ' + _sm : 'Fiche de paie — ' + _sm,
-    titleFr: 'Fiche de paie — ' + _sm,
-    type: isAr ? 'كشف رواتب' : 'Bulletin de paie'
-  });
   const tid = Auth.getUser().tenant_id;
   const workers = DB.get('workers').filter(w=>w.tenant_id===tid);
   const selectedMonthKey = sessionStorage.getItem('salary_month') || new Date().toISOString().slice(0,7);
@@ -5993,11 +6505,6 @@ function printSalary() {
 
 function printTransactions() {
   const isAr = I18N.currentLang === 'ar';
-  saveGeneratedDoc('transactions', {
-    title: isAr ? 'تقرير المعاملات المالية' : 'Rapport des transactions financières',
-    titleFr: 'Rapport des transactions financières',
-    type: isAr ? 'تقرير مالي' : 'Rapport financier'
-  });
   const tid = Auth.getUser().tenant_id;
   const txs = DB.get('transactions').filter(t=>t.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
@@ -6035,11 +6542,6 @@ function printTransactions() {
 
 function printInventory() {
   const isAr = I18N.currentLang === 'ar';
-  saveGeneratedDoc('inventory', {
-    title: isAr ? 'تقرير المخزون' : "Rapport de l'inventaire",
-    titleFr: "Rapport de l'inventaire",
-    type: isAr ? 'جرد مخزني' : 'Inventaire'
-  });
   const tid = Auth.getUser().tenant_id;
   const materials = DB.get('materials').filter(m=>m.tenant_id===tid);
   const projects = DB.get('projects').filter(p=>p.tenant_id===tid);
@@ -6301,7 +6803,6 @@ Pages.workers = function() {
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="saveWorker()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
     </div>
-    ${renderGenDocsTable('workers')}
   `);
 };
 
@@ -6345,7 +6846,7 @@ Pages.equipment = function() {
   const selectedProj = projects.find(p=>String(p.id)===String(projFilter));
 
   const statusMap = {
-    active:      { label:L('نشط','Actif','Active'),       col:'var(--green)' },
+    active:      { label:L('نشط','Actif'),       col:'var(--green)' },
     maintenance: { label:L('صيانة','Maintenance'),col:'var(--gold)'  },
     idle:        { label:L('خامل','Inactif'),     col:'var(--dim)'   },
   };
@@ -6480,7 +6981,7 @@ Pages.equipment = function() {
             <option value="⚙️">⚙️ ${L('مضخة','Pompe')}</option><option value="🔩">🔩 ${L('معدة أخرى','Autre')}</option>
           </select></div>
           <div class="form-group"><label class="form-label">${L('الحالة','État')}</label><select class="form-select" id="eStatus">
-            <option value="active">${L('نشط','Actif','Active')}</option>
+            <option value="active">${L('نشط','Actif')}</option>
             <option value="maintenance">${L('صيانة','Maintenance')}</option>
             <option value="idle">${L('خامل','Inactif')}</option>
           </select></div>
@@ -6624,7 +7125,6 @@ Pages.transactions = function() {
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addTx()">💾 ${L('حفظ','Enregistrer')}</button></div>
       </div>
     </div>
-    ${renderGenDocsTable('transactions')}
   `);
 };
 
@@ -6805,7 +7305,7 @@ Pages.attendance = function() {
 Pages.subscription = function() {
   const user = Auth.getUser();
   const tenant = Auth.getTenant();
-  if (!user || !tenant) return window.location.replace('index.html');
+  if (!user || !tenant) return App.navigate('landing');
 
   const plans = typeof ChargilyPayment !== 'undefined' ? ChargilyPayment.PLANS : {};
   const isAr = I18N.currentLang === 'ar';
@@ -6835,7 +7335,7 @@ Pages.subscription = function() {
         <div style="text-align:center">
           <div style="font-size:.75rem;color:var(--dim);margin-bottom:.3rem">${L('الحالة','Statut')}</div>
           <span class="badge ${subStatus==='active'?'badge-active':''}" style="font-size:.82rem">
-            ${subStatus==='active'?'✅ '+L('نشط','Actif','Active'):subStatus==='trial'?'⏳ '+L('تجريبي','Essai'):'⚠️ '+L('منتهي','Expiré')}
+            ${subStatus==='active'?'✅ '+L('نشط','Actif'):subStatus==='trial'?'⏳ '+L('تجريبي','Essai'):'⚠️ '+L('منتهي','Expiré')}
           </span>
         </div>
         <div style="text-align:center">
@@ -6875,31 +7375,6 @@ Pages.subscription = function() {
       🔒 ${L('الدفع آمن 100% عبر Chargily Pay — يدعم EDAHABIA (بريد الجزائر) و CIB (SATIM)','Paiement 100% sécurisé via Chargily Pay — Supporte EDAHABIA et CIB (SATIM)')}
       <br>📧 ${L('للدعم:','Support:')} contact@smartstruct.dz
     </div>
-    <!-- تاريخ طباعة سجل الحضور — أرشيف الطباعات السابقة -->
-    ${(()=>{
-      const _isAr2 = I18N.currentLang === 'ar';
-      const _tid2 = Auth.getUser()?.tenant_id;
-      const _arc = (DB.get('attendance_print_archive')||[]).filter(d=>d.tenant_id===_tid2);
-      if (!_arc.length) return '';
-      return '<div class="card" style="margin-top:1.5rem;border-color:rgba(74,144,226,.2)">'
-        + '<div style="font-size:.85rem;font-weight:800;color:var(--blue);margin-bottom:.8rem">📋 ' + (_isAr2?'سجل طباعات الحضور والغياب':'Historique des impressions de présence') + '</div>'
-        + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.75rem">'
-        + '<thead><tr style="border-bottom:1px solid var(--border)">'
-        + '<th style="padding:.4rem .6rem;text-align:' + (_isAr2?'right':'left') + ';color:var(--dim);font-weight:700">' + (_isAr2?'التاريخ':'Date') + '</th>'
-        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'حضور':'Présents') + '</th>'
-        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'غياب':'Absents') + '</th>'
-        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'النسبة':'Taux') + '</th>'
-        + '<th style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-weight:700">' + (_isAr2?'وقت الطباعة':'Imprimé le') + '</th>'
-        + '</tr></thead><tbody>'
-        + _arc.slice(0,20).map(d => '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
-          + '<td style="padding:.4rem .6rem;font-weight:600">' + escHtml(d.dateLabel||d.date||'—') + '</td>'
-          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--green)">' + (d.present||0) + '</td>'
-          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--red)">' + (d.absent||0) + '</td>'
-          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--gold);font-weight:700">' + (d.rate||0) + '%</td>'
-          + '<td style="padding:.4rem .6rem;text-align:center;color:var(--dim);font-size:.7rem">' + (d.printedAt ? new Date(d.printedAt).toLocaleString(_isAr2?'ar-DZ':'fr-DZ',{dateStyle:'short',timeStyle:'short'}) : '—') + '</td>'
-          + '</tr>').join('')
-        + '</tbody></table></div></div>';
-    })()}
   `);
 };
 
@@ -6935,7 +7410,6 @@ Pages.reports = function() {
 
   const allProjs = DB.get('projects').filter(p=>p.tenant_id===tid && !p.is_archived);
   const isFiltered = !!(dateFrom||dateTo||projId||txType);
-  const isGenerated = !!(window._reportsState && window._reportsState._generated);
 
   return layoutHTML('reports','التقارير',`
     <div class="page-header">
@@ -6978,13 +7452,11 @@ Pages.reports = function() {
             <option value="expense" ${txType==='expense'?'selected':''}>${L('مصاريف','Dépenses')}</option>
           </select>
         </div>
-        <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
-          ${isFiltered?`<button class="btn btn-ghost btn-sm" onclick="window._reportsState={};App.navigate('reports')">
+        <div style="display:flex;gap:.4rem">
+          ${isFiltered?`<button class="btn btn-ghost btn-sm" onclick="window._reportsState={};App.navigate('reports')" style="width:100%">
             ✕ ${L('مسح الفلاتر','Effacer')}</button>`:''}
-          <button class="btn btn-gold btn-sm" onclick="window._reportsState=(window._reportsState||{});window._reportsState._generated=true;App.navigate('reports')">
-            📊 ${L('توليد التقرير','Générer le rapport')}
-          </button>
-          ${isGenerated?`<span style="font-size:.7rem;color:var(--green);padding:.3rem .5rem;background:rgba(52,195,143,.1);border-radius:6px;white-space:nowrap">✓ ${L('تم التوليد','Généré')}</span>`:''}
+          ${isFiltered?`<span style="font-size:.7rem;color:var(--gold);padding:.3rem .5rem;background:rgba(232,184,75,.1);border-radius:6px;white-space:nowrap;align-self:center">
+            ${L('مُفلتَر','Filtré')} ✓</span>`:''}
         </div>
       </div>
       ${isFiltered?`<div style="margin-top:.6rem;font-size:.75rem;color:var(--dim)">
@@ -6993,14 +7465,7 @@ Pages.reports = function() {
         ${projId?L('— مشروع محدد','— projet sélectionné'):''}
       </div>`:''}
     </div>
-    
-    ${!isGenerated ? `<div style="text-align:center;padding:3rem 1rem;color:var(--dim);background:rgba(255,255,255,.02);border:1px dashed var(--border);border-radius:16px;margin:1rem 0">
-      <div style="font-size:3rem;margin-bottom:.8rem">📊</div>
-      <div style="font-size:1rem;font-weight:800;margin-bottom:.5rem">${L('اضغط «توليد التقرير» لعرض نتائج التحليل','Cliquez «Générer le rapport» pour afficher les résultats')}</div>
-      <div style="font-size:.82rem;color:var(--dim);opacity:.8">${L('حدد الفلاتر المناسبة (تاريخ، مشروع، نوع) ثم اضغط الزر','Sélectionnez vos filtres puis cliquez le bouton')}</div>
-    </div>` : ''}
-    ${isGenerated ? `
-    <div id="reportContent"><div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
+    <div style="background:linear-gradient(135deg,rgba(155,109,255,.1),rgba(74,144,226,.05));border:1px solid rgba(155,109,255,.3);border-radius:18px;padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;position:relative;overflow:hidden">
       <div style="position:absolute;top:-30px;${I18N.currentLang==='ar'?'left':'right'}:-30px;width:140px;height:140px;background:radial-gradient(circle,rgba(155,109,255,.15),transparent);border-radius:50%"></div>
       <div style="font-size:3.2rem;flex-shrink:0;position:relative;z-index:1">🤖</div>
       <div style="flex:1;min-width:280px;position:relative;z-index:1">
@@ -7045,7 +7510,6 @@ Pages.reports = function() {
     <div class="card"><div style="font-weight:800;margin-bottom:1rem">💼 ربحية المشاريع</div><div class="table-wrap"><table><thead><tr><th>المشروع</th><th>الميزانية</th><th>المُنفَق</th><th>التقدم</th><th>الحالة</th></tr></thead>
       <tbody>${projs.map(p=>`<tr><td><span style="font-weight:700">${escHtml(p.name)}</span></td><td style="font-family:monospace;font-size:.82rem">${fmt(p.budget)}</td><td style="font-family:monospace;font-size:.82rem;color:${p.total_spent>p.budget?'var(--red)':'var(--green)'}">${fmt(p.total_spent)}</td><td><div style="display:flex;align-items:center;gap:.5rem"><div class="progress-bar" style="flex:1"><div class="progress-fill" style="background:${p.color}" data-width="${p.progress}"></div></div><span style="font-size:.75rem;font-weight:700">${p.progress}%</span></div></td><td>${statusBadge(p.status)}</td></tr>`).join('')}</tbody>
     </table></div></div>
-  ` : ''}
   `);
 };
 
@@ -7055,7 +7519,7 @@ Pages.reports = function() {
 // ════════════════════════════════════════════════════════════════════
 function generateAISmartReport() {
   const tenant = Auth.getTenant();
-  if (!tenant) { Toast.error(L('يجب تسجيل الدخول','Vous devez être connecté')); return; }
+  if (!tenant) { Toast.error('يجب تسجيل الدخول'); return; }
   const tid = tenant.id;
 
   // ═══ جمع كل البيانات ═══
@@ -7094,59 +7558,59 @@ function generateAISmartReport() {
   const strategies = [];
 
   // ① الإيجابيات
-  if (btp.cpi !== null && btp.cpi >= 1) positives.push({ icon:'✅', text: L(`أداء التكلفة ممتاز (CPI=${btp.cpi}) — تنجز أعمالاً قيمتها أكثر من المنفق`, `Performance coût excellente (CPI=${btp.cpi}) — vous livrez plus que dépensé`) });
-  if (btp.spi !== null && btp.spi >= 1) positives.push({ icon:'⚡', text: L(`الجدول الزمني متقدم (SPI=${btp.spi}) — مشاريعك تسير حسب أو أسرع من المخطط`, `Planning en avance (SPI=${btp.spi}) — vos projets avancent bien`) });
-  if (btp.grossMargin !== null && btp.grossMargin >= 20) positives.push({ icon:'💰', text: L(`هامش ربح ممتاز ${btp.grossMargin}% — أعلى من متوسط القطاع`, `Marge excellente ${btp.grossMargin}% — au-dessus de la moyenne du secteur`) });
-  if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text: L(`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز`, `Recouvrement rapide (${btp.dso} jours) — excellent flux de trésorerie`) });
-  if (attendanceRate >= 85) positives.push({ icon:'👷', text: L(`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة`, `Taux de présence élevé (${attendanceRate}%) — main d'œuvre disciplinée`) });
-  if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text: L('السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات', 'Liquidité au niveau sécurisé — suffisant pour plus de 6 mois') });
-  if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text: L('المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى', 'Stock bien géré — aucun matériau sous le seuil minimum') });
-  if (completedProjects >= 3) positives.push({ icon:'🏆', text: L(`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي`, `${completedProjects} projets terminés — solide bilan d'exécution`) });
-  if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text: L(`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق`, `Utilisation équipements excellente (${btp.equipUtilization}%) — investissement rentable`) });
-  if (documents.length >= 10) positives.push({ icon:'📁', text: L(`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم`, `${documents.length} documents archivés — organisation administrative avancée`) });
+  if (btp.cpi !== null && btp.cpi >= 1) positives.push({ icon:'✅', text:`أداء التكلفة ممتاز (CPI=${btp.cpi}) — تنجز أعمالاً قيمتها أكثر من المنفق` });
+  if (btp.spi !== null && btp.spi >= 1) positives.push({ icon:'⚡', text:`الجدول الزمني متقدم (SPI=${btp.spi}) — مشاريعك تسير حسب أو أسرع من المخطط` });
+  if (btp.grossMargin !== null && btp.grossMargin >= 20) positives.push({ icon:'💰', text:`هامش ربح ممتاز ${btp.grossMargin}% — أعلى من متوسط القطاع` });
+  if (btp.dso !== null && btp.dso <= 30) positives.push({ icon:'⚡', text:`سرعة في تحصيل الفواتير (${btp.dso} يوم متوسط) — تدفق نقدي ممتاز` });
+  if (attendanceRate >= 85) positives.push({ icon:'👷', text:`نسبة حضور عالية (${attendanceRate}%) — عمالة منضبطة وملتزمة` });
+  if (btp.cashRunway === null || btp.cashRunway < 0 || btp.cashRunway >= 180) positives.push({ icon:'💵', text:`السيولة في مستوى آمن — يكفي لأكثر من 6 أشهر من العمليات` });
+  if (btp.lowStockCount === 0 && materials.length > 0) positives.push({ icon:'📦', text:`المخزون مُدار جيداً — لا توجد مواد تحت الحد الأدنى` });
+  if (completedProjects >= 3) positives.push({ icon:'🏆', text:`${completedProjects} مشاريع مُنجزة — سجل تنفيذي قوي` });
+  if (btp.equipUtilization >= 70 && equipment.length > 0) positives.push({ icon:'🚜', text:`استخدام معدات ممتاز (${btp.equipUtilization}%) — استثمار مُحقَّق` });
+  if (documents.length >= 10) positives.push({ icon:'📁', text:`${documents.length} وثيقة مؤرشفة — تنظيم إداري متقدم` });
 
   // ② السلبيات
-  if (btp.cpi !== null && btp.cpi < 0.85) negatives.push({ icon:'🚨', text: L(`تجاوز تكلفة كبير (CPI=${btp.cpi}) — تنفق ${Math.round((1-btp.cpi)*100)}% أكثر من المخطط`, `Dépassement de coût important (CPI=${btp.cpi}) — vous dépensez ${Math.round((1-btp.cpi)*100)}% de plus`) });
-  if (btp.spi !== null && btp.spi < 0.85) negatives.push({ icon:'⏰', text: L(`تأخر زمني كبير (SPI=${btp.spi}) — متأخر ${Math.round((1-btp.spi)*100)}% عن الجدول`, `Retard important (SPI=${btp.spi}) — ${Math.round((1-btp.spi)*100)}% de retard sur le planning`) });
-  if (btp.grossMargin !== null && btp.grossMargin < 5) negatives.push({ icon:'📉', text: L(`هامش ربح منخفض جداً (${btp.grossMargin}%) — قد يهدد استمرارية المؤسسة`, `Marge très faible (${btp.grossMargin}%) — peut menacer la continuité`) });
-  if (btp.cashRunway !== null && btp.cashRunway > 0 && btp.cashRunway < 30) negatives.push({ icon:'🚨', text: L(`خطر السيولة الحاد — ستنفد خلال ${btp.cashRunway} يوم فقط`, `Risque liquidité critique — épuisement dans ${btp.cashRunway} jours seulement`) });
-  if (btp.dso !== null && btp.dso > 90) negatives.push({ icon:'🐌', text: L(`بطء حاد في التحصيل (${btp.dso} يوم) — تجمد رأس المال`, `Recouvrement très lent (${btp.dso} jours) — immobilisation du capital`) });
-  if (btp.payrollRatio !== null && btp.payrollRatio > 50) negatives.push({ icon:'⚠️', text: L(`الأجور تستهلك ${btp.payrollRatio}% من الإيرادات — مرتفع جداً`, `La paie représente ${btp.payrollRatio}% des revenus — trop élevé`) });
-  if (delayedProjects >= 3) negatives.push({ icon:'❌', text: L(`${delayedProjects} مشاريع متأخرة — مؤشر على مشاكل تنظيمية`, `${delayedProjects} projets en retard — indicateur de problèmes organisationnels`) });
-  if (btp.unpaidAmount > 500000) negatives.push({ icon:'💸', text: L(`فواتير غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج — تأثير سلبي على السيولة`, `Factures impayées de ${fmt(Math.round(btp.unpaidAmount))} DA — impact négatif sur la liquidité`) });
-  if (attendanceRate < 70 && workers.length > 3) negatives.push({ icon:'👥', text: L(`نسبة حضور منخفضة (${attendanceRate}%) — تأثير على الإنتاجية`, `Taux de présence faible (${attendanceRate}%) — impact sur la productivité`) });
+  if (btp.cpi !== null && btp.cpi < 0.85) negatives.push({ icon:'🚨', text:`تجاوز تكلفة كبير (CPI=${btp.cpi}) — تنفق ${Math.round((1-btp.cpi)*100)}% أكثر من المخطط` });
+  if (btp.spi !== null && btp.spi < 0.85) negatives.push({ icon:'⏰', text:`تأخر زمني كبير (SPI=${btp.spi}) — متأخر ${Math.round((1-btp.spi)*100)}% عن الجدول` });
+  if (btp.grossMargin !== null && btp.grossMargin < 5) negatives.push({ icon:'📉', text:`هامش ربح منخفض جداً (${btp.grossMargin}%) — قد يهدد استمرارية المؤسسة` });
+  if (btp.cashRunway !== null && btp.cashRunway > 0 && btp.cashRunway < 30) negatives.push({ icon:'🚨', text:`خطر السيولة الحاد — ستنفد خلال ${btp.cashRunway} يوم فقط` });
+  if (btp.dso !== null && btp.dso > 90) negatives.push({ icon:'🐌', text:`بطء حاد في التحصيل (${btp.dso} يوم) — تجمد رأس المال` });
+  if (btp.payrollRatio !== null && btp.payrollRatio > 50) negatives.push({ icon:'⚠️', text:`الأجور تستهلك ${btp.payrollRatio}% من الإيرادات — مرتفع جداً` });
+  if (delayedProjects >= 3) negatives.push({ icon:'❌', text:`${delayedProjects} مشاريع متأخرة — مؤشر على مشاكل تنظيمية` });
+  if (btp.unpaidAmount > 500000) negatives.push({ icon:'💸', text:`فواتير غير محصلة بقيمة ${fmt(Math.round(btp.unpaidAmount))} دج — تأثير سلبي على السيولة` });
+  if (attendanceRate < 70 && workers.length > 3) negatives.push({ icon:'👥', text:`نسبة حضور منخفضة (${attendanceRate}%) — تأثير على الإنتاجية` });
 
   // ③ النواقص
-  if (!tenant.rc_number || !tenant.nif || !tenant.nis) lacks.push({ icon:'📋', text: L('البيانات القانونية ناقصة (RC, NIF, NIS) — مطلوبة في الوثائق الرسمية', 'Données légales incomplètes (RC, NIF, NIS) — requises pour les documents officiels') });
-  if (!tenant.logo_url) lacks.push({ icon:'🎨', text: L('لا يوجد شعار للمؤسسة — يضعف الهوية البصرية في الوثائق', "Pas de logo d'entreprise — affaiblit l'identité visuelle dans les documents") });
-  if (!tenant.rib && !tenant.bank_account) lacks.push({ icon:'🏦', text: L('لا يوجد رقم حساب بنكي — الفواتير تحتاج RIB للتحصيل', 'Pas de RIB bancaire — les factures nécessitent un RIB pour le recouvrement') });
-  if (projects.length === 0) lacks.push({ icon:'🏗️', text: L('لا توجد مشاريع مُسجَّلة بعد — ابدأ بإضافة مشاريعك', 'Aucun projet enregistré — commencez par ajouter vos projets') });
-  if (workers.length === 0) lacks.push({ icon:'👷', text: L('لا يوجد عمال مُسجَّلون — لا يمكن متابعة الحضور والأجور', 'Aucun ouvrier enregistré — impossible de suivre présence et salaires') });
-  if (equipment.length === 0) lacks.push({ icon:'🚜', text: L('لا يوجد معدات مُسجَّلة — لا يمكن تتبع استخداماتها', 'Aucun équipement enregistré — impossible de suivre leur utilisation') });
-  if (materials.length === 0) lacks.push({ icon:'📦', text: L('لا يوجد مخزون مواد — تتبع المواد يساعد في حساب التكاليف الحقيقية', 'Aucun stock de matériaux — le suivi aide à calculer les coûts réels') });
-  if (txs.length < 10) lacks.push({ icon:'💼', text: L(`عدد المعاملات قليل (${txs.length}) — لمزيد من الدقة، سجّل كل عملية مالية`, `Peu de transactions (${txs.length}) — pour plus de précision, enregistrez chaque opération`) });
-  if (documents.length === 0) lacks.push({ icon:'📄', text: L('لم تُولّد أي وثيقة بعد — استفد من وحدة الوثائق الإدارية', 'Aucun document généré — utilisez le module de documents administratifs') });
-  if (invoices.length === 0) lacks.push({ icon:'🧾', text: L('لا توجد فواتير — أداة الفواتير ضرورية لمتابعة المستحقات', 'Aucune facture — cet outil est essentiel pour suivre les créances') });
+  if (!tenant.rc_number || !tenant.nif || !tenant.nis) lacks.push({ icon:'📋', text:'البيانات القانونية ناقصة (RC, NIF, NIS) — مطلوبة في الوثائق الرسمية' });
+  if (!tenant.logo_url) lacks.push({ icon:'🎨', text:'لا يوجد شعار للمؤسسة — يضعف الهوية البصرية في الوثائق' });
+  if (!tenant.rib && !tenant.bank_account) lacks.push({ icon:'🏦', text:'لا يوجد رقم حساب بنكي — الفواتير تحتاج RIB للتحصيل' });
+  if (projects.length === 0) lacks.push({ icon:'🏗️', text:'لا توجد مشاريع مُسجَّلة بعد — ابدأ بإضافة مشاريعك' });
+  if (workers.length === 0) lacks.push({ icon:'👷', text:'لا يوجد عمال مُسجَّلون — لا يمكن متابعة الحضور والأجور' });
+  if (equipment.length === 0) lacks.push({ icon:'🚜', text:'لا يوجد معدات مُسجَّلة — لا يمكن تتبع استخداماتها' });
+  if (materials.length === 0) lacks.push({ icon:'📦', text:'لا يوجد مخزون مواد — تتبع المواد يساعد في حساب التكاليف الحقيقية' });
+  if (txs.length < 10) lacks.push({ icon:'💼', text:`عدد المعاملات قليل (${txs.length}) — لمزيد من الدقة، سجّل كل عملية مالية` });
+  if (documents.length === 0) lacks.push({ icon:'📄', text:'لم تُولّد أي وثيقة بعد — استفد من وحدة الوثائق الإدارية' });
+  if (invoices.length === 0) lacks.push({ icon:'🧾', text:'لا توجد فواتير — أداة الفواتير ضرورية لمتابعة المستحقات' });
 
   // ④ التحسينات
-  if (btp.cpi !== null && btp.cpi < 1) improvements.push({ icon:'💡', priority: L('عالية','Haute'), text: L('حسّن إدارة التكاليف: راجع التقدير المسبق، فاوض الموردين، وقلّل الهدر في المواد', 'Améliorez la gestion: révisez les estimations, négociez avec les fournisseurs, réduisez les gaspillages') });
-  if (btp.spi !== null && btp.spi < 1) improvements.push({ icon:'⏱️', priority: L('عالية','Haute'), text: L('استخدم Gantt Chart بانتظام، عيّن قائد أشغال لكل مشروع، وعقد اجتماعات أسبوعية للمتابعة', 'Utilisez Gantt régulièrement, nommez un chef de chantier par projet, réunions hebdomadaires') });
-  if (btp.dso !== null && btp.dso > 60) improvements.push({ icon:'📞', priority: L('متوسطة','Moyenne'), text: L('حسّن التحصيل: شروط دفع أقصر (30 يوم)، خصومات للدفع السريع، تذكيرات تلقائية', 'Améliorez le recouvrement: délais 30j, remises pour paiement rapide, rappels automatiques') });
-  if (btp.grossMargin !== null && btp.grossMargin < 15) improvements.push({ icon:'📊', priority: L('عالية','Haute'), text: L('راجع التسعير: احسب التكلفة الحقيقية + هامش ربح 20-25% على الأقل', 'Révisez la tarification: calculez le coût réel + marge bénéficiaire 20-25% minimum') });
-  if (btp.equipUtilization < 50 && equipment.length > 0) improvements.push({ icon:'🚜', priority: L('متوسطة','Moyenne'), text: L('استثمر المعدات الخاملة: أجّرها لشركات أخرى، أو بعها لتحرير السيولة', 'Valorisez les équipements inactifs: louez-les ou vendez-les pour libérer de la trésorerie') });
-  if (btp.lowStockCount > 0) improvements.push({ icon:'📦', priority: L('متوسطة','Moyenne'), text: L(`اطلب ${btp.lowStockCount} مادة من المخزون المنخفض قبل توقف الأشغال`, `Commandez ${btp.lowStockCount} matériau(x) en stock bas avant l'arrêt des travaux`) });
-  if (attendanceRate < 80) improvements.push({ icon:'👷', priority: L('متوسطة','Moyenne'), text: L('حسّن إدارة الموارد البشرية: نظام مكافآت للحضور، تحفيز، تواصل أفضل', 'Améliorez la RH: primes de présence, motivation, meilleure communication') });
-  if (projects.filter(p => !p.start_date || !p.end_date).length > 0) improvements.push({ icon:'📅', priority: L('منخفضة','Faible'), text: L('حدد تواريخ البدء والانتهاء لكل المشاريع لحساب SPI بدقة', 'Définissez les dates début/fin de tous les projets pour calculer le SPI avec précision') });
+  if (btp.cpi !== null && btp.cpi < 1) improvements.push({ icon:'💡', priority:'عالية', text:'حسّن إدارة التكاليف: راجع التقدير المسبق، فاوض الموردين، وقلّل الهدر في المواد' });
+  if (btp.spi !== null && btp.spi < 1) improvements.push({ icon:'⏱️', priority:'عالية', text:'استخدم Gantt Chart بانتظام، عيّن قائد أشغال لكل مشروع، وعقد اجتماعات أسبوعية للمتابعة' });
+  if (btp.dso !== null && btp.dso > 60) improvements.push({ icon:'📞', priority:'متوسطة', text:'حسّن التحصيل: شروط دفع أقصر (30 يوم)، خصومات للدفع السريع، تذكيرات تلقائية' });
+  if (btp.grossMargin !== null && btp.grossMargin < 15) improvements.push({ icon:'📊', priority:'عالية', text:'راجع التسعير: احسب التكلفة الحقيقية + هامش ربح 20-25% على الأقل' });
+  if (btp.equipUtilization < 50 && equipment.length > 0) improvements.push({ icon:'🚜', priority:'متوسطة', text:'استثمر المعدات الخاملة: أجّرها لشركات أخرى، أو بعها لتحرير السيولة' });
+  if (btp.lowStockCount > 0) improvements.push({ icon:'📦', priority:'متوسطة', text:`اطلب ${btp.lowStockCount} مادة من المخزون المنخفض قبل توقف الأشغال` });
+  if (attendanceRate < 80) improvements.push({ icon:'👷', priority:'متوسطة', text:'حسّن إدارة الموارد البشرية: نظام مكافآت للحضور، تحفيز، تواصل أفضل' });
+  if (projects.filter(p => !p.start_date || !p.end_date).length > 0) improvements.push({ icon:'📅', priority:'منخفضة', text:'حدد تواريخ البدء والانتهاء لكل المشاريع لحساب SPI بدقة' });
 
   // ⑤ الاستراتيجيات
-  if (revenue > 0 && btp.grossMargin > 15) strategies.push({ icon:'🚀', text: L('التوسّع: مع هامش ربح صحي، يمكنك توسيع نشاطك لمشاريع أكبر أو فتح فرع جديد', 'Expansion: avec une marge saine, développez votre activité vers de plus grands projets') });
-  if (workers.length >= 5 && btp.payrollRatio !== null && btp.payrollRatio < 35) strategies.push({ icon:'🏆', text: L('الكفاءة العالية في إدارة العمالة فرصة لاستثمار الفائض في التدريب والمعدات', 'Haute efficacité RH — opportunité d\'investir le surplus dans la formation et les équipements') });
-  if (btp.cashRunway === null || btp.cashRunway > 180) strategies.push({ icon:'💼', text: L('استثمر السيولة الفائضة: ودائع بنكية، شراء معدات، أو دخول مشاريع أكبر', 'Investissez la trésorerie excédentaire: dépôts bancaires, achat équipements, projets plus importants') });
-  if (delayedProjects === 0 && completedProjects >= 2) strategies.push({ icon:'📈', text: L('سجلك التنفيذي ممتاز — استغله للتقدّم لصفقات حكومية أو شركاء أكبر', 'Excellent bilan d\'exécution — exploitez-le pour accéder aux marchés publics') });
-  if (btp.unpaidAmount > 200000) strategies.push({ icon:'💰', text: L('تخصيص فريق متابعة التحصيل أو الاستعانة بمحامي مختصّ في التحصيل التجاري', 'Constituez une équipe de recouvrement ou faites appel à un avocat spécialisé') });
-  strategies.push({ icon:'📊', text: L('تنفيذ نظام KPIs شهري للمتابعة: عقد اجتماع شهري لمراجعة CPI, SPI, السيولة, وهامش الربح', 'Implémentez un suivi KPIs mensuel: CPI, SPI, trésorerie, marge bénéficiaire') });
-  strategies.push({ icon:'🎓', text: L('الاستثمار في التدريب: العمال المُدرَّبون أكثر إنتاجية بنسبة 20-30% (دراسات BTP الدولية)', 'Investissez en formation: les travailleurs formés sont 20-30% plus productifs (études BTP)') });
-  strategies.push({ icon:'🤝', text: L('بناء علاقات مع موردين موثوقين بأسعار تنافسية وشروط دفع مرنة', 'Développez des relations avec des fournisseurs fiables aux prix compétitifs') });
+  if (revenue > 0 && btp.grossMargin > 15) strategies.push({ icon:'🚀', text:'التوسّع: مع هامش ربح صحي، يمكنك توسيع نشاطك لمشاريع أكبر أو فتح فرع جديد' });
+  if (workers.length >= 5 && btp.payrollRatio !== null && btp.payrollRatio < 35) strategies.push({ icon:'🏆', text:'الكفاءة العالية في إدارة العمالة فرصة لاستثمار الفائض في التدريب والمعدات' });
+  if (btp.cashRunway === null || btp.cashRunway > 180) strategies.push({ icon:'💼', text:'استثمر السيولة الفائضة: ودائع بنكية، شراء معدات، أو دخول مشاريع أكبر' });
+  if (delayedProjects === 0 && completedProjects >= 2) strategies.push({ icon:'📈', text:'سجلك التنفيذي ممتاز — استغله للتقدّم لصفقات حكومية أو شركاء أكبر' });
+  if (btp.unpaidAmount > 200000) strategies.push({ icon:'💰', text:'تخصيص فريق متابعة التحصيل أو الاستعانة بمحامي مختصّ في التحصيل التجاري' });
+  strategies.push({ icon:'📊', text:'تنفيذ نظام KPIs شهري للمتابعة: عقد اجتماع شهري لمراجعة CPI, SPI, السيولة, وهامش الربح' });
+  strategies.push({ icon:'🎓', text:'الاستثمار في التدريب: العمال المُدرَّبون أكثر إنتاجية بنسبة 20-30% (دراسات BTP الدولية)' });
+  strategies.push({ icon:'🤝', text:'بناء علاقات مع موردين موثوقين بأسعار تنافسية وشروط دفع مرنة' });
 
   // التقييم العام
   let overallScore = 50;
@@ -7483,9 +7947,12 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 </html>`;
 
   // فتح في نافذة جديدة
-  const w = openPrintWindow(html, `Rapport_IA_${tenant.name}_${reportId}`, false);
+  const w = window.open('', '_blank');
   if (w) {
-    Toast.success(L('✨ تم توليد التقرير الذكي بنجاح!','✨ Rapport IA généré avec succès!'));
+    w.document.write(html);
+    w.document.close();
+    w.document.title = `Rapport_IA_${tenant.name}_${reportId}`;
+    Toast.success('✨ تم توليد التقرير الذكي بنجاح!');
 
     // حفظ في الأرشيف
     try {
@@ -7513,10 +7980,10 @@ tbody tr:nth-child(even) td { background: #fcfcfc; }
 
     // سجل audit
     if (typeof addAuditLog === 'function') {
-      addAuditLog(L(`توليد تقرير ذكي - رقم ${reportId} (تقييم: ${overallScore}/100)`, `Rapport IA généré - n°${reportId} (score: ${overallScore}/100)`), { icon: '🤖' });
+      addAuditLog(`توليد تقرير ذكي - رقم ${reportId} (تقييم: ${overallScore}/100)`, { icon: '🤖' });
     }
   } else {
-    Toast.error(L('فشل فتح النافذة. تحقق من إعدادات المتصفح.','Échec ouverture. Vérifiez les paramètres du navigateur.'));
+    Toast.error('فشل فتح النافذة. تحقق من إعدادات المتصفح.');
   }
 }
 
@@ -7585,8 +8052,8 @@ Pages.settings = function() {
             <input class="form-input" id="setNameFr" value="${escHtml(tenant?.name_fr||'')}" placeholder="Entreprise BTP Moderne" dir="ltr">
             <div style="font-size:.7rem;color:var(--dim);margin-top:.3rem">${L('يُستخدم في الفواتير والوثائق عند التبديل للفرنسية','Utilisé dans les documents en mode français')}</div>
           </div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone','Phone Number')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="setWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option${tenant?.wilaya===w?' selected':''}>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('رقم الهاتف','Téléphone')}</label><input class="form-input" id="setPhone" type="tel" value="${escHtml(tenant?.phone||'')}" placeholder="0550 XX XX XX" pattern="[0-9]{9,10}" inputmode="tel"></div>
           <button class="btn btn-gold" onclick="saveTenantSettings()">💾 ${L('حفظ التغييرات','Sauvegarder')}</button>
         </div>
 
@@ -7682,49 +8149,107 @@ Pages.settings = function() {
           <div style="padding:.6rem 0"><div style="font-size:.72rem;color:var(--dim)">${L('البريد','Email')}</div><div style="font-weight:700;direction:ltr;text-align:right">${escHtml(user.email)}</div></div>
         </div>
 
-        <!-- 💎 Subscription Card -->
+        <!-- 💎 Subscription Card (Enhanced) -->
+        ${(()=>{
+          const _st  = tenant?.subscription_status || 'trial';
+          const _dlt = (typeof TrialManager!=='undefined') ? TrialManager.getDaysLeft(tenant) : null;
+          const _dlp = (typeof TrialManager!=='undefined') ? TrialManager.getPaidDaysLeft(tenant) : null;
+          const _exp = (typeof TrialManager!=='undefined') ? TrialManager.isExpired(tenant) : false;
+
+          // نوع الاشتراك
+          const _planLabel = _st==='active'
+            ? L('💳 اشتراك مدفوع','💳 Abonnement payant')
+            : _st==='trial'
+            ? L('⏱️ تجربة مجانية','⏱️ Essai gratuit')
+            : L('⛔ منتهي','⛔ Expiré');
+
+          const _stColor = _st==='active' ? '#34C38F' : _st==='trial' ? '#E8B84B' : '#F04E6A';
+          const _stBg    = _st==='active' ? 'rgba(52,195,143,.15)' : _st==='trial' ? 'rgba(232,184,75,.15)' : 'rgba(240,78,106,.15)';
+
+          // الأيام المتبقية
+          let _daysInfo = '';
+          if (_exp || _st==='expired') {
+            _daysInfo = `<div style="margin-top:.6rem;padding:.55rem .8rem;background:rgba(240,78,106,.1);border:1px solid rgba(240,78,106,.3);border-radius:8px;font-size:.78rem;color:#F04E6A;font-weight:700">
+              ⛔ ${L('انتهى الاشتراك — يجب التجديد للمتابعة','Abonnement expiré — renouveler pour continuer')}
+            </div>`;
+          } else if (_st==='trial' && _dlt !== null) {
+            const _urgClr = _dlt<=2?'#F04E6A':_dlt<=5?'#E8B84B':'#34C38F';
+            const _pct = Math.min(100, Math.round((_dlt/14)*100));
+            const _endDt = tenant?.trial_end ? new Date(tenant.trial_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}) : '—';
+            _daysInfo = `
+              <div style="margin-top:.8rem;padding:.7rem .9rem;background:${_urgClr}0D;border:1px solid ${_urgClr}44;border-radius:10px">
+                <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+                  <div style="min-width:48px;height:48px;border-radius:10px;background:${_urgClr}18;border:2px solid ${_urgClr}44;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
+                    <div style="font-size:1.25rem;font-weight:900;color:${_urgClr};line-height:1">${_dlt}</div>
+                    <div style="font-size:.62rem;color:${_urgClr};opacity:.8">${L('يوم','j.')}</div>
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-size:.82rem;font-weight:800;color:var(--text)">${L('يبقى لك من التجربة المجانية','Jours restants d\'essai')}: <strong style="color:${_urgClr}">${_dlt} ${L('يوم','jours')}</strong></div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-top:5px">
+                      <div style="height:5px;background:rgba(255,255,255,.07);border-radius:4px;width:110px;overflow:hidden">
+                        <div style="height:5px;background:${_urgClr};border-radius:4px;width:${_pct}%;transition:width 1s"></div>
+                      </div>
+                      <span style="font-size:.68rem;color:var(--dim)">${L('تنتهي','Expire')} ${_endDt}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>`;
+          } else if (_st==='active' && _dlp !== null) {
+            const _urgClr2 = _dlp<=3?'#F04E6A':_dlp<=7?'#E8B84B':'#34C38F';
+            const _endDt2 = tenant?.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}) : '—';
+            _daysInfo = `
+              <div style="margin-top:.8rem;padding:.7rem .9rem;background:${_urgClr2}0D;border:1px solid ${_urgClr2}44;border-radius:10px">
+                <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap">
+                  <div style="min-width:48px;height:48px;border-radius:10px;background:${_urgClr2}18;border:2px solid ${_urgClr2}44;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
+                    <div style="font-size:1.25rem;font-weight:900;color:${_urgClr2};line-height:1">${_dlp}</div>
+                    <div style="font-size:.62rem;color:${_urgClr2};opacity:.8">${L('يوم','j.')}</div>
+                  </div>
+                  <div>
+                    <div style="font-size:.82rem;font-weight:800;color:var(--text)">${L('يبقى من اشتراكك المدفوع','Jours restants abonnement')}: <strong style="color:${_urgClr2}">${_dlp} ${L('يوم','jours')}</strong></div>
+                    <div style="font-size:.7rem;color:var(--dim);margin-top:3px">${L('ينتهي في','Expire le')} ${_endDt2}</div>
+                  </div>
+                </div>
+              </div>`;
+          } else if (_st==='active') {
+            const _endDt3 = tenant?.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'numeric',month:'long',year:'numeric'}) : '—';
+            _daysInfo = `<div style="margin-top:.6rem;padding:.55rem .8rem;background:rgba(52,195,143,.07);border:1px solid rgba(52,195,143,.2);border-radius:8px;font-size:.78rem;color:#34C38F;font-weight:700">
+              ✅ ${L('اشتراكك فعّال','Abonnement actif')}${_endDt3!=='—'?' — '+L('ينتهي في','Expire le')+' '+_endDt3:''}
+            </div>`;
+          }
+
+          return `
         <div class="card" style="margin-bottom:1rem;background:linear-gradient(135deg,rgba(232,184,75,.08),rgba(232,184,75,.02));border:1px solid rgba(232,184,75,.2)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
             <div>
-              <div style="font-weight:800;margin-bottom:.3rem">💎 ${L('خطتك الحالية','Votre plan actuel')}</div>
-              <div style="font-size:.72rem;color:var(--dim)">${L('الاشتراك والميزات','Abonnement & fonctionnalités')}</div>
+              <div style="font-weight:800;margin-bottom:.3rem">💎 ${L('حالة الاشتراك','État de l\'abonnement')}</div>
+              <div style="font-size:.72rem;color:var(--dim)">${L('الخطة الحالية والأيام المتبقية','Plan actuel & jours restants')}</div>
             </div>
-            <span style="background:${tenant?.subscription_status==='active'?'rgba(52,195,143,.15)':tenant?.subscription_status==='trial'?'rgba(232,184,75,.15)':'rgba(240,78,106,.15)'};color:${tenant?.subscription_status==='active'?'#34C38F':tenant?.subscription_status==='trial'?'#E8B84B':'#F04E6A'};border:1px solid currentColor;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">
-              ${tenant?.subscription_status==='active'?L('✅ نشط','✅ Actif'):tenant?.subscription_status==='trial'?L('⏱️ تجريبي','⏱️ Essai'):L('⚠️ منتهي','⚠️ Expiré')}
-            </span>
+            <span style="background:${_stBg};color:${_stColor};border:1px solid ${_stColor}55;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:800">${_planLabel}</span>
           </div>
-
-          <div style="background:rgba(0,0,0,.2);padding:1rem;border-radius:10px;margin-bottom:1rem">
+          <div style="background:rgba(0,0,0,.2);padding:1rem;border-radius:10px;margin-bottom:.8rem">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-              <div style="font-size:1.3rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
-              <div style="font-size:1.1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.7rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
+              <div style="font-size:1.25rem;font-weight:900;color:var(--gold)">${escHtml(plan?.name||L('غير محدد','Non défini'))}</div>
+              <div style="font-size:1rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(plan?.price||0)} <span style="font-size:.68rem;color:var(--dim);font-weight:500">${L('دج/شهر','DA/mois')}</span></div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;margin-top:.8rem">
-              <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets','Projects')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.76rem;margin-top:.7rem">
+              <div><span style="color:var(--dim)">📁 ${L('المشاريع','Projets')}:</span> <strong>${plan?.max_projects===-1?L('غير محدود','Illimité'):(plan?.max_projects||0)}</strong></div>
               <div><span style="color:var(--dim)">👷 ${L('العمال','Ouvriers')}:</span> <strong>${plan?.max_workers===-1?L('غير محدود','Illimité'):(plan?.max_workers||0)}</strong></div>
               <div><span style="color:var(--dim)">🚜 ${L('المعدات','Équipements')}:</span> <strong>${plan?.max_equipment===-1?L('غير محدود','Illimité'):(plan?.max_equipment||0)}</strong></div>
               <div><span style="color:var(--dim)">📧 ${L('إيميلات/شهر','Emails/mois')}:</span> <strong>${plan?.max_emails===-1?L('غير محدود','Illimité'):(plan?.max_emails||0)}</strong></div>
             </div>
+            ${_daysInfo}
           </div>
-
-          ${(plan?.id < 3) ? `
-          <div style="font-size:.78rem;color:var(--dim);margin-bottom:.8rem;line-height:1.7">
-            ${L('💡 هل تحتاج لإمكانيات أكبر؟ ارقِ خطتك واحصل على المزيد من الميزات.','💡 Besoin de plus ? Passez à un plan supérieur.')}
-          </div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button class="btn btn-gold btn-sm" onclick="TrialManager._requestUpgrade(${(plan?.id||0)+1})">
-              ⬆️ ${L('ترقية الخطة','Mise à niveau')}
-            </button>
-            <button class="btn btn-ghost btn-sm" onclick="window.location.replace('index.html')">
-              📋 ${L('مقارنة الخطط','Comparer plans')}
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            ${(plan?.id||0) < 3 ? `
+            <button class="btn btn-gold btn-sm" onclick="TrialManager._requestUpgrade(${(plan?.id||0)+1})" style="font-weight:800">
+              ⬆️ ${_st==='active'?L('ترقية الخطة','Mettre à niveau'):L('اشترك الآن','S\'abonner')}
+            </button>` : `<span style="font-size:.8rem;color:var(--gold);font-weight:700">🏆 ${L('أعلى خطة متاحة','Plan maximum')}</span>`}
+            <button class="btn btn-ghost btn-sm" onclick="App.navigate('subscription')">
+              📋 ${L('عرض الخطط','Voir les plans')}
             </button>
           </div>
-          ` : `
-          <div style="text-align:center;color:var(--gold);font-weight:700;font-size:.85rem">
-            🏆 ${L('أنت على أعلى خطة متاحة!','Vous êtes sur le plan supérieur !')}
-          </div>
-          `}
-        </div>
+        </div>`;
+        })()}
         <div class="card" style="margin-bottom:1rem">
           <div style="font-weight:800;margin-bottom:1rem">🔑 ${L('تغيير كلمة المرور','Changer le mot de passe')}</div>
           <div class="form-group"><label class="form-label">${L('كلمة المرور الحالية','Mot de passe actuel')}</label><input class="form-input" id="pwCurrent" type="password"></div>
@@ -7748,60 +8273,6 @@ Pages.settings = function() {
               </tbody>
             </table>
           </div>
-        </div>
-        <!-- 🎨 مظهر الموقع -->
-        <div class="card" style="margin-bottom:1rem;border:1px solid rgba(232,184,75,.2)">
-          <div style="font-weight:800;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem">
-            🎨 ${L('مظهر الموقع','Apparence du site')}
-          </div>
-          <div style="font-size:.78rem;color:var(--dim);margin-bottom:1rem">
-            ${L('اختر الوضع المريح لعينيك. يُحفظ تلقائياً.','Choisissez le mode confortable. Sauvegardé automatiquement.')}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
-            <!-- الوضع الداكن -->
-            <div id="settingDark" onclick="setTheme('dark')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:.9rem;transition:all .2s">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
-                <span style="font-weight:700;font-size:.85rem">🌙 ${L('الوضع الداكن','Mode sombre')}</span>
-                <span id="checkDark" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem"></span>
-              </div>
-              <div style="background:#0d1117;border-radius:6px;padding:.5rem;display:flex;gap:.3rem">
-                <div style="width:28%;background:#161b22;border-radius:3px;height:36px"></div>
-                <div style="flex:1;display:flex;flex-direction:column;gap:.25rem">
-                  <div style="background:#21262d;border-radius:2px;height:9px"></div>
-                  <div style="background:#E8B84B;border-radius:2px;height:7px;width:55%"></div>
-                  <div style="background:#21262d;border-radius:2px;height:7px;width:75%"></div>
-                </div>
-              </div>
-              <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem">${L('مريح في الإضاءة المنخفضة','Confortable la nuit')}</div>
-            </div>
-            <!-- الوضع الفاتح -->
-            <div id="settingLight" onclick="setTheme('light')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:.9rem;transition:all .2s">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
-                <span style="font-weight:700;font-size:.85rem">☀️ ${L('الوضع الفاتح','Mode clair')}</span>
-                <span id="checkLight" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem"></span>
-              </div>
-              <div style="background:#d4d2c8;border-radius:6px;padding:.5rem;display:flex;gap:.3rem;border:1px solid #b5b1a3">
-                <div style="width:28%;background:#cac7bb;border-radius:3px;height:36px;border:1px solid #b5b1a3"></div>
-                <div style="flex:1;display:flex;flex-direction:column;gap:.25rem">
-                  <div style="background:#e3e1d7;border-radius:2px;height:9px;border:1px solid #c2bdae"></div>
-                  <div style="background:#a8801a;border-radius:2px;height:7px;width:55%"></div>
-                  <div style="background:#dcdad3;border-radius:2px;height:7px;width:75%"></div>
-                </div>
-              </div>
-              <div style="font-size:.7rem;color:var(--dim);margin-top:.5rem">${L('واضح ومشرق نهاراً','Clair et lumineux le jour')}</div>
-            </div>
-          </div>
-          <script>
-            (function(){
-              var isLight = document.documentElement.classList.contains('light');
-              var dk = document.getElementById('settingDark');
-              var lt = document.getElementById('settingLight');
-              var ck = document.getElementById(isLight?'checkLight':'checkDark');
-              var active = isLight ? lt : dk;
-              if(active){ active.style.borderColor='var(--gold)'; active.style.background='rgba(232,184,75,.04)'; }
-              if(ck){ ck.style.background='var(--gold)'; ck.style.borderColor='var(--gold)'; ck.textContent='✓'; ck.style.color='#fff'; }
-            })();
-          </script>
         </div>
         <div class="card">
           <div style="font-weight:800;margin-bottom:1rem">💾 ${L('النسخ الاحتياطي والاسترداد','Sauvegarde & Restauration')}</div>
@@ -8517,7 +8988,7 @@ function renderTenantSmartAIAnalytics(projects, txs, workers, equip, attendance,
 
   // ── تنبيهات ذكية ──
   const alerts = [];
-  delayedProj.forEach(p => alerts.push({ type:'danger', icon:'⚠️', text: L(`مشروع "${escHtml(p.name)}" متأخر — تقدمه ${p.progress}%`, `Projet "${escHtml(p.name)}" en retard — avancement ${p.progress}%`) }));
+  delayedProj.forEach(p => alerts.push({ type:'danger', icon:'⚠️', text:`مشروع "${escHtml(p.name)}" متأخر — تقدمه ${p.progress}%` }));
   projects.forEach(p => {
     if (p.budget > 0 && p.total_spent > p.budget) alerts.push({ type:'danger', icon:'💸', text:`مشروع "${escHtml(p.name)}" تجاوز الميزانية بـ ${fmt(p.total_spent - p.budget)} دج` });
     else if (p.budget > 0 && p.total_spent >= p.budget * 0.85) alerts.push({ type:'warning', icon:'🟡', text:`مشروع "${escHtml(p.name)}" استهلك ${Math.round(p.total_spent/p.budget*100)}% من الميزانية` });
@@ -9351,39 +9822,6 @@ function switchAdminTab(tab) {
   });
   // ── مزامنة تلقائية عند فتح تبويب Supabase ──
   if (tab === 'supabase' && typeof DBHybrid !== 'undefined') {
-    // تحقق تلقائي من صحة الـ key عند فتح التبويب
-    setTimeout(async () => {
-      const _cfg = (()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}')}catch(e){return {}}})();
-      const _key = _cfg.anonKey || '';
-      const _badge = document.getElementById('sbStatusBadge');
-      if (!_badge) return;
-      if (!_key) {
-        _badge.textContent = '⚠️ لم يُدخَل المفتاح بعد';
-        _badge.style.color = '#E8B84B';
-      } else if (!_key.startsWith('eyJ')) {
-        _badge.textContent = '❌ مفتاح غير صحيح (يجب أن يبدأ بـ eyJhbGci)';
-        _badge.style.color = '#F04E6A';
-      } else {
-        _badge.textContent = '🟡 جاري التحقق...';
-        try {
-          const _r = await fetch(`${_cfg.url}/rest/v1/users?select=id&limit=1`, {
-            headers: { 'apikey': _key, 'Authorization': `Bearer ${_key}` },
-            signal: AbortSignal.timeout(4000)
-          });
-          if (_r.ok || _r.status === 406) {
-            _badge.textContent = '🟢 متصل — المفتاح صحيح';
-            _badge.style.color = '#34C38F';
-            _badge.style.background = 'rgba(52,195,143,0.1)';
-            _badge.style.borderColor = 'rgba(52,195,143,0.3)';
-          } else {
-            _badge.textContent = `❌ خطأ ${_r.status} — تحقق من الـ key`;
-            _badge.style.color = '#F04E6A';
-          }
-        } catch(_e) {
-          _badge.textContent = '🔴 تعذر الاتصال';
-        }
-      }
-    }, 300);
     // تحديث عداد Offline Queue فور فتح التبويب
     if (DBHybrid._updateAdminSyncUI) setTimeout(() => DBHybrid._updateAdminSyncUI(), 50);
   }
@@ -9518,7 +9956,7 @@ Pages.admin = function() {
     const wCount=workers.filter(w=>w.tenant_id===t.id).length;
     const adminUser = users.find(u=>u.tenant_id===t.id && !u.is_admin);
     const subStatus = t.subscription_status;
-    const subLbl = subStatus==='active'? L('نشط','Actif','Active') : subStatus==='trial'? L('تجريبي','Essai') : L('منتهي','Expiré');
+    const subLbl = subStatus==='active'? L('نشط','Actif') : subStatus==='trial'? L('تجريبي','Essai') : L('منتهي','Expiré');
     const subCls = subStatus==='active'?'badge-active':subStatus==='trial'?'badge-paused':'badge-delayed';
     const planColors = ['var(--blue)','var(--gold)','var(--purple)'];
     const planIdx = plans.findIndex(p=>p.id===t.plan_id);
@@ -9545,7 +9983,7 @@ Pages.admin = function() {
       <td>${(()=>{
         const isPending = !t.is_active && t.subscription_status==='pending';
         const cls = t.is_active ? 'badge-active' : isPending ? 'badge-paused' : 'badge-delayed';
-        const lbl = t.is_active ? L('نشط','Actif','Active') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
+        const lbl = t.is_active ? L('نشط','Actif') : isPending ? '⏳ '+L('بانتظار التفعيل','En attente') : L('موقوف','Suspendu');
         return `<span class="badge ${cls}">${lbl}</span>`;
       })()}</td>
       <td>
@@ -9793,7 +10231,7 @@ Pages.admin = function() {
           </div>
           <div class="table-wrap" style="border:none;border-radius:0">
             <table>
-              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe','Password')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>📧 الإيميلات</th><th>${L('المشاريع','Projets','Projects')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
+              <thead><tr><th>${L('المؤسسة','Entreprise')}</th><th>${L('البريد الإلكتروني','Email')}</th><th>${L('كلمة المرور','Mot de passe')}</th><th>${L('الخطة','Plan')}</th><th>${L('الاشتراك','Abonnement')}</th><th>📧 الإيميلات</th><th>${L('المشاريع','Projets')}</th><th>${L('العمال','Ouvriers')}</th><th>${L('الحالة','Statut')}</th><th>${L('إجراء','Action')}</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>
@@ -9809,7 +10247,7 @@ Pages.admin = function() {
               return `<tr><td style="font-weight:700">${escHtml(u.full_name)}</td>
                 <td style="font-family:monospace;font-size:.82rem;direction:ltr;text-align:right">${escHtml(u.email)}</td>
                 <td>${escHtml(tenant?.name||'—')}</td>
-                <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif','Active'):L('موقوف','Suspendu')}</span></td></tr>`;
+                <td><span class="badge ${u.is_active?'badge-active':'badge-delayed'}">${u.is_active?L('نشط','Actif'):L('موقوف','Suspendu')}</span></td></tr>`;
             }).join('')}</tbody>
           </table></div>
         </div>
@@ -9826,12 +10264,10 @@ Pages.admin = function() {
                 const paid    = tenants.filter(t=>t.id!==1 && t.subscription_status==='active' && t.is_active).length;
                 const trial   = tenants.filter(t=>t.id!==1 && t.subscription_status==='trial').length;
                 const expired = tenants.filter(t=>t.id!==1 && (t.subscription_status==='expired' || !t.is_active)).length;
-                const totalRevenue = (DB.get('subscription_invoices')||[]).reduce((s,i)=>s+Number(i.amount||0),0);
                 return `
                 <span style="background:rgba(52,195,143,.12);border:1px solid rgba(52,195,143,.25);color:#34C38F;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">✅ ${L('دفعت','Payé')} (${paid})</span>
                 <span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:#E8B84B;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⏱️ ${L('تجربة','Essai')} (${trial})</span>
-                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>
-                <span style="background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.2);color:var(--gold);padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">💰 ${fmt(totalRevenue)} ${L('دج','DA')}</span>`;
+                <span style="background:rgba(240,78,106,.12);border:1px solid rgba(240,78,106,.25);color:#F04E6A;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:800">⛔ ${L('لم تدفع','Impayé')} (${expired})</span>`;
               })()}
             </div>
           </div>
@@ -9839,88 +10275,88 @@ Pages.admin = function() {
             <table>
               <thead><tr>
                 <th>${L('المؤسسة','Entreprise')}</th>
-                <th>${L('حالة الدفع','Statut')}</th>
+                <th>${L('حالة الدفع','Statut paiement')}</th>
                 <th>${L('الخطة','Plan')}</th>
-                <th style="min-width:140px">${L('الوقت المتبقي','Temps restant')}</th>
-                <th>${L('تاريخ الانتهاء','Expiration')}</th>
-                <th>${L('إجراءات','Actions')}</th>
+                <th>${L('الوقت المتبقي','Temps restant')}</th>
+                <th>${L('تاريخ الانتهاء','Date d\'expiration')}</th>
+                <th>${L('إجراء','Action')}</th>
               </tr></thead>
               <tbody>
                 ${(()=>{
                   const today = new Date(); today.setHours(0,0,0,0);
                   return tenants
                     .filter(t => t.id !== 1)
-                    .sort((a,b) => {
-                      // ترتيب: منتهي → تجربة قريبة الانتهاء → نشط
-                      const score = t => t.subscription_status==='expired'?0:t.subscription_status==='trial'?1:2;
-                      return score(a)-score(b);
-                    })
                     .map(t => {
                       const pl = plans.find(p=>p.id===t.plan_id);
                       const st = t.subscription_status || '';
                       const isTrial   = st === 'trial';
                       const isPaid    = st === 'active' && t.is_active;
                       const isExpired = st === 'expired' || (!t.is_active && st !== 'trial' && st !== 'pending');
+                      const isPending = st === 'pending' || (!t.is_active && st === 'trial');
 
                       // حساب الأيام المتبقية
-                      let daysLeft = null, endDate = null, totalDays = 30;
+                      let daysLeft = null, endDate = null;
                       if (isTrial) {
-                        const tEnd = t.trial_end || t.trial_ends_at;
-                        if (tEnd) { endDate=tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); totalDays=14; }
+                        const tEnd = t.trial_end || t.trial_ends_at || null;
+                        if (tEnd) { endDate = tEnd; const e=new Date(tEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
                       } else if (isPaid) {
-                        const sEnd = t.subscription_end || t.subscription_ends_at;
-                        if (sEnd) {
-                          endDate=sEnd;
-                          const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000);
-                          if (t.subscription_start) totalDays=Math.round((new Date(sEnd)-new Date(t.subscription_start))/86400000)||30;
+                        const sEnd = t.subscription_end || t.subscription_ends_at || null;
+                        if (sEnd) { endDate = sEnd; const e=new Date(sEnd); e.setHours(0,0,0,0); daysLeft=Math.ceil((e-today)/86400000); }
+                      }
+
+                      // عرض الوقت المتبقي
+                      let daysHtml = '<span style="color:var(--dim)">—</span>';
+                      if (daysLeft !== null) {
+                        if (daysLeft < 0) {
+                          daysHtml = `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`;
+                        } else if (daysLeft === 0) {
+                          daysHtml = `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم الأخير!','Dernier jour!')}</span>`;
+                        } else if (daysLeft <= 3) {
+                          daysHtml = `<span style="color:#E8B84B;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`;
+                        } else if (daysLeft <= 7) {
+                          daysHtml = `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`;
+                        } else {
+                          daysHtml = `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
                         }
                       }
 
-                      const pct = daysLeft!==null ? Math.max(0,Math.min(100,Math.round(daysLeft/totalDays*100))) : 0;
-                      const barC = daysLeft===null?'var(--dim)':daysLeft<=3?'#F04E6A':daysLeft<=7?'#E8B84B':'#34C38F';
-
-                      // عرض الوقت المتبقي مع شريط
-                      let daysHtml = '<span style="color:var(--dim)">—</span>';
-                      if (daysLeft !== null) {
-                        const label = daysLeft<0 ? `<span style="color:#F04E6A;font-weight:800">⛔ ${L('انتهى','Expiré')}</span>`
-                          : daysLeft===0 ? `<span style="color:#F04E6A;font-weight:800;animation:blink 1s infinite">🔴 ${L('اليوم!','Aujourd\'hui!')}</span>`
-                          : daysLeft<=3 ? `<span style="color:#F04E6A;font-weight:800">⚠️ ${daysLeft} ${L('أيام','j')}</span>`
-                          : daysLeft<=7 ? `<span style="color:#E8B84B;font-weight:700">🟡 ${daysLeft} ${L('أيام','j')}</span>`
-                          : `<span style="color:#34C38F;font-weight:700">🟢 ${daysLeft} ${L('يوم','j')}</span>`;
-                        daysHtml = `<div style="display:flex;flex-direction:column;gap:3px;min-width:120px">
-                          ${label}
-                          <div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden">
-                            <div style="height:3px;background:${barC};width:${pct}%;border-radius:2px;transition:width .8s"></div>
-                          </div>
-                        </div>`;
+                      // عرض حالة الدفع
+                      let payHtml;
+                      if (isPaid) {
+                        payHtml = `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`;
+                      } else if (isTrial && daysLeft !== null && daysLeft >= 0) {
+                        payHtml = `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة مجانية','Essai gratuit')}</span>`;
+                      } else if (isPending) {
+                        payHtml = `<span class="badge" style="background:rgba(74,144,226,.12);color:#4A90E2;border:1px solid rgba(74,144,226,.25);font-size:.7rem">⏳ ${L('انتظار','En attente')}</span>`;
+                      } else {
+                        payHtml = `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
                       }
 
-                      let payHtml = isPaid
-                        ? `<span class="badge badge-active" style="font-size:.7rem">✅ ${L('مدفوع','Payé')}</span>`
-                        : isTrial && daysLeft!==null && daysLeft>=0
-                          ? `<span class="badge badge-paused" style="font-size:.7rem">⏱️ ${L('تجربة','Essai')}</span>`
-                          : `<span class="badge badge-delayed" style="font-size:.7rem">⛔ ${L('غير مدفوع','Impayé')}</span>`;
-
                       const endStr = endDate
-                        ? new Date(endDate).toLocaleDateString(L('ar-DZ','fr-FR'),{day:'2-digit',month:'short',year:'numeric'})
+                        ? new Date(endDate).toLocaleDateString('ar-DZ',{day:'2-digit',month:'short',year:'numeric'})
                         : '—';
 
-                      return `<tr style="${isExpired?'background:rgba(240,78,106,.04)':''}${daysLeft!==null&&daysLeft<=3&&!isExpired?'background:rgba(232,184,75,.03)':''}">
+                      return `<tr>
                         <td>
                           <div style="font-weight:700;font-size:.85rem">${escHtml(t.name)}</div>
-                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')} · ID:${t.id}</div>
+                          <div style="font-size:.68rem;color:var(--dim)">📍 ${escHtml(t.wilaya||'—')}</div>
                         </td>
                         <td>${payHtml}</td>
-                        <td><span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span></td>
-                        <td>${daysHtml}</td>
                         <td>
-                          <span style="font-size:.8rem;font-weight:700;color:${daysLeft!==null&&daysLeft<=7?barC:'var(--text)'};font-family:monospace">${endStr}</span>
+                          <span style="font-size:.78rem;color:var(--gold);font-weight:700">${escHtml(pl?.name||'—')}</span>
                         </td>
+                        <td>${daysHtml}</td>
+                        <td style="font-size:.78rem;color:var(--dim);font-family:monospace">${endStr}</td>
                         <td>
                           <div style="display:flex;gap:.3rem;flex-wrap:wrap">
-                            <button class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:.2rem .5rem" onclick="editTenantPlan(${t.id})" title="${L('تعديل الخطة','Modifier plan')}">⚙️</button>
-                            <button class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:.2rem .5rem" onclick="openSubInvoicesModal(${t.id})" title="${L('فواتير الاشتراك','Factures')}">🧾</button>
-                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.68rem;padding:.2rem .5rem" onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">${t.is_active?'⏸️':'▶️'}</button>
+                            ${(!isPaid) ? `<button class="btn btn-sm btn-gold" style="font-size:.7rem;padding:.25rem .6rem"
+                              onclick="editTenantPlan(${t.id})" title="${L('تفعيل الاشتراك المدفوع','Activer l\'abonnement payant')}">
+                              💳 ${L('فعّل','Activer')}
+                            </button>` : ''}
+                            <button class="btn btn-sm ${t.is_active?'btn-red':'btn-green'}" style="font-size:.7rem;padding:.25rem .5rem"
+                              onclick="toggleTenant(${t.id})" title="${t.is_active?L('إيقاف','Désactiver'):L('تفعيل','Activer')}">
+                              ${t.is_active?'⏸️':'▶️'}
+                            </button>
                           </div>
                         </td>
                       </tr>`;
@@ -9939,15 +10375,13 @@ Pages.admin = function() {
         <!-- ══ Notifications Panel ══ -->
         ${(()=>{
           // ✅ نعرض كل الإشعارات التي لم تُفعَّل بعد (pending) أو التي تحتاج إجراء
-          // ولكن نستبعد المُخفية (dismissed)
           const allNotifs = DB.get('notifications') || [];
           const notifs = allNotifs.filter(n =>
-            n.status !== 'dismissed' && (
-              n.status === 'pending' ||
-              n.type === 'new_account' ||
-              n.type === 'reset_password' ||
-              n.type === 'upgrade_request'
-            )
+            n.status === 'pending' ||
+            n.type === 'new_account' ||
+            n.type === 'reset_password' ||
+            n.type === 'upgrade_request' ||
+            n.type === 'new_subscription'
           ).sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
 
           const pendingCount = notifs.filter(n => n.status === 'pending').length;
@@ -9964,29 +10398,25 @@ Pages.admin = function() {
             const isReset   = n.type==='reset_password';
             const isUpgrade = n.type==='upgrade_request';
             const isNew     = n.type==='new_account';
-            const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : '🆕';
-            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? L('طلب ترقية','Upgrade') : L('حساب جديد','Nouveau compte');
+            const isPaidSub = n.type==='new_subscription';
+            const icon    = isReset ? '🔑' : isUpgrade ? '⬆️' : isPaidSub ? '💳' : '🆕';
+            const badgeTxt= isReset ? L('إعادة كلمة مرور','Réinitialisation MDP') : isUpgrade ? L('طلب ترقية','Upgrade') : isPaidSub ? L('اشتراك مدفوع','Abonnement payant') : L('حساب جديد','Nouveau compte');
             const dateStr = new Date(n.date||n.created_at||Date.now()).toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
             // ✅ تحقق من الحالة من Supabase (عبر بيانات محلية مُحدَّثة)
-            const linkedUser   = isNew ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
-            const linkedTenant = isNew ? (DB.get('tenants')||[]).find(t=>t.id===n.tenant_id) : null;
+            const _useLink     = isNew || isPaidSub;
+            const linkedUser   = _useLink ? (DB.get('users')||[]).find(u=>u.id===n.user_id) : null;
+            const linkedTenant = _useLink ? (DB.get('tenants')||[]).find(t=>t.id===n.tenant_id) : null;
             const isPending    = n.status === 'pending' && (!linkedUser || !linkedUser.is_active);
-            const isActivated  = !isPending && (linkedUser?.is_active || n.status === 'activated');
+            // new_subscription auto-activated → always show as activated
+            const isActivated  = isPaidSub ? true : (!isPending && (linkedUser?.is_active || n.status === 'activated'));
 
             return `<tr style="${isPending ? 'background:rgba(232,184,75,.04)' : ''}">
               <td><span style="font-size:1.4rem">${icon}</span></td>
               <td style="font-weight:700;font-size:.85rem">${escHtml(n.title)}</td>
-              <td style="font-size:.8rem;color:var(--muted);max-width:280px">
-                ${linkedTenant ? `
-                  <div style="display:flex;flex-direction:column;gap:.2rem">
-                    <div style="font-weight:700;color:var(--text)">🏢 ${escHtml(linkedTenant.name||'')}</div>
-                    <div style="font-size:.74rem">👤 ${escHtml(linkedUser?.full_name||'')}</div>
-                    <div style="font-size:.74rem;direction:ltr;text-align:${I18N.currentLang==='ar'?'right':'left'}">📧 ${escHtml(linkedUser?.email||'')}</div>
-                    ${linkedUser?.phone ? `<div style="font-size:.74rem;direction:ltr;text-align:${I18N.currentLang==='ar'?'right':'left'};color:var(--green)">📞 ${escHtml(linkedUser.phone)}</div>` : ''}
-                    ${linkedTenant.wilaya ? `<div style="font-size:.72rem;color:var(--dim)">📍 ${escHtml(linkedTenant.wilaya)}</div>` : ''}
-                  </div>
-                ` : escHtml(n.body)}
+              <td style="font-size:.8rem;color:var(--muted);max-width:250px">
+                ${escHtml(n.body)}
+                ${linkedTenant ? `<div style="font-size:.72rem;color:var(--dim);margin-top:.15rem">🏢 ${escHtml(linkedTenant.name||'')} · 📧 ${escHtml(linkedUser?.email||'')}</div>` : ''}
               </td>
               <td>
                 ${isPending ? `<span class="badge badge-paused">⏳ ${L('بانتظار التفعيل','En attente')}</span>` :
@@ -9996,16 +10426,17 @@ Pages.admin = function() {
               <td style="font-size:.75rem;color:var(--dim);white-space:nowrap">${dateStr}</td>
               <td>
                 <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">
-                  ${isNew && isPending ? `
+                  ${(isNew || isPaidSub) && isPending ? `
                     <button class="btn btn-green btn-sm" onclick="activateAccount(${n.id},${n.user_id||0},${n.tenant_id||0})" style="font-weight:800">
                       ✅ ${L('تفعيل + إيميل','Activer + Email')}
                     </button>` : ''}
-                  ${isNew && isActivated ? `<span style="font-size:.75rem;color:var(--green);font-weight:700">✅ ${L('مُفعَّل','Activé')}</span>` : ''}
+                  ${(isNew || isPaidSub) && isActivated ? `<span style="font-size:.75rem;color:var(--green);font-weight:700">✅ ${L('مُفعَّل تلقائياً','Auto-activé')}</span>` : ''}
+                  ${isPaidSub ? `<span style="font-size:.72rem;color:var(--gold);font-weight:700;margin-inline-start:.3rem">💳 ${escHtml(n.plan_name||'')}</span>` : ''}
                   ${isReset && n.status==='pending' ? `<button class="btn btn-gold btn-sm" onclick="openResetModal(${n.id},${n.user_id||0})">🔐 ${L('تعيين كلمة مرور','Définir MDP')}</button>` : ''}
                   ${isUpgrade && n.status==='pending' ? `
                     <button class="btn btn-green btn-sm" onclick="approveUpgrade(${n.id},${n.tenant_id||0})">✅ ${L('موافقة','Approuver')}</button>
                     <button class="btn btn-red btn-sm" onclick="rejectUpgrade(${n.id})">❌ ${L('رفض','Rejeter')}</button>` : ''}
-                  <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})" title="${L('إخفاء','Masquer','Hide')}">✕</button>
+                  <button class="btn btn-ghost btn-sm" onclick="dismissNotif(${n.id})" title="${L('إخفاء','Masquer')}">✕</button>
                 </div>
               </td>
             </tr>`;
@@ -10088,7 +10519,7 @@ Pages.admin = function() {
                 <input class="form-input" id="ejs_tmpl_admin" value="${escHtml(cfg.TEMPLATE_ADMIN)}" dir="ltr" style="font-family:monospace;font-size:.82rem" placeholder="template_xxxxxxx">
               </div>
               <div class="form-group">
-                <label class="form-label" style="font-size:.75rem">Template ID — ${L('كلمة المرور','Mot de passe','Password')}</label>
+                <label class="form-label" style="font-size:.75rem">Template ID — ${L('كلمة المرور','Mot de passe')}</label>
                 <input class="form-input" id="ejs_tmpl_user" value="${escHtml(cfg.TEMPLATE_USER)}" dir="ltr" style="font-family:monospace;font-size:.82rem" placeholder="template_xxxxxxx">
               </div>
               <div class="form-group" style="grid-column:1/-1">
@@ -10309,19 +10740,6 @@ Pages.admin = function() {
             </div>
             <div style="display:grid;grid-template-columns:1fr;gap:.7rem;margin-bottom:1rem">
               <div class="form-group" style="margin:0">
-                <!-- تعليمات للمفتاح الصحيح -->
-                ${(()=>{
-                  const _k = (()=>{try{return JSON.parse(localStorage.getItem('sbtp_supabase_config')||'{}').anonKey||''}catch(e){return '';}})();
-                  if (_k && _k.startsWith('eyJ')) return ''; // المفتاح صحيح
-                  return '<div style="margin-bottom:.8rem;padding:.7rem .9rem;background:rgba(232,100,74,.07);border:1px solid rgba(232,100,74,.3);border-radius:8px;font-size:.78rem;line-height:1.6">'
-                    + '<strong style="color:#F04E6A">⚠️ ' + L('المفتاح الحالي غير صحيح','Clé actuelle invalide') + '</strong><br>'
-                    + L('احصل على المفتاح الصحيح من:','Obtenez la clé correcte depuis:') + '<br>'
-                    + '<code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:.72rem;direction:ltr;display:inline-block;margin-top:3px">'
-                    + 'Supabase Dashboard → Settings → API → <strong>anon public</strong>'
-                    + '</code><br>'
-                    + '<span style="color:var(--dim);font-size:.7rem">' + L('المفتاح يبدأ دائماً بـ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9','La clé commence toujours par eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9') + '</span>'
-                    + '</div>';
-                })()}
                 <label class="form-label" style="font-size:.75rem">🔗 Project URL</label>
                 <input class="form-input" id="sbUrlInput" dir="ltr" style="font-family:monospace;font-size:.78rem"
                   placeholder="https://xxxxxxxxxxxx.supabase.co"
@@ -10548,7 +10966,7 @@ Pages.admin = function() {
             <div class="modal-title">🏢 ${L('إضافة مؤسسة جديدة','Ajouter une nouvelle entreprise')}</div>
             <div class="form-group"><label class="form-label">${L('اسم الشركة','Nom de l\'entreprise')} *</label><input class="form-input" id="atName" placeholder="${L('مؤسسة المقاولة...','Entreprise BTP...')}"></div>
             <div class="form-group"><label class="form-label">${L('بريد المسؤول','Email administrateur')} *</label><input class="form-input" id="atEmail" type="email" placeholder="admin@company.dz" dir="ltr"></div>
-            <div class="form-group"><label class="form-label">${L('كلمة المرور','Mot de passe','Password')} *</label><input class="form-input" id="atPass" type="password" dir="ltr"></div>
+            <div class="form-group"><label class="form-label">${L('كلمة المرور','Mot de passe')} *</label><input class="form-input" id="atPass" type="password" dir="ltr"></div>
             <div class="form-group"><label class="form-label">${L('اسم المسؤول','Nom de l\'administrateur')} *</label><input class="form-input" id="atAdmin" placeholder="${L('محمد...','Mohamed...')}"></div>
             <div class="form-group"><label class="form-label">${L('الخطة','Plan')}</label><select class="form-select" id="atPlan">${plans.map(p=>`<option value="${p.id}">${p.name} — ${fmt(p.price)} ${L('دج/شهر','DA/mois')}</option>`).join('')}</select></div>
             <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>${L('إلغاء','Annuler')}</button><button class="btn btn-gold" onclick="addTenant()">💾 ${L('إنشاء المؤسسة','Créer l\'entreprise')}</button></div>
@@ -10569,7 +10987,7 @@ Pages.project_detail = function() {
   const pid = App.params.id;
   const tid = Auth.getUser().tenant_id;
   const p = DB.get('projects').find(pr=>pr.id===pid && pr.tenant_id===tid);
-  if (!p) return layoutHTML('projects', L('تفاصيل المشروع','Détails du projet'),`<div class="empty"><div class="empty-icon">🏗️</div><div class="empty-title">${L('المشروع غير موجود','Projet introuvable')}</div><button class="btn btn-ghost" data-nav="projects">${L('العودة','Retour','Back')}</button></div>`);
+  if (!p) return layoutHTML('projects', L('تفاصيل المشروع','Détails du projet'),`<div class="empty"><div class="empty-icon">🏗️</div><div class="empty-title">${L('المشروع غير موجود','Projet introuvable')}</div><button class="btn btn-ghost" data-nav="projects">${L('العودة','Retour')}</button></div>`);
 
   const workers = DB.get('workers').filter(w=>w.project_id===pid);
   const equip = DB.get('equipment').filter(e=>e.project_id===pid);
@@ -10586,12 +11004,12 @@ Pages.project_detail = function() {
     <div class="page-header" style="flex-wrap:wrap">
       <div>
         <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.3rem">
-          <button class="btn btn-ghost btn-sm" data-nav="projects">← ${L('العودة','Retour','Back')}</button>
+          <button class="btn btn-ghost btn-sm" data-nav="projects">← ${L('العودة','Retour')}</button>
           ${statusBadge(p.status)}
         </div>
         <div class="page-title">${escHtml(p.name)}</div>
         <div class="page-sub">
-          ${(()=>{const t=getProjectTypes().find(t=>t.value===p.project_type);return t?`<span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;margin-left:.5rem">${t.label}</span>`:''})()}
+          ${(()=>{const t=PROJECT_TYPES.find(t=>t.value===p.project_type);return t?`<span style="background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.25);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;margin-left:.5rem">${t.label}</span>`:''})()}
           ${p.wilaya?'📍 '+escHtml(p.wilaya):''} ${p.client_name?'• 👤 '+escHtml(p.client_name):''} ${p.phase?'• 🔧 '+escHtml(p.phase):''}
         </div>
       </div>
@@ -10720,8 +11138,8 @@ Pages.project_detail = function() {
         <div class="modal-title">✏️ ${L('تعديل المشروع','Modifier le projet')}</div><input type="hidden" id="epId">
         <div class="form-grid-2">
           <div class="form-group"><label class="form-label">${L('اسم المشروع','Nom du projet')}</label><input class="form-input" id="epName"></div>
-          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
-          <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus"><option value="active">${L('نشط','Actif','Active')}</option><option value="completed">${L('مكتمل','Terminé')}</option><option value="delayed">${L('متأخر','En retard')}</option><option value="paused">${L('متوقف','Pausé')}</option></select></div>
+          <div class="form-group"><label class="form-label">${L('الولاية','Wilaya')}</label><select class="form-select" id="epWilaya"><option value="">${L('اختر...','Choisir...')}</option>${WILAYAS.map(w=>`<option>${w}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">${L('الحالة','Statut')}</label><select class="form-select" id="epStatus"><option value="active">${L('نشط','Actif')}</option><option value="completed">${L('مكتمل','Terminé')}</option><option value="delayed">${L('متأخر','En retard')}</option><option value="paused">${L('متوقف','Pausé')}</option></select></div>
           <div class="form-group"><label class="form-label">${L('التقدم %','Avancement %')}</label><input class="form-input" id="epProgress" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('الميزانية (دج)','Budget (DA)')}</label><input class="form-input" id="epBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></div>
           <div class="form-group"><label class="form-label">${L('المرحلة','Phase')}</label><select class="form-select" id="epPhase"><option value="">${L('اختر...','Choisir...')}</option>${PHASES.map(ph=>`<option>${ph}</option>`).join('')}</select></div>
@@ -10774,10 +11192,10 @@ Pages.materials = function() {
     </div>
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card"><div class="stat-icon">🧱</div><div class="stat-value" style="color:var(--blue)">${materials.length}</div><div class="stat-label">إجمالي المواد</div></div>
-      <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value" style="color:${lowStock>0?'var(--red)':'var(--green)'}">${lowStock}</div><div class="stat-label">${L("مخزون منخفض","Stock bas")}</div></div>
+      <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value" style="color:${lowStock>0?'var(--red)':'var(--green)'}">${lowStock}</div><div class="stat-label">مخزون منخفض</div></div>
       <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:var(--gold);font-size:1rem">${fmt(totalValue)}</div><div class="stat-label">قيمة المخزون (دج)</div></div>
     </div>
-    ${lowStock>0?`<div class="budget-alert budget-alert-warn">⚠️ ${L("تنبيه","Alerte")}: ${lowStock} ${L("مادة وصلت للحد الأدنى من المخزون وتحتاج إلى تجديد","matériau(x) ont atteint le seuil minimum et nécessitent un réapprovisionnement")}</div>`:''}
+    ${lowStock>0?`<div class="budget-alert budget-alert-warn">⚠️ تنبيه: ${lowStock} مادة وصلت للحد الأدنى من المخزون وتحتاج إلى تجديد</div>`:''}
     ${materials.length?`<div class="table-wrap"><table>
       <thead><tr><th>المادة</th><th>المشروع</th><th>الكمية</th><th>الوحدة</th><th>سعر الوحدة (دج)</th><th>القيمة الإجمالية</th><th>المورد</th><th>الحالة</th><th>حذف</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`:`<div class="empty"><div class="empty-icon">🧱</div><div class="empty-title">لا توجد مواد مسجلة</div></div>`}
@@ -10788,7 +11206,7 @@ Pages.materials = function() {
           <div class="form-group"><label class="form-label">اسم المادة *</label><input class="form-input" id="mName" placeholder="حديد، أسمنت..."></div>
           <div class="form-group"><label class="form-label">الوحدة *</label><select class="form-select" id="mUnit"><option>طن</option><option>كيس</option><option>م³</option><option>ألف قطعة</option><option>لتر</option><option>قطعة</option><option>م²</option></select></div>
           <div class="form-group"><label class="form-label">الكمية المتوفرة</label><input class="form-input" id="mQty" type="number" value="0"></div>
-          <div class="form-group"><label class="form-label">${L("الحد الأدنى للتنبيه","Seuil d'alerte minimum")}</label><input class="form-input" id="mMinQty" type="number" value="5"></div>
+          <div class="form-group"><label class="form-label">الحد الأدنى للتنبيه</label><input class="form-input" id="mMinQty" type="number" value="5"></div>
           <div class="form-group"><label class="form-label">سعر الوحدة (دج)</label><input class="form-input" id="mPrice" type="number" value="0"></div>
           <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="mProject"><option value="">— عام</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
         </div>
@@ -10821,7 +11239,7 @@ function filterProjects() {
   if (!filtered.length) { grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔍</div><div class="empty-title">لا توجد نتائج</div></div>`; return; }
   grid.innerHTML = filtered.map(p=>{
     const wCount=workers.filter(w=>w.project_id===p.id).length;
-    const pTypeObj = getProjectTypes().find(t=>t.value===p.project_type);
+    const pTypeObj = PROJECT_TYPES.find(t=>t.value===p.project_type);
     return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:16px;overflow:hidden;transition:all .28s" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform=''">
       <div style="height:3px;background:${p.color}"></div>
       <div style="padding:1.1rem 1.2rem">
@@ -11167,25 +11585,7 @@ function _saveSbOpToOfflineQueue(table, record, method) {
 }
 
 async function sbSyncDelete(table, id) {
-  _trackLocalDelete(table, id);
   return sbSync(table, { id }, 'DELETE');
-}
-
-/* ── تتبع السجلات المحذوفة محلياً لمنع pullAllTenantData من إعادتها ── */
-function _trackLocalDelete(table, id) {
-  try {
-    const KEY = 'sbtp5_deleted_' + table;
-    const ids = JSON.parse(localStorage.getItem(KEY) || '[]');
-    if (!ids.includes(id)) {
-      ids.push(id);
-      if (ids.length > 1000) ids.splice(0, ids.length - 1000);
-      localStorage.setItem(KEY, JSON.stringify(ids));
-    }
-  } catch(e) { console.warn('_trackLocalDelete:', e.message); }
-}
-function _getLocalDeletedIds(table) {
-  try { return JSON.parse(localStorage.getItem('sbtp5_deleted_' + table) || '[]'); }
-  catch { return []; }
 }
 
 async function sbSyncUpsert(table, record) {
@@ -11205,13 +11605,6 @@ function saveSupabaseConfigInline() {
   const key = (document.getElementById('sbKeyInput')?.value || '').trim();
   if (!url || !key) { Toast.error(L('❌ أدخل URL والـ Key كاملين','❌ Saisir URL et Key complets')); return; }
   if (!url.includes('supabase.co')) { Toast.error(L('❌ URL غير صحيح — يجب أن يحتوي على supabase.co','❌ URL invalide — doit contenir supabase.co')); return; }
-  if (!key.startsWith('eyJ')) {
-    Toast.error(L(
-      '❌ Anon Key خاطئ — يجب أن يبدأ بـ eyJhbGci\nاحصل عليه من: Supabase → Settings → API → anon public',
-      '❌ Anon Key invalide — doit commencer par eyJhbGci\nObtenir depuis: Supabase → Settings → API → anon public'
-    ));
-    return;
-  }
 
   const cfg = { url, anonKey: key };
   localStorage.setItem('sbtp_supabase_config', JSON.stringify(cfg));
@@ -11714,12 +12107,6 @@ async function doLogin() {
       const saved = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
       sbUrl = saved.url || ''; sbKey = saved.anonKey || '';
     }
-    // ── اختبار الاتصال (offline check فقط) ──
-    if (!navigator.onLine) {
-      showErrMsg(L('📡 لا يوجد اتصال بالإنترنت', '📡 Pas de connexion internet'));
-      resetBtn(); return;
-    }
-
     // ── قبل كل شيء: تحقق من حساب الأدمن محلياً (is_admin=true لا يحتاج Supabase) ──
     const localAllUsers = DB.get('users') || [];
     const localAdmin = localAllUsers.find(u =>
@@ -11761,32 +12148,13 @@ async function doLogin() {
     }
 
     // ── للمستخدمين العاديين: التحقق من Supabase ──
-    if (!sbUrl || !sbKey) throw new Error(L('Supabase غير مربوط — تواصل مع المسؤول', 'Supabase non configuré — contactez l\'administrateur'));
+    if (!sbUrl || !sbKey) throw new Error('Supabase غير مربوط — تواصل مع المسؤول');
 
     const sbH = { 'Content-Type':'application/json', 'apikey':sbKey, 'Authorization':`Bearer ${sbKey}` };
 
     // ── 1. جلب المستخدم من Supabase ──
     const uRes = await fetch(`${sbUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}&select=*`, { headers: sbH });
-    if (!uRes.ok) {
-      const _status = uRes.status;
-      const _errBody = await uRes.json().catch(() => ({}));
-      const _errMsg = _errBody?.message || _errBody?.error || '';
-      if (_status === 401) {
-        throw new Error(L(
-          '🔑 مفتاح Supabase غير صالح — يرجى التحقق من anon key في الإعدادات',
-          '🔑 Clé Supabase invalide — vérifiez la clé anon dans les paramètres'
-        ));
-      } else if (_status === 403) {
-        throw new Error(L(
-          '🚫 تم رفض الوصول (403) — تحقق من سياسات RLS في Supabase',
-          '🚫 Accès refusé (403) — vérifiez les politiques RLS'
-        ));
-      } else if (_status === 0 || !navigator.onLine) {
-        throw new Error(L('❌ لا يوجد اتصال بالإنترنت', '❌ Pas de connexion internet'));
-      } else {
-        throw new Error(`❌ خطأ ${_status}: ${_errMsg || 'فشل الاتصال بقاعدة البيانات'}`);
-      }
-    }
+    if (!uRes.ok) throw new Error('فشل الاتصال بقاعدة البيانات');
     const sbUsers = await uRes.json();
 
     if (!sbUsers.length) {
@@ -11973,17 +12341,7 @@ async function doLogin() {
   } catch(e) {
     console.error('❌ خطأ في تسجيل الدخول:', e.message);
     resetBtn();
-    console.error('[doLogin] Error:', e);
-    if (e.message && e.message.includes('Supabase غير مربوط')) {
-      showErrMsg(`⚙️ ${L(
-        'Supabase غير مُعدَّل — افتح الإعدادات من لوحة الأدمن وأدخل URL و Anon Key',
-        'Supabase non configuré — ouvrez les paramètres admin et entrez l\'URL et la clé'
-      )}`);
-    } else if (!navigator.onLine) {
-      showErrMsg(L('📡 لا يوجد اتصال بالإنترنت — تحقق من شبكتك', '📡 Pas de connexion internet'));
-    } else {
-      showErrMsg('❌ ' + (e.message || L('حدث خطأ غير متوقع', 'Une erreur inattendue s\'est produite')));
-    }
+    showErrMsg('❌ حدث خطأ: ' + e.message);
   }
 }
 
@@ -12017,56 +12375,29 @@ async function pullAllTenantDataFromSupabase(tenantId) {
   }
 
   const TABLES = [
-    'tenants',
     'projects','workers','equipment','transactions','attendance',
     'materials','stock_movements','invoices','salary_records',
-    'kanban_tasks','documents','obligations','notes','users'
+    'kanban_tasks','documents','obligations','notes'
   ];
-  const TENANT_SCOPED = new Set(['tenants']); // تُجلب بـ id=tenantId بدل tenant_id
-  const LOCAL_ONLY_TABLES = new Set(['subscription_invoices']); // جداول محلية فقط، لا تُجلب من Supabase
 
   for (const table of TABLES) {
     try {
-      // تجاهل الجداول المحلية فقط
-      if (LOCAL_ONLY_TABLES.has(table)) continue;
-
-      // tenants تُجلب بـ id مباشر، بقية الجداول بـ tenant_id
-      const fetchUrl = TENANT_SCOPED.has(table)
-        ? `${cfg.url}/rest/v1/${table}?id=eq.${tenantId}&select=*`
-        : `${cfg.url}/rest/v1/${table}?tenant_id=eq.${tenantId}&select=*&order=id.asc`;
-      const r = await fetch(fetchUrl, { headers: sbH });
+      const r = await fetch(
+        `${cfg.url}/rest/v1/${table}?tenant_id=eq.${tenantId}&select=*&order=id.asc`,
+        { headers: sbH }
+      );
       if (!r.ok) continue;
       const remote = await r.json();
       if (!Array.isArray(remote)) continue;
 
-      // ✅ FIX: دمج ذكي — يحمي التعديلات المحلية الأحدث من أن تُكتب فوقها
+      // دمج: نفضّل بيانات Supabase لكن نحتفظ بالسجلات المحلية التي لم تُرفع بعد
       const local = DB.get(table) || [];
-      const localMap = new Map(local.map(l => [Number(l.id), l]));
-      const deletedIds = new Set(_getLocalDeletedIds(table).map(i => Number(i)));
-      const remoteIds = new Set(remote.map(r => Number(r.id)));
+      const remoteIds = new Set(remote.map(r => r.id));
+      const localOnly = local.filter(l => !remoteIds.has(l.id));
+      const merged = [...remote, ...localOnly];
 
-      // للسجلات الموجودة في الاثنين: قارن updated_at واحتفظ بالأحدث
-      const remoteFiltered = remote
-        .filter(r => !deletedIds.has(Number(r.id)))
-        .map(r => {
-          const loc = localMap.get(Number(r.id));
-          if (!loc) return r; // سجل جديد من Supabase
-          // إذا البيانات المحلية أحدث (تعديل محلي لم يُرفع بعد) → احتفظ بالمحلي
-          const remoteTime = r.updated_at ? new Date(r.updated_at).getTime() : 0;
-          const localTime  = loc._localUpdated || 0; // طابع زمني نحفظه عند كل تعديل محلي
-          if (localTime > remoteTime + 2000) { // هامش 2 ثانية
-            console.log(`🔒 pull ${table} id=${r.id}: keeping local (newer by ${Math.round((localTime-remoteTime)/1000)}s)`);
-            return loc;
-          }
-          return r;
-        });
-
-      // السجلات المحلية فقط (لم تُرفع بعد)
-      const localOnly = local.filter(l => !remoteIds.has(Number(l.id)) && !deletedIds.has(Number(l.id)));
-
-      const merged = [...remoteFiltered, ...localOnly];
       localStorage.setItem('sbtp5_' + table, JSON.stringify(merged));
-      console.log(`📥 Pulled ${table}: ${remoteFiltered.length} remote + ${localOnly.length} local-only (skipped ${deletedIds.size} locally-deleted)`);
+      console.log(`📥 Pulled ${table}: ${remote.length} remote + ${localOnly.length} local-only`);
     } catch(e) {
       console.warn(`⚠️ pull ${table}:`, e.message);
     }
@@ -12805,9 +13136,11 @@ td{padding:7px 10px;border-bottom:1px solid #f0ede0}
 </div>
 </body></html>`;
 
-    var win = openPrintWindow(html, '', false);
-  if (!win) return;
-  }
+  const win = window.open('','_blank','width=900,height=700');
+  if (!win) { Toast.error(L('السماح بالنوافذ مطلوب','Autorisez les popups')); return; }
+  win.document.write(html);
+  win.document.close();
+}
 
 function updateEquipStatus(id,status) {
   if (!canDo('write_equipment')) { Toast.error(L('ليس لديك صلاحية لتعديل حالة المعدة','Permission refusée : équipement')); return; }
@@ -12970,9 +13303,7 @@ function saveTenantSettings() {
     phone:   document.getElementById('setPhone')?.value||t.phone,
     rc_number: document.getElementById('setRc')?.value||t.rc_number
   }:t);
-  // ✅ FIX: نضيف _localUpdated لمعرفة أن هذا تعديل محلي جديد
-  const now_ts = Date.now();
-  DB.set('tenants', tenants.map(t => t.id===tid ? {...t, _localUpdated: now_ts} : t));
+  DB.set('tenants',tenants);
   const updTenant = tenants.find(t=>t.id===tid);
   if (updTenant) sbSync('tenants', updTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل إعدادات الشركة','Modification paramètres société'), { icon: '⚙️' });
@@ -12990,8 +13321,7 @@ function saveLegalSettings() {
   const tva = document.getElementById('setTva')?.value||'19';
   const address = document.getElementById('setAddress')?.value||'';
   const tenants = DB.get('tenants').map(t=>t.id===tid?{...t, rc_number, nif, nis, article_imp, rib, tva_rate: parseFloat(tva), address }:t);
-  const now_legal_ts = Date.now();
-  DB.set('tenants', tenants.map(t => t.id===tid ? {...t, _localUpdated: now_legal_ts} : t));
+  DB.set('tenants', tenants);
   const updLegalTenant = tenants.find(t=>t.id===tid);
   if (updLegalTenant) sbSync('tenants', updLegalTenant, 'PATCH').catch(()=>{});
   addAuditLog(L('تعديل البيانات القانونية','Modification données légales'), { icon: '🔖' });
@@ -13015,8 +13345,7 @@ function changePassword() {
   if(newPass.length<8){Toast.error(L('كلمة المرور يجب أن تكون 8 أحرف على الأقل','Le mot de passe doit comporter au moins 8 caractères'));return;}
   const user=Auth.getUser();
   if(user.password!==current){Toast.error(L('كلمة المرور الحالية غير صحيحة','Mot de passe actuel incorrect'));return;}
-  const now_pw_ts = Date.now();
-  const users=DB.get('users').map(u=>u.id===user.id?{...u,password:newPass,_localUpdated:now_pw_ts}:u);
+  const users=DB.get('users').map(u=>u.id===user.id?{...u,password:newPass}:u);
   DB.set('users',users); user.password=newPass; sessionStorage.setItem('sbtp_user',JSON.stringify(user));
   sbSync('users', {id:user.id, password:newPass}, 'PATCH').catch(()=>{});
   Toast.success(L('✅ تم تغيير كلمة المرور','✅ Mot de passe modifié avec succès'));
@@ -13667,9 +13996,12 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
 </div>
 </body></html>`;
 
-    var win = openPrintWindow(html, '', false);
-  if (!win) return;
-  }
+  const win = window.open('', '_blank');
+  if (!win) { Toast.error('السماح بالنوافذ المنبثقة'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `تقرير — ${tenant.name}`;
+}
 
 function adminExportAllData() {
   if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
@@ -14203,48 +14535,100 @@ function editTenantPlan(tenantId) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay show';
   overlay.id = 'editPlanOverlay';
+  const nowStr = new Date().toISOString().split('T')[0];
+  const defEnd = (() => { const d = new Date(); d.setMonth(d.getMonth()+1); return d.toISOString().split('T')[0]; })();
+  const curEnd = t.subscription_end ? t.subscription_end.split('T')[0] : defEnd;
   overlay.innerHTML = `
-    <div class="modal">
-      <div class="modal-title">⚙️ ${L('تعديل خطة مؤسسة','Modifier le plan')} : ${escHtml(t.name)}</div>
-      <div class="form-group"><label class="form-label">${L('الخطة','Plan')}</label>
+    <div class="modal" style="max-width:420px">
+      <div class="modal-title">⚙️ ${L('تفعيل / تعديل اشتراك','Activer / Modifier l\'abonnement')} : ${escHtml(t.name)}</div>
+      <div class="form-group">
+        <label class="form-label">📦 ${L('الخطة','Plan')}</label>
         <select class="form-select" id="editPlanSelect">${planOptions}</select>
       </div>
-      <div class="form-group"><label class="form-label">${L('حالة الاشتراك','Statut abonnement')}</label>
-        <select class="form-select" id="editSubStatus">
-          <option value="active" ${t.subscription_status==='active'?'selected':''}>${L('نشط','Actif','Active')}</option>
-          <option value="trial" ${t.subscription_status==='trial'?'selected':''}>${L('تجريبي','Essai')}</option>
-          <option value="expired" ${t.subscription_status==='expired'?'selected':''}>${L('منتهي','Expiré')}</option>
+      <div class="form-group">
+        <label class="form-label">🔖 ${L('حالة الاشتراك','Statut abonnement')}</label>
+        <select class="form-select" id="editSubStatus" onchange="document.getElementById('editSubEndWrap').style.display=this.value==='active'?'block':'none'">
+          <option value="active" ${t.subscription_status==='active'?'selected':''}>${L('✅ مدفوع ونشط','✅ Payé & actif')}</option>
+          <option value="trial" ${t.subscription_status==='trial'?'selected':''}>${L('⏱️ تجريبي','⏱️ Essai')}</option>
+          <option value="expired" ${t.subscription_status==='expired'?'selected':''}>${L('⛔ منتهي','⛔ Expiré')}</option>
+          <option value="pending" ${t.subscription_status==='pending'?'selected':''}>${L('⏳ معلّق','⏳ En attente')}</option>
+        </select>
+      </div>
+      <div class="form-group" id="editSubEndWrap" style="display:${t.subscription_status==='active'?'block':'none'}">
+        <label class="form-label">📅 ${L('تاريخ انتهاء الاشتراك','Date fin abonnement')}</label>
+        <input type="date" class="form-input" id="editSubEnd" value="${curEnd}" min="${nowStr}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔘 ${L('حالة الحساب','État du compte')}</label>
+        <select class="form-select" id="editIsActive">
+          <option value="1" ${t.is_active?'selected':''}>✅ ${L('مفعّل','Activé')}</option>
+          <option value="0" ${!t.is_active?'selected':''}>⏸️ ${L('موقوف','Suspendu')}</option>
         </select>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="document.getElementById('editPlanOverlay').remove()">${L('إلغاء','Annuler')}</button>
-        <button class="btn btn-gold" onclick="saveTenantPlan(${tenantId})">💾 ${L('حفظ','Enregistrer')}</button>
+        <button class="btn btn-gold" onclick="saveTenantPlan(${tenantId})">💾 ${L('حفظ وتفعيل','Enregistrer & activer')}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
-function saveTenantPlan(tenantId) {
+async function saveTenantPlan(tenantId) {
 
-  const planId = Number(document.getElementById('editPlanSelect')?.value);
+  const planId    = Number(document.getElementById('editPlanSelect')?.value);
   const subStatus = document.getElementById('editSubStatus')?.value || 'active';
+  const isActive  = document.getElementById('editIsActive')?.value === '1';
+  const subEndRaw = document.getElementById('editSubEnd')?.value || '';
+  const subEnd    = subStatus === 'active' && subEndRaw
+    ? new Date(subEndRaw).toISOString()
+    : null;
 
   const tenantsBefore = DB.get('tenants') || [];
   const before = tenantsBefore.find(t=>t.id===tenantId);
 
-  const updatedTenants = tenantsBefore.map(t=>t.id===tenantId?{...t, plan_id:planId, subscription_status:subStatus}:t);
-  DB.set('tenants', updatedTenants);
-  sbSync('tenants', {id:tenantId, plan_id:planId, subscription_status:subStatus}, 'PATCH').catch(()=>{});
+  const patch = {
+    plan_id: planId,
+    subscription_status: subStatus,
+    is_active: isActive
+  };
+  if (subEnd) {
+    patch.subscription_end = subEnd;
+    patch.subscription_ends_at = subEnd;
+  }
+  if (subStatus === 'active' && !patch.subscription_start) {
+    patch.subscription_start = new Date().toISOString();
+  }
 
-  // إذا تم تفعيل الاشتراك أو تغيير الخطة أثناء تفعيل الاشتراك → سجل فاتورة اشتراك
+  // تحديث محلي
+  const updatedTenants = tenantsBefore.map(t=>t.id===tenantId?{...t, ...patch}:t);
+  DB.set('tenants', updatedTenants);
+
+  // تحديث Supabase
+  try {
+    const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
+    if (cfg?.url && cfg?.key) {
+      const sbH = { 'Content-Type':'application/json','apikey':cfg.key,'Authorization':`Bearer ${cfg.key}`,'Prefer':'return=minimal' };
+      await fetch(`${cfg.url}/rest/v1/tenants?id=eq.${tenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify(patch) });
+      // تفعيل/إيقاف المستخدمين المرتبطين
+      await fetch(`${cfg.url}/rest/v1/users?tenant_id=eq.${tenantId}`, { method:'PATCH', headers:sbH, body:JSON.stringify({ is_active: isActive, account_status: isActive?'active':'suspended' }) });
+    }
+  } catch(e) { console.warn('saveTenantPlan Supabase sync error:', e); }
+
+  // سجّل فاتورة إذا تم التفعيل
   if (subStatus === 'active' && (!before || before.subscription_status !== 'active' || Number(before.plan_id) !== Number(planId))) {
     const now = new Date();
-    const end = new Date(now); end.setMonth(end.getMonth()+1);
-    recordSubscriptionInvoice(tenantId, planId, { amount: _getPlanPrice(planId), status:'paid', method:'admin_edit', period_start: now.toISOString().split('T')[0], period_end: end.toISOString().split('T')[0], note:'Admin plan update' });
+    const pEnd = subEnd ? new Date(subEnd) : (() => { const d=new Date(); d.setMonth(d.getMonth()+1); return d; })();
+    recordSubscriptionInvoice(tenantId, planId, {
+      amount: _getPlanPrice(planId), status:'paid', method:'admin_manual',
+      period_start: now.toISOString().split('T')[0],
+      period_end: pEnd.toISOString().split('T')[0],
+      note: 'Admin manual activation'
+    });
   }
+
   document.getElementById('editPlanOverlay')?.remove();
-  Toast.success(L('✅ تم تحديث خطة المؤسسة','✅ Plan de l\'entreprise mis à jour'));
+  Toast.success(L('✅ تم تحديث وتفعيل حساب المؤسسة','✅ Compte entreprise mis à jour & activé'));
   App.navigate('admin');
 }
 
@@ -14463,7 +14847,7 @@ async function addTenant() {
     { val: name,  label: L('اسم المؤسسة','Nom de l\'entreprise'), type: 'required' },
     { val: admin, label: L('الاسم الكامل','Nom complet'),          type: 'required' },
     { val: email, label: L('البريد الإلكتروني','Email'),           type: 'email'    },
-    { val: pass,  label: L('كلمة المرور','Mot de passe','Password'),          type: 'required' },
+    { val: pass,  label: L('كلمة المرور','Mot de passe'),          type: 'required' },
   ])) return;
 
   // منع التسجيل المزدوج محلياً
@@ -14696,7 +15080,7 @@ function submitForgotRequest() {
       company_name:tenant?.name||'',
       date:        new Date().toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{year:'numeric',month:'long',day:'numeric'}),
       new_password:'[سيتم إرسالها من المسؤول قريباً / Sera envoyé par l\'admin]',
-      message:     L('تم استلام طلبك لإعادة تعيين كلمة المرور. سيقوم المسؤول بمعالجة طلبك وإرسال كلمة المرور الجديدة إليك قريباً.', 'Votre demande de réinitialisation a été reçue. L\'administrateur traitera votre demande et vous enverra un nouveau mot de passe prochainement.')
+      message:     `تم استلام طلبك لإعادة تعيين كلمة المرور. سيقوم المسؤول بمعالجة طلبك وإرسال كلمة المرور الجديدة إليك قريباً.`
     }).then(()=>console.log('✅ تأكيد الطلب أُرسل للمستخدم')).catch(e=>console.warn('تأكيد المستخدم:',e));
   } catch(e){ console.warn(e); }
   msgEl.style.display='block'; msgEl.style.background='rgba(52,195,143,.08)'; msgEl.style.border='1px solid rgba(52,195,143,.25)'; msgEl.style.color='#6eddb5';
@@ -14844,37 +15228,12 @@ function downloadUpdatedHTML(apiKey, provider, model) {
   }
 }
 
-async function dismissNotif(notifId) {
+function dismissNotif(notifId) {
   const notifs = DB.get('notifications') || [];
   const ni = notifs.findIndex(n => n.id === notifId);
-  if (ni < 0) { App.navigate('admin'); return; }
-
-  // ① تحديث Supabase
-  const cfg = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : null;
-  if (cfg?.url && cfg?.key) {
-    try {
-      await fetch(`${cfg.url}/rest/v1/notifications?id=eq.${notifId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type':'application/json',
-          'apikey': cfg.key,
-          'Authorization': `Bearer ${cfg.key}`,
-          'Prefer':'return=minimal'
-        },
-        body: JSON.stringify({ read: true, status: 'dismissed' })
-      });
-    } catch(e) { console.warn('dismissNotif Supabase failed:', e); }
-  }
-
-  // ② تحديث محلي
-  notifs[ni].read   = true;
-  notifs[ni].status = 'dismissed';
-  if (typeof DB.setSilent === 'function') DB.setSilent('notifications', notifs);
-  else DB.set('notifications', notifs);
-
-  Toast.success(L('✓ تم إخفاء الإشعار','✓ Notification masquée'));
+  if (ni >= 0) { notifs[ni].read = true; notifs[ni].status = notifs[ni].status || 'dismissed'; }
+  DB.set('notifications', notifs);
   App.navigate('admin');
-  setTimeout(() => { try { switchAdminTab('notif'); } catch(_){} }, 300);
 }
 
 // ✅ فتح صفحة الأدمن مباشرةً على تبويب الإشعارات
@@ -15288,40 +15647,24 @@ function topbarHTMLv5(title) {
       <button class="hamburger">☰</button>
       <span class="topbar-breadcrumb">SmartStruct / <strong>${escHtml(title)}</strong></span>
     </div>
-    <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:nowrap;flex-shrink:0;direction:ltr">
-
-      <!-- ① جرس Admin — ثابت -->
-      ${user?.is_admin ? `<div onclick="openAdminNotifTab()" style="position:relative;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:1rem">🛎${adminResetPending>0?`<span style="position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;border-radius:50%;width:14px;height:14px;font-size:.52rem;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg)">${adminResetPending>99?'99+':adminResetPending}</span>`:''}</div>` : ''}
-
-      <!-- ② جرس الإشعارات — ثابت -->
-      <div style="position:relative;flex-shrink:0">
-        ${buildNotifPanel()}
-        <button onclick="toggleNotifPanel(this)" id="notifBell"
-          style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;position:relative;transition:var(--transition);flex-shrink:0">
-          🔔${unread>0?`<span style="position:absolute;top:3px;right:3px;width:8px;height:8px;background:var(--red);border-radius:50%;border:2px solid var(--bg)"></span>`:''}
-        </button>
-      </div>
-
-      <!-- ③ زر تبديل المود — ثابت -->
-      <button id="themeToggleBtn"
-        title="${L('تبديل المظهر','Changer apparence')}"
-        onclick="(function(){setTheme(document.documentElement.classList.contains('light')?'dark':'light');})()"
-        style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:rgba(255,255,255,.05);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0"
-        onmouseover="this.style.background='rgba(232,184,75,.15)';this.style.borderColor='rgba(232,184,75,.5)'"
-        onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='var(--border2)'">
-        ${(()=>{try{return document.documentElement.classList.contains('light')?'🌙':'☀️';}catch(e){return '☀️';}})()}
-      </button>
-
-      <!-- ④ حالة المزامنة — ثابتة -->
-      <div id="syncPill"
-        title="${L('انقر لعرض العمليات المعلقة','Cliquez pour voir les opérations en attente')}"
-        style="display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;flex-shrink:0;white-space:nowrap;transition:all .3s"
-        onclick="window.PQ?window.PQ.show():App.navigate('settings')">
+    <div class="topbar-user" style="position:relative">
+      <div id="syncPill" title="${L('حالة المزامنة مع Supabase','État de synchronisation Supabase')}"
+        style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;cursor:pointer;background:rgba(52,195,143,.1);border:1px solid rgba(52,195,143,.25);color:#34C38F;transition:all .3s;margin-${I18N.currentLang==='ar'?'left':'right'}:.5rem"
+        onclick="App.navigate('settings')">
         <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:#34C38F;display:inline-block;animation:syncPulse 2s infinite"></span>
-        <span id="syncLabel">${L('متزامن','Sync')}</span>
+        <span id="syncLabel">${L('متزامن','Synchronisé')}</span>
       </div>
-
-      <!-- ⑤ أفاتار — ثابت -->
+      <div id="notifPanelWrap" style="position:relative">
+        ${user?.is_admin ? `
+          <div class="notif-bell" onclick="openAdminNotifTab()" title="طلبات إعادة تعيين كلمة المرور" style="margin-${I18N.currentLang==='ar'?'left':'right'}:.35rem">
+            🛎️${adminResetPending>0?`<span class="notif-count">${adminResetPending>99?'99+':adminResetPending}</span>`:''}
+          </div>
+        ` : ''}
+        <div class="notif-bell" onclick="toggleNotifPanel(this)" id="notifBell" style="cursor:pointer;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1rem;transition:var(--transition);position:relative">
+          🔔${unread>0?`<span class="notif-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--red);border-radius:50%;border:2px solid var(--bg)"></span>`:''}
+        </div>
+        ${buildNotifPanel()}
+      </div>
       ${avatarHtml(user?.full_name, user?.avatar_color || '#E8B84B', 32)}
     </div>
   </header>`;
@@ -15330,42 +15673,21 @@ function topbarHTMLv5(title) {
 function buildNotifPanel() {
   const user = Auth.getUser();
   if (!user) return '';
-  // إشعارات طلبات التسجيل الجديدة (new_account) تُعرض فقط لـ Super Admin
-  const allNotifs = DB.get('notifications').filter(n => {
+  // إشعارات طلبات التسجيل الجديدة (new_account) تُعرض فقط لـ Super Admin — لا تظهر لأدمن المؤسسة
+  const notifs = DB.get('notifications').filter(n => {
     if (n.type === 'new_account' && !user.is_admin) return false;
     return n.tenant_id === user.tenant_id;
-  });
-
-  // تجميع الإشعارات حسب الأهمية
-  const systemAlerts  = allNotifs.filter(n => n.type === 'danger' || n.type === 'warn' || n.type === 'warning');
-  const aiSummaries   = allNotifs.filter(n => n.type === 'ai' || n.type === 'ai_smart_report' || n.type === 'ai_analysis');
-  const dataUpdates   = allNotifs.filter(n => !['danger','warn','warning','ai','ai_smart_report','ai_analysis'].includes(n.type));
-
-  const renderGroup = (groupLabel, groupIcon, items, color) => {
-    if (!items.length) return '';
-    const unreadItems = items.filter(n => !n.read);
-    return `<div style="padding:.45rem .8rem .2rem;font-size:.66rem;font-weight:800;color:${color};text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:.3rem">
-      ${groupIcon} ${groupLabel}${unreadItems.length ? ` <span style="background:${color};color:#fff;border-radius:8px;padding:1px 6px;font-size:.6rem">${unreadItems.length}</span>` : ''}
+  }).slice(0, 8);
+  if (!notifs.length) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد إشعارات</div></div>`;
+  return `<div class="notif-panel" id="notifPanel" style="display:none">
+    <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center">
+      <span>الإشعارات</span>
+      <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--blue);font-size:.72rem;cursor:pointer;font-family:'Tajawal',sans-serif">تحديد كمقروء</button>
     </div>
-    ${items.slice(0,4).map(n=>`<div class="notif-item ${n.read?'':'unread'}" onclick="markNotifRead(${n.id})" style="cursor:pointer">
-      <div style="font-size:.8rem;font-weight:700;color:${n.read?'var(--dim)':'var(--text)'}">${n.type==='danger'||n.type==='warn'||n.type==='warning'?'🚨':n.type.startsWith('ai')?'🤖':'🔔'} ${escHtml(n.title)}</div>
-      <div style="font-size:.72rem;color:var(--dim);margin-top:.1rem;line-height:1.4">${escHtml(n.message||'')}</div>
-      ${n.date?`<div style="font-size:.62rem;color:var(--dim);margin-top:.1rem;opacity:.6">${n.date}</div>`:''}
-    </div>`).join('')}`;
-  };
-
-  const hasAny = allNotifs.length > 0;
-  if (!hasAny) return `<div class="notif-panel" id="notifPanel" style="display:none"><div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد إشعارات','Aucune notification')}</div></div>`;
-
-  return `<div class="notif-panel" id="notifPanel" style="display:none;max-height:420px;overflow-y:auto">
-    <div style="padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:800;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--card-bg,#0e1720);z-index:2">
-      <span>🔔 ${L('الإشعارات','Notifications')} <span style="font-size:.65rem;color:var(--dim);font-weight:400">(${allNotifs.filter(n=>!n.read).length} ${L('جديد','nouveau')})</span></span>
-      <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--blue);font-size:.72rem;cursor:pointer;font-family:'Tajawal',sans-serif">${L('تحديد كمقروء','Tout marquer lu')}</button>
-    </div>
-    ${renderGroup(L('تنبيهات النظام','Alertes système'), '🚨', systemAlerts, 'var(--red)')}
-    ${renderGroup(L('ملخصات الذكاء الاصطناعي','Résumés IA'), '🤖', aiSummaries, '#9B6DFF')}
-    ${renderGroup(L('تحديثات البيانات','Mises à jour'), 'ℹ️', dataUpdates, 'var(--blue)')}
-    ${allNotifs.length > 8 ? `<div style="padding:.5rem 1rem;text-align:center;font-size:.7rem;color:var(--dim);border-top:1px solid var(--border)">${allNotifs.length} ${L('إشعار إجمالاً','notifications au total')}</div>` : ''}
+    ${notifs.map(n=>`<div class="notif-item ${n.read?'':'unread'}" onclick="markNotifRead(${n.id})">
+      <div style="font-size:.82rem;font-weight:700">${n.type==='warn'?'⚠️':n.type==='danger'?'🚨':'ℹ️'} ${escHtml(n.title)}</div>
+      <div style="font-size:.74rem;color:var(--dim)">${escHtml(n.message)}</div>
+    </div>`).join('')}
   </div>`;
 }
 
@@ -15391,7 +15713,7 @@ function markAllNotifsRead() {
   const tid = Auth.getUser()?.tenant_id;
   DB.set('notifications', DB.get('notifications').map(n => n.tenant_id === tid ? {...n, read:true} : n));
   const p = document.getElementById('notifPanel');
-  if (p) p.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">${L('لا توجد إشعارات جديدة','Aucune nouvelle notification')}</div>`;
+  if (p) p.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--dim);font-size:.85rem">لا توجد إشعارات جديدة</div>`;
 }
 function markNotifRead(id) {
   DB.set('notifications', DB.get('notifications').map(n => n.id === id ? {...n, read:true} : n));
@@ -15601,7 +15923,7 @@ function sidebarHTML(active='') {
 
     // ── Docs & Reports Section ──
     const docLinks = [
-      // documents nav removed — docs distributed per section
+      navLink('documents','📁',__('nav.documents')),
       navLink('dz_documents','📚',L('وثائق إدارية ومالية','Documents administratifs')),
       navLink('archive','📂',L('أرشيف الوثائق','Archive documents')),
       navLink('reports','📈',__('nav.reports')),
@@ -15655,7 +15977,6 @@ function sidebarHTML(active='') {
       <div style="display:flex;gap:.4rem;margin-bottom:.4rem">
         <button onclick="I18N.setLang('ar')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='ar'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='ar'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='ar'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">AR عربي</button>
         <button onclick="I18N.setLang('fr')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='fr'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='fr'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='fr'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">FR</button>
-        <button onclick="I18N.setLang('en')" style="flex:1;padding:.3rem;border-radius:8px;border:1px solid ${I18N.currentLang==='en'?'var(--gold)':'var(--border)'};background:${I18N.currentLang==='en'?'var(--gold-dim)':'transparent'};color:${I18N.currentLang==='en'?'var(--gold)':'var(--muted)'};cursor:pointer;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700">EN</button>
       </div>
       <!-- ⚡ Realtime Badge -->
       <div style="margin-bottom:.4rem">
@@ -15965,7 +16286,6 @@ Pages.gantt = function() {
         if(s){ const td=${todayOff}*${DAY_W}; s.scrollLeft=Math.max(0,td-s.clientWidth/2); }
       },100);
     </script>
-    </div>
   `);
 };
 
@@ -15996,21 +16316,6 @@ Pages.analytics = function() {
         <div class="page-sub">${L('مؤشرات الأداء الاحترافية وتوصيات الذكاء الاصطناعي','KPIs professionnels et recommandations IA')}</div>
       </div>
       <div class="page-actions">
-        ${(()=>{
-          const _lastKey = 'analytics_last_run_' + tid;
-          const _lastVal = localStorage.getItem(_lastKey);
-          let _lastLbl = L('لم يُحدَّث بعد','Pas encore mis à jour');
-          if (_lastVal) {
-            const _d = new Date(_lastVal);
-            const _isToday = _d.toDateString() === new Date().toDateString();
-            _lastLbl = _isToday
-              ? L('آخر تحديث: اليوم','Dernière MàJ: aujourd\'hui') + ', ' + _d.toLocaleTimeString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{hour:'2-digit',minute:'2-digit'})
-              : L('آخر تحديث:','Dernière MàJ:') + ' ' + _d.toLocaleDateString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{day:'numeric',month:'short'});
-          }
-          return '<div style="font-size:.68rem;color:var(--dim);display:flex;align-items:center;gap:.4rem;padding:.3rem .7rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;white-space:nowrap">'
-            + '<span style="color:var(--gold)">🕐</span><span>' + _lastLbl + '</span></div>';
-        })()}
-        <button class="btn btn-ghost btn-sm" onclick="(function(){var k='analytics_last_run_'+Auth.getUser().tenant_id;localStorage.setItem(k,new Date().toISOString());App.navigate('analytics');Toast.success(L('تم تحديث التحليلات','Analyses actualisées'));})()">🔄 ${L('تحديث','Actualiser')}</button>
         <button class="btn btn-blue btn-sm" onclick="openAIAdvisor()" title="${L('استشر المحلل الذكي','Consulter l\'IA')}">🤖 ${L('المحلل الذكي','Conseiller IA')}</button>
         <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ PDF</button>
       </div>
@@ -16665,266 +16970,6 @@ function initAnalyticsCharts() {
 /* ════════════════════════════════════════════════════════════
    👤 WORKER PROFILE — ملف العامل التفصيلي
 ════════════════════════════════════════════════════════════ */
-
-/* ══════════════════════════════════════════════════════
-   🖨️ printWorkerTab — طباعة تبويب العامل المحدد
-══════════════════════════════════════════════════════ */
-function printWorkerTab(wid, tab) {
-  const isAr = I18N.currentLang === 'ar';
-  const tid  = Auth.getUser()?.tenant_id;
-  const tenant = Auth.getTenant() || {};
-  const worker = (DB.get('workers')||[]).find(w=>w.id===wid && w.tenant_id===tid);
-  if (!worker) { Toast.error(isAr?'العامل غير موجود':'Ouvrier introuvable'); return; }
-
-  const att      = (DB.get('attendance')||[]).filter(a=>a.worker_id===wid);
-  const leaves   = (DB.get('leave_requests')||[]).filter(l=>l.worker_id===wid);
-  const warnings = (DB.get('worker_warnings')||[]).filter(w=>w.worker_id===wid);
-  const overtime = (DB.get('worker_overtime')||[]).filter(o=>o.worker_id===wid);
-  const salRecs  = (DB.get('salary_records')||[]).filter(r=>r.worker_id===wid);
-  const projects = (DB.get('projects')||[]).filter(p=>p.tenant_id===tid);
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString(isAr?'ar-DZ':'fr-DZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-
-  const fmtN = n => Number(n||0).toLocaleString('fr-DZ');
-
-  // ── حساب إحصاءات الحضور
-  const presentDays = att.filter(a=>a.status==='present').length;
-  const absentDays  = att.filter(a=>a.status==='absent').length;
-  const halfDays    = att.filter(a=>a.status==='halfday').length;
-  const totalAtt    = presentDays + absentDays + halfDays;
-  const attRate     = totalAtt>0 ? Math.round((presentDays+halfDays*.5)/totalAtt*100) : 0;
-
-  // ── حساب الإجازات
-  const approvedLeaves = leaves.filter(l=>l.status==='approved');
-  const usedLeaveDays  = approvedLeaves.reduce((s,l)=>s+Number(l.days||0),0);
-  const remainLeave    = Math.max(0, 30 - usedLeaveDays);
-
-  // ── ترويسة مشتركة
-  const header = `
-    <div class="hdr">
-      <div>
-        <div style="font-size:1.4rem;font-weight:900;color:#C49030">${escHtml(tenant.name||'المؤسسة')}</div>
-        <div style="font-size:.75rem;color:#666;margin-top:2px">${escHtml(tenant.address||'')} ${tenant.phone?'• '+escHtml(tenant.phone):''}</div>
-      </div>
-      <div style="text-align:${isAr?'left':'right'}">
-        <div style="font-size:.7rem;color:#888">${dateStr}</div>
-        <div style="font-size:.7rem;color:#888;margin-top:3px">${isAr?'رقم التعريف':'Réf'}: WRK-${wid}</div>
-      </div>
-    </div>
-    <div class="worker-info">
-      <div class="avatar">${worker.full_name.split(' ').map(p=>p[0]).join('').substring(0,2).toUpperCase()}</div>
-      <div>
-        <div style="font-size:1.05rem;font-weight:800">${escHtml(worker.full_name)}</div>
-        <div style="font-size:.8rem;color:#555;margin-top:2px">${escHtml(worker.role||'—')} • ${escHtml(projects.find(p=>p.id===worker.project_id)?.name||'—')}</div>
-        <div style="font-size:.75rem;color:#777;margin-top:3px">${isAr?'الأجر اليومي':'Salaire/j'}: <strong style="color:#C49030">${fmtN(worker.daily_salary)} ${isAr?'دج':'DA'}</strong></div>
-      </div>
-    </div>`;
-
-  // ── بناء محتوى كل تبويب
-  let tabTitle = '';
-  let tabBody  = '';
-
-  if (tab === 'info') {
-    tabTitle = isAr ? 'ملف العامل الشخصي' : 'Fiche personnelle de l\'employé';
-    const fields = [
-      [isAr?'الاسم الكامل':'Nom complet',          worker.full_name],
-      [isAr?'الاسم بالفرنسية':'Nom en français',    worker.full_name_fr||'—'],
-      [isAr?'المهنة / المنصب':'Poste',              worker.role||'—'],
-      [isAr?'الهاتف':'Téléphone',                  worker.phone||'—'],
-      ['NIF / رقم الهوية',                          worker.national_id||'—'],
-      [isAr?'رقم CNAS':'N° CNAS',                  worker.cnas_number||'—'],
-      [isAr?'تاريخ الميلاد':'Date de naissance',   worker.dob?new Date(worker.dob).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'],
-      [isAr?'نوع العقد':'Type de contrat',          worker.contract_type||'—'],
-      [isAr?'تاريخ التعيين':'Date d\'embauche',     worker.hire_date?new Date(worker.hire_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'],
-      [isAr?'تاريخ انتهاء العقد':'Fin du contrat',  worker.contract_end?new Date(worker.contract_end).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'],
-      [isAr?'الحالة الاجتماعية':'Situation familiale', worker.marital_status==='married'?(isAr?'متزوج':'Marié'):(isAr?'أعزب':'Célibataire')],
-      [isAr?'عدد الأطفال':'Nombre d\'enfants',     worker.children_count||0],
-      [isAr?'الأجر الشهري الأساسي':'Salaire mensuel brut', fmtN(worker.monthly_base||worker.daily_salary*26)+' '+(isAr?'دج':'DA')],
-      [isAr?'العنوان':'Adresse',                   worker.address||'—'],
-      [isAr?'جهة الاتصال للطوارئ':'Contact urgence', worker.emergency_contact||'—'],
-    ];
-    tabBody = `<table><tbody>${fields.map(([k,v])=>`<tr><td class="lbl">${k}</td><td class="val">${escHtml(String(v))}</td></tr>`).join('')}</tbody></table>`;
-  }
-
-  else if (tab === 'attendance') {
-    tabTitle = isAr ? 'سجل الحضور والغياب' : 'Registre de présence';
-    const months = [...new Set(att.map(a=>(a.date||'').substring(0,7)))].sort().reverse().slice(0,12);
-    tabBody = `
-      <div class="kpis">
-        <div class="kpi"><span class="kval" style="color:#27ae60">${presentDays}</span><span class="klab">${isAr?'أيام حضور':'Jours présent'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#e74c3c">${absentDays}</span><span class="klab">${isAr?'أيام غياب':'Jours absent'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#f39c12">${halfDays}</span><span class="klab">${isAr?'أيام نصف':'Demi-jours'}</span></div>
-        <div class="kpi"><span class="kval" style="color:${attRate>=85?'#27ae60':attRate>=70?'#f39c12':'#e74c3c'}">${attRate}%</span><span class="klab">${isAr?'نسبة الحضور':'Taux présence'}</span></div>
-      </div>
-      <table>
-        <thead><tr><th>${isAr?'الشهر':'Mois'}</th><th>${isAr?'حضور':'Présents'}</th><th>${isAr?'نصف':'½ jours'}</th><th>${isAr?'غياب':'Absents'}</th><th>${isAr?'المجموع':'Total'}</th><th>${isAr?'النسبة':'Taux'}</th></tr></thead>
-        <tbody>${months.length===0?`<tr><td colspan="6" style="text-align:center;padding:1rem;color:#888">${isAr?'لا يوجد سجل حضور':'Aucun pointage enregistré'}</td></tr>`:months.map(m=>{
-          const mA=att.filter(a=>(a.date||'').startsWith(m));
-          const p=mA.filter(a=>a.status==='present').length;
-          const h=mA.filter(a=>a.status==='halfday').length;
-          const ab=mA.filter(a=>a.status==='absent').length;
-          const r=mA.length>0?Math.round((p+h*.5)/mA.length*100):0;
-          return `<tr><td style="font-weight:700">${m}</td><td style="color:#27ae60;font-weight:700">${p}</td><td style="color:#f39c12">${h}</td><td style="color:#e74c3c;font-weight:700">${ab}</td><td>${mA.length}</td><td style="font-weight:800;color:${r>=85?'#27ae60':r>=70?'#f39c12':'#e74c3c'}">${r}%</td></tr>`;
-        }).join('')}</tbody>
-      </table>`;
-  }
-
-  else if (tab === 'leaves') {
-    tabTitle = isAr ? 'سجل الإجازات' : 'Registre des congés';
-    const typeLabel = t => ({annual:isAr?'سنوية':'Annuel',sick:isAr?'مرضية':'Maladie',maternity:isAr?'أمومة':'Maternité',unpaid:isAr?'بدون أجر':'Sans solde',other:isAr?'أخرى':'Autre'}[t]||t);
-    const stLabel   = s => s==='approved'?(isAr?'مُعتمد':'Approuvé'):s==='rejected'?(isAr?'مرفوض':'Refusé'):(isAr?'بانتظار':'En attente');
-    tabBody = `
-      <div class="kpis">
-        <div class="kpi"><span class="kval" style="color:#3498db">${usedLeaveDays}</span><span class="klab">${isAr?'أيام مُستهلكة':'Jours utilisés'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#C49030">${remainLeave}</span><span class="klab">${isAr?'رصيد متبقٍ':'Solde restant'}</span></div>
-        <div class="kpi"><span class="kval">${leaves.length}</span><span class="klab">${isAr?'إجمالي الطلبات':'Total demandes'}</span></div>
-      </div>
-      <table>
-        <thead><tr><th>${isAr?'النوع':'Type'}</th><th>${isAr?'من':'Du'}</th><th>${isAr?'إلى':'Au'}</th><th>${isAr?'الأيام':'Jours'}</th><th>${isAr?'السبب':'Motif'}</th><th>${isAr?'الحالة':'Statut'}</th></tr></thead>
-        <tbody>${leaves.length===0?`<tr><td colspan="6" style="text-align:center;padding:1rem;color:#888">${isAr?'لا توجد طلبات إجازة':'Aucune demande de congé'}</td></tr>`:
-          leaves.sort((a,b)=>b.id-a.id).map(l=>`<tr>
-            <td>${typeLabel(l.type)}</td>
-            <td style="font-size:.8rem">${l.start_date?new Date(l.start_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
-            <td style="font-size:.8rem">${l.end_date?new Date(l.end_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
-            <td style="font-weight:800;color:#C49030">${l.days}</td>
-            <td style="font-size:.78rem;color:#666">${escHtml(l.reason||'—')}</td>
-            <td><span style="padding:2px 8px;border-radius:5px;font-size:.75rem;font-weight:700;background:${l.status==='approved'?'#d5f5e3':l.status==='rejected'?'#fadbd8':'#fef9e7'};color:${l.status==='approved'?'#1e8449':l.status==='rejected'?'#c0392b':'#9a7d0a'}">${stLabel(l.status)}</span></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-  }
-
-  else if (tab === 'salary') {
-    tabTitle = isAr ? 'سجل الرواتب' : 'Registre des salaires';
-    const totalPaid = salRecs.reduce((s,r)=>s+Number(r.amount||0)+Number(r.allowances||0)-Number(r.deductions||0),0);
-    tabBody = `
-      <div class="kpis">
-        <div class="kpi"><span class="kval" style="color:#C49030">${fmtN(worker.daily_salary)}</span><span class="klab">${isAr?'أجر يومي (دج)':'Salaire/j (DA)'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#27ae60">${fmtN(totalPaid)}</span><span class="klab">${isAr?'إجمالي المدفوع (دج)':'Total versé (DA)'}</span></div>
-        <div class="kpi"><span class="kval">${salRecs.length}</span><span class="klab">${isAr?'عدد الكشوفات':'Bulletins'}</span></div>
-      </div>
-      <table>
-        <thead><tr><th>${isAr?'الشهر':'Mois'}</th><th>${isAr?'الإجمالي':'Brut'}</th><th>${isAr?'العلاوات':'Primes'}</th><th>${isAr?'الخصومات':'Déductions'}</th><th>${isAr?'الصافي':'Net'}</th><th>${isAr?'تاريخ الصرف':'Date paiement'}</th></tr></thead>
-        <tbody>${salRecs.length===0?`<tr><td colspan="6" style="text-align:center;padding:1rem;color:#888">${isAr?'لا يوجد سجل رواتب':'Aucun bulletin de salaire'}</td></tr>`:
-          salRecs.sort((a,b)=>(b.month_key||'').localeCompare(a.month_key||'')).map(r=>{
-            const net=Number(r.amount||0)+Number(r.allowances||0)-Number(r.deductions||0);
-            return `<tr>
-              <td style="font-weight:700">${r.month_key||'—'}</td>
-              <td>${fmtN(r.amount)} ${isAr?'دج':'DA'}</td>
-              <td style="color:#27ae60">${r.allowances?'+'+fmtN(r.allowances)+' '+(isAr?'دج':'DA'):'—'}</td>
-              <td style="color:#e74c3c">${r.deductions?'-'+fmtN(r.deductions)+' '+(isAr?'دج':'DA'):'—'}</td>
-              <td style="font-weight:800;color:#C49030">${fmtN(net)} ${isAr?'دج':'DA'}</td>
-              <td style="font-size:.78rem;color:#666">${r.paid_date?new Date(r.paid_date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-  }
-
-  else if (tab === 'warnings') {
-    tabTitle = isAr ? 'سجل الإنذارات' : 'Registre des avertissements';
-    const typeLabel = t => ({verbal:isAr?'شفوي':'Verbal',written:isAr?'كتابي رسمي':'Écrit officiel',final:isAr?'إنذار نهائي':'Final'}[t]||t);
-    tabBody = `
-      <div class="kpis">
-        <div class="kpi"><span class="kval" style="color:#e74c3c">${warnings.length}</span><span class="klab">${isAr?'إجمالي الإنذارات':'Total avertissements'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#e67e22">${warnings.filter(w=>w.type==='written').length}</span><span class="klab">${isAr?'كتابية':'Écrits'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#c0392b">${warnings.filter(w=>w.type==='final').length}</span><span class="klab">${isAr?'نهائية':'Finaux'}</span></div>
-      </div>
-      ${warnings.length===0
-        ? `<div style="text-align:center;padding:2rem;color:#888;font-size:.9rem">✅ ${isAr?'لا توجد إنذارات مسجلة':'Aucun avertissement enregistré'}</div>`
-        : warnings.sort((a,b)=>b.id-a.id).map(w=>{
-            const col = w.type==='written'?'#e67e22':w.type==='final'?'#c0392b':'#f39c12';
-            return `<div style="border:1px solid #ddd;border-left:4px solid ${col};border-radius:6px;padding:.8rem 1rem;margin-bottom:.6rem;background:#fafafa">
-              <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
-                <span style="font-weight:700;color:${col}">⚠️ ${typeLabel(w.type)}</span>
-                <span style="font-size:.75rem;color:#888">${w.date?new Date(w.date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</span>
-              </div>
-              <div style="font-size:.85rem">${escHtml(w.reason||'—')}</div>
-              ${w.action?`<div style="font-size:.75rem;color:#666;margin-top:.3rem">📋 ${isAr?'الإجراء':'Action'}: ${escHtml(w.action)}</div>`:''}
-            </div>`;
-          }).join('')
-      }`;
-  }
-
-  else if (tab === 'overtime') {
-    tabTitle = isAr ? 'سجل الساعات الإضافية' : 'Registre des heures supplémentaires';
-    const totalHrs = overtime.reduce((s,o)=>s+Number(o.hours||0),0);
-    const totalAmt = overtime.reduce((s,o)=>s+Number(o.amount||0),0);
-    tabBody = `
-      <div class="kpis">
-        <div class="kpi"><span class="kval" style="color:#C49030">${totalHrs}h</span><span class="klab">${isAr?'إجمالي الساعات':'Total heures'}</span></div>
-        <div class="kpi"><span class="kval" style="color:#27ae60">${fmtN(totalAmt)}</span><span class="klab">${isAr?'إجمالي المبلغ (دج)':'Montant total (DA)'}</span></div>
-        <div class="kpi"><span class="kval">${overtime.length}</span><span class="klab">${isAr?'عدد السجلات':'Enregistrements'}</span></div>
-      </div>
-      <table>
-        <thead><tr><th>${isAr?'التاريخ':'Date'}</th><th>${isAr?'الساعات':'Heures'}</th><th>${isAr?'النسبة':'Taux'}</th><th>${isAr?'المبلغ':'Montant'}</th><th>${isAr?'المشروع':'Projet'}</th></tr></thead>
-        <tbody>${overtime.length===0?`<tr><td colspan="5" style="text-align:center;padding:1rem;color:#888">${isAr?'لا توجد ساعات إضافية':'Aucune heure supplémentaire'}</td></tr>`:
-          overtime.sort((a,b)=>b.id-a.id).map(o=>`<tr>
-            <td>${o.date?new Date(o.date).toLocaleDateString(isAr?'ar-DZ':'fr-DZ'):'—'}</td>
-            <td style="font-weight:800;color:#C49030">${o.hours}h</td>
-            <td>${o.rate||125}%</td>
-            <td style="color:#27ae60;font-weight:700">${fmtN(o.amount)} ${isAr?'دج':'DA'}</td>
-            <td style="font-size:.78rem;color:#666">${escHtml(projects.find(p=>p.id===o.project_id)?.name||'—')}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-  }
-
-  // ── بناء HTML الطباعة الكامل
-  const printHTML = `<!DOCTYPE html>
-<html dir="${isAr?'rtl':'ltr'}" lang="${isAr?'ar':'fr'}">
-<head>
-<meta charset="UTF-8">
-<title>${tabTitle} — ${escHtml(worker.full_name)}</title>
-<style>
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:${isAr?"'Cairo','Tajawal',Arial":"'Segoe UI',Arial"}, sans-serif; background:#f0f2f5; color:#111; direction:${isAr?'rtl':'ltr'}; font-size:13px; }
-  .sheet { background:#fff; max-width:800px; margin:0 auto; padding:2rem; }
-  .hdr { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:1rem; border-bottom:3px solid #C49030; margin-bottom:1.2rem; }
-  .worker-info { display:flex; align-items:center; gap:1rem; background:#f8f9fa; border-radius:10px; padding:.8rem 1rem; margin-bottom:1.2rem; }
-  .avatar { width:48px;height:48px;border-radius:50%;background:#C49030;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.1rem;flex-shrink:0; }
-  .doc-title { background:#C49030; color:#fff; border-radius:8px; padding:.5rem 1.2rem; margin-bottom:1.2rem; font-size:.95rem; font-weight:800; display:inline-block; }
-  .kpis { display:flex; gap:.8rem; flex-wrap:wrap; margin-bottom:1.2rem; }
-  .kpi { flex:1; min-width:100px; text-align:center; background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:.6rem .5rem; }
-  .kval { display:block; font-size:1.3rem; font-weight:900; font-family:monospace; }
-  .klab { display:block; font-size:.68rem; color:#666; margin-top:.2rem; }
-  table { width:100%; border-collapse:collapse; font-size:.82rem; }
-  th { background:#C49030; color:#fff; padding:.5rem .7rem; text-align:${isAr?'right':'left'}; font-weight:700; }
-  td { padding:.45rem .7rem; border-bottom:1px solid #eee; }
-  tr:nth-child(even) td { background:#f9f9f9; }
-  .lbl { color:#555; font-weight:600; width:40%; background:#f5f5f5; }
-  .val { font-weight:700; }
-  .footer { margin-top:2rem; padding-top:1rem; border-top:1px solid #ddd; text-align:center; font-size:.7rem; color:#888; }
-  @media print { body{background:#fff} .sheet{max-width:100%;padding:1rem} @page{margin:15mm} }
-</style>
-</head>
-<body>
-<div class="sheet">
-  ${header}
-  <div class="doc-title">📋 ${tabTitle}</div>
-  ${tabBody}
-  <div class="footer">
-    ${escHtml(tenant.name||'')} • ${dateStr} • SmartStruct © 2025
-    — ${isAr?'وثيقة مولّدة تلقائياً':'Document généré automatiquement'}
-  </div>
-</div>
-<script>window.onload=function(){window.print();}<\/script>
-</body></html>`;
-
-  // ── فتح نافذة الطباعة
-  const w = window.open('', '_blank', 'width=900,height=700');
-  if (!w) { Toast.error(isAr?'يرجى السماح بالنوافذ المنبثقة':'Autoriser les popups'); return; }
-  w.document.write(printHTML);
-  w.document.close();
-
-  // ── حفظ في أرشيف الوثائق
-  saveGeneratedDoc('workers', {
-    title: tabTitle + ' — ' + worker.full_name,
-    type: isAr ? 'طباعة ملف عامل' : 'Impression dossier'
-  });
-}
-
 Pages.worker_profile = function() {
   const tid = Auth.getUser().tenant_id;
   const wid = Number(App.params.id);
@@ -16977,18 +17022,6 @@ Pages.worker_profile = function() {
         <button class="btn btn-ghost btn-sm" onclick="editWorker(${worker.id})">✏️ ${L('تعديل','Modifier')}</button>
         <button class="btn btn-gold btn-sm" data-modal-open="leaveModal">+ ${L('طلب إجازة','Congé')}</button>
         <button class="btn btn-ghost btn-sm" data-modal-open="warnModal">⚠️ ${L('إنذار','Avertissement')}</button>
-        ${(()=>{
-          const _pt = App.params.tab||'info';
-          const _printLabels = {
-            info:       L('طباعة ملف العامل','Imprimer fiche'),
-            attendance: L('طباعة سجل الحضور','Imprimer présence'),
-            leaves:     L('طباعة الإجازات','Imprimer congés'),
-            salary:     L('طباعة الرواتب','Imprimer salaires'),
-            warnings:   L('طباعة الإنذارات','Imprimer avertissements'),
-            overtime:   L('طباعة الإضافي','Imprimer heures sup.'),
-          };
-          return '<button class="btn btn-ghost btn-sm" onclick="printWorkerTab(' + wid + ',\'' + _pt + '\')" title="' + (_printLabels[_pt]||'طباعة') + '">🖨️ ' + L('طباعة','Imprimer') + '</button>';
-        })()}
       </div>
     </div>
 
@@ -17425,7 +17458,7 @@ Pages.suppliers = function() {
             <input class="form-input" id="supEmail" type="email" placeholder="contact@fournisseur.dz" dir="ltr">
           </div>
           <div class="form-group">
-            <label class="form-label">📍 ${L('الولاية','Wilaya','Wilaya')}</label>
+            <label class="form-label">📍 ${L('الولاية','Wilaya')}</label>
             <select class="form-select" id="supWilaya">
               <option value="">— ${L('اختر الولاية','Choisir wilaya')} —</option>
               ${WILAYAS.map(w=>`<option value="${escHtml(w)}">${escHtml(w)}</option>`).join('')}
@@ -17765,7 +17798,7 @@ Pages.supplier_detail = function() {
               [L('الهاتف','Tél.'), s.phone||'—'],
               [L('هاتف 2','Tél. 2'), s.phone2||'—'],
               [L('البريد','Email'), s.email||'—'],
-              [L('الولاية','Wilaya','Wilaya'), s.wilaya||'—'],
+              [L('الولاية','Wilaya'), s.wilaya||'—'],
               [L('العنوان','Adresse'), s.address||'—'],
             ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem">
               <span style="color:var(--dim)">${k}</span>
@@ -18018,7 +18051,6 @@ Pages.salary = function() {
         </div>`;
       }).join('')}
     </div>
-    ${renderGenDocsTable('salary')}
   `);
 };
 
@@ -18162,7 +18194,7 @@ function printWorkerHistory(wid) {
 <body>
 <div class="no-print" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
   <button class="btn-p" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
-  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=document.title+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()"><!-- Save to PC button removed — use Print only -->
+  <button style="padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=document.title+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
   <button class="btn-close" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
 </div>
 <div style="margin-top:52px">
@@ -18253,9 +18285,12 @@ function printWorkerHistory(wid) {
 </body>
 </html>`;
 
-    var win = openPrintWindow(html, '', false);
-  if (!win) return;
-  }
+  const win = window.open('', '_blank', 'width=1100,height=820');
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة مطلوب','Autorisez les popups')); return; }
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `Relevé_${worker.full_name.replace(/\s+/g,'_')}.pdf`;
+}
 
 // ── تعديل أيام الحضور يدوياً ──
 function editSalaryDays(workerId, monthKey) {
@@ -18565,9 +18600,8 @@ Pages.invoices = function() {
             <td style="font-size:.8rem;color:${isOverdue?'var(--red)':'var(--dim)'};font-weight:${isOverdue?'700':'400'}">${inv.due_date?fmtDate(inv.due_date):'—'}</td>
             <td>${statusBadge}</td>
             <td><div style="display:flex;gap:.3rem;flex-wrap:wrap">
-              <!-- PDF download removed — use Print button instead -->
+              <button class="btn btn-blue btn-sm" onclick="exportInvoicePDF(${inv.id})" title="${L('تصدير PDF','Exporter PDF')}">📄 PDF</button>
               <button class="btn btn-ghost btn-sm" onclick="printInvoiceWindow(${inv.id})" title="${L('طباعة','Imprimer')}">🖨️</button>
-              ${canDo('write_invoices')?`<button class="btn btn-gold btn-sm" onclick="editInvoiceItem(${inv.id})" title="${L('تعديل الفاتورة','Modifier la facture')}">✏️</button>`:''}
               <button class="btn btn-ghost btn-sm" onclick="uploadInvoiceToDrive(${inv.id})" title="${L('رفع لـ Google Drive','Envoyer vers Drive')}">☁️</button>
               ${inv.status==='paid'?`<button class="btn btn-ghost btn-sm" onclick="DZDocsUI.openForInvoice('quittance',${inv.id})" title="${L('وصل تسديد PDF','Quittance PDF')}">🧾</button>`:''}
               ${inv.status!=='paid'&&inv.status!=='draft'&&canDo('transactions')?`<button class="btn btn-green btn-sm" onclick="markInvoicePaid(${inv.id})" title="${L('تأشير كمدفوعة كلياً','Marquer payée')}">✅</button>`:''}
@@ -18714,14 +18748,94 @@ Pages.invoices = function() {
   </div>
 </div>
 
+<script>
+(function initDzsGrid(){
+  // خريطة أنواع الوثائق
+  const META = {};
+  if(typeof DZ_DOC_CATALOG !== 'undefined'){
+    DZ_DOC_CATALOG.forEach(sec => sec.docs.forEach(d=>{
+      META[d.key]={icon:d.icon, ar:d.name.ar, fr:d.name.fr};
+    }));
+  }
+  const lbl = (ar,fr) => {try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;}};
+  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-    ${renderGenDocsTable('invoices')}
+  const tid = Auth.getUser().tenant_id;
+  let allDocs = (DB.get('dz_generated_docs')||[]).filter(d=>d.tenant_id===tid);
+  let activeFilter = sessionStorage.getItem('dzs_filter')||'all';
+
+  // زر مسح الكل
+  const clearBtn = document.getElementById('dzsClearBtn');
+  if(clearBtn && allDocs.length > 0) clearBtn.style.display='';
+
+  // فلتر
+  const bar = document.getElementById('dzsFilterBar');
+  if(bar){
+    const usedKeys = [...new Set(allDocs.map(d=>d.doc_type).filter(Boolean))];
+    const mkBtn = (key, label, count) => {
+      const b = document.createElement('button');
+      b.className = 'btn btn-sm ' + (activeFilter===key?'btn-gold':'btn-ghost');
+      b.textContent = label + ' (' + count + ')';
+      b.onclick = () => { sessionStorage.setItem('dzs_filter',key); initDzsGrid(); };
+      return b;
+    };
+    bar.innerHTML='';
+    bar.appendChild(mkBtn('all', lbl('الكل','Tout'), allDocs.length));
+    usedKeys.forEach(k=>{
+      const m=META[k];
+      const name = m ? (lbl(m.ar,m.fr)) : k;
+      const icon = m ? m.icon+' ' : '';
+      bar.appendChild(mkBtn(k, icon+name, allDocs.filter(d=>d.doc_type===k).length));
+    });
+  }
+
+  // الوثائق المفلترة
+  const shown = activeFilter==='all' ? allDocs : allDocs.filter(d=>d.doc_type===activeFilter);
+  const grid  = document.getElementById('dzsGrid');
+  const empty = document.getElementById('dzsEmpty');
+  if(!grid) return;
+
+  if(shown.length===0){
+    grid.style.display='none';
+    if(empty) empty.style.display='';
+    return;
+  }
+  grid.style.display='';
+  if(empty) empty.style.display='none';
+
+  grid.innerHTML = shown.map(doc => {
+    const m = META[doc.doc_type];
+    const icon  = m ? m.icon  : '📄';
+    const tname = m ? lbl(m.ar,m.fr) : (doc.doc_type||'—');
+    // أبرز الحقول
+    const f = doc.fields||{};
+    const snippet = Object.keys(f).slice(0,5).map(k=>{
+      const v=String(f[k]||'').trim();
+      return v && v.length<60 ? '<span style="color:var(--text)">'+esc(v.substring(0,35))+'</span>' : '';
+    }).filter(Boolean).join(' <span style="color:var(--dim)">·</span> ');
+
+    return \`<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(232,184,75,.5)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="font-size:.66rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">\${icon} \${esc(tname)}</div>
+      <div style="font-size:.88rem;font-weight:800;line-height:1.3">\${esc(doc.doc_title||tname)}</div>
+      <div style="font-size:.7rem;color:var(--dim)">📅 \${doc.date||''}</div>
+      \${snippet ? \`<div style="font-size:.7rem;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:.35rem;margin-top:.1rem">\${snippet}</div>\` : ''}
+      <div style="display:flex;gap:.35rem;margin-top:auto;padding-top:.45rem">
+        <button class="btn btn-gold btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReopen(\${doc.id})" title="\${lbl('تعديل وإعادة توليد','Modifier & regénérer')}">✏️ \${lbl('تعديل','Modifier')}</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:.72rem" onclick="dzsReprint(\${doc.id})" title="\${lbl('إعادة طباعة','Réimprimer')}">🖨️ \${lbl('طباعة','Imprimer')}</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="dzsPrintPDF(\${doc.id})" title="PDF">📥 PDF</button>
+        <button class="btn btn-red btn-sm" style="font-size:.72rem" onclick="dzsDelete(\${doc.id})" title="\${lbl('حذف','Supprimer')}">🗑️</button>
+      </div>
+    </div>\`;
+  }).join('');
+})();
+</script>
+
   `);
 };
 
 function addInvLine() {
   if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لإضافة سطر فاتورة','Permission refusée : facture')); return; }
-  const L_fn = (ar, fr, en) => I18N.currentLang==='ar'?ar:(I18N.currentLang==='en'&&en)?en:fr;
+  const L_fn = (ar, fr) => I18N.currentLang==='ar'?ar:fr;
   const row = document.createElement('div');
   row.className='inv-line-row';
   row.style='display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:.4rem;align-items:center;margin-bottom:.4rem';
@@ -18805,110 +18919,6 @@ function addInvoiceItem() {
   Toast.success(L('✅ تم إضافة الفاتورة','✅ Facture créée avec succès'));
   App.navigate('invoices');
 }
-
-
-// ✅ تعديل فاتورة — يفتح modal الإضافة مملوءاً ببيانات الفاتورة الموجودة
-function editInvoiceItem(id) {
-  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لتعديل الفاتورة','Permission refusée')); return; }
-  const inv = DB.get('invoices').find(i => i.id === id);
-  if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
-  const modal = document.getElementById('addInvModal');
-  if (!modal) { App.navigate('invoices'); return; }
-  modal.classList.add('active');
-  const set = (eid, val) => { const el = document.getElementById(eid); if(el) el.value = val||''; };
-  set('invNum', inv.number); set('invClient', inv.client);
-  set('invClientNif', inv.client_nif||''); set('invDt', inv.date);
-  set('invDue', inv.due_date||''); set('invSt', inv.status||'pending');
-  set('invPaidDate', inv.paid_date||''); set('invPayMethod', inv.payment_method||'cash');
-  set('invPayRef', inv.payment_ref||''); set('invTVA', inv.tva_rate||19);
-  set('invDesc', inv.description||'');
-  const projSel = document.getElementById('invProj');
-  if(projSel && inv.project_id) projSel.value = inv.project_id;
-  const linesContainer = document.getElementById('invLines');
-  if(linesContainer && inv.items && inv.items.length) {
-    linesContainer.innerHTML = '';
-    inv.items.forEach(function(item) {
-      if(typeof addInvLine === 'function') addInvLine();
-      const rows = linesContainer.querySelectorAll('.inv-line-row');
-      const row = rows[rows.length-1];
-      if(row) {
-        const inputs = row.querySelectorAll('input');
-        if(inputs[0]) inputs[0].value = item.desc||item.designation||'';
-        if(inputs[1]) inputs[1].value = item.qty||1;
-        if(inputs[2]) inputs[2].value = item.price||item.unit_price||0;
-      }
-    });
-  }
-  const submitBtn = modal.querySelector('button[onclick*="addInvoiceItem"]');
-  if(submitBtn) {
-    submitBtn.textContent = L('💾 حفظ التعديلات','💾 Enregistrer les modifications');
-    submitBtn.setAttribute('onclick', 'updateInvoiceItem('+id+')');
-  }
-  const titleEl = modal.querySelector('.modal-title,h3,h2,h4');
-  if(titleEl) titleEl.textContent = L('تعديل الفاتورة','Modifier la facture')+' '+inv.number;
-}
-
-function updateInvoiceItem(id) {
-  if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية','Permission refusée')); return; }
-  const num = document.getElementById('invNum')?.value?.trim();
-  const client = document.getElementById('invClient')?.value?.trim();
-  if(!num||!client) { Toast.error(L('أدخل رقم الفاتورة والعميل','Renseignez numéro et client')); return; }
-  const rows = document.querySelectorAll('#invLines .inv-line-row');
-  const items = [];
-  rows.forEach(function(r) {
-    const inputs = r.querySelectorAll('input');
-    const desc = inputs[0]?.value?.trim()||'';
-    const qty = parseFloat(inputs[1]?.value)||0;
-    const price = parseFloat(inputs[2]?.value)||0;
-    if(desc||qty||price) items.push({desc,qty,price,total:qty*price});
-  });
-  const tvaRate = Number(document.getElementById('invTVA')?.value)||19;
-  const totalHT = items.reduce(function(s,i){return s+i.total;},0);
-  const tva = Math.round(totalHT*tvaRate/100);
-  const ttc = totalHT+tva;
-  const st = document.getElementById('invSt')?.value||'pending';
-  const paidDate = document.getElementById('invPaidDate')?.value||'';
-  const invs = DB.get('invoices');
-  const idx = invs.findIndex(function(i){return i.id===id;});
-  if(idx<0) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
-  invs[idx] = Object.assign({}, invs[idx], {
-    number:num, client,
-    client_nif: document.getElementById('invClientNif')?.value||'',
-    project_id: Number(document.getElementById('invProj')?.value)||null,
-    amount: ttc>0?ttc:invs[idx].amount,
-    amount_ht: totalHT, tva_rate: tvaRate, tva_amount: tva,
-    date: document.getElementById('invDt')?.value||invs[idx].date,
-    due_date: document.getElementById('invDue')?.value||'',
-    paid_date: st==='paid'?(paidDate||todayStr()):paidDate,
-    status: st,
-    payment_method: document.getElementById('invPayMethod')?.value||'cash',
-    payment_ref: document.getElementById('invPayRef')?.value||'',
-    description: document.getElementById('invDesc')?.value||'',
-    items: items, _localUpdated: Date.now()
-  });
-  DB.set('invoices', invs);
-  sbSync('invoices', invs[idx], 'PATCH').catch(function(){});
-  try {
-    if(typeof DZArchive!=='undefined') {
-      var archived = DZArchive.list({kind:'invoice'}).find(function(d){return d.meta_data&&d.meta_data.invoiceId===id;});
-      if(archived) {
-        var docs = DB.get('documents');
-        var dIdx = docs.findIndex(function(d){return d.id===archived.id;});
-        if(dIdx>=0) {
-          docs[dIdx].meta_data = Object.assign({},docs[dIdx].meta_data,{amount:invs[idx].amount,status:st,client:client});
-          docs[dIdx].name = L('فاتورة رسمية','Facture Officielle')+' - '+num;
-          DB.set('documents', docs);
-        }
-      }
-    }
-  } catch(_) {}
-  Toast.success(L('تم تعديل الفاتورة','Facture modifiée'));
-  document.getElementById('addInvModal')?.classList.remove('active');
-  App.navigate('invoices');
-}
-
-window.editInvoiceItem = editInvoiceItem;
-window.updateInvoiceItem = updateInvoiceItem;
 
 function deleteInvoiceItem(id) {
   if (!canDo('write_invoices')) { Toast.error(L('ليس لديك صلاحية لحذف الفاتورة','Permission refusée : facture')); return; }
@@ -19490,7 +19500,7 @@ function deleteObligation(oblId, supplierId) {
 function exportSuppliersCSV() {
   const tid = Auth.getUser().tenant_id;
   const suppliers = (DB.get('suppliers')||[]).filter(s=>s.tenant_id===tid);
-  const header = [L('الاسم','Nom'),L('النشاط','Activité'),L('الهاتف','Téléphone'),'NIF','RC',L('الولاية','Wilaya','Wilaya'),'Email',L('التقييم','Évaluation'),L('الملاحظات','Notes')];
+  const header = [L('الاسم','Nom'),L('النشاط','Activité'),L('الهاتف','Téléphone'),'NIF','RC',L('الولاية','Wilaya'),'Email',L('التقييم','Évaluation'),L('الملاحظات','Notes')];
   const rows = suppliers.map(s=>[s.name,s.activity||'',s.phone||'',s.nif||'',s.rc||'',s.wilaya||'',s.email||'',(s.rating||0)+'/5',s.notes||'']);
   const csv = [header,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
@@ -19776,7 +19786,7 @@ function _shellSave(){
   }catch(e){alert('فشل الحفظ');}
 }
 function _shellReset(){
-  if(confirm(document.documentElement.dir==='rtl'?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?')){localStorage.removeItem('sbtp_print_settings');location.reload();}
+  if(confirm('${isAr?'إعادة الإعدادات الافتراضية؟':'Réinitialiser?'}')){localStorage.removeItem('sbtp_print_settings');location.reload();}
 }
 function _shellSaveSettings(){
   var s={
@@ -19798,7 +19808,7 @@ function _shellSaveSettings(){
     }
   }catch(e){}
   var b=document.querySelector('.sbtn');
-  if(b){var o=b.textContent;b.textContent='✅ '+(document.documentElement.dir==='rtl'?'تم الحفظ!':'Sauvegardé!');b.style.background='#27ae60';setTimeout(function(){b.textContent=o;b.style.background='';},2000);}
+  if(b){var o=b.textContent;b.textContent='✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';b.style.background='#27ae60';setTimeout(function(){b.textContent=o;b.style.background='';},2000);}
 }
 ${onPrint ? 'window.addEventListener("load",function(){setTimeout(function(){window.print();},800);});' : ''}
 </script>
@@ -19823,19 +19833,6 @@ body{font-family:'${_if}',Arial,sans-serif;color:#1a1a1a;background:#e8eaed;padd
 /* Toolbar */
 .no-print{position:fixed;top:0;left:0;right:0;z-index:1000;background:#1a1a2e;display:flex;align-items:center;gap:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap}
 .tb{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:'${_if}',Arial,sans-serif}
-/* Customize Panel */
-.cust-panel{position:fixed;top:0;right:0;width:280px;height:100vh;background:#1a1a2e;border-left:2px solid rgba(255,255,255,.1);z-index:2000;overflow-y:auto;padding:12px;box-shadow:-4px 0 20px rgba(0,0,0,.4);display:none;flex-direction:column;gap:8px}
-.cust-panel.open{display:flex}
-.cust-ph{display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:700;margin-bottom:6px;font-size:13px}
-.cust-pg{display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,.05);padding:8px;border-radius:6px}
-.cust-pg label{color:#ccc;font-size:11px;font-weight:700}
-.cust-pg input,.cust-pg select{width:100%;padding:5px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:12px}
-.csw{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-.csw div{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.2s}
-.csw div.on,.csw div:hover{border-color:#fff}
-.hdiv{height:1px;background:rgba(255,255,255,.1);margin:2px 0}
-.rbtn{background:rgba(255,100,100,.15);color:#ff8080;border:1px solid rgba(255,100,100,.3);padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700}
-.sbtn{background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700}
 /* Page */
 .page{background:#fff;max-width:820px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow:hidden}
 .inv-header{background:#fff;border-bottom:3px solid ${_ic};padding:28px 36px;display:flex;justify-content:space-between;align-items:center}
@@ -19873,122 +19870,14 @@ tbody tr:nth-child(odd) td{background:#fafaf7}
   @page{margin:${_im}}
   thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-</style>
-<script>
-var _custColor='${_ic}';
-function toggleCust(){
-  var p=document.getElementById('custPanel');
-  var b=document.getElementById('custBtn');
-  if(!p)return;
-  var open=p.style.display==='flex'||p.style.display==='block';
-  p.style.display=open?'none':'flex';
-  p.style.flexDirection='column';
-  p.style.gap='8px';
-  if(b){b.style.background=open?'rgba(255,255,255,.1)':'rgba(184,144,47,.45)';}
-}
-function custSetColor(c,el){
-  _custColor=c;
-  document.querySelectorAll('#custPanel div[data-color]').forEach(function(d){d.style.borderColor='transparent';});
-  if(el)el.style.borderColor='#fff';
-  var cc=document.getElementById('spCC');if(cc)cc.value=c;
-  custApply();
-}
-function custApply(){
-  var fEl=document.getElementById('spF');
-  var szEl=document.getElementById('spSz');
-  var mgEl=document.getElementById('spM');
-  var wmEl2=document.getElementById('spWm');
-  var swmEl=document.getElementById('spSwm');
-  var f=fEl?fEl.value:'Cairo';
-  var sz=szEl?szEl.value:'${_iz}';
-  var mg=mgEl?mgEl.value:'${_im}';
-  var wm=wmEl2?wmEl2.value:'';
-  var swm=swmEl?swmEl.checked:false;
-  var pg=document.querySelector('.page');
-  if(pg){pg.style.fontFamily=f+',Arial,sans-serif';pg.style.fontSize=sz+'px';}
-  document.querySelectorAll('thead th').forEach(function(e){e.style.background=_custColor;e.style.color='#fff';e.style.webkitPrintColorAdjust='exact';});
-  document.querySelectorAll('.gold-bar').forEach(function(e){e.style.background=_custColor;});
-  document.querySelectorAll('.brand-name,.gold-text,.inv-num').forEach(function(e){e.style.color=_custColor;});
-  document.querySelectorAll('.total-row.main').forEach(function(e){e.style.background=_custColor;});
-  document.querySelectorAll('.inv-header').forEach(function(e){e.style.borderBottomColor=_custColor;});
-  document.querySelectorAll('.inv-footer').forEach(function(e){e.style.borderTopColor=_custColor;});
-  document.querySelectorAll('.stamp-box').forEach(function(e){e.style.borderColor=_custColor;e.style.color=_custColor;});
-  var wmEl=document.getElementById('custWMText');
-  if(wmEl){wmEl.textContent=wm;wmEl.style.display=(swm&&wm)?'block':'none';}
-  var si='_cssl';var st=document.getElementById(si)||document.createElement('style');st.id=si;
-  st.textContent='@media print{@page{margin:'+mg+'}body{font-size:'+sz+'px!important;font-family:'+f+',Arial,sans-serif!important}thead th{background:'+_custColor+'!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.gold-bar{background:'+_custColor+'!important}.brand-name,.gold-text{color:'+_custColor+'!important}.total-row.main{background:'+_custColor+'!important}}';
-  if(!document.getElementById(si))document.head.appendChild(st);
-}
-function custSave(){
-  var fEl=document.getElementById('spF');
-  var szEl=document.getElementById('spSz');
-  var mgEl=document.getElementById('spM');
-  var wmEl=document.getElementById('spWm');
-  var swmEl=document.getElementById('spSwm');
-  var s={fontFamily:fEl?fEl.value:'Cairo',fontSize:szEl?Number(szEl.value):13,margin:mgEl?mgEl.value:'12mm',accentColor:_custColor,watermark:wmEl?wmEl.value:'',showWatermark:swmEl?swmEl.checked:false};
-  try{localStorage.setItem('sbtp_print_settings',JSON.stringify(s));if(window.opener&&!window.opener.closed){try{window.opener.localStorage.setItem('sbtp_print_settings',JSON.stringify(s));}catch(e){}}}catch(e){}
-  var btn=document.querySelector('#custPanel .save-btn');
-  if(btn){var o=btn.textContent;btn.textContent='✅ ${isAr?'تم الحفظ!':'Sauvegardé!'}';btn.style.background='rgba(39,174,96,.5)';setTimeout(function(){btn.textContent=o;btn.style.background='rgba(39,174,96,.2)';},2000);}
-}
-</script>
-</head>
+</style></head>
 <body>
 
 <!-- Toolbar -->
 <div class="no-print">
   <button class="tb" style="background:${_ic};color:#fff" onclick="window.print()">🖨️ ${isAr?'طباعة / PDF':'Imprimer / PDF'}</button>
   <button class="tb" style="background:#27ae60;color:#fff" onclick="(function(){var h=document.documentElement.outerHTML,b=new Blob([h],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='Facture_${inv.number}.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},1500);})()">💾 ${isAr?'حفظ على الحاسوب':'Enregistrer sur PC'}</button>
-  <button class="tb" id="custBtn" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="toggleCust()">⚙️ ${isAr?'تخصيص':'Personnaliser'}</button>
   <button class="tb" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)" onclick="window.close()">✕ ${isAr?'إغلاق':'Fermer'}</button>
-</div>
-
-<!-- Panel تخصيص -->
-<div id="custPanel" style="display:none;position:fixed;top:0;right:0;width:270px;height:100vh;background:#1a1a2e;border-left:2px solid rgba(255,255,255,.12);z-index:2000;overflow-y:auto;padding:12px;box-shadow:-6px 0 24px rgba(0,0,0,.5)">
-  <div style="display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:700;margin-bottom:10px">
-    <span>⚙️ ${isAr?'تخصيص الفاتورة':'Personnaliser'}</span>
-    <button onclick="toggleCust()" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:18px">✕</button>
-  </div>
-  <div style="display:flex;flex-direction:column;gap:8px">
-  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
-    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">🔤 ${isAr?'الخط':'Police'}</label>
-    <select id="spF" onchange="custApply()" style="width:100%;padding:5px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff">
-      ${['Cairo','Tajawal','Arial',"'Times New Roman'",'Tahoma'].map(f=>`<option value="${f}" ${_if===f?'selected':''}>${f.replace(/'/g,'')}</option>`).join('')}
-    </select>
-  </div>
-  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
-    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">📏 ${isAr?'حجم الخط':'Taille'} — <strong id="spSzL">${_iz}px</strong></label>
-    <input type="range" id="spSz" min="10" max="18" step="1" value="${_iz}" style="width:100%;accent-color:${_ic}" oninput="document.getElementById('spSzL').textContent=this.value+'px';custApply()">
-  </div>
-  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
-    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:8px">🎨 ${isAr?'اللون الرئيسي':'Couleur'}</label>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-      ${[['#B8902F','ذهبي'],['#1a3a5c','نيلي'],['#0a6e3f','أخضر'],['#c0392b','أحمر'],['#6c3483','بنفسجي'],['#1a1a1a','أسود']].map(([c,n])=>
-        `<div onclick="custSetColor('${c}',this)" title="${n}" data-color="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${_ic===c?'#fff':'transparent'};transition:.15s"></div>`
-      ).join('')}
-      <input type="color" id="spCC" value="${_ic}" style="width:26px;height:26px;padding:0;border:none;cursor:pointer;border-radius:50%;background:none" oninput="custSetColor(this.value,null)">
-    </div>
-  </div>
-  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
-    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">📐 ${isAr?'الهوامش':'Marges'}</label>
-    <select id="spM" onchange="custApply()" style="width:100%;padding:5px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff">
-      ${[['8mm',isAr?'ضيق':'Étroit'],['12mm',isAr?'عادي':'Normal'],['18mm',isAr?'واسع':'Large']].map(([v,l])=>
-        `<option value="${v}" ${_im===v?'selected':''}>${v} — ${l}</option>`
-      ).join('')}
-    </select>
-  </div>
-  <div style="background:rgba(255,255,255,.06);border-radius:6px;padding:10px">
-    <label style="color:#aaa;font-size:11px;font-weight:700;display:block;margin-bottom:5px">💧 ${isAr?'واترمارك':'Filigrane'}</label>
-    <div style="display:flex;gap:6px;align-items:center">
-      <input type="text" id="spWm" value="" placeholder="${isAr?'سري، مسودة...':'CONFIDENTIEL...'}" oninput="custApply()" style="flex:1;padding:5px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff">
-      <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:#ccc;white-space:nowrap">
-        <input type="checkbox" id="spSwm" style="accent-color:${_ic}" onchange="custApply()">
-        ${isAr?'تفعيل':'Activer'}
-      </label>
-    </div>
-  </div>
-  <button onclick="custSave()" class="save-btn" style="width:100%;background:rgba(39,174,96,.2);color:#2ecc71;border:1px solid rgba(39,174,96,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">💾 ${isAr?'حفظ الإعدادات':'Sauvegarder'}</button>
-  <button onclick="if(confirm('+(document.documentElement.dir==="rtl"?"إعادة الإعدادات؟":"Réinitialiser?")+')){localStorage.removeItem('sbtp_print_settings');location.reload();}" style="width:100%;background:rgba(255,80,80,.15);color:#ff8080;border:1px solid rgba(255,80,80,.3);padding:9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">🔄 ${isAr?'إعادة الإعدادات':'Réinitialiser'}</button>
-  </div>
 </div>
 
 <div style="margin-top:52px;padding:20px;background:#e8eaed">
@@ -19999,7 +19888,8 @@ function custSave(){
     <div style="display:flex;align-items:center;gap:18px">
       ${logoHTML}
       <div>
-        <div class="brand-name">${escHtml(tenant?.name || '')}</div>
+        <div class="brand-name">▦ SmartStruct</div>
+        <div class="brand-sub">${escHtml(tenant?.name || '')}</div>
         ${tenant?.nif ? `<div class="brand-sub">NIF: ${escHtml(tenant.nif)}</div>` : ''}
         ${tenant?.nis ? `<div class="brand-sub">NIS: ${escHtml(tenant.nis)}</div>` : ''}
         ${tenant?.rc_number ? `<div class="brand-sub">RC: ${escHtml(tenant.rc_number)}</div>` : ''}
@@ -20074,14 +19964,12 @@ function custSave(){
 
   <!-- Footer -->
   <div class="inv-footer">
-    <span>${escHtml(tenant?.name||'')}</span>
+    <span>SmartStruct — ${isAr?'منصة إدارة مشاريع المقاولة':'Plateforme BTP'}</span>
     <span class="gold-text">${escHtml(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
   </div>
 
-
 </div>
 </div>
-<div id="custWMText" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:90px;font-weight:900;color:rgba(184,144,47,.07);pointer-events:none;z-index:-1;white-space:nowrap"></div>
 </body></html>`;
 }
 
@@ -20107,37 +19995,6 @@ function printInvoiceWindow(id, autoPrint = false) {
   const proj   = DB.get('projects').find(p => p.id === inv?.project_id);
   if (!inv) { Toast.error(L('الفاتورة غير موجودة','Facture introuvable')); return; }
 
-  // ✅ حفظ تلقائي في DZArchive (مرة واحدة فقط — لا تكرار)
-  if (!autoPrint) {
-    // أرشفة في قائمة الفواتير المولدة أسفل الصفحة
-    if (typeof saveGeneratedDoc === 'function') {
-      saveGeneratedDoc('invoices', {
-        title: (inv.number || 'فاتورة') + ' — ' + (inv.client || ''),
-        titleFr: (inv.number || 'Facture') + ' — ' + (inv.client || ''),
-        type: I18N.currentLang === 'ar' ? 'فاتورة' : 'Facture'
-      });
-    }
-    try {
-      if (typeof DZArchive !== 'undefined' && DZArchive.save) {
-        const existingArchived = DZArchive.list({ kind: 'invoice' })
-          .find(d => d.meta_data && d.meta_data.invoiceId === id);
-        if (!existingArchived) {
-          DZArchive.save('invoice', {
-            number:      inv.number,
-            invoiceId:   id,
-            projectId:   inv.project_id,
-            client:      inv.client,
-            amount:      inv.amount,
-            date:        inv.date,
-            status:      inv.status,
-            description: inv.description,
-          });
-          console.log(`📁 [DZArchive] فاتورة محفوظة: ${inv.number}`);
-        }
-      }
-    } catch(e) { console.warn('[printInvoiceWindow] archive failed:', e.message); }
-  }
-
   const tvaRate   = inv.tva_rate   || tenant?.tva_rate || 19;
   const amountHT  = inv.amount_ht  || Math.round(Number(inv.amount) / (1 + tvaRate / 100));
   const tvaAmount = inv.tva_amount || (Number(inv.amount) - amountHT);
@@ -20151,111 +20008,27 @@ function printInvoiceWindow(id, autoPrint = false) {
   const ps     = getPrintSettings ? getPrintSettings() : {};
   const _ic    = ps.accentColor || '#B8902F';
   const _if    = ps.fontFamily  || 'Cairo';
-  const fmt2   = n => Number(n||0).toLocaleString(isAr?'ar-DZ':'fr-DZ');
-  const da     = isAr ? 'دج' : 'DA';
-  const esc    = s => String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const logoHTML = logo ? `<img src="${logo}" style="height:60px;max-width:150px;object-fit:contain;border-radius:4px;padding:3px">` : '';
+  const _im    = ps.margin      || '12mm';
+  const _iz    = ps.fontSize    || 13;
 
-  // بناء body الفاتورة فقط (بدون html/head/body tags)
-  const bodyHtml = `
-<div class="page" style="background:#fff;max-width:820px;margin:0 auto;overflow:hidden;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+  // بناء HTML الفاتورة
+  const invHtml = buildInvoiceHTML(inv, tenant, proj, items, tvaRate, amountHT, tvaAmount, isAr, isPaid, logo, _ic, _if, _im, _iz);
 
-  <div style="background:#fff;border-bottom:3px solid ${_ic};padding:28px 36px;display:flex;justify-content:space-between;align-items:center">
-    <div style="display:flex;align-items:center;gap:18px">
-      ${logoHTML}
-      <div>
-        <div style="font-size:22px;font-weight:900;color:${_ic}">${esc(tenant?.name||'')}</div>
-        ${tenant?.nif ? `<div style="font-size:10px;color:#666;margin-top:2px">NIF: ${esc(tenant.nif)}</div>` : ''}
-        ${tenant?.nis ? `<div style="font-size:10px;color:#666">NIS: ${esc(tenant.nis)}</div>` : ''}
-        ${tenant?.rc_number ? `<div style="font-size:10px;color:#666">RC: ${esc(tenant.rc_number)}</div>` : ''}
-      </div>
-    </div>
-    <div style="text-align:${isAr?'left':'right'}">
-      <div style="font-size:28px;font-weight:900;color:#1a1a1a;letter-spacing:2px">${isAr?'فاتورة':'FACTURE'}</div>
-      <div style="font-size:13px;color:${_ic};font-weight:700;margin-top:4px">${esc(inv.number)}</div>
-    </div>
-  </div>
+  const win = window.open('', '_blank');
+  if (!win) { Toast.error(L('السماح بالنوافذ المنبثقة','Autorisez les popups')); return; }
+  win.document.write(invHtml);
+  win.document.close();
+  win.document.title = (isAr?'فاتورة':'Facture') + ' ' + inv.number;
 
-  <div style="height:3px;background:${_ic}"></div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;padding:20px 36px;gap:16px;border-bottom:1px solid #f0f0f0">
-    <div style="padding:12px;border:1px solid #f0e8d0;border-radius:8px">
-      <div style="font-size:10px;color:#999;font-weight:700;text-transform:uppercase;margin-bottom:5px">${isAr?'تاريخ الإصدار':'Date émission'}</div>
-      <div style="font-size:13px;font-weight:700">${inv.date||''}</div>
-      ${inv.due_date?`<div style="font-size:11px;color:#666;margin-top:2px">${isAr?'الاستحقاق':'Échéance'}: ${inv.due_date}</div>`:''}
-    </div>
-    <div style="padding:12px;border:1px solid #f0e8d0;border-radius:8px">
-      <div style="font-size:10px;color:#999;font-weight:700;text-transform:uppercase;margin-bottom:5px">${isAr?'العميل':'Client'}</div>
-      <div style="font-size:13px;font-weight:700">${esc(inv.client||'—')}</div>
-      ${proj?`<div style="font-size:11px;color:#666;margin-top:2px">🏗️ ${esc(proj.name)}</div>`:''}
-    </div>
-    <div style="padding:12px;border:1px solid #f0e8d0;border-radius:8px">
-      <div style="font-size:10px;color:#999;font-weight:700;text-transform:uppercase;margin-bottom:5px">${isAr?'الحالة':'Statut'}</div>
-      <div style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:${isPaid?'#d4f5e4':'#fff3cd'};color:${isPaid?'#0a6e3f':'#856404'};border:1px solid ${isPaid?'#a8d5b5':'#ffc107'}">
-        ${inv.status==='paid'?(isAr?'✅ مدفوعة':'✅ Payée'):inv.status==='partial'?(isAr?'🔶 جزئية':'🔶 Partiel'):(isAr?'⏳ معلقة':'⏳ En attente')}
-      </div>
-    </div>
-  </div>
-
-  <div style="padding:24px 36px">
-    <div style="font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📋 ${isAr?'تفاصيل الفاتورة':'Détails de la facture'}</div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr>
-        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:${isAr?'right':'left'}">${isAr?'البيان':'Désignation'}</th>
-        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:center">${isAr?'الكمية':'Qté'}</th>
-        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:center">${isAr?'سعر الوحدة':'P.U. (DA)'}</th>
-        <th style="background:${_ic};color:#fff;padding:10px 14px;font-size:10px;font-weight:700;text-align:center">${isAr?'الإجمالي HT':'Total HT'}</th>
-      </tr></thead>
-      <tbody>
-        ${items.map((item,i)=>`<tr style="background:${i%2===0?'#fafaf7':'#fff'}">
-          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px">${esc(item.desc||item.designation||'')}</td>
-          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px;text-align:center">${item.qty||1}</td>
-          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px;text-align:center">${fmt2(item.price||item.unit_price||0)} ${da}</td>
-          <td style="padding:10px 14px;border-bottom:1px solid #f5f0e8;font-size:12px;text-align:center;font-weight:700">${fmt2(item.total||0)} ${da}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <div style="padding:16px 36px 24px;display:flex;justify-content:flex-${isAr?'start':'end'}">
-    <div style="min-width:260px">
-      <div style="display:flex;justify-content:space-between;padding:6px 12px;font-size:13px"><span>${isAr?'المجموع HT':'Sous-total HT'}</span><span>${fmt2(amountHT)} ${da}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 12px;font-size:13px"><span>TVA (${tvaRate}%)</span><span>${fmt2(tvaAmount)} ${da}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;font-size:15px;font-weight:900;background:${_ic};color:#fff;border-radius:6px;margin-top:6px">
-        <span>${isAr?'المجموع TTC':'TOTAL TTC'}</span><span>${fmt2(inv.amount)} ${da}</span>
-      </div>
-    </div>
-  </div>
-
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;padding:20px 36px;border-top:1px solid #f0f0f0">
-    <div style="font-size:10px;color:#bbb;line-height:1.7">
-      <strong>${isAr?'ملاحظات قانونية':'Mentions légales'}</strong><br>
-      TVA: ${tvaRate}% ${tenant?.nif?'| NIF: '+esc(tenant.nif):''}${tenant?.nis?' | NIS: '+esc(tenant.nis):''}<br>
-      ${tenant?.rc_number?'RC: '+esc(tenant.rc_number)+' | ':''}${esc(tenant?.address||'')}
-    </div>
-    <div style="width:140px;height:80px;border:2px solid ${_ic};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:${_ic};font-weight:700;opacity:.5;text-align:center">
-      ${isAr?'الختم\nوالتوقيع':'Cachet\net Signature'}
-    </div>
-  </div>
-
-  <div style="background:#f8f5ee;border-top:2px solid ${_ic};padding:10px 36px;display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:10px;color:#666">${esc(tenant?.name||'')}</span>
-    <span style="font-size:10px;color:${_ic};font-weight:700">${esc(inv.number)} | ${new Date().toLocaleDateString(isAr?'ar-DZ':'fr-DZ')}</span>
-  </div>
-
-</div>`;
-
-  // استخدم _buildPrintShell مثل باقي الوثائق — يوفر toolbar + customize panel كاملان
-  const fullHtml = _buildPrintShell({
-    title: (isAr?'فاتورة':'Facture') + ' ' + inv.number,
-    bodyHtml,
-    isAr,
-    onPrint: autoPrint
-  });
-
-    var win = openPrintWindow(fullHtml, '', false);
-  if (!win) return;
+  if (autoPrint) {
+    win.addEventListener('load', function() {
+      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
+    });
+    if (win.document.readyState === 'complete') {
+      setTimeout(function() { try { win.focus(); win.print(); } catch(e){} }, 800);
+    }
   }
+}
 
 Pages.inventory = function() {
   const tid = Auth.getUser().tenant_id;
@@ -20322,7 +20095,7 @@ Pages.inventory = function() {
           <div class="form-group" style="grid-column:1/-1"><label class="form-label">اسم المادة *</label><input class="form-input" id="matName" placeholder="حديد، أسمنت..."></div>
           <div class="form-group"><label class="form-label">الوحدة</label><input class="form-input" id="matUnit" placeholder="طن، كيس، م³"></div>
           <div class="form-group"><label class="form-label">الكمية الحالية</label><input class="form-input" id="matQty" type="number" placeholder="0"></div>
-          <div class="form-group"><label class="form-label">${L("الحد الأدنى للتنبيه","Seuil d'alerte minimum")}</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
+          <div class="form-group"><label class="form-label">الحد الأدنى للتنبيه</label><input class="form-input" id="matMin" type="number" placeholder="5"></div>
           <div class="form-group"><label class="form-label">السعر/وحدة (دج)</label><input class="form-input" id="matPrice" type="number" placeholder="0"></div>
           <div class="form-group"><label class="form-label">المشروع</label><select class="form-select" id="matProj"><option value="">—</option>${projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</select></div>
           <div class="form-group" style="grid-column:1/-1">
@@ -20338,14 +20111,13 @@ Pages.inventory = function() {
     </div>
     <div class="modal-overlay" id="stockMoveModal">
       <div class="modal">
-        <div class="modal-title" id="stockMoveTitle">📦 ${L("حركة مخزون","Mouvement de stock")}</div>
+        <div class="modal-title" id="stockMoveTitle">📦 حركة مخزون</div>
         <input type="hidden" id="stockMatId"><input type="hidden" id="stockMoveTyp">
         <div class="form-group"><label class="form-label">الكمية *</label><input class="form-input" id="stockMoveQty" type="number" placeholder="0" min="1"></div>
         <div class="form-group"><label class="form-label">ملاحظة</label><input class="form-input" id="stockMoveNote" placeholder="توريد، استخدام..."></div>
         <div class="modal-footer"><button class="btn btn-ghost" data-modal-close>إلغاء</button><button class="btn btn-gold" onclick="confirmStockMoveV5()">✅ تأكيد</button></div>
       </div>
     </div>
-    ${renderGenDocsTable('inventory')}
   `);
 };
 function addMaterialItem(){
@@ -20362,7 +20134,7 @@ function openStockMove(matId,type){
   if (!canDo('write_materials')) { Toast.error(L('ليس لديك صلاحية لتحريك المخزون','Permission refusée : stock')); return; }
   document.getElementById('stockMatId').value=matId;
   document.getElementById('stockMoveTyp').value=type;
-  document.getElementById('stockMoveTitle').textContent=type==='in'? `📦 ${L('إدخال مواد','Entrée de matériaux')}` : `📦 ${L('إخراج مواد','Sortie de matériaux')}`;
+  document.getElementById('stockMoveTitle').textContent=type==='in'?'📦 إدخال مواد':'📦 إخراج مواد';
   document.getElementById('stockMoveQty').value='';
   document.getElementById('stockMoveNote').value='';
   document.getElementById('stockMoveModal').classList.add('show');
@@ -20387,10 +20159,10 @@ function confirmStockMoveV5(){
   DB.set('stock_movements',mvs);
   sbSync('stock_movements', newMv, 'POST').catch(()=>{});
   if(mats[idx].quantity<=mats[idx].min_quantity){
-    addNotification(Auth.getUser().tenant_id, L('تنبيه المخزون','Alerte stock'), `${L('مخزون','Stock')} "${mats[idx].name}" ${L('وصل للحد الأدنى','a atteint le minimum')} (${mats[idx].quantity} ${mats[idx].unit})`, 'warn');
-    Toast.warn(`⚠️ ${L("تنبيه: مخزون","Alerte: stock")} "${mats[idx].name}" ${L("منخفض","bas")}!`);
+    addNotification(Auth.getUser().tenant_id,'تنبيه المخزون',`مخزون "${mats[idx].name}" وصل للحد الأدنى (${mats[idx].quantity} ${mats[idx].unit})`,'warn');
+    Toast.warn(`⚠️ تنبيه: مخزون "${mats[idx].name}" منخفض!`);
   } else {
-    Toast.success(`✅ ${type==='in'? L('إدخال','Entrée') : L('إخراج','Sortie')} ${qty} ${mats[idx].unit} ${L('من','de')} ${mats[idx].name}`);
+    Toast.success(`✅ ${type==='in'?'إدخال':'إخراج'} ${qty} ${mats[idx].unit} من ${mats[idx].name}`);
   }
   document.getElementById('stockMoveModal').classList.remove('show');
   App.navigate('inventory');
@@ -20708,66 +20480,6 @@ function deleteDocItem(id){
 }
 
 /* ── TEAM PAGE ── */
-// ── تبديل وضع المظهر (داكن/فاتح) ──
-function setTheme(theme) {
-  try {
-    var h = document.documentElement;
-    if (theme === 'light') {
-      h.classList.add('light');
-    } else {
-      h.classList.remove('light');
-    }
-    localStorage.setItem('sbtp_theme', theme);
-    // تحديث زر الثيم مباشرة بدون إعادة navigate
-    var btn = document.getElementById('themeToggleBtn');
-    if (btn) {
-      btn.textContent = theme === 'light' ? '🌙' : '☀️';
-      btn.title = theme === 'light'
-        ? L('تفعيل الوضع الداكن','Mode sombre')
-        : L('تفعيل الوضع الفاتح','Mode clair');
-    }
-    if (typeof Toast !== 'undefined') {
-      Toast.success(theme === 'light'
-        ? L('☀️ تم تفعيل الوضع الفاتح','☀️ Mode clair activé')
-        : L('🌙 تم تفعيل الوضع الداكن','🌙 Mode sombre activé'));
-    }
-  } catch(e) { console.warn('setTheme failed:', e); }
-}
-
-// ── تطبيق / إزالة الوضع الفاتح حسب الصفحة ──
-function _applyThemeForPage(page) {
-  try {
-    var saved = localStorage.getItem('sbtp_theme');
-    var h = document.documentElement;
-    // إذا كان مستخدم مُسجَّل دخوله، لا نُجبر الوضع الداكن حتى على login/landing
-    // (تحديث الصفحة يبدأ بـ 'login' مؤقتاً قبل إعادة التوجيه — لا نمس الثيم)
-    var userLoggedIn = !!(typeof Auth !== 'undefined' && Auth.getUser && Auth.getUser());
-    if (['landing', 'login'].includes(page) && !userLoggedIn) {
-      // صفحات المصادقة الفعلية — دائماً داكنة
-      h.classList.remove('light');
-    } else if (!['landing', 'login'].includes(page)) {
-      // باقي الصفحات — طبّق الثيم المحفوظ
-      if (saved === 'light') {
-        h.classList.add('light');
-      } else {
-        h.classList.remove('light');
-      }
-    }
-    // إذا كان المستخدم مُسجَّلاً وصفحة login مؤقتة — لا نلمس الثيم أبداً
-    // تحديث زر الثيم في الـ toolbar
-    setTimeout(function() {
-      var btn = document.getElementById('themeToggleBtn');
-      if (btn) {
-        var isLight = h.classList.contains('light');
-        btn.textContent = isLight ? '🌙' : '☀️';
-        btn.title = isLight
-          ? (typeof L === 'function' ? L('تفعيل الوضع الداكن','Mode sombre') : 'Mode sombre')
-          : (typeof L === 'function' ? L('تفعيل الوضع الفاتح','Mode clair') : 'Mode clair');
-      }
-    }, 50);
-  } catch(e) {}
-}
-
 Pages.team = function() {
   const tid        = Auth.getUser().tenant_id;
   const currentUser= Auth.getUser();
@@ -20843,10 +20555,9 @@ Pages.team = function() {
     <div class="page-sub">${users.length} ${L('مستخدم','utilisateur(s)')}</div>
   </div>
   <div class="page-actions">
-    ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">+ ${L('إضافة مستخدم','Ajouter')}</button>` : ''}
+    ${isAdmin ? `<button class="btn btn-gold" data-modal-open="inviteUserModal">✉️ ${L('إضافة مستخدم','Ajouter utilisateur')}</button>` : ''}
   </div>
 </div>
-
 
 <!-- ══════════════ قائمة المستخدمين ══════════════ -->
 <div style="display:grid;gap:.65rem;margin-bottom:2.2rem">
@@ -21241,8 +20952,8 @@ Pages.compare = function() {
           ${row(__('cmp.efficiency'), eff(p1)+'%', eff(p2)+'%', true)}
           <tr>
             <td style="color:var(--muted);font-size:.82rem;font-weight:700;padding:.7rem 1rem">${__('lbl.type')}</td>
-            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(getProjectTypes().find(t=>t.value===p1.project_type)||{label:'—'}).label}</td>
-            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(getProjectTypes().find(t=>t.value===p2.project_type)||{label:'—'}).label}</td>
+            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(PROJECT_TYPES.find(t=>t.value===p1.project_type)||{label:'—'}).label}</td>
+            <td style="padding:.7rem 1rem;font-size:.78rem;text-align:center">${(PROJECT_TYPES.find(t=>t.value===p2.project_type)||{label:'—'}).label}</td>
           </tr>
           <tr>
             <td style="color:var(--muted);font-size:.82rem;font-weight:700;padding:.7rem 1rem">الحالة</td>
@@ -21522,7 +21233,7 @@ function exportReportPDF() {
     const pRev = txs.filter(t=>t.project_id===p.id&&t.type==='revenue').reduce((s,t)=>s+Number(t.amount),0);
     const pExp = txs.filter(t=>t.project_id===p.id&&t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
     const statusColors = {active:'#34C38F',completed:'#4A90E2',delayed:'#F04E6A',paused:'#8892A4'};
-    const statusLabels = {active:L('نشط','Actif','Active'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','Pausé')};
+    const statusLabels = {active:L('نشط','Actif'),completed:L('مكتمل','Terminé'),delayed:L('متأخر','En retard'),paused:L('متوقف','Pausé')};
     return `<tr>
       <td>${escHtml(p.name)}</td>
       <td>${escHtml(p.wilaya||'—')}</td>
@@ -21585,7 +21296,7 @@ function exportReportPDF() {
 <table>
   <thead><tr>
     <th>${L('اسم المشروع','Nom du projet')}</th>
-    <th>${L('الولاية','Wilaya','Wilaya')}</th>
+    <th>${L('الولاية','Wilaya')}</th>
     <th style="text-align:center">${L('الحالة','Statut')}</th>
     <th style="text-align:center">${L('التقدم','Avancement')}</th>
     <th style="text-align:right">${L('الميزانية','Budget')}</th>
@@ -21600,8 +21311,9 @@ function exportReportPDF() {
 </div>
 </body></html>`;
 
-    var win = openPrintWindow(html, '', false);
-  if (!win) return;
+  const win = window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
   Toast.success(L('✅ تم فتح تقرير PDF','✅ Rapport PDF ouvert'));
 }
 
@@ -22187,21 +21899,7 @@ Pages.bankReport = function() {
         <div class="page-sub">${L('تقرير مالي جاهز للتقديم للبنك','Rapport financier prêt à soumettre à la banque')}</div>
       </div>
       <div class="page-actions">
-        ${(()=>{
-          const _bk = 'bank_report_last_update_' + tid;
-          const _bv = localStorage.getItem(_bk);
-          let _blbl = L('لم يُحدَّث بعد','Pas encore mis à jour');
-          if (_bv) {
-            const _bd = new Date(_bv);
-            _blbl = _bd.toLocaleString(I18N.currentLang==='ar'?'ar-DZ':'fr-DZ',{dateStyle:'short',timeStyle:'short'});
-          }
-          return '<div style="font-size:.68rem;color:var(--dim);display:flex;align-items:center;gap:.3rem;padding:.3rem .7rem;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;white-space:nowrap">'
-            + '<span style="color:var(--gold)">🕐</span><span>' + _blbl + '</span></div>';
-        })()}
-        <button class="btn btn-ghost btn-sm" onclick="(function(){localStorage.setItem('bank_report_last_update_'+Auth.getUser().tenant_id,new Date().toISOString());App.navigate('bank_report');Toast.success(L('تم تحديث بيانات التقرير البنكي','Données rapport actualisées'));})()">
-          🔄 ${L('تحديث معلومات التقرير','Actualiser les données')}
-        </button>
-        <button class="btn btn-gold" onclick="(function(){openPrintWindow(window._bankReportHTML,'',false);})()">
+        <button class="btn btn-gold" onclick="(function(){const w=window.open('','_blank');if(!w){alert('السماح بالنوافذ المنبثقة');return;}w.document.write(window._bankReportHTML);w.document.close();})()"}>
           🖨️ ${L('فتح التقرير / طباعة','Ouvrir / Imprimer')}
         </button>
       </div>
@@ -23343,18 +23041,9 @@ function showOnboardingWizard(hasProjects, hasWorkers, hasTxs) {
   const validPages = ['admin','dashboard','projects','workers','transactions','reports','settings',
     'attendance','salary','invoices','inventory','equipment','materials','documents',
     'analytics','kanban','gantt','compare','calendar','map','simulator','bank_report',
-    'audit_log','obligations','team','ai_analysis','dz_documents','archive','about','contact',
-    'login','register'];
+    'audit_log','obligations','team','ai_analysis','dz_documents','archive','about','contact'];
   if (hash && validPages.includes(hash)) {
-    if (hash === 'register') {
-      App.currentPage = 'login';
-      sessionStorage.setItem('auth_mode', 'register');
-    } else if (hash === 'login') {
-      App.currentPage = 'login';
-      sessionStorage.setItem('auth_mode', 'login');
-    } else {
-      App.currentPage = hash;
-    }
+    App.currentPage = hash;
   }
   if (hash) history.replaceState(null, '', window.location.pathname);
 })();
@@ -23463,25 +23152,11 @@ function setupConnBadge() {
 // ── تشغيل التطبيق مع معالجة الأخطاء ──
 (function bootApp() {
   try {
-    // ── تطبيق اللغة المحفوظة قبل أي render (يدعم ss_lang من الصفحة الرئيسية) ──
-    const savedLang = localStorage.getItem('sbtp_lang') || localStorage.getItem('ss_lang') || 'ar';
-    if (savedLang !== I18N.currentLang) I18N.currentLang = savedLang;
-    document.documentElement.lang = savedLang;
-    document.documentElement.dir = savedLang === 'fr' ? 'ltr' : 'rtl';
     App.render();
     setupConnBadge();
-    // إخفاء شاشة التحميل بعد أن يستقر الـ DOM كاملاً (requestAnimationFrame مزدوج)
-    // هذا يضمن أن الـ Navbar يُرسم بشكل صحيح قبل أن يراه المستخدم
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        const __ldr = document.getElementById('appLoader');
-        if (__ldr) {
-          __ldr.style.transition = 'opacity .25s ease';
-          __ldr.style.opacity = '0';
-          setTimeout(function(){ if (__ldr) __ldr.style.display = 'none'; }, 260);
-        }
-      });
-    });
+    // إخفاء شاشة التحميل بعد نجاح التشغيل
+    const __ldr = document.getElementById('appLoader');
+    if (__ldr) __ldr.style.display = 'none';
   } catch(e) {
     console.error('❌ SmartStruct Boot Error:', e);
     // عرض رسالة خطأ واضحة بدلاً من شاشة فارغة
@@ -23639,200 +23314,6 @@ window.dzsPrintPDF = function(id) {
   window.dzsReprint(id);
 };
 
-// ════════════════════════════════════════════════════════
-// initDzsGrid — تهيئة قسم الوثائق في صفحة الفواتير
-// تُستدعى بعد render (لأن innerHTML لا يُنفّذ script tags)
-// ════════════════════════════════════════════════════════
-window.initDzsGrid = function() {
-  var lbl = function(ar,fr){ try{return I18N.currentLang==='fr'?fr:ar;}catch(_){return ar;}};
-  var esc = function(s){ return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);});};
-  var fmt = function(n){ return Number(n||0).toLocaleString(); };
-
-  var user = Auth.getUser();
-  if(!user) return;
-  var tid = user.tenant_id;
-
-  // ✅ نقرأ من documents (DZArchive) — يشمل الفواتير وكل الوثائق
-  var allDocs = (DB.get('documents')||[]).filter(function(d){
-    return d.tenant_id===tid && d.doc_kind;
-  }).sort(function(a,b){ return new Date(b.created_at||b.date)-new Date(a.created_at||a.date); });
-
-  var activeFilter = sessionStorage.getItem('dzs_filter')||'all';
-
-  // ── شريط الفلاتر ──
-  var bar = document.getElementById('dzsFilterBar');
-  if(bar){
-    var cats = {};
-    allDocs.forEach(function(d){
-      var k = d.doc_kind||d.type||'other';
-      cats[k] = (cats[k]||0)+1;
-    });
-    var CAT_LABELS = {
-      invoice:lbl('🧾 فواتير','🧾 Factures'),
-      proforma:lbl('📋 بروفورما','📋 Proforma'),
-      devis:lbl('📊 كشوف تقديرية','📊 Devis'),
-      acompte:lbl('⏩ تسبيقات','⏩ Acomptes'),
-      def_invoice:lbl('🏁 فواتير نهائية','🏁 Factures déf.'),
-      situation:lbl('📈 وضعيات','📈 Situations'),
-      quittance:lbl('🧾 وصول تسديد','🧾 Quittances'),
-      paie:lbl('💼 كشوف رواتب','💼 Bulletins paie'),
-      cdd:lbl('📝 عقود CDD','📝 Contrats CDD'),
-      cdi:lbl('🔒 عقود CDI','🔒 Contrats CDI'),
-      cta:lbl('🤝 عقود CTA','🤝 Contrats CTA'),
-      attestation:lbl('📄 شهادات عمل','📄 Attestations'),
-      pv_ouverture:lbl('🚀 محاضر بدء','🚀 PV Ouverture'),
-      pv_reception_pro:lbl('🤝 استلام مؤقت','🤝 PV Réception P.'),
-      pv_reception_def:lbl('✅ استلام نهائي','✅ PV Réception D.'),
-      attachement:lbl('📐 مرفقات','📐 Attachements'),
-      commande:lbl('🛒 طلبات','🛒 Bons Commande'),
-      reception:lbl('📥 استلام','📥 Bons Réception'),
-      sortie:lbl('📤 خروج','📤 Bons Sortie'),
-    };
-    bar.innerHTML='';
-    var mkBtn = function(key,label,count){
-      var b=document.createElement('button');
-      b.className='btn btn-sm '+(activeFilter===key?'btn-gold':'btn-ghost');
-      b.style.cssText='font-size:.72rem;padding:.3rem .7rem';
-      b.textContent=label+(count!==undefined?' ('+count+')':'');
-      b.onclick=function(){sessionStorage.setItem('dzs_filter',key);window.initDzsGrid();};
-      return b;
-    };
-    bar.appendChild(mkBtn('all',lbl('📂 الكل','📂 Tout'),allDocs.length));
-    Object.keys(cats).sort().forEach(function(k){
-      bar.appendChild(mkBtn(k, CAT_LABELS[k]||('📄 '+k), cats[k]));
-    });
-  }
-
-  var shown = activeFilter==='all' ? allDocs : allDocs.filter(function(d){return (d.doc_kind||d.type)===activeFilter;});
-  var grid  = document.getElementById('dzsGrid');
-  var empty = document.getElementById('dzsEmpty');
-  if(!grid) return;
-
-  var clearBtn = document.getElementById('dzsClearBtn');
-  if(clearBtn) clearBtn.style.display = allDocs.length>0?'':'none';
-
-  if(shown.length===0){
-    grid.style.display='none';
-    if(empty) empty.style.display='';
-    return;
-  }
-  grid.style.display='';
-  if(empty) empty.style.display='none';
-
-  grid.innerHTML = shown.map(function(doc){
-    var kind = doc.doc_kind || doc.type || 'other';
-    var isInvoice = kind==='invoice';
-    var meta = doc.meta_data || {};
-    var ICONS = {invoice:'🧾',proforma:'📋',devis:'📊',acompte:'⏩',def_invoice:'🏁',situation:'📈',
-      quittance:'🧾',paie:'💼',cdd:'📝',cdi:'🔒',cta:'🤝',attestation:'📄',
-      pv_ouverture:'🚀',pv_reception_pro:'🤝',pv_reception_def:'✅',
-      attachement:'📐',commande:'🛒',reception:'📥',sortie:'📤',suivi:'🚜'};
-    var icon = ICONS[kind]||'📄';
-    var typeName = (CAT_LABELS&&CAT_LABELS[kind]) ? CAT_LABELS[kind].replace(/^[^ ]+ /,'') : kind;
-
-    // معلومات إضافية للفواتير
-    var extraInfo = '';
-    if(isInvoice){
-      var statusColor = meta.status==='paid'?'#2ecc71':meta.status==='partial'?'#f39c12':'#e74c3c';
-      var statusLabel = meta.status==='paid'?lbl('✅ مدفوعة','✅ Payée'):meta.status==='partial'?lbl('🔶 جزئي','🔶 Partiel'):lbl('⏳ معلقة','⏳ En attente');
-      extraInfo = '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:.3rem">'
-        +'<span style="font-size:.85rem;font-weight:900;color:var(--gold)">'+esc(fmt(meta.amount))+' دج</span>'
-        +'<span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:'+statusColor+'22;color:'+statusColor+';font-weight:700">'+statusLabel+'</span>'
-        +'</div>'
-        +'<div style="font-size:.7rem;color:var(--dim)">👤 '+esc(meta.client||'—')+'</div>';
-    } else if(meta.totalTTC||meta.total_ttc) {
-      extraInfo = '<div style="font-size:.82rem;font-weight:800;color:var(--gold);margin-top:.2rem">'+fmt(meta.totalTTC||meta.total_ttc||0)+' دج</div>';
-    }
-
-    var projName = '';
-    if(meta.projectId||meta.project_id){
-      var pid = meta.projectId||meta.project_id;
-      var proj = (typeof DB!=='undefined'&&DB.get)?DB.get('projects').find(function(p){return p.id==pid;}):null;
-      if(proj) projName = '<div style="font-size:.68rem;color:var(--dim)">🏗️ '+esc(proj.name)+'</div>';
-    }
-
-    return '<div style="background:var(--card-bg,#0e1720);border:1px solid var(--border);border-radius:12px;padding:.9rem;display:flex;flex-direction:column;gap:.35rem;transition:border-color .15s,transform .15s" '
-      +'onmouseenter="this.style.borderColor=\'rgba(232,184,75,.5)\';this.style.transform=\'translateY(-1px)\'" '
-      +'onmouseleave="this.style.borderColor=\'var(--border)\';this.style.transform=\'\">'      // نوع الوثيقة
-      +'<div style="display:flex;justify-content:space-between;align-items:center">'
-      +'<span style="font-size:.62rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">'+icon+' '+esc(typeName)+'</span>'
-      +'<span style="font-size:.65rem;color:var(--dim)">📅 '+esc(doc.date||'')+'</span>'
-      +'</div>'
-
-      // رقم الوثيقة والاسم
-      +'<div style="font-size:.88rem;font-weight:900;line-height:1.2;color:var(--text)">'+esc(doc.doc_number||doc.name||'—')+'</div>'
-
-      // معلومات إضافية
-      +extraInfo
-      +projName
-
-      // أزرار الإجراءات
-      +'<div style="display:flex;gap:.3rem;margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border)">'
-      +(isInvoice
-        // أزرار الفاتورة: تعديل + طباعة + حذف
-        ? '<button class="btn btn-gold btn-sm" style="flex:1;font-size:.7rem" onclick="editInvoiceFromArchive('+doc.id+')" title="'+lbl('تعديل الفاتورة','Modifier la facture')+'">✏️ '+lbl('تعديل','Modifier')+'</button>'
-          +'<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.7rem" onclick="printInvoiceFromArchive('+doc.id+')" title="'+lbl('طباعة / PDF','Imprimer / PDF')+'">🖨️ PDF</button>'
-        // أزرار باقي الوثائق: تعديل وتوليد + طباعة
-        : '<button class="btn btn-gold btn-sm" style="flex:1;font-size:.7rem" onclick="if(typeof DZArchive!==\'undefined\')DZArchive.reopen('+doc.id+')" title="'+lbl('تعديل وإعادة توليد','Modifier & regénérer')+'">✏️ '+lbl('تعديل','Modifier')+'</button>'
-          +'<button class="btn btn-ghost btn-sm" style="flex:1;font-size:.7rem" onclick="if(typeof DZArchive!==\'undefined\')DZArchive.reprint('+doc.id+')" title="'+lbl('إعادة طباعة','Réimprimer')+'">🖨️ '+lbl('طباعة','Imprimer')+'</button>'
-      )
-      +'<button class="btn btn-red btn-sm" style="font-size:.7rem;min-width:2rem" onclick="dzsDelete('+doc.id+')" title="'+lbl('حذف','Supprimer')+'">🗑️</button>'
-      +'</div>'
-      +'</div>';
-  }).join('');
-
-  // تعريف CAT_LABELS في scope عالمي للكارت
-  window._dzsCatLabels = CAT_LABELS;
-};
-
-// ── دوال مساعدة لإجراءات الأرشيف ──
-
-// طباعة الفاتورة من الأرشيف
-window.printInvoiceFromArchive = function(docId) {
-  var doc = typeof DZArchive !== 'undefined' ? DZArchive.get(docId) : null;
-  if(!doc) { if(typeof Toast!=='undefined') Toast.error(L('الوثيقة غير موجودة','Document introuvable')); return; }
-  var invId = doc.meta_data && doc.meta_data.invoiceId;
-  if(!invId) { if(typeof Toast!=='undefined') Toast.error(L('الفاتورة الأصلية غير موجودة','Facture originale introuvable')); return; }
-  if(typeof printInvoiceWindow==='function') printInvoiceWindow(invId, false);
-};
-
-// تعديل الفاتورة من الأرشيف (ينتقل لصفحة الفواتير ويفتح تعديل)
-window.editInvoiceFromArchive = function(docId) {
-  var doc = typeof DZArchive !== 'undefined' ? DZArchive.get(docId) : null;
-  if(!doc) { if(typeof Toast!=='undefined') Toast.error(L('الوثيقة غير موجودة','Document introuvable')); return; }
-  var invId = doc.meta_data && doc.meta_data.invoiceId;
-  if(!invId) { if(typeof Toast!=='undefined') Toast.error(L('الفاتورة الأصلية غير موجودة','Facture originale introuvable')); return; }
-  // انتقل لصفحة الفواتير وافتح التعديل
-  if(typeof App!=='undefined') App.navigate('invoices');
-  setTimeout(function(){
-    // حاول فتح نموذج التعديل
-    var editFn = window.editInvoiceItem || window.openEditInvoice;
-    if(typeof editFn==='function') editFn(invId);
-    else if(typeof Toast!=='undefined') Toast.info(L('ابحث عن الفاتورة وعدّلها ثم أعد الطباعة','Trouvez la facture et modifiez-la'));
-  }, 500);
-};
-
-// حذف وثيقة من الأرشيف
-window.dzsDelete = function(docId) {
-  if(!confirm(L('حذف هذه الوثيقة من الأرشيف؟','Supprimer ce document de l\'archive ?'))) return;
-  if(typeof DZArchive!=='undefined' && DZArchive.delete) {
-    DZArchive.delete(docId);
-    if(typeof Toast!=='undefined') Toast.success(L('تم حذف الوثيقة','Document supprimé'));
-    if(typeof initDzsGrid==='function') setTimeout(initDzsGrid, 100);
-  }
-};
-
-// إعادة فتح وثيقة للتعديل والتوليد (غير الفواتير)
-window.dzsReopen = function(docId) {
-  if(typeof DZArchive!=='undefined') DZArchive.reopen(docId);
-};
-window.dzsReprint = function(docId) {
-  if(typeof DZArchive!=='undefined') DZArchive.reprint(docId);
-};
-window.dzsPrintPDF = function(docId) {
-  if(typeof DZArchive!=='undefined') DZArchive.reprint(docId);
-};
-
 // ════════════════════════════════════════════════════════════════════
 //  ① SESSION TIMEOUT — خروج تلقائي بعد 30 دقيقة خمول
 // ════════════════════════════════════════════════════════════════════
@@ -23868,7 +23349,7 @@ window.dzsPrintPDF = function(docId) {
     if (!Auth.getUser()) return;
     if (typeof Auth.logout === 'function') Auth.logout();
     Toast.info(L('تم تسجيل خروجك تلقائياً بسبب الخمول','Déconnexion automatique par inactivité'));
-    window.location.replace('index.html');
+    App.navigate('landing');
   }
 
   // استمع لأي نشاط
@@ -24327,7 +23808,7 @@ function showMobileMode() {
   overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;background:#09120A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem';
   const btns = [
     { icon:'👷', label:L('الحضور','Pointage'),    page:'attendance', color:'#34C38F' },
-    { icon:'🏗️', label:L('المشاريع','Projets','Projects'),   page:'projects',   color:'#4A90E2' },
+    { icon:'🏗️', label:L('المشاريع','Projets'),   page:'projects',   color:'#4A90E2' },
     { icon:'💵', label:L('الرواتب','Salaires'),    page:'salary',     color:'#E8B84B' },
     { icon:'📦', label:L('المخزون','Stock'),        page:'materials',  color:'#9B6DFF' },
     { icon:'📄', label:L('الوثائق','Documents'),    page:'dz_documents', color:'#F04E6A' },

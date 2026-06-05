@@ -144,10 +144,7 @@ window.AuditLog = {
 window.SmartBackup = {
   TABLES: ['projects','workers','equipment','transactions','attendance','materials',
            'stock_movements','invoices','salary_records','kanban_tasks','documents',
-           'obligations','notes','tenders','tender_offers','bank_transactions',
-           // ✅ v7.4 — جداول الموردين وشؤون الموظفين (مضافة للنسخ الاحتياطي)
-           'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
-           'leave_requests','worker_warnings','worker_overtime'],
+           'obligations','notes','tenders','tender_offers','bank_transactions'],
 
   // تصدير JSON كامل
   exportAll() {
@@ -157,7 +154,7 @@ window.SmartBackup = {
       exported_at: new Date().toISOString(),
       tenant_id:   user.tenant_id,
       tenant_name: (Auth.getTenant() || {}).name,
-      app_version: 'SmartStruct v7.4',
+      app_version: 'SmartStruct v7.2',
       tables: {}
     };
 
