@@ -1,493 +1,382 @@
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   SmartStruct — Light Mode احترافي
-   وضع فاتح أنيق بألوان متناسقة — يُفعّل بإضافة class="light" على <html>
+   SmartStruct — Light Mode كريمي دافئ
+   خلفية كريمية مريحة للعين — يُفعّل بإضافة class="light" على <html>
    ═══════════════════════════════════════════════════════════════════════════ */
 
 html.light {
-  /* ── الخلفيات — تدرّج رمادي دافئ ── */
-  --ss-bg-0:        #dcdad2;   /* خلفية رئيسية */
-  --ss-bg-1:        #d3d0c6;   /* بطاقات */
-  --ss-bg-2:        #cdcabf;   /* عناصر ثانوية */
-  --ss-bg-3:        #c8c4b8;   /* عناصر أعمق */
+  /* ── الخلفيات — كريمي دافئ مريح للعين ── */
+  --ss-bg-0:        #EEE8DC;   /* خلفية رئيسية */
+  --ss-bg-1:        #E8E2D5;   /* sidebar + سطح ثانوي */
+  --ss-bg-2:        #EBE5D9;   /* بطاقات + modals */
+  --ss-bg-3:        #E3DDD1;   /* عناصر أعمق */
 
-  --bg:             #dcdad2;
-  --bg2:            #d3d0c6;
-  --bg3:            #cdcabf;
-  --bg4:            #c8c4b8;
-  --card-bg:        #d3d0c6;
+  --bg:             #EEE8DC;
+  --bg2:            #E8E2D5;
+  --bg3:            #EBE5D9;
+  --bg4:            #E3DDD1;
+  --card-bg:        #EBE5D9;
 
-  /* ── النصوص — رمادي داكن مريح ── */
-  --ss-fg:          #1a1714;
-  --ss-fg-muted:    #3d3830;
-  --ss-fg-dim:      #6e6760;
+  /* ── النصوص — نيلي داكن مريح (لا أسود صرف) ── */
+  --ss-fg:          #1E2330;
+  --ss-fg-muted:    #4A5266;
+  --ss-fg-dim:      #7A8096;
 
-  --text:           #1a1714;
-  --muted:          #3d3830;
-  --dim:            #6e6760;
+  --text:           #1E2330;
+  --muted:          #4A5266;
+  --dim:            #7A8096;
 
-  /* ── الحدود — رمادي ناعم ── */
-  --ss-border:      #d4d1c8;
-  --ss-border-2:    #c4c0b5;
-  --border:         #d4d1c8;
-  --border2:        #c4c0b5;
+  /* ── الحدود ── */
+  --ss-border:      rgba(30,35,48,0.10);
+  --ss-border-2:    rgba(30,35,48,0.16);
+  --border:         rgba(30,35,48,0.10);
+  --border2:        rgba(30,35,48,0.16);
 
-  /* ── الذهبي — أغمق قليلاً للوضوح على الأبيض ── */
-  --ss-gold:        #a8801a;
-  --gold:           #a8801a;
-  --gold2:          #8a6c14;
-  --gold3:          #c49832;
-  --gold-dim:       rgba(168,128,26,.12);
-  --gold-glow:      rgba(168,128,26,.18);
+  /* ── الذهبي — أغمق للوضوح على الكريمي ── */
+  --ss-gold:        #A07818;
+  --gold:           #A07818;
+  --gold2:          #865F10;
+  --gold3:          #C49428;
+  --gold-dim:       rgba(160,120,24,.12);
+  --gold-glow:      rgba(160,120,24,.18);
 
-  /* ── ألوان الحالة — متناسقة مع الخلفية الفاتحة ── */
-  --green:          #0a8043;
-  --ss-green:       #0a8043;
-  --blue:           #1a5fb4;
-  --ss-blue:        #1a5fb4;
-  --red:            #d32f2f;
-  --ss-red:         #d32f2f;
-  --purple:         #6a3aab;
-  --ss-purple:      #6a3aab;
-  --orange:         #e8590c;
-  --ss-orange:      #e8590c;
+  /* ── ألوان الحالة ── */
+  --green:          #0A7A3F;
+  --ss-green:       #0A7A3F;
+  --blue:           #1A55A8;
+  --ss-blue:        #1A55A8;
+  --red:            #C82828;
+  --ss-red:         #C82828;
+  --purple:         #6030A0;
+  --ss-purple:      #6030A0;
+  --orange:         #D84E08;
+  --ss-orange:      #D84E08;
 
-  /* ── الظلال — ناعمة وخفيفة ── */
-  --shadow:         0 4px 20px rgba(80,70,55,.06);
-  --shadow-lg:      0 12px 40px rgba(80,70,55,.10);
+  /* ── الظلال ── */
+  --shadow:         0 4px 20px rgba(30,35,48,0.06);
+  --shadow-lg:      0 12px 40px rgba(30,35,48,0.10);
 }
 
-/* ── الجسم ── */
-html.light body {
-  background: #dcdad2;
-  color: #2d2a26;
+/* ══════════════════════════════════════════════════════
+   الجسم والخلفية العامة
+   ══════════════════════════════════════════════════════ */
+html.light body,
+html.light #app {
+  background: #EEE8DC !important;
+  color: #1E2330 !important;
 }
 
-/* ── الشريط الجانبي ── */
+/* ══════════════════════════════════════════════════════
+   الشريط الجانبي
+   ══════════════════════════════════════════════════════ */
 html.light .sidebar,
 html.light .app-sidebar {
-  background: #d3d0c6;
-  border-color: #d4d1c8;
-  box-shadow: 0 0 30px rgba(80,70,55,.03);
+  background: #E0D9CC !important;
+  border-color: rgba(30,35,48,0.10) !important;
+  box-shadow: 2px 0 16px rgba(30,35,48,0.04) !important;
 }
-
 html.light .nav-link {
-  color: #5c574f;
+  color: #4A5266 !important;
 }
 html.light .nav-link:hover {
-  background: rgba(168,128,26,.07);
-  color: #2d2a26;
+  background: rgba(30,35,48,0.06) !important;
+  color: #1E2330 !important;
 }
 html.light .nav-link.active {
-  background: linear-gradient(135deg, rgba(168,128,26,.12), rgba(168,128,26,.04));
-  color: #a8801a;
-  border-color: rgba(168,128,26,.25);
+  background: linear-gradient(135deg, rgba(160,120,24,.14), rgba(160,120,24,.05)) !important;
+  color: #A07818 !important;
+  border-color: rgba(160,120,24,.22) !important;
 }
+html.light .brand-name,
+html.light .brand-sub,
+html.light .nav-label { color: #1E2330 !important; }
 
-/* ── الشريط العلوي ── */
+/* ══════════════════════════════════════════════════════
+   الشريط العلوي
+   ══════════════════════════════════════════════════════ */
 html.light .topbar {
-  background: #d3d0c6;
-  border-color: #d4d1c8;
-  box-shadow: 0 2px 12px rgba(80,70,55,.03);
+  background: rgba(238,232,220,0.95) !important;
+  border-bottom: 1px solid rgba(30,35,48,0.10) !important;
+  backdrop-filter: blur(14px) !important;
+  box-shadow: 0 2px 12px rgba(30,35,48,0.04) !important;
 }
-html.light .topbar-breadcrumb {
-  color: #5c574f;
-}
+html.light .topbar-breadcrumb { color: #4A5266 !important; }
 html.light .topbar-avatar {
-  background: linear-gradient(135deg, #a8801a, #c49832);
-  color: #fff;
+  background: linear-gradient(135deg, #A07818, #C49428) !important;
+  color: #fff !important;
 }
 
-/* ── البطاقات ── */
+/* ══════════════════════════════════════════════════════
+   البطاقات
+   ══════════════════════════════════════════════════════ */
 html.light .card,
 html.light .stat-card {
-  background: #d3d0c6;
-  border-color: #d4d1c8;
-  box-shadow: 0 2px 12px rgba(80,70,55,.04);
+  background: #EBE5D9 !important;
+  border: 1px solid rgba(30,35,48,0.10) !important;
+  box-shadow: 0 2px 10px rgba(30,35,48,0.05) !important;
+  color: #1E2330 !important;
 }
 html.light .card:hover,
 html.light .stat-card:hover {
-  box-shadow: 0 6px 24px rgba(80,70,55,.08);
-  border-color: #c4c0b5;
+  background: #EDE8DC !important;
+  border-color: rgba(30,35,48,0.16) !important;
+  box-shadow: 0 6px 22px rgba(30,35,48,0.08) !important;
 }
 
-/* ── الأزرار ── */
+/* ══════════════════════════════════════════════════════
+   الأزرار
+   ══════════════════════════════════════════════════════ */
 html.light .btn-ghost {
-  background: #cdcabf;
-  border-color: #c4c0b5;
-  color: #2d2a26;
+  background: rgba(30,35,48,0.07) !important;
+  border: 1px solid rgba(30,35,48,0.13) !important;
+  color: #1E2330 !important;
 }
 html.light .btn-ghost:hover {
-  background: #c8c4b8;
-  color: #2d2a26;
+  background: rgba(30,35,48,0.12) !important;
 }
 html.light .btn-gold {
-  background: linear-gradient(135deg, #a8801a, #c49832);
-  color: #d3d0c6;
-  box-shadow: 0 2px 10px rgba(168,128,26,.25);
+  background: linear-gradient(135deg, #A07818, #C49428) !important;
+  color: #fff !important;
+  box-shadow: 0 3px 12px rgba(160,120,24,.28) !important;
 }
 html.light .btn-gold:hover {
-  box-shadow: 0 4px 16px rgba(168,128,26,.35);
+  box-shadow: 0 5px 18px rgba(160,120,24,.38) !important;
 }
 
-/* ── الحقول ── */
+/* ══════════════════════════════════════════════════════
+   الحقول
+   ══════════════════════════════════════════════════════ */
 html.light .form-input,
 html.light .form-select,
-html.light .form-textarea {
-  background: #d3d0c6;
-  border-color: #c4c0b5;
-  color: #2d2a26;
+html.light .form-textarea,
+html.light select {
+  background: #E8E2D5 !important;
+  border: 1px solid rgba(30,35,48,0.15) !important;
+  color: #1E2330 !important;
 }
 html.light .form-input:focus,
 html.light .form-select:focus,
 html.light .form-textarea:focus {
-  border-color: #a8801a;
-  box-shadow: 0 0 0 3px rgba(168,128,26,.1);
+  border-color: #A07818 !important;
+  background: #EDE8DD !important;
+  box-shadow: 0 0 0 3px rgba(160,120,24,.12) !important;
 }
-html.light .form-input::placeholder {
-  color: #a59f94;
-}
-html.light .form-label {
-  color: #5c574f;
+html.light .form-input::placeholder { color: #9AA0B0 !important; }
+html.light .form-label              { color: #4A5266 !important; }
+html.light .form-hint               { color: #7A8096 !important; }
+
+/* خيارات select */
+html.light .form-select option,
+html.light select option {
+  background: #EEE8DC !important;
+  color: #1E2330 !important;
 }
 
-/* ── الجداول ── */
-html.light table thead th {
-  background: #cdcabf;
-  color: #5c574f;
-  border-bottom: 2px solid #d4d1c8;
+/* ══════════════════════════════════════════════════════
+   الجداول
+   ══════════════════════════════════════════════════════ */
+html.light table thead th,
+html.light .data-table thead th {
+  background: #E3DDD1 !important;
+  color: #4A5266 !important;
+  border-bottom: 2px solid rgba(30,35,48,0.12) !important;
 }
-html.light tbody td {
-  border-bottom-color: #e5e2db;
-  color: #2d2a26;
+html.light tbody td,
+html.light table td {
+  border-bottom: 1px solid rgba(30,35,48,0.07) !important;
+  color: #1E2330 !important;
 }
-html.light tbody tr:hover td {
-  background: rgba(168,128,26,.04);
+html.light tbody tr:hover td,
+html.light table tr:hover td {
+  background: rgba(30,35,48,0.04) !important;
 }
-
-/* ── الشارات ── */
-html.light .badge {
-  background: #cdcabf;
-  color: #5c574f;
-  border-color: #d4d1c8;
-}
-html.light .badge-active {
-  background: rgba(10,128,67,.1);
-  color: #0a8043;
-  border-color: rgba(10,128,67,.25);
-}
-html.light .badge-paused {
-  background: rgba(232,89,12,.1);
-  color: #e8590c;
-  border-color: rgba(232,89,12,.25);
-}
-html.light .badge-delayed {
-  background: rgba(211,47,47,.1);
-  color: #d32f2f;
-  border-color: rgba(211,47,47,.25);
+html.light .admin-table tbody tr:nth-child(even) td {
+  background: rgba(30,35,48,0.025) !important;
 }
 
-/* ── النوافذ المنبثقة ── */
-html.light .modal {
-  background: #d3d0c6;
-  border-color: #d4d1c8;
-  box-shadow: 0 20px 60px rgba(80,70,55,.16);
-}
+/* ══════════════════════════════════════════════════════
+   النوافذ المنبثقة
+   ══════════════════════════════════════════════════════ */
 html.light .modal-overlay {
-  background: rgba(26,31,46,.4);
-  backdrop-filter: blur(4px);
+  background: rgba(20,25,40,0.42) !important;
+  backdrop-filter: blur(4px) !important;
+}
+html.light .modal {
+  background: #EBE5D9 !important;
+  border: 1px solid rgba(30,35,48,0.13) !important;
+  box-shadow: 0 24px 64px rgba(30,35,48,0.18) !important;
 }
 html.light .modal-title {
-  color: #2d2a26;
+  color: #1E2330 !important;
+  border-bottom: 1px solid rgba(30,35,48,0.10) !important;
+}
+html.light .modal .form-input,
+html.light .modal .form-select,
+html.light .modal select {
+  background: #E5DFD2 !important;
+  color: #1E2330 !important;
 }
 
-/* ── شريط التمرير ── */
-html.light ::-webkit-scrollbar-track {
-  background: #cdcabf;
-}
-html.light ::-webkit-scrollbar-thumb {
-  background: #bdb8ab;
+/* ══════════════════════════════════════════════════════
+   شريط التمرير
+   ══════════════════════════════════════════════════════ */
+html.light ::-webkit-scrollbar-track  { background: #E4DDD1 !important; }
+html.light ::-webkit-scrollbar-thumb  {
+  background: rgba(30,35,48,0.20) !important;
   border-radius: 8px;
 }
 html.light ::-webkit-scrollbar-thumb:hover {
-  background: #a8a294;
+  background: rgba(160,120,24,0.45) !important;
 }
 
-/* ── عناوين الصفحات ── */
-html.light .page-title {
-  color: #2d2a26;
+/* ══════════════════════════════════════════════════════
+   الشارات والحالات
+   ══════════════════════════════════════════════════════ */
+html.light .badge {
+  background: #E0DAD0 !important;
+  color: #4A5266 !important;
+  border-color: rgba(30,35,48,0.12) !important;
 }
-html.light .page-sub {
-  color: #9a948a;
+html.light .badge-active  {
+  background: rgba(10,122,63,.10) !important;
+  color: #0A7A3F !important;
+  border-color: rgba(10,122,63,.22) !important;
+}
+html.light .badge-paused  {
+  background: rgba(216,78,8,.10) !important;
+  color: #D84E08 !important;
+  border-color: rgba(216,78,8,.22) !important;
+}
+html.light .badge-delayed {
+  background: rgba(200,40,40,.10) !important;
+  color: #C82828 !important;
+  border-color: rgba(200,40,40,.22) !important;
 }
 
-/* ── العناصر ذات الخلفية البيضاء الشفافة ── */
+/* ══════════════════════════════════════════════════════
+   النصوص العامة
+   ══════════════════════════════════════════════════════ */
+html.light h1,html.light h2,html.light h3,
+html.light .page-title,
+html.light .modal-title,
+html.light td, html.light th,
+html.light .stat-label,
+html.light .team-user-name { color: #1E2330 !important; }
+
+html.light .page-sub,
+html.light .text-muted,
+html.light .form-hint,
+html.light .stat-value { color: #4A5266 !important; }
+
+html.light .text-dim,
+html.light .page-sub { color: #7A8096 !important; }
+
+html.light .topbar-breadcrumb { color: #4A5266 !important; }
+
+/* ══════════════════════════════════════════════════════
+   العناصر ذات خلفية شفافة بيضاء
+   (تُولَّد ديناميكياً في app.js — نحوّلها لكريمي)
+   ══════════════════════════════════════════════════════ */
+html.light [style*="rgba(255,255,255,.025)"],
+html.light [style*="rgba(255,255,255,0.025)"] { background: #EBE5D9 !important; }
 html.light [style*="rgba(255,255,255,.03)"],
-html.light [style*="rgba(255,255,255,0.03)"] {
-  background: #ede9e3 !important;
-}
+html.light [style*="rgba(255,255,255,0.03)"]  { background: #E8E2D6 !important; }
 html.light [style*="rgba(255,255,255,.04)"],
-html.light [style*="rgba(255,255,255,0.04)"] {
-  background: #dcdad2 !important;
-}
+html.light [style*="rgba(255,255,255,0.04)"]  { background: #E3DDD1 !important; }
 html.light [style*="rgba(255,255,255,.05)"],
-html.light [style*="rgba(255,255,255,0.05)"] {
-  background: #cdcabf !important;
-}
+html.light [style*="rgba(255,255,255,0.05)"]  { background: #DDD7CB !important; }
 html.light [style*="rgba(255,255,255,.06)"],
-html.light [style*="rgba(255,255,255,0.06)"] {
-  background: #e5e2db !important;
-}
+html.light [style*="rgba(255,255,255,0.06)"]  { background: #D8D2C6 !important; }
 html.light [style*="rgba(255,255,255,.08)"],
-html.light [style*="rgba(255,255,255,0.08)"] {
-  background: #c8c4b8 !important;
+html.light [style*="rgba(255,255,255,0.08)"]  { background: #D2CCBf !important; }
+html.light [style*="rgba(255,255,255,.1)"],
+html.light [style*="rgba(255,255,255,0.1)"]   { background: #CCCABC !important; }
+html.light [style*="rgba(255,255,255,.12)"],
+html.light [style*="rgba(255,255,255,0.12)"]  { background: #C8C1B4 !important; }
+html.light [style*="rgba(0,0,0,.2)"],
+html.light [style*="rgba(0,0,0,0.2)"]         { background: rgba(30,35,48,0.06) !important; }
+html.light [style*="rgba(0,0,0,.3)"],
+html.light [style*="rgba(0,0,0,0.3)"]         { background: rgba(30,35,48,0.08) !important; }
+
+/* ══════════════════════════════════════════════════════
+   Kanban
+   ══════════════════════════════════════════════════════ */
+html.light .kanban-col {
+  background: #E3DDD1 !important;
+  border-color: rgba(30,35,48,0.10) !important;
+}
+html.light .kanban-card {
+  background: #EBE5D9 !important;
+  border-color: rgba(30,35,48,0.10) !important;
+  box-shadow: 0 2px 8px rgba(30,35,48,0.05) !important;
 }
 
-/* ── شريط المزامنة ── */
-html.light #syncPill {
-  background: rgba(10,128,67,.08) !important;
-  border-color: rgba(10,128,67,.2) !important;
-  color: #0a8043 !important;
-}
-
-/* ── الرسوم البيانية والحاويات ── */
+/* ══════════════════════════════════════════════════════
+   الرسوم البيانية وحاويات البيانات
+   ══════════════════════════════════════════════════════ */
 html.light .chart-container,
 html.light .table-wrap {
-  background: #d3d0c6;
+  background: #EBE5D9 !important;
+  border-color: rgba(30,35,48,0.10) !important;
 }
 
-/* ── انتقال سلس عند تبديل الوضع ── */
+/* ══════════════════════════════════════════════════════
+   شريط الحالة السفلي
+   ══════════════════════════════════════════════════════ */
+html.light #syncPill,
+html.light .status-bar,
+html.light #statusBar {
+  background: rgba(30,35,48,0.06) !important;
+  border-color: rgba(30,35,48,0.12) !important;
+  color: #4A5266 !important;
+}
+
+/* ══════════════════════════════════════════════════════
+   Toast إشعارات
+   ══════════════════════════════════════════════════════ */
+html.light .toast {
+  background: #EBE5D9 !important;
+  color: #1E2330 !important;
+  border: 1px solid rgba(30,35,48,0.12) !important;
+  box-shadow: 0 6px 24px rgba(30,35,48,0.12) !important;
+}
+
+/* ══════════════════════════════════════════════════════
+   انتقال سلس
+   ══════════════════════════════════════════════════════ */
 html.light body,
 html.light .card,
 html.light .sidebar,
 html.light .topbar,
 html.light .btn,
-html.light .form-input {
-  transition: background-color .3s ease, color .3s ease, border-color .3s ease;
+html.light .form-input,
+html.light .modal {
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   تحسينات نوافذ لوحة الأدمن — تعمل في الوضعين
+   تحسينات نوافذ الأدمن — تعمل في الوضعين
    ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ── النوافذ المنبثقة — تنسيق احترافي ── */
-.modal-overlay {
-  animation: modalFadeIn .25s ease;
-}
+.modal-overlay { animation: modalFadeIn .25s ease; }
 @keyframes modalFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-.modal {
-  animation: modalSlideUp .3s cubic-bezier(.16,1,.3,1);
-}
+.modal { animation: modalSlideUp .3s cubic-bezier(.16,1,.3,1); }
 @keyframes modalSlideUp {
   from { transform: translateY(24px) scale(.98); opacity: 0; }
   to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 
-/* ── تبويبات الأدمن — أوضح ── */
-#adminTab_tenants, #adminTab_ai, #adminTab_gdrive, #adminTab_notif {
+#adminTab_tenants,#adminTab_ai,#adminTab_gdrive,#adminTab_notif {
   transition: all .2s ease;
 }
-
-/* ── جداول الأدمن — صفوف متناوبة ── */
-.admin-table tbody tr:nth-child(even) td {
-  background: rgba(128,128,128,.03);
-}
-
-/* ── شارات الأدمن ── */
+.admin-table tbody tr:nth-child(even) td { background: rgba(128,128,128,.03); }
 .admin-stat-card {
   transition: transform .2s ease, box-shadow .2s ease;
 }
-.admin-stat-card:hover {
-  transform: translateY(-2px);
-}
+.admin-stat-card:hover { transform: translateY(-2px); }
 
+/* ── في الوضع الفاتح: صفوف أدمن متناوبة ── */
 html.light .admin-table tbody tr:nth-child(even) td {
-  background: #ede9e3;
+  background: rgba(30,35,48,0.03) !important;
 }
-html.light .modal {
-  box-shadow: 0 24px 64px rgba(80,70,55,.14);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   لمسات احترافية — وضع فاتح غير ساطع (بيج/رمادي محسوس)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* خلفية رمادية بيج واضحة — ليست بيضاء */
-html.light body {
-  background: #d4d2c8 !important;
-  background-attachment: fixed;
-}
-
-/* الشريط الجانبي — رمادي بيج أغمق قليلاً */
-html.light .sidebar,
-html.light .app-sidebar {
-  background: #cac7bb !important;
-  border-color: #b5b1a3 !important;
-}
-
-/* الشريط العلوي */
-html.light .topbar {
-  background: #cac7bb !important;
-  border-bottom: 1px solid #b5b1a3 !important;
-}
-
-/* البطاقات — بيج هادئ واضح (ليس أبيض) */
-html.light .card,
-html.light .stat-card {
-  background: #e3e1d7 !important;
-  border-color: #c2bdae !important;
-  box-shadow: 0 2px 8px rgba(70,62,48,.08) !important;
-}
-html.light .card:hover,
-html.light .stat-card:hover {
-  box-shadow: 0 5px 16px rgba(70,62,48,.12) !important;
-  background: #e8e6dc !important;
-}
-
-/* الحقول — بيج فاتح واضح */
-html.light .form-input,
-html.light .form-select,
-html.light .form-textarea {
-  background: #eceae0 !important;
-  border-color: #bdb8a8 !important;
-  color: #2d2a24 !important;
-}
-html.light .form-input:focus,
-html.light .form-select:focus,
-html.light .form-textarea:focus {
-  border-color: #a8801a !important;
-  background: #f0eee4 !important;
-}
-
-/* الجداول */
-html.light table thead th {
-  background: #c5c1b2 !important;
-  color: #4a4640 !important;
-  border-bottom: 2px solid #b5b1a3 !important;
-}
-html.light tbody td {
-  border-bottom-color: #d0ccbe !important;
-  color: #2d2a24 !important;
-}
-html.light tbody tr:hover td {
-  background: rgba(168,128,26,.08) !important;
-}
-
-/* النوافذ المنبثقة */
-html.light .modal {
-  background: #e3e1d7 !important;
-  border-color: #c2bdae !important;
-  box-shadow: 0 20px 50px rgba(50,44,34,.25) !important;
-}
-html.light .modal-overlay {
-  background: rgba(45,40,30,.45) !important;
-}
-
-/* الأزرار الثانوية */
-html.light .btn-ghost {
-  background: #d4d1c5 !important;
-  border-color: #bdb8a8 !important;
-  color: #2d2a24 !important;
-}
-html.light .btn-ghost:hover {
-  background: #c8c4b6 !important;
-}
-
-/* شريط التمرير */
-html.light ::-webkit-scrollbar-thumb {
-  background: #b0ab99 !important;
-  border-radius: 8px;
-}
-html.light ::-webkit-scrollbar-thumb:hover {
-  background: #9a9482 !important;
-}
-html.light ::-webkit-scrollbar-track {
-  background: #cdcabc !important;
-}
-
-/* العناصر البيضاء الشفافة — تُحوّل لبيج */
-html.light [style*="rgba(255,255,255,.03)"],
-html.light [style*="rgba(255,255,255,0.03)"] { background: #d8d5c9 !important; }
-html.light [style*="rgba(255,255,255,.04)"],
-html.light [style*="rgba(255,255,255,0.04)"] { background: #d3d0c4 !important; }
-html.light [style*="rgba(255,255,255,.05)"],
-html.light [style*="rgba(255,255,255,0.05)"] { background: #cecbbe !important; }
-html.light [style*="rgba(255,255,255,.06)"],
-html.light [style*="rgba(255,255,255,0.06)"] { background: #c9c6b8 !important; }
-html.light [style*="rgba(255,255,255,.08)"],
-html.light [style*="rgba(255,255,255,0.08)"] { background: #c2bfb0 !important; }
-
-/* الروابط النشطة */
-html.light .nav-link {
-  color: #5c574c !important;
-}
-html.light .nav-link:hover {
-  background: rgba(168,128,26,.1) !important;
-  color: #2d2a24 !important;
-}
-html.light .nav-link.active {
-  background: linear-gradient(135deg, rgba(168,128,26,.18), rgba(168,128,26,.07)) !important;
-  color: #8a6c14 !important;
-}
-
-/* النصوص العامة */
-html.light .page-title { color: #2d2a24 !important; }
-html.light .page-sub   { color: #8a847a !important; }
-html.light .topbar-breadcrumb { color: #5c574c !important; }
-
-/* الشارات */
-html.light .badge {
-  background: #d0ccbe !important;
-  color: #5c574c !important;
-  border-color: #bdb8a8 !important;
-}
-
-/* الأفاتار */
-html.light .topbar-avatar {
-  background: linear-gradient(135deg, #a8801a, #c49832) !important;
-  color: #fff !important;
-}
-
-/* ── إصلاح القوائم المنسدلة في الوضع الفاتح ── */
-html.light .form-select option,
-html.light select option {
-  background: #f9f7f3 !important;
-  color: #2d2a24 !important;
-}
-html.light .form-select,
-html.light select {
-  background: #eceae0 !important;
-  color: #2d2a24 !important;
-  border-color: #bdb8a8 !important;
-}
-html.light .modal .form-select,
-html.light .modal select,
-html.light .modal-overlay .form-select,
-html.light .modal-overlay select {
-  background: #eceae0 !important;
-  color: #2d2a24 !important;
-}
-
-/* ── تعميق الكتابة في الوضع الفاتح ── */
-html.light body,
-html.light .page-title,
-html.light .team-user-name,
-html.light td,
-html.light th,
-html.light .stat-label,
-html.light .form-label,
-html.light .modal-title { color: #1a1714 !important; }
-
-html.light .page-sub,
-html.light .stat-value { color: #3d3830 !important; }
-
-html.light .nav-link { color: #3d3830 !important; }
-html.light .nav-link.active { color: #8a6c14 !important; }
-
-html.light .topbar-breadcrumb { color: #3d3830 !important; }
-
-html.light .card,
-html.light .stat-card { color: #1a1714 !important; }
