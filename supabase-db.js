@@ -25,8 +25,32 @@
    ⚙️  إعداد Supabase — عدّل هذين السطرين فقط
    اذهب: Supabase Dashboard → Settings → API
 ══════════════════════════════════════════════════════ */
-const SUPABASE_URL     = 'https://udinbxcnehcevajhrral.supabase.co';
-const SUPABASE_KEY     = 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ';   // مفتاح anon/public
+// ══════════════════════════════════════════════════════════════════
+//  ⚠️  مطلوب: ضع مفتاحك الصحيح من Supabase Dashboard
+//  Supabase Dashboard → Settings → API
+//  انسخ: Project URL  +  Publishable key (يبدأ بـ sb_publishable_) أو Legacy anon key (يبدأ بـ eyJhbGci...)
+//  ملاحظة: Supabase 2025 → استخدم Publishable key من Settings → API Keys
+// ══════════════════════════════════════════════════════════════════
+const SUPABASE_URL = (function() {
+  // 1. من localStorage (إذا حُفظ من لوحة الإعدادات)
+  try {
+    const _lsCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    if (_lsCfg.url && _lsCfg.url.includes('supabase.co')) return _lsCfg.url;
+  } catch(e) {}
+  // 2. القيمة الافتراضية — عدّلها مباشرة هنا
+  return 'https://udinbxcnehcevajhrral.supabase.co';
+})();
+
+const SUPABASE_KEY = (function() {
+  // 1. من localStorage
+  try {
+    const _lsCfg = JSON.parse(localStorage.getItem('sbtp_supabase_config') || '{}');
+    // يدعم المفاتيح الجديدة (sb_publishable_) والقديمة (eyJ)
+    if (_lsCfg.anonKey && (_lsCfg.anonKey.startsWith('eyJ') || _lsCfg.anonKey.startsWith('sb_'))) return _lsCfg.anonKey;
+  } catch(e) {}
+  // 2. القيمة الافتراضية — Publishable key من Supabase Dashboard → Settings → API Keys
+  return 'sb_publishable_kl2FcK_mMUfQ_EqGK21KkA_4M4ZEdMZ';
+})();
 
 // ─── LS_KEY: مفتاح localStorage الموحّد ────────────────
 const SB_LS_KEY = 'sbtp_supabase_config';
@@ -245,6 +269,10 @@ function _cleanForSupabase_INTERNAL(table, record) {
     clean[col] = v;
   }
 
+  // ✅ FIX: احذف الحقول الداخلية قبل الإرسال لـ Supabase
+  delete clean._localUpdated;
+  delete clean._fromSupabase;
+  delete clean._pendingSync;
   return clean;
 }
 
@@ -273,6 +301,8 @@ const SupabaseClient = {
 
   async _request(method, path, body = null, params = '') {
     if (!this._url || !this._key) throw new Error('Supabase غير مُهيَّأ');
+    // ✅ منع طلبات بـ key فارغ أو قصير (يتسبب في CORS error من Supabase)
+    if (!this._key || this._key.length < 10) throw new Error('Supabase key غير صالح');
     const url = `${this._url}/rest/v1/${path}${params ? '?' + params : ''}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this._timeout);
@@ -287,6 +317,12 @@ const SupabaseClient = {
         throw new Error(err.message || err.details || `HTTP ${resp.status}`);
       }
       return text ? JSON.parse(text) : [];
+    } catch(fetchErr) {
+      // ✅ التعامل مع CORS/network errors بهدوء (لا crash)
+      if (fetchErr.name === 'TypeError' && fetchErr.message.includes('fetch')) {
+        throw new Error('خطأ شبكة — تحقق من إعدادات Supabase (CORS/URL)');
+      }
+      throw fetchErr;
     } finally {
       clearTimeout(timer);
     }
@@ -838,7 +874,8 @@ const DBHybrid = {
       'custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations',
       'leave_requests','worker_warnings','worker_overtime',
-      'supplier_prices','supplier_obligations','supplier_purchases'
+      'supplier_prices','supplier_obligations','supplier_purchases',
+      'suppliers','subscription_invoices'
     ]);
     if (!SYNCABLE.has(key)) return;
     if (!Array.isArray(newVal) || !Array.isArray(prevVal)) {
@@ -1089,7 +1126,8 @@ if (!navigator.onLine || !this._useSupabase) {
         'materials','stock_movements','invoices','salary_records','kanban_tasks',
         'documents','obligations','notes','notifications','users',
         'leave_requests','worker_warnings','worker_overtime',
-        'supplier_purchases','supplier_prices','supplier_obligations'
+        'supplier_purchases','supplier_prices','supplier_obligations',
+        'suppliers','subscription_invoices'
       ];
 
       let totalRemoved = 0;
@@ -1422,7 +1460,8 @@ if (!navigator.onLine || !this._useSupabase) {
       'custom_roles','equipment_locations','tenders','tender_offers',
       'bank_transactions','signatures','ai_conversations',
       'leave_requests','worker_warnings','worker_overtime',
-      'supplier_prices','supplier_obligations','supplier_purchases'
+      'supplier_prices','supplier_obligations','supplier_purchases',
+      'suppliers','subscription_invoices'
     ]);
     if (!SYNCABLE.has(key)) return;
 
@@ -1615,12 +1654,16 @@ if (!navigator.onLine || !this._useSupabase) {
       // ③ جداول الموارد البشرية
       'leave_requests','worker_warnings','worker_overtime',
       // ④ جداول الموردين
-      'supplier_purchases','supplier_prices','supplier_obligations'
+      'supplier_purchases','supplier_prices','supplier_obligations','suppliers',
+      // ⑤ فواتير الاشتراك
+      'subscription_invoices'
     ];
     // الجداول العامة (تُسحب كاملاً للجميع)
     const globalTables = ['plans','tenants','users'];
 
     // ═══ ① السحب من Supabase أولاً ═══
+    // جداول محلية فقط — لا توجد في Supabase
+    const LOCAL_ONLY = new Set(['subscription_invoices','suppliers','supplier_prices','supplier_obligations','supplier_purchases','leave_requests','worker_warnings','worker_overtime']);
     console.log('🔽 سحب البيانات من Supabase...');
     try {
       // الجداول العامة
@@ -1663,6 +1706,8 @@ if (!navigator.onLine || !this._useSupabase) {
       // الجداول الخاصة بالمؤسسة
       if (tid || isAdmin) {
         for (const t of tenantTables) {
+          // ✅ تجاهل الجداول المحلية فقط
+          if (LOCAL_ONLY.has(t)) continue;
           try {
             // المستخدم العادي: يسحب فقط بيانات مؤسسته
             // الأدمن: يسحب كل شيء
@@ -1683,22 +1728,15 @@ if (!navigator.onLine || !this._useSupabase) {
               // دمج مع المحلي (المحلي الذي ليس له id في البعيد = جديد لم يُرفع)
               const local = this.get(t) || [];
               const remoteIds = new Set(filteredRemote.map(r => Number(r.id)));
-
-              // ✅ دالة fingerprint لكشف التكرار عبر الـ IDs المؤقتة
-              const _fp = r => [r.tenant_id, r.name, r.start_date||'', r.budget||0, r.email||'', r.phone||''].join('|');
-              const remoteFPs = new Set(filteredRemote.map(_fp));
-
-              const localUnsynced = local.filter(r => {
-                if (remoteIds.has(Number(r.id))) return false; // موجود بنفس ID
-                if (!isAdmin && Number(r.tenant_id) !== Number(tid)) return false;
-                if (t === 'tenants' && deletedTids.has(Number(r.id))) return false;
-                if (r.tenant_id && deletedTids.has(Number(r.tenant_id))) return false;
-                if (deletedIds.has(String(r.id))) return false; // محذوف من Supabase
-                // ✅ إذا كان ID مؤقت (timestamp) وله مقابل في Remote بنفس البيانات → استبعده (مرفوع بالفعل)
-                const isTemp = Number(r.id) > 1_000_000_000_000;
-                if (isTemp && remoteFPs.has(_fp(r))) return false;
-                return true;
-              });
+              const localUnsynced = local.filter(r =>
+                !remoteIds.has(Number(r.id)) &&
+                (isAdmin || Number(r.tenant_id) === Number(tid)) &&
+                // ✅ استبعاد المحذوفة من المحلي
+                (t !== 'tenants' || !deletedTids.has(Number(r.id))) &&
+                (!r.tenant_id || !deletedTids.has(Number(r.tenant_id))) &&
+                // ✅ استبعاد أي سجل تم حذفه مسبقاً من Supabase
+                !deletedIds.has(String(r.id))
+              );
               // ✅ Supabase هو المصدر الحقيقي — remote يحكم
               const merged = [...filteredRemote, ...localUnsynced];
               localStorage.setItem('sbtp5_' + t, JSON.stringify(merged));
@@ -1908,7 +1946,7 @@ const SupabaseSettings = {
           <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.3rem;font-weight:700">🔑 Supabase Anon Key (Public Key)</label>
           <div style="position:relative">
             <input class="form-input" id="sbKey" type="password"
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              placeholder="sb_publishable_... أو eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               dir="ltr" value="${cfg.anonKey || ''}"
               style="font-family:monospace;font-size:0.75rem;padding-left:2.5rem;width:100%">
             <button onclick="document.getElementById('sbKey').type=document.getElementById('sbKey').type==='password'?'text':'password'"
@@ -2192,6 +2230,9 @@ const SmartRealtime = (() => {
   /* ─── الانضمام لقناة جدول ──────────────────── */
   function _joinTable(table) {
     if (_joinedTopics.has(table)) return;
+    // لا نُضيف الجداول المحلية للـ Realtime
+    const _LOCAL_ONLY_RT = new Set(['subscription_invoices','suppliers','supplier_prices','supplier_obligations','supplier_purchases']);
+    if (_LOCAL_ONLY_RT.has(table)) return;
     _joinedTopics.add(table);
 
     // بناء filter للمؤسسة فقط (إذا توفّر tenant_id)
@@ -2235,48 +2276,8 @@ const SmartRealtime = (() => {
 
       let updated;
       if (eventType === 'INSERT') {
-        // ── مكافحة التكرار: فحص بالـ ID أولاً ──
-        const existsById = current.find(r => r.id === newRecord.id);
-        // ── فحص إضافي: هل هذا ID وصل من sbSync للتو؟ (يحمي من race condition) ──
-        let _isKnownNewId = false;
-        try {
-          const _pr = JSON.parse(localStorage.getItem('sbtp5_pending_real_ids') || '{}');
-          const _list = (_pr[table] || []).filter(e => Date.now() - e.ts < 30000); // 30 ثانية
-          _isKnownNewId = _list.some(e => e.newId === newRecord.id);
-          if (_isKnownNewId) {
-            // نظّف هذا الـ entry
-            _pr[table] = _list.filter(e => e.newId !== newRecord.id);
-            localStorage.setItem('sbtp5_pending_real_ids', JSON.stringify(_pr));
-          }
-        } catch(_) {}
-        if (existsById || _isKnownNewId) {
-          // السجل موجود بالفعل (بالـ ID الحقيقي أو ثبّتناه من sbSync) → تحديث فقط
-          updated = _isKnownNewId && !existsById
-            ? current.map(r => r.id === newRecord.id ? { ...r, ...newRecord } : r)
-            : current;
-        } else {
-          // ── فحص ثانٍ: هل يوجد سجل بـ ID مؤقت (timestamp) لنفس البيانات؟
-          // يحدث عند: DB.set() → sbSync() → Realtime يرجع ID الجديد
-          // بينما المحلي لا يزال يحمل الـ ID المؤقت
-          const isTempLocal = r => r.id && Number(r.id) > 1_000_000_000_000;
-          const fingerprint = rec => [
-            rec.tenant_id, rec.name,
-            rec.start_date || '', rec.budget || 0,
-            rec.email || '', rec.phone || '',
-            rec.wilaya || '', rec.project_type || ''
-          ].join('|');
-          const newFP = fingerprint(newRecord);
-          const dupByFP = current.find(r => isTempLocal(r) && fingerprint(r) === newFP);
-          if (dupByFP) {
-            // ← استبدل السجل المؤقت بالسجل الحقيقي من Supabase (يصحح الـ ID أيضاً)
-            updated = current.map(r => (r === dupByFP ? { ...r, ...newRecord } : r));
-            // حدّث localStorage بالـ ID الجديد فوراً
-            try { localStorage.setItem(lsKey, JSON.stringify(updated)); } catch(_) {}
-            // نجاح — لا حاجة لإضافة سجل جديد
-          } else {
-            updated = [...current, newRecord];
-          }
-        }
+        const exists = current.find(r => r.id === newRecord.id);
+        updated = exists ? current : [...current, newRecord];
       } else if (eventType === 'UPDATE') {
         updated = current.map(r => r.id === newRecord.id ? { ...r, ...newRecord } : r);
         if (!updated.find(r => r.id === newRecord.id)) updated.push(newRecord);
@@ -2391,12 +2392,26 @@ const SmartRealtime = (() => {
     /** بدء الاتصال */
     start(tenantId) {
       if (_running) return;
+      // ✅ تحقق من صحة tenantId — لا نبدأ بـ null أو قيم عددية مشبوهة
+      const _validTid = tenantId && String(tenantId).length > 2 ? tenantId : null;
       _running  = true;
-      _tenantId = tenantId || null;
+      _tenantId = _validTid;
 
-      // Supabase 2025: polling mode مباشرة
-      _startPollingFallback();
-      console.log('⚡ Realtime: polling mode نشط');
+      // ✅ تأخير بسيط لضمان تحميل Supabase key قبل بدء الـ polling
+      setTimeout(() => {
+        if (typeof SupabaseClient !== 'undefined' && SupabaseClient._key && SupabaseClient._key.length > 10) {
+          _startPollingFallback();
+          console.log('⚡ Realtime: polling mode نشط');
+        } else {
+          // إعادة المحاولة بعد ثانية إضافية
+          setTimeout(() => {
+            if (typeof SupabaseClient !== 'undefined' && SupabaseClient._key && SupabaseClient._key.length > 10) {
+              _startPollingFallback();
+              console.log('⚡ Realtime: polling mode نشط (retry)');
+            }
+          }, 2000);
+        }
+      }, 500);
     },
 
     /** إيقاف الاتصال */
@@ -2538,20 +2553,41 @@ const SmartRealtime = (() => {
       if (typeof DBHybrid === 'undefined' || !DBHybrid._useSupabase) return;
       if (!_tenantId) return;
       if (typeof SupabaseClient === 'undefined' || !SupabaseClient._url) return;
+      // ✅ تحقق من صحة الـ API key قبل أي طلب (يمنع CORS error بسبب key فارغ)
+      if (!SupabaseClient._key || SupabaseClient._key.length < 10) return;
+      // ✅ تحقق من أن tenant_id ليس قيمة افتراضية خاطئة
+      const _tCheck = typeof Auth !== 'undefined' && Auth.getUser ? Auth.getUser() : null;
+      if (!_tCheck || !_tCheck.tenant_id) return;
 
       try {
-        // سحب الإشعارات عبر SupabaseClient (نفس آلية باقي التطبيق)
+        // ✅ الأدمن يسحب كل الإشعارات، المستخدم العادي يسحب إشعارات مؤسسته فقط
+        let isAdminUser = false;
+        try {
+          const u = (typeof Auth !== 'undefined') ? Auth.getUser() : null;
+          isAdminUser = u && u.is_admin === true;
+        } catch(_) {}
+
         const remote = await SupabaseClient.select(
           'notifications',
-          { tenant_id: _tenantId },
-          { limit: 30 }
+          isAdminUser ? {} : { tenant_id: _tenantId },
+          { limit: isAdminUser ? 100 : 30 }
         );
         if (Array.isArray(remote) && remote.length) {
           const lsKey = 'sbtp5_notifications';
           const local = JSON.parse(localStorage.getItem(lsKey) || '[]');
           const remoteIds = new Set(remote.map(r => Number(r.id)));
           const localOnly = local.filter(r => !remoteIds.has(Number(r.id)));
+          const prevPending = local.filter(r => r.status === 'pending').length;
           localStorage.setItem(lsKey, JSON.stringify([...remote, ...localOnly]));
+
+          // ✅ إذا الأدمن في صفحة الأدمن ووصل إشعار جديد — حدّث تلقائياً
+          if (isAdminUser && typeof App !== 'undefined' && App.currentPage === 'admin') {
+            const newPending = remote.filter(r => r.status === 'pending').length;
+            if (newPending > prevPending) {
+              if (typeof Toast !== 'undefined') Toast.info('🔔 إشعار جديد وصل');
+              try { App.navigate('admin'); } catch(_) {}
+            }
+          }
         }
       } catch(_) {
         // فشل صامت — المحاولة التالية بعد 25 ث

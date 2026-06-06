@@ -144,7 +144,10 @@ window.AuditLog = {
 window.SmartBackup = {
   TABLES: ['projects','workers','equipment','transactions','attendance','materials',
            'stock_movements','invoices','salary_records','kanban_tasks','documents',
-           'obligations','notes','tenders','tender_offers','bank_transactions'],
+           'obligations','notes','tenders','tender_offers','bank_transactions',
+           // ✅ v7.4 — جداول الموردين وشؤون الموظفين (مضافة للنسخ الاحتياطي)
+           'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+           'leave_requests','worker_warnings','worker_overtime'],
 
   // تصدير JSON كامل
   exportAll() {
@@ -154,7 +157,7 @@ window.SmartBackup = {
       exported_at: new Date().toISOString(),
       tenant_id:   user.tenant_id,
       tenant_name: (Auth.getTenant() || {}).name,
-      app_version: 'SmartStruct v7.2',
+      app_version: 'SmartStruct v7.4',
       tables: {}
     };
 
@@ -1164,21 +1167,46 @@ window.MobileMode = {
 // ════════════════════════════════════════════════════════════════════
 window.SmartThemes = {
   THEMES: {
-    dark:  { name: 'داكن', bg:'#0a0e1a', fg:'#E0E0E0', card:'#1a1f2e', accent:'#D4AF37' },
-    light: { name: 'فاتح', bg:'#F5F7FA', fg:'#1a1a1a', card:'#FFFFFF', accent:'#D4AF37' },
-    gold:  { name: 'ذهبي', bg:'#1A1410', fg:'#F5E6C8', card:'#2A2018', accent:'#FFD700' }
+    dark:  { name: 'داكن', bg:'#060A10', fg:'#EDF2F7', card:'#0F1828', accent:'#D4AF37' },
+    light: { name: 'فاتح', bg:'#EEE8DC', fg:'#1E2330', card:'#EBE5D9', accent:'#A07818' },
+    gold:  { name: 'ذهبي', bg:'#100D07', fg:'#F5E6C8', card:'#22180E', accent:'#FFD700' }
   },
 
   apply(themeName) {
     const t = this.THEMES[themeName];
     if (!t) return;
     const root = document.documentElement.style;
-    root.setProperty('--theme-bg', t.bg);
-    root.setProperty('--theme-fg', t.fg);
-    root.setProperty('--theme-card', t.card);
-    root.setProperty('--theme-accent', t.accent);
+
+    // ── تطبيق متغيرات CSS ──
+    root.setProperty('--theme-bg',    t.bg);
+    root.setProperty('--theme-fg',    t.fg);
+    root.setProperty('--theme-card',  t.card);
+    root.setProperty('--theme-accent',t.accent);
+    root.setProperty('--bg',          t.bg);
+    root.setProperty('--text',        t.fg);
+
+    // ── تطبيق class على <html> للـ CSS selectors (html.light) ──
+    const htmlEl = document.documentElement;
+    htmlEl.classList.remove('dark','light','gold');
+    htmlEl.classList.add(themeName);
     document.body.dataset.theme = themeName;
+    htmlEl.dataset.theme = themeName;
+
     localStorage.setItem('sbtp_theme', themeName);
+
+    // ── تحديث عناصر ذات خلفية ثابتة ──
+    const topbar  = document.querySelector('.topbar');
+    const sidebar = document.querySelector('.sidebar, .app-sidebar');
+    if (themeName === 'light') {
+      if (topbar)  topbar.style.background  = 'rgba(238,232,220,0.95)';
+      if (sidebar) sidebar.style.background = '#E0D9CC';
+    } else if (themeName === 'gold') {
+      if (topbar)  topbar.style.background  = 'rgba(16,13,7,0.90)';
+      if (sidebar) sidebar.style.background = '#1A1410';
+    } else {
+      if (topbar)  topbar.style.background  = '';
+      if (sidebar) sidebar.style.background = '';
+    }
   },
 
   init() {
@@ -1191,7 +1219,7 @@ window.SmartThemes = {
     const cur = localStorage.getItem('sbtp_theme') || 'dark';
     const next = order[(order.indexOf(cur) + 1) % order.length];
     this.apply(next);
-    if (typeof Toast !== 'undefined') Toast.info(`🎨 ${this.THEMES[next].name}`);
+    if (typeof Toast !== 'undefined') Toast.info('🎨 ' + this.THEMES[next].name);
   }
 };
 

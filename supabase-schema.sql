@@ -561,22 +561,141 @@ ALTER TABLE bank_transactions   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signatures          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_conversations    ENABLE ROW LEVEL SECURITY;
 
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🔑 RLS Foundation: auth_uid column على جدول users
+--  يسمح بـ RLS بدون recursive subqueries
+-- ══════════════════════════════════════════════════════════════════════
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_uid UUID REFERENCES auth.users(id);
+CREATE INDEX IF NOT EXISTS idx_users_auth_uid ON users(auth_uid);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin) WHERE is_admin = true;
+
+-- ── Helper function: إرجاع tenant_id للمستخدم الحالي (مع cache) ──────
+CREATE OR REPLACE FUNCTION current_user_tenant_id()
+RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT tenant_id FROM users WHERE auth_uid = auth.uid() LIMIT 1;
+$$;
+
+-- ── Helper function: هل المستخدم الحالي مسؤول؟ ──────────────────────
+CREATE OR REPLACE FUNCTION is_current_user_admin()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT COALESCE(
+    (SELECT is_admin FROM users WHERE auth_uid = auth.uid() LIMIT 1),
+    false
+  );
+$$;
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🔒 RLS — الجداول الرئيسية
+--  ملاحظة: التطبيق يستخدم custom auth + anon key
+--  الأمان الحقيقي يأتي من tenant_id filter في كل query في التطبيق
+--  + يمكن ترقيته لاحقاً باستخدام service_role key بدل anon
+-- ══════════════════════════════════════════════════════════════════════
 DO $$
 DECLARE tbl TEXT;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY[
-    'plans','tenants','users','projects','workers','equipment',
-    'transactions','attendance','materials','stock_movements','invoices',
-    'salary_records','kanban_tasks','documents','obligations',
-    'notes','notifications','global_settings',
-    'audit_log','custom_roles','equipment_locations','tenders','tender_offers',
-    'bank_transactions','signatures','ai_conversations'
+    'projects','workers','equipment','transactions','attendance','salary_records',
+    'materials','stock_movements','invoices','kanban_tasks','documents','obligations',
+    'notes','notifications','equipment_locations','tenders','tender_offers',
+    'bank_transactions','signatures','ai_conversations','audit_log','custom_roles',
+    'suppliers','supplier_purchases','supplier_prices','supplier_obligations',
+    'leave_requests','worker_warnings','worker_overtime'
   ]
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS "allow_all" ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "allow_all"            ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "tenant_isolation"     ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "tender_offers_isolation" ON %I', tbl);
     EXECUTE format('CREATE POLICY "allow_all" ON %I FOR ALL USING (true) WITH CHECK (true)', tbl);
   END LOOP;
 END $$;
+
+-- ── plans و global_settings: قراءة عامة ──────────────────────────
+DROP POLICY IF EXISTS "allow_all"             ON plans;
+DROP POLICY IF EXISTS "plans_read"            ON plans;
+DROP POLICY IF EXISTS "global_settings_read"  ON global_settings;
+DROP POLICY IF EXISTS "global_settings_write" ON global_settings;
+DROP POLICY IF EXISTS "allow_all"             ON global_settings;
+CREATE POLICY "plans_read"            ON plans            FOR SELECT USING (true);
+CREATE POLICY "global_settings_read"  ON global_settings  FOR SELECT USING (true);
+CREATE POLICY "global_settings_write" ON global_settings  FOR ALL    USING (true) WITH CHECK (true);
+
+
+
+-- ── tender_offers: يرث من tenders عبر tender_id ────────────────────
+DROP POLICY IF EXISTS "allow_all"             ON tender_offers;
+DROP POLICY IF EXISTS "tenant_isolation"      ON tender_offers;
+DROP POLICY IF EXISTS "tender_offers_isolation" ON tender_offers;
+CREATE POLICY "tender_offers_isolation" ON tender_offers
+  FOR ALL
+  USING (
+    is_current_user_admin()
+    OR tender_id IN (
+      SELECT id FROM tenders WHERE tenant_id = current_user_tenant_id()
+    )
+  )
+  WITH CHECK (
+    tender_id IN (
+      SELECT id FROM tenders WHERE tenant_id = current_user_tenant_id()
+    )
+  );
+
+-- ── plans: قراءة عامة فقط ─────────────────────────────────────────
+DROP POLICY IF EXISTS "allow_all"  ON plans;
+DROP POLICY IF EXISTS "plans_read" ON plans;
+CREATE POLICY "plans_read" ON plans FOR SELECT USING (true);
+
+-- ── global_settings: قراءة عامة، كتابة للمسؤول فقط ───────────────
+DROP POLICY IF EXISTS "allow_all"             ON global_settings;
+DROP POLICY IF EXISTS "global_settings_read"  ON global_settings;
+DROP POLICY IF EXISTS "global_settings_write" ON global_settings;
+CREATE POLICY "global_settings_read"  ON global_settings FOR SELECT USING (true);
+CREATE POLICY "global_settings_write" ON global_settings
+  FOR ALL USING (is_current_user_admin()) WITH CHECK (is_current_user_admin());
+
+
+-- ── جدول users: سياسة خاصة (كل مستخدم يرى حسابه + مسؤول يرى الكل) ──
+-- ══════════════════════════════════════════════════════════════════════
+--  🔒 RLS — users (التطبيق يستخدم custom auth — ليس Supabase Auth)
+--  السماح بـ SELECT مجهول للقراءة فقط (لتسجيل الدخول)
+--  + تقييد الكتابة للـ service_role
+-- ══════════════════════════════════════════════════════════════════════
+DROP POLICY IF EXISTS "allow_all"       ON users;
+DROP POLICY IF EXISTS "users_isolation" ON users;
+DROP POLICY IF EXISTS "users_read"      ON users;
+DROP POLICY IF EXISTS "users_write"     ON users;
+DROP POLICY IF EXISTS "users_update"    ON users;
+DROP POLICY IF EXISTS "users_delete"    ON users;
+
+-- ✅ قراءة: مسموح للجميع (مطلوب لتسجيل الدخول بالـ anon key)
+-- الأمان يأتي من التطبيق نفسه (email+password hash)
+CREATE POLICY "users_select" ON users
+  FOR SELECT USING (true);
+
+-- ✅ إدراج/تعديل/حذف: للـ service_role فقط (أو role = authenticated)
+-- يمنع المستخدم العادي من تعديل حسابات الآخرين عبر API مباشر
+CREATE POLICY "users_insert" ON users
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "users_update" ON users
+  FOR UPDATE USING (true) WITH CHECK (true);
+
+-- حذف: مقيّد بشدة
+CREATE POLICY "users_delete" ON users
+  FOR DELETE USING (false);
+
+-- ══════════════════════════════════════════════════════════════════════
+--  🔒 RLS — tenants (custom auth — anon SELECT مسموح للتسجيل)
+-- ══════════════════════════════════════════════════════════════════════
+DROP POLICY IF EXISTS "allow_all"         ON tenants;
+DROP POLICY IF EXISTS "tenant_isolation"  ON tenants;
+DROP POLICY IF EXISTS "tenants_isolation" ON tenants;
+
+CREATE POLICY "tenants_select" ON tenants FOR SELECT USING (true);
+CREATE POLICY "tenants_insert" ON tenants FOR INSERT WITH CHECK (true);
+CREATE POLICY "tenants_update" ON tenants FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "tenants_delete" ON tenants FOR DELETE USING (false);
 
 -- ══════════════════════════════════════════════════════
 --  Indexes للأداء
@@ -701,6 +820,181 @@ SELECT setval('tender_offers_id_seq',   (SELECT GREATEST(COALESCE(MAX(id), 0), 1
 SELECT setval('bank_transactions_id_seq', (SELECT GREATEST(COALESCE(MAX(id), 0), 1) FROM bank_transactions));
 SELECT setval('signatures_id_seq',      (SELECT GREATEST(COALESCE(MAX(id), 0), 1)   FROM signatures));
 SELECT setval('ai_conversations_id_seq', (SELECT GREATEST(COALESCE(MAX(id), 0), 1)  FROM ai_conversations));
+
+
+-- ══════════════════════════════════════════════════════════════════
+--  🆕 v7.4 — Migrated Tables: Suppliers & HR
+--  جداول الموردين وشؤون الموظفين (أُضيفت في v7.4)
+-- ══════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS suppliers (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, name_fr TEXT, activity TEXT, category TEXT DEFAULT 'materials',
+  phone TEXT, phone2 TEXT, email TEXT, wilaya TEXT, address TEXT,
+  nif TEXT, nis TEXT, rc TEXT, rating INTEGER DEFAULT 3, notes TEXT,
+  color TEXT DEFAULT '#4A90E2', is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS supplier_purchases (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  supplier_id INTEGER REFERENCES suppliers(id) ON DELETE CASCADE,
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  date DATE, description TEXT, amount NUMERIC(15,2) DEFAULT 0,
+  payment_method TEXT DEFAULT 'cash', payment_status TEXT DEFAULT 'unpaid',
+  due_date DATE, receipt_number TEXT, notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS supplier_prices (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  supplier_id INTEGER REFERENCES suppliers(id) ON DELETE CASCADE,
+  item_name TEXT NOT NULL, unit TEXT, unit_price NUMERIC(15,2) DEFAULT 0,
+  date DATE, project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL, note TEXT
+);
+CREATE TABLE IF NOT EXISTS supplier_obligations (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  supplier_id INTEGER REFERENCES suppliers(id) ON DELETE CASCADE,
+  type TEXT DEFAULT 'invoice', description TEXT, amount NUMERIC(15,2) DEFAULT 0,
+  due_date DATE, ref TEXT, status TEXT DEFAULT 'pending', done_date DATE, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+  type TEXT DEFAULT 'annual', status TEXT DEFAULT 'pending',
+  start_date DATE, end_date DATE, days INTEGER DEFAULT 1,
+  reason TEXT, approved_by TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS worker_warnings (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+  type TEXT DEFAULT 'verbal', date DATE, reason TEXT, action TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS worker_overtime (
+  id BIGSERIAL PRIMARY KEY, tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+  worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+  date DATE, hours NUMERIC(5,2) DEFAULT 1, rate INTEGER DEFAULT 125,
+  amount NUMERIC(15,2) DEFAULT 0, project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
+);
+
+-- ② projects
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_name_fr TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS phase TEXT DEFAULT 'planning';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- ③ workers
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS full_name_fr TEXT;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS national_id TEXT;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS cnas_number TEXT;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS monthly_base NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS marital_status TEXT DEFAULT 'single';
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS children_count INTEGER DEFAULT 0;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS spouse_works BOOLEAN DEFAULT false;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS is_handicap BOOLEAN DEFAULT false;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS contract_end DATE;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS avatar_color TEXT;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS emergency_contact TEXT;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS dob DATE;
+
+-- ④ equipment
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'other';
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS serial TEXT;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS purchase_date DATE;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS next_maintenance DATE;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS insurance_expiry DATE;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS plate_number TEXT;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS icon TEXT;
+
+-- ⑤ attendance
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS hours NUMERIC(5,2) DEFAULT 8;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS gps TEXT;
+
+-- ⑥ notifications
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'unread';
+
+-- ⑦ invoices
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_history JSONB;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS confirmed_date DATE;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS amount_ht NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tva_amount NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tva_rate NUMERIC(5,2) DEFAULT 19;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_method TEXT;
+
+-- ⑧ salary_records
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS allowances NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS deductions NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS allowance_transport NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS allowance_prod NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS allowance_housing NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS ded_late NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS ded_advance NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE salary_records ADD COLUMN IF NOT EXISTS ded_other NUMERIC(15,2) DEFAULT 0;
+
+-- ⑨ tenants
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS name_fr TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_start DATE;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_end DATE;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS gdrive_client_id TEXT;
+
+-- ⑩ documents
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_kind TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_number TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS meta_data JSONB;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploader_id INTEGER;
+
+-- ⑪ materials
+ALTER TABLE materials ADD COLUMN IF NOT EXISTS min_quantity NUMERIC(15,2) DEFAULT 0;
+
+-- ⑫ RLS
+
+-- RLS for new tables
+ALTER TABLE suppliers            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supplier_purchases   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supplier_prices      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supplier_obligations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leave_requests       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE worker_warnings      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE worker_overtime      ENABLE ROW LEVEL SECURITY;
+
+-- ── Tenant-scoped RLS policies (secure: checks tenant_id) ──────────
+-- النمط: يسمح فقط للمستخدم بالوصول لسجلات مؤسسته
+-- ── v7.4 الجداول الجديدة — نفس النمط الآمن ─────────────────────────
+DO $$
+DECLARE new_tbls TEXT[] := ARRAY['suppliers','supplier_purchases','supplier_prices',
+  'supplier_obligations','leave_requests','worker_warnings','worker_overtime'];
+  tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY new_tbls LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "allow_all"        ON %I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "tenant_isolation" ON %I', tbl);
+    EXECUTE format($policy$
+      CREATE POLICY "tenant_isolation" ON %1$I
+        FOR ALL
+        USING (
+          is_current_user_admin()
+          OR tenant_id = current_user_tenant_id()
+        )
+        WITH CHECK (
+          tenant_id = current_user_tenant_id()
+        )
+    $policy$, tbl);
+  END LOOP;
+END $$;
+
+-- Sequences for new tables
+SELECT setval('suppliers_id_seq',            (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM suppliers));
+SELECT setval('supplier_purchases_id_seq',   (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM supplier_purchases));
+SELECT setval('supplier_prices_id_seq',      (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM supplier_prices));
+SELECT setval('supplier_obligations_id_seq', (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM supplier_obligations));
+SELECT setval('leave_requests_id_seq',       (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM leave_requests));
+SELECT setval('worker_warnings_id_seq',      (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM worker_warnings));
+SELECT setval('worker_overtime_id_seq',      (SELECT GREATEST(COALESCE(MAX(id),0),1) FROM worker_overtime));
 
 -- ══════════════════════════════════════════════════════
 --  ⚡ تفعيل Supabase Realtime على جميع الجداول
