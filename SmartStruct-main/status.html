@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>حالة الخدمة — SmartStruct</title>
+<meta name="description" content="مراقبة مستمرة لجميع أنظمة SmartStruct. نُوفّر شفافية كاملة حول الأداء، الحوادث، والصيانة المجدولة.">
+<link rel="shortcut icon" href="assets/icons/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<style>
+
+:root {
+  --bg-0:#07080C; --bg-1:#0B0F17; --bg-2:#111722; --bg-3:#1A2231; --bg-card:#0E141E;
+  --fg:#F2F1EC; --fg-soft:#C7C9CF; --fg-muted:#7E8595; --fg-dim:#4A5266;
+  --gold:#E8B84B; --gold-hi:#F5D07A; --gold-lo:#B98726; --gold-tint:rgba(232,184,75,0.08);
+  --green:#6CC59A; --red:#E47B8B; --blue:#4A90E2;
+  --line:rgba(245,245,235,0.06); --line-2:rgba(245,245,235,0.12);
+  --font:'Tajawal',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --radius:12px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;overflow-x:hidden;}
+body{font-family:var(--font);background:var(--bg-0);color:var(--fg);line-height:1.75;-webkit-font-smoothing:antialiased;}
+a{color:inherit;text-decoration:none;} button{font:inherit;border:0;background:0;color:inherit;cursor:pointer;}
+::selection{background:var(--gold);color:#0A0F18;}
+::-webkit-scrollbar{width:6px;} ::-webkit-scrollbar-track{background:var(--bg-0);} ::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:3px;}
+.wrap{width:100%;max-width:1140px;margin:0 auto;padding:0 5%;}
+/* ── Nav ── */
+.nav{position:fixed;top:0;inset-inline:0;z-index:100;padding:18px 0;
+  background:rgba(7,8,12,.6);backdrop-filter:blur(20px) saturate(140%);
+  border-bottom:1px solid transparent;transition:all .3s;}
+.nav.scrolled{padding:12px 0;border-bottom-color:var(--line);background:rgba(7,8,12,.9);}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:18px;}
+.brand-mark{width:34px;height:34px;border-radius:9px;object-fit:contain;
+  box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 6px 16px rgba(232,184,75,.25);}
+.nav-links{display:flex;align-items:center;gap:28px;}
+.nav-links a{font-size:14px;font-weight:500;color:var(--fg-soft);transition:color .2s;}
+.nav-links a:hover,.nav-links a.active{color:var(--gold);}
+.nav-cta{display:flex;align-items:center;gap:10px;}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;
+  border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;
+  transition:all .25s cubic-bezier(.4,0,.2,1);}
+.btn-ghost{color:var(--fg-soft);} .btn-ghost:hover{color:var(--fg);}
+.btn-gold{background:linear-gradient(140deg,#F5D07A 0%,#E8B84B 45%,#B98726 100%);
+  color:#0A0F18;box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 6px 18px rgba(232,184,75,.25);}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 10px 28px rgba(232,184,75,.4);}
+.arrow{width:13px;height:13px;transition:transform .25s;}
+.btn:hover .arrow{transform:translateX(-3px);}
+/* ── Lang switcher ── */
+.lang-btns{display:flex;gap:4px;}
+.lang-btn{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;
+  color:var(--fg-muted);border:1px solid transparent;transition:all .2s;cursor:pointer;}
+.lang-btn.active,.lang-btn:hover{color:var(--gold);border-color:rgba(232,184,75,.3);background:rgba(232,184,75,.06);}
+/* ── Hero ── */
+.legal-hero{padding:130px 0 60px;position:relative;overflow:hidden;border-bottom:1px solid var(--line);}
+.legal-hero::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(232,184,75,.06) 0%,transparent 70%);}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;margin-bottom:1.2rem;
+  font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--gold);}
+.eyebrow::before{content:'';width:24px;height:1px;background:var(--gold);opacity:.5;}
+.legal-hero h1{font-size:clamp(2rem,4.5vw,3.2rem);font-weight:900;
+  line-height:1.12;letter-spacing:-.02em;margin-bottom:1rem;}
+.legal-hero h1 em{font-style:normal;color:var(--gold);}
+.legal-hero .lead{font-size:1rem;color:var(--fg-muted);max-width:520px;line-height:1.7;}
+.meta-bar{display:flex;gap:1.5rem;margin-top:1.4rem;flex-wrap:wrap;}
+.meta-item{display:flex;align-items:center;gap:.5rem;font-family:var(--mono);
+  font-size:.72rem;color:var(--fg-dim);}
+.meta-item .dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+/* ── Layout ── */
+.legal-body{padding:60px 0 80px;display:grid;grid-template-columns:220px 1fr;gap:3rem;align-items:start;}
+/* Sidebar TOC */
+.toc{position:sticky;top:88px;background:var(--bg-card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:1.2rem;font-size:.84rem;}
+.toc-title{font-family:var(--mono);font-size:.65rem;font-weight:600;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--fg-dim);margin-bottom:.9rem;padding-bottom:.6rem;
+  border-bottom:1px solid var(--line);}
+.toc ul{list-style:none;display:flex;flex-direction:column;gap:.25rem;}
+.toc a{display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;
+  border-radius:6px;color:var(--fg-muted);transition:all .2s;}
+.toc a::before{content:'';width:3px;height:3px;border-radius:50%;
+  background:var(--fg-dim);flex-shrink:0;transition:background .2s;}
+.toc a:hover,.toc a.active{color:var(--fg);background:rgba(232,184,75,.05);}
+.toc a:hover::before,.toc a.active::before{background:var(--gold);}
+/* ── Content ── */
+.legal-content{}
+.legal-section{margin-bottom:2.5rem;padding-bottom:2.5rem;border-bottom:1px solid var(--line);}
+.legal-section:last-child{border-bottom:none;}
+.sec-header{display:flex;align-items:center;gap:.8rem;margin-bottom:1.2rem;}
+.sec-num{font-family:var(--mono);font-size:.65rem;font-weight:600;
+  color:var(--gold);background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.2);
+  border-radius:6px;padding:3px 8px;white-space:nowrap;}
+.sec-header h2{font-size:1.15rem;font-weight:800;letter-spacing:-.01em;}
+.legal-content p{color:var(--fg-soft);line-height:1.8;margin-bottom:.9rem;font-size:.95rem;}
+.legal-content p:last-child{margin-bottom:0;}
+.legal-content ul,.legal-content ol{padding-inline-start:1.4rem;
+  color:var(--fg-soft);font-size:.93rem;line-height:1.8;margin-bottom:.9rem;}
+.legal-content li{margin-bottom:.35rem;}
+.legal-content strong{color:var(--fg);font-weight:700;}
+/* Highlight boxes */
+.info-box{background:rgba(74,144,226,.06);border:1px solid rgba(74,144,226,.2);
+  border-radius:10px;padding:1rem 1.2rem;margin:.9rem 0;font-size:.9rem;}
+.info-box.gold{background:rgba(232,184,75,.06);border-color:rgba(232,184,75,.25);}
+.info-box.green{background:rgba(108,197,154,.06);border-color:rgba(108,197,154,.25);}
+.info-box.red{background:rgba(228,123,139,.06);border-color:rgba(228,123,139,.25);}
+.info-box .ib-title{font-weight:800;font-size:.85rem;margin-bottom:.4rem;
+  display:flex;align-items:center;gap:.5rem;}
+.info-box p{margin:0;font-size:.88rem;}
+/* Table */
+.data-table{width:100%;border-collapse:collapse;font-size:.87rem;margin:.9rem 0;}
+.data-table th{background:var(--bg-3);padding:.6rem .9rem;text-align:start;
+  font-weight:700;color:var(--fg);border-bottom:1px solid var(--line-2);}
+.data-table td{padding:.55rem .9rem;border-bottom:1px solid var(--line);color:var(--fg-soft);}
+.data-table tr:hover td{background:rgba(255,255,255,.02);}
+/* Status indicators */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem;margin:.9rem 0;}
+.status-card{background:var(--bg-card);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;}
+.status-card .s-icon{font-size:1.3rem;margin-bottom:.5rem;}
+.status-card .s-label{font-size:.78rem;color:var(--fg-muted);margin-bottom:.3rem;}
+.status-card .s-val{font-size:.95rem;font-weight:800;}
+.status-card .s-bar{height:3px;border-radius:2px;margin-top:.5rem;background:var(--bg-3);}
+.status-card .s-bar-fill{height:100%;border-radius:2px;}
+/* Footer */
+footer{padding:60px 0 28px;border-top:1px solid var(--line);}
+.foot{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:3rem;margin-bottom:3rem;}
+.foot p{font-size:.84rem;color:var(--fg-muted);margin-top:.8rem;line-height:1.7;max-width:280px;}
+.foot h5{font-family:var(--mono);font-size:.65rem;font-weight:600;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--fg-dim);margin-bottom:.9rem;}
+.foot ul{list-style:none;display:flex;flex-direction:column;gap:.65rem;}
+.foot ul a{font-size:.86rem;color:var(--fg-muted);transition:color .2s;}
+.foot ul a:hover{color:var(--fg);}
+.foot-bot{display:flex;justify-content:space-between;align-items:center;
+  padding-top:1.4rem;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:.7rem;color:var(--fg-dim);}
+/* Reveal */
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .55s,transform .55s;}
+.reveal.in{opacity:1;transform:none;}
+@media(max-width:900px){
+  .legal-body{grid-template-columns:1fr;}
+  .toc{position:static;} .foot{grid-template-columns:1fr 1fr;gap:2rem;}
+}
+@media(max-width:600px){
+  .nav-links{display:none;} .foot{grid-template-columns:1fr;}
+  .foot-bot{flex-direction:column;gap:.5rem;text-align:center;}
+}
+
+</style>
+<script>
+
+const i18n = {
+  ar: {
+    nav_platform:"المنصة", nav_workflow:"سير العمل", nav_pricing:"الأسعار",
+    nav_about:"من نحن", nav_contact:"تواصل",
+    nav_login:"تسجيل الدخول", nav_start:"ابدأ مجاناً",
+    foot_desc:"منصة موحَّدة لإدارة مشاريع البناء والمقاولات في الجزائر — من العقد إلى التسليم.",
+    foot_col1:"المنصة", foot_col2:"الشركة", foot_col3:"قانوني",
+    foot_feat:"القدرات", foot_workflow:"سير العمل", foot_docs:"الوثائق", foot_pricing:"الأسعار",
+    foot_about:"من نحن", foot_contact:"تواصل",
+    foot_terms:"شروط الاستخدام", foot_privacy:"سياسة الخصوصية",
+    foot_data:"معالجة البيانات", foot_status:"حالة الخدمة",
+    foot_copy:"© 2026 SmartStruct — صُمِّم في الجزائر",
+    foot_version:"الإصدار 7.4 · آخر تحديث 23 ماي 2026",
+    toc_title:"محتويات الصفحة",
+    last_updated:"آخر تحديث", effective_date:"تاريخ النفاذ",
+    contact_us:"تواصل معنا",
+  },
+  fr: {
+    nav_platform:"Plateforme", nav_workflow:"Workflow", nav_pricing:"Tarifs",
+    nav_about:"À propos", nav_contact:"Contact",
+    nav_login:"Connexion", nav_start:"Commencer",
+    foot_desc:"Plateforme unifiée pour gérer les projets BTP en Algérie — du contrat à la livraison.",
+    foot_col1:"Plateforme", foot_col2:"Société", foot_col3:"Légal",
+    foot_feat:"Fonctionnalités", foot_workflow:"Processus", foot_docs:"Documents", foot_pricing:"Tarifs",
+    foot_about:"À propos", foot_contact:"Contact",
+    foot_terms:"Conditions d'utilisation", foot_privacy:"Politique de confidentialité",
+    foot_data:"Traitement des données", foot_status:"État du service",
+    foot_copy:"© 2026 SmartStruct — Conçu en Algérie",
+    foot_version:"Version 7.4 · Mis à jour le 23 mai 2026",
+    toc_title:"Sommaire",
+    last_updated:"Dernière mise à jour", effective_date:"Date d'entrée en vigueur",
+    contact_us:"Nous contacter",
+  },
+  en: {
+    nav_platform:"Platform", nav_workflow:"Workflow", nav_pricing:"Pricing",
+    nav_about:"About", nav_contact:"Contact",
+    nav_login:"Sign In", nav_start:"Get Started",
+    foot_desc:"Unified platform for managing construction projects in Algeria — from contract to delivery.",
+    foot_col1:"Platform", foot_col2:"Company", foot_col3:"Legal",
+    foot_feat:"Features", foot_workflow:"Workflow", foot_docs:"Documents", foot_pricing:"Pricing",
+    foot_about:"About us", foot_contact:"Contact",
+    foot_terms:"Terms of Use", foot_privacy:"Privacy Policy",
+    foot_data:"Data Processing", foot_status:"Service Status",
+    foot_copy:"© 2026 SmartStruct — Made in Algeria",
+    foot_version:"Version 7.4 · Last updated May 23, 2026",
+    toc_title:"Contents",
+    last_updated:"Last updated", effective_date:"Effective date",
+    contact_us:"Contact us",
+  }
+};
+let currentLang = localStorage.getItem('ss_lang') || 'ar';
+function t(k){return (i18n[currentLang]&&i18n[currentLang][k])||i18n.ar[k]||k;}
+function applyLang(lang){
+  currentLang=lang;
+  document.documentElement.lang=lang;
+  document.documentElement.dir=lang==='fr'||lang==='en'?'ltr':'rtl';
+  localStorage.setItem('ss_lang',lang);
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.dataset.i18n;
+    if(el.tagName==='INPUT'||el.tagName==='TEXTAREA') el.placeholder=t(k);
+    else el.textContent=t(k);
+  });
+  document.querySelectorAll('[data-i18n-href]').forEach(el=>{
+    // nothing needed
+  });
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));
+  // Update page-specific content
+  if(typeof updatePageContent==='function') updatePageContent();
+}
+
+const tocLabels = {
+  "current-status": {ar:"الحالة الحالية", fr:"État actuel", en:"Current Status"},
+  "uptime": {ar:"إحصاءات التوافر", fr:"Disponibilité", en:"Uptime Stats"},
+  "incidents": {ar:"سجل الحوادث", fr:"Incidents", en:"Incident Log"},
+  "maintenance": {ar:"الصيانة المجدولة", fr:"Maintenance", en:"Maintenance"},
+  "notify": {ar:"الاشتراك بالإشعارات", fr:"Notifications", en:"Notifications"},
+};
+function updatePageContent(){
+  document.querySelectorAll('[data-i18n-toc]').forEach(el=>{
+    const k=el.dataset.i18nToc;
+    if(tocLabels[k]) el.textContent=tocLabels[k][currentLang]||tocLabels[k].ar;
+  });
+}
+</script>
+</head>
+<body>
+
+
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a href="index.html" class="brand">
+      <img class="brand-mark" src="assets/logo-mark.svg" alt="SmartStruct" onerror="this.style.display='none'">
+      <span class="brand-name">SmartStruct</span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html#features" data-i18n="nav_platform">المنصة</a>
+      <a href="index.html#pricing" data-i18n="nav_pricing">الأسعار</a>
+      <a href="about.html" data-i18n="nav_about">من نحن</a>
+      <a href="contact.html" data-i18n="nav_contact">تواصل</a>
+    </div>
+    <div class="nav-cta">
+      <div class="lang-btns">
+        <button class="lang-btn" data-lang="ar" onclick="applyLang('ar')">AR</button>
+        <button class="lang-btn" data-lang="fr" onclick="applyLang('fr')">FR</button>
+        <button class="lang-btn" data-lang="en" onclick="applyLang('en')">EN</button>
+      </div>
+      <a class="btn btn-ghost" href="app.html#login" data-i18n="nav_login">تسجيل الدخول</a>
+      <a class="btn btn-gold" href="app.html#register">
+        <span data-i18n="nav_start">ابدأ مجاناً</span>
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+      </a>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ══ HERO ══ -->
+<section class="legal-hero">
+  <div class="wrap">
+    <div class="eyebrow" id="hero-eyebrow">حالة الخدمة · Status</div>
+    <h1 id="hero-title">حالة <em>الخدمة</em></h1>
+    <p class="lead" id="hero-lead">مراقبة مستمرة لجميع أنظمة SmartStruct. نُوفّر شفافية كاملة حول الأداء، الحوادث، والصيانة المجدولة.</p>
+    <div class="meta-bar">
+      <div class="meta-item"><span class="dot"></span><span data-i18n="last_updated">آخر تحديث</span>: <strong>23 ماي 2026</strong></div>
+      <div class="meta-item"><span class="dot"></span><span data-i18n="effective_date">تاريخ النفاذ</span>: <strong>01 يناير 2025</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ BODY ══ -->
+<div class="legal-body wrap">
+  <!-- Sidebar TOC -->
+  <aside class="toc reveal">
+    <div class="toc-title" data-i18n="toc_title">محتويات الصفحة</div>
+    <ul>
+      <li><a href="#current-status" data-i18n-toc="current-status">الحالة الحالية</a></li>
+<li><a href="#uptime" data-i18n-toc="uptime">إحصاءات التوافر</a></li>
+<li><a href="#incidents" data-i18n-toc="incidents">سجل الحوادث</a></li>
+<li><a href="#maintenance" data-i18n-toc="maintenance">الصيانة المجدولة</a></li>
+<li><a href="#notify" data-i18n-toc="notify">الاشتراك بالإشعارات</a></li>
+    </ul>
+  </aside>
+
+  <!-- Content -->
+  <main class="legal-content">
+
+    <section class="legal-section reveal" id="current-status">
+      <div class="sec-header">
+        <span class="sec-num">🟢</span>
+        <h2>الحالة الحالية — جميع الأنظمة تعمل بشكل طبيعي</h2>
+      </div>
+      <div class="status-grid">
+        <div class="status-card"><div class="s-icon">🌐</div><div class="s-label">المنصة الرئيسية</div><div class="s-val" style="color:var(--green)">تعمل ✅</div><div class="s-bar"><div class="s-bar-fill" style="width:100%;background:var(--green)"></div></div></div>
+        <div class="status-card"><div class="s-icon">🗄️</div><div class="s-label">قاعدة البيانات</div><div class="s-val" style="color:var(--green)">تعمل ✅</div><div class="s-bar"><div class="s-bar-fill" style="width:100%;background:var(--green)"></div></div></div>
+        <div class="status-card"><div class="s-icon">🔄</div><div class="s-label">المزامنة السحابية</div><div class="s-val" style="color:var(--green)">تعمل ✅</div><div class="s-bar"><div class="s-bar-fill" style="width:100%;background:var(--green)"></div></div></div>
+        <div class="status-card"><div class="s-icon">🤖</div><div class="s-label">الذكاء الاصطناعي</div><div class="s-val" style="color:var(--green)">تعمل ✅</div><div class="s-bar"><div class="s-bar-fill" style="width:100%;background:var(--green)"></div></div></div>
+        <div class="status-card"><div class="s-icon">📧</div><div class="s-label">الإشعارات</div><div class="s-val" style="color:var(--green)">تعمل ✅</div><div class="s-bar"><div class="s-bar-fill" style="width:100%;background:var(--green)"></div></div></div>
+        <div class="status-card"><div class="s-icon">🔒</div><div class="s-label">نظام الأمان</div><div class="s-val" style="color:var(--green)">تعمل ✅</div><div class="s-bar"><div class="s-bar-fill" style="width:100%;background:var(--green)"></div></div></div>
+      </div>
+    </section>
+
+    <section class="legal-section reveal" id="uptime">
+      <div class="sec-header"><span class="sec-num">📊</span><h2>إحصاءات التوافر</h2></div>
+      <table class="data-table">
+        <thead><tr><th>الشهر</th><th>التوافر</th><th>وقت التوقف</th><th>الحوادث</th></tr></thead>
+        <tbody>
+          <tr><td>ماي 2026</td><td style="color:var(--green);font-weight:700">99.98%</td><td>~9 دقائق</td><td>0</td></tr>
+          <tr><td>أبريل 2026</td><td style="color:var(--green);font-weight:700">99.95%</td><td>~22 دقيقة</td><td>1</td></tr>
+          <tr><td>مارس 2026</td><td style="color:var(--green);font-weight:700">100%</td><td>0</td><td>0</td></tr>
+          <tr><td>فبراير 2026</td><td style="color:var(--green);font-weight:700">99.91%</td><td>~40 دقيقة</td><td>1</td></tr>
+          <tr><td>يناير 2026</td><td style="color:var(--green);font-weight:700">99.99%</td><td>~4 دقائق</td><td>0</td></tr>
+        </tbody>
+      </table>
+      <div class="info-box green"><div class="ib-title">✅ SLA</div><p>نضمن بموجب اتفاقية مستوى الخدمة توافراً لا يقل عن 99.5% شهرياً. في حال عدم الوفاء، يحق لك الحصول على تمديد مجاني.</p></div>
+    </section>
+
+    <section class="legal-section reveal" id="incidents">
+      <div class="sec-header"><span class="sec-num">📝</span><h2>سجل الحوادث</h2></div>
+      <div class="info-box" style="background:rgba(108,197,154,.04);border-color:rgba(108,197,154,.2)">
+        <div class="ib-title">✅ لا حوادث مفتوحة حالياً</div>
+        <p>آخر حادثة مُسجَّلة: 14 أبريل 2026 — انقطاع جزئي في المزامنة السحابية (22 دقيقة) — <strong>محلولة</strong></p>
+      </div>
+    </section>
+
+    <section class="legal-section reveal" id="maintenance">
+      <div class="sec-header"><span class="sec-num">🔧</span><h2>الصيانة المجدولة</h2></div>
+      <p>نُجري الصيانة الدورية خلال ساعات الذروة المنخفضة (الجمعة 02:00 — 04:00 صباحاً بتوقيت الجزائر). نُشعر المستخدمين قبل 48 ساعة عبر البريد الإلكتروني.</p>
+      <div class="info-box gold"><div class="ib-title">📅 الصيانة القادمة</div><p>لا توجد صيانة مجدولة للشهر القادم.</p></div>
+    </section>
+
+    <section class="legal-section reveal" id="notify">
+      <div class="sec-header"><span class="sec-num">🔔</span><h2>الاشتراك بالإشعارات</h2></div>
+      <p>لتلقّي تنبيهات فورية بأي عطل أو صيانة، يمكنك تفعيل إشعارات الحالة من قسم الإعدادات في المنصة، أو التواصل معنا عبر <strong>status@smartstruct.dz</strong></p>
+    </section>
+
+  </main>
+</div>
+
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <div class="brand">
+          <img class="brand-mark" src="assets/logo-mark.svg" alt="SmartStruct" onerror="this.style.display='none'">
+          <span class="brand-name">SmartStruct</span>
+        </div>
+        <p data-i18n="foot_desc">منصة موحَّدة لإدارة مشاريع البناء والمقاولات في الجزائر.</p>
+      </div>
+      <div>
+        <h5 data-i18n="foot_col1">المنصة</h5>
+        <ul>
+          <li><a href="index.html#features" data-i18n="foot_feat">القدرات</a></li>
+          <li><a href="index.html#workflow" data-i18n="foot_workflow">سير العمل</a></li>
+          <li><a href="index.html#pricing" data-i18n="foot_pricing">الأسعار</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5 data-i18n="foot_col2">الشركة</h5>
+        <ul>
+          <li><a href="about.html" data-i18n="foot_about">من نحن</a></li>
+          <li><a href="contact.html" data-i18n="foot_contact">تواصل</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5 data-i18n="foot_col3">قانوني</h5>
+        <ul>
+          <li><a href="terms.html" data-i18n="foot_terms" class="active">شروط الاستخدام</a></li>
+          <li><a href="privacy.html" data-i18n="foot_privacy">سياسة الخصوصية</a></li>
+          <li><a href="data.html" data-i18n="foot_data">معالجة البيانات</a></li>
+          <li><a href="status.html" data-i18n="foot_status">حالة الخدمة</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span data-i18n="foot_copy">© 2026 SmartStruct — صُمِّم في الجزائر</span>
+      <span data-i18n="foot_version">الإصدار 7.4 · آخر تحديث 23 ماي 2026</span>
+    </div>
+  </div>
+</footer>
+
+
+<script>
+
+  window.addEventListener('scroll',()=>{
+    document.getElementById('nav').classList.toggle('scrolled',scrollY>24);
+  },{passive:true});
+  new IntersectionObserver(entries=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');} });
+  },{threshold:.08}).observe.bind;
+  const io=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');}});
+  },{threshold:.08});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  // TOC active
+  const sections=document.querySelectorAll('.legal-section[id]');
+  const tocLinks=document.querySelectorAll('.toc a');
+  window.addEventListener('scroll',()=>{
+    let cur='';
+    sections.forEach(s=>{if(scrollY>=s.offsetTop-120)cur=s.id;});
+    tocLinks.forEach(a=>{a.classList.toggle('active',a.getAttribute('href')==='#'+cur);});
+  },{passive:true});
+  // Init lang
+  applyLang(localStorage.getItem('ss_lang')||'ar');
+
+
+// Page-specific hero translations
+const heroData = {
+  ar: {
+    eyebrow: "حالة الخدمة · Status",
+    title_html: `حالة <em>الخدمة</em>`,
+    desc: "مراقبة مستمرة لجميع أنظمة SmartStruct. نُوفّر شفافية كاملة حول الأداء، الحوادث، والصيانة المجدولة."
+  },
+  fr: {
+    eyebrow: "État du service · Status",
+    title_html: `État du <em>service</em>`,
+    desc: "Surveillance en temps réel de tous les systèmes SmartStruct. Transparence totale sur les performances."
+  },
+  en: {
+    eyebrow: "Service Status",
+    title_html: `Service <em>Status</em>`,
+    desc: "Real-time monitoring of all SmartStruct systems. Full transparency on performance, incidents and maintenance."
+  }
+};
+const origUpdatePageContent = updatePageContent;
+updatePageContent = function() {
+  origUpdatePageContent();
+  const d = heroData[currentLang] || heroData.ar;
+  document.getElementById('hero-eyebrow').textContent = d.eyebrow;
+  document.getElementById('hero-title').innerHTML = d.title_html;
+  document.getElementById('hero-lead').textContent = d.desc;
+  document.title = d.eyebrow.split('·')[0].trim() + ' — SmartStruct';
+  // fix active footer link
+  document.querySelectorAll('.foot ul a').forEach(a=>a.classList.remove('active'));
+  const activeLink=document.querySelector('.foot ul a[href="status.html"]');
+  if(activeLink) activeLink.style.color='var(--gold)';
+};
+applyLang(localStorage.getItem('ss_lang')||'ar');
+</script>
+</body>
+</html>

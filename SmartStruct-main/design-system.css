@@ -1,0 +1,92 @@
+/* SmartStruct atmosphere — drop-in CSS for the signature backdrop.
+ *
+ * Use:
+ *   <div class="ss-atmosphere"></div>
+ *   <div class="ss-particles" id="particles"></div>
+ *
+ * + this small JS to spawn particles:
+ *   const p = document.getElementById('particles');
+ *   for (let i = 0; i < 20; i++) {
+ *     const el = document.createElement('div');
+ *     el.className = 'ss-particle';
+ *     const size = 2 + Math.random() * 3;
+ *     Object.assign(el.style, {
+ *       left: Math.random() * 100 + '%',
+ *       bottom: '0',
+ *       width: size + 'px',
+ *       height: size + 'px',
+ *       animationDuration: 8 + Math.random() * 12 + 's',
+ *       animationDelay: Math.random() * 8 + 's'
+ *     });
+ *     p.appendChild(el);
+ *   }
+ */
+
+.ss-atmosphere {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 60% at 50%  0%, rgba(232,184,75,0.10), transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 50%, rgba(155,109,255,0.06), transparent 60%),
+    radial-gradient(ellipse 70% 60% at 20% 80%, rgba( 74,144,226,0.05), transparent 60%);
+}
+.ss-atmosphere::before {
+  content: '';
+  position: absolute; left: 50%; bottom: 0;
+  width: 200%; height: 60vh;
+  transform: translateX(-50%) perspective(900px) rotateX(60deg);
+  transform-origin: bottom center;
+  background-image:
+    linear-gradient(rgba(232,184,75,0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,184,75,0.18) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 100%, #000 30%, transparent 75%);
+          mask-image: radial-gradient(ellipse 60% 60% at 50% 100%, #000 30%, transparent 75%);
+  opacity: 0.35;
+  animation: ss-grid-scroll 20s linear infinite;
+}
+@keyframes ss-grid-scroll {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 60px, 60px 0; }
+}
+
+.ss-particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+
+/* Scoped stage variant — for hero sections that should NOT take over the whole viewport.
+ * Apply .ss-stage to a positioned container; it provides the same grid + glow but
+ * scoped to its bounds. */
+.ss-stage { position: relative; isolation: isolate; }
+.ss-stage > .ss-grid-overlay,
+.ss-stage > .ss-radial-glow { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.ss-stage > .ss-radial-glow {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(232,184,75,0.12), transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 50%, rgba(155,109,255,0.05), transparent 60%);
+}
+.ss-stage > .ss-grid-overlay { overflow: hidden; }
+.ss-stage > .ss-grid-overlay::before {
+  content: ''; position: absolute; left: 50%; bottom: -10%;
+  width: 200%; height: 70%;
+  transform: translateX(-50%) perspective(900px) rotateX(62deg);
+  transform-origin: bottom center;
+  background-image:
+    linear-gradient(rgba(232,184,75,0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,184,75,0.18) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 100%, #000 30%, transparent 75%);
+          mask-image: radial-gradient(ellipse 60% 60% at 50% 100%, #000 30%, transparent 75%);
+  opacity: 0.35;
+  animation: ss-grid-scroll 20s linear infinite;
+}
+.ss-particle {
+  position: absolute; border-radius: 50%;
+  background: #E8B84B;
+  box-shadow: 0 0 10px #E8B84B, 0 0 20px rgba(232,184,75,0.35);
+  opacity: 0;
+  animation: ss-float-up linear infinite;
+}
+@keyframes ss-float-up {
+  0%   { transform: translateY(0)      translateX(0); opacity: 0; }
+  10%  { opacity: 0.8; }
+  90%  { opacity: 0.8; }
+  100% { transform: translateY(-100vh) translateX(40px); opacity: 0; }
+}
